@@ -16,24 +16,28 @@ jobs:
       - name: Deploy with Docker Compose
         run: |
           docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
-          docker compose -f infrastructure/docker-compose.staging.yml up --build -d
+          docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate -d
           docker compose -f infrastructure/docker-compose.staging.yml ps
 
       - name: Wait for health checks
         run: |
           echo "Waiting for API health check..."
-          for i in $(seq 1 12); do
-            STATUS=$(docker compose -f infrastructure/docker-compose.staging.yml exec -T api node -e "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" 2>/dev/null && echo "ok" || echo "fail")
+          for i in $(seq 1 18); do
+            STATUS=$(docker compose -f infrastructure/docker-compose.staging.yml exec -T api node -e "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" 2>/dev/null && echo "ok" || echo "fail")
             if [ "$STATUS" = "ok" ]; then
               echo "API is healthy!"
               break
             fi
-            echo "Attempt $i/12 — waiting 10s..."
+            echo "Attempt $i/18 — waiting 10s..."
             sleep 10
           done
 
       - name: Show running services
         run: docker compose -f infrastructure/docker-compose.staging.yml ps
+
+      - name: Show API logs on failure
+        if: failure()
+        run: docker compose -f infrastructure/docker-compose.staging.yml logs api --tail=50
 
       - name: Clean up old images
         run: docker image prune -f
