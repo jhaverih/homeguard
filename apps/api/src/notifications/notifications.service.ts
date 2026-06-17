@@ -5,19 +5,9 @@ import Expo, { ExpoPushMessage } from 'expo-server-sdk';
 import { AppNotification } from './entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { NotificationType } from './notification-type.enum';
 
-export enum NotificationType {
-  NEW_REQUEST = 'NEW_REQUEST',
-  REQUEST_ACCEPTED = 'REQUEST_ACCEPTED',
-  VENDOR_EN_ROUTE = 'VENDOR_EN_ROUTE',
-  VENDOR_ARRIVED = 'VENDOR_ARRIVED',
-  JOB_COMPLETED = 'JOB_COMPLETED',
-  ADDITIONAL_SERVICE_RECOMMENDED = 'ADDITIONAL_SERVICE_RECOMMENDED',
-  ADDITIONAL_SERVICE_APPROVED = 'ADDITIONAL_SERVICE_APPROVED',
-  SCHEDULE_CHANGED = 'SCHEDULE_CHANGED',
-  PAYMENT_PROCESSED = 'PAYMENT_PROCESSED',
-  NEW_MESSAGE = 'NEW_MESSAGE',
-}
+export { NotificationType };
 
 @Injectable()
 export class NotificationsService {

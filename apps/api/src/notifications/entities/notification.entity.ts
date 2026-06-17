@@ -2,7 +2,7 @@ import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import { NotificationType } from '../notifications.service';
+import { NotificationType } from '../notification-type.enum';
 
 @Entity('notifications')
 export class AppNotification {
