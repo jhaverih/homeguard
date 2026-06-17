@@ -3,7 +3,7 @@ FROM node:lts-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
@@ -16,7 +16,7 @@ ENV NODE_ENV=staging
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --legacy-peer-deps --omit=dev && npm cache clean --force
 
 COPY --from=builder --chown=node:node /app/dist ./dist
 
