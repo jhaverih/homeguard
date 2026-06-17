@@ -1,0 +1,39 @@
+name: Deploy to QNAP Staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, qnap]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy with Docker Compose
+        run: |
+          docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
+          docker compose -f infrastructure/docker-compose.staging.yml up --build -d
+          docker compose -f infrastructure/docker-compose.staging.yml ps
+
+      - name: Wait for health checks
+        run: |
+          echo "Waiting for API health check..."
+          for i in $(seq 1 12); do
+            STATUS=$(docker compose -f infrastructure/docker-compose.staging.yml exec -T api node -e "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" 2>/dev/null && echo "ok" || echo "fail")
+            if [ "$STATUS" = "ok" ]; then
+              echo "API is healthy!"
+              break
+            fi
+            echo "Attempt $i/12 — waiting 10s..."
+            sleep 10
+          done
+
+      - name: Show running services
+        run: docker compose -f infrastructure/docker-compose.staging.yml ps
+
+      - name: Clean up old images
+        run: docker image prune -f

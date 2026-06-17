@@ -1,0 +1,217 @@
+import { useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ScrollView, Alert, ActivityIndicator,
+} from 'react-native';
+import { router, Link } from 'expo-router';
+import { useForm, Controller } from 'react-hook-form';
+import { authApi, subscriptionsApi } from '../../src/services/api';
+import { useAuthStore } from '../../src/store/auth.store';
+
+export default function RegisterScreen() {
+  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<'account' | 'role' | 'plan'>('account');
+  const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'VENDOR'>('CUSTOMER');
+  const [plans, setPlans] = useState<any[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const { setAuth } = useAuthStore();
+  const { control, handleSubmit, getValues, formState: { errors } } = useForm();
+
+  const goToRoleStep = async () => {
+    const values = getValues();
+    if (!values.email || !values.password || !values.firstName || !values.lastName) {
+      Alert.alert('Missing Info', 'Please fill in all fields');
+      return;
+    }
+    if (selectedRole === 'CUSTOMER') {
+      const fetchedPlans: any = await subscriptionsApi.getPlans();
+      setPlans(fetchedPlans);
+      setStep('plan');
+    } else {
+      setStep('role');
+    }
+  };
+
+  const onSubmit = async (data: any) => {
+    setLoading(true);
+    try {
+      const payload: any = {
+        ...data,
+        roles: [selectedRole],
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+      };
+
+      const res: any = await authApi.register(payload);
+      await setAuth(res.user, res.accessToken);
+
+      if (selectedRole === 'CUSTOMER' && selectedPlanId) {
+        await subscriptionsApi.subscribe(selectedPlanId);
+      }
+    } catch (e: any) {
+      Alert.alert('Registration Failed', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.logo}>🏠 HomeGuard</Text>
+      <Text style={styles.title}>Create Account</Text>
+
+      {step === 'account' && (
+        <>
+          <Text style={styles.sectionLabel}>I am a:</Text>
+          <View style={styles.roleRow}>
+            {(['CUSTOMER', 'VENDOR'] as const).map((role) => (
+              <TouchableOpacity
+                key={role}
+                style={[styles.roleChip, selectedRole === role && styles.roleChipActive]}
+                onPress={() => setSelectedRole(role)}
+              >
+                <Text style={[styles.roleChipText, selectedRole === role && styles.roleChipTextActive]}>
+                  {role === 'CUSTOMER' ? '🏠 Homeowner' : '🔧 Service Provider'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {(['firstName', 'lastName', 'email', 'phone'] as const).map((field) => (
+            <Controller
+              key={field}
+              control={control}
+              name={field}
+              rules={{ required: field !== 'phone' ? `${field} is required` : false }}
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={styles.input}
+                  placeholder={field === 'firstName' ? 'First Name' : field === 'lastName' ? 'Last Name' : field === 'email' ? 'Email' : 'Phone (optional)'}
+                  autoCapitalize={field === 'email' ? 'none' : 'words'}
+                  keyboardType={field === 'email' ? 'email-address' : field === 'phone' ? 'phone-pad' : 'default'}
+                  value={value}
+                  onChangeText={onChange}
+                />
+              )}
+            />
+          ))}
+
+          <Controller
+            control={control}
+            name="password"
+            rules={{ required: 'Password required', minLength: { value: 8, message: 'Min 8 characters' } }}
+            render={({ field: { onChange, value } }) => (
+              <TextInput style={styles.input} placeholder="Password (min 8 chars)" secureTextEntry value={value} onChangeText={onChange} />
+            )}
+          />
+
+          {selectedRole === 'CUSTOMER' && (
+            <>
+              <Text style={styles.sectionLabel}>Home Address</Text>
+              {(['address', 'city', 'state', 'zipCode'] as const).map((field) => (
+                <Controller
+                  key={field}
+                  control={control}
+                  name={field}
+                  rules={{ required: `${field} is required` }}
+                  render={({ field: { onChange, value } }) => (
+                    <TextInput
+                      style={styles.input}
+                      placeholder={field === 'address' ? 'Street Address' : field === 'city' ? 'City' : field === 'state' ? 'State (e.g. FL)' : 'Zip Code'}
+                      value={value}
+                      onChangeText={onChange}
+                    />
+                  )}
+                />
+              ))}
+            </>
+          )}
+
+          <TouchableOpacity style={styles.button} onPress={goToRoleStep}>
+            <Text style={styles.buttonText}>Continue</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {step === 'plan' && (
+        <>
+          <Text style={styles.sectionLabel}>Choose Your Plan</Text>
+          {plans.map((plan: any) => (
+            <TouchableOpacity
+              key={plan.id}
+              style={[styles.planCard, selectedPlanId === plan.id && styles.planCardActive]}
+              onPress={() => setSelectedPlanId(plan.id)}
+            >
+              <Text style={styles.planName}>{plan.name}</Text>
+              <Text style={styles.planPrice}>${plan.price}/year</Text>
+              {plan.features?.map((f: string, i: number) => (
+                <Text key={i} style={styles.planFeature}>✓ {f}</Text>
+              ))}
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={[styles.button, !selectedPlanId && styles.buttonDisabled]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={!selectedPlanId || loading}
+          >
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+          </TouchableOpacity>
+        </>
+      )}
+
+      {step === 'role' && (
+        <>
+          <Text style={styles.sectionLabel}>Almost done!</Text>
+          <Text style={styles.hint}>Your account is set up as a service provider. You can complete Stripe onboarding from your profile to receive payments.</Text>
+          <TouchableOpacity style={styles.button} onPress={handleSubmit(onSubmit)} disabled={loading}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+          </TouchableOpacity>
+        </>
+      )}
+
+      <Link href="/(auth)/login" style={styles.link}>
+        Already have an account? <Text style={styles.linkBold}>Sign in</Text>
+      </Link>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  content: { padding: 24, paddingTop: 60 },
+  logo: { fontSize: 32, textAlign: 'center', marginBottom: 8 },
+  title: { fontSize: 24, fontWeight: '700', color: '#1e3a5f', textAlign: 'center', marginBottom: 24 },
+  sectionLabel: { fontSize: 16, fontWeight: '600', color: '#1e3a5f', marginBottom: 12, marginTop: 8 },
+  input: {
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
+    padding: 16, fontSize: 16, marginBottom: 12,
+  },
+  roleRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  roleChip: {
+    flex: 1, padding: 16, borderRadius: 12, borderWidth: 2,
+    borderColor: '#ddd', backgroundColor: '#fff', alignItems: 'center',
+  },
+  roleChipActive: { borderColor: '#1e3a5f', backgroundColor: '#e8f0fe' },
+  roleChipText: { fontSize: 14, fontWeight: '600', color: '#666' },
+  roleChipTextActive: { color: '#1e3a5f' },
+  planCard: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12,
+    borderWidth: 2, borderColor: '#ddd',
+  },
+  planCardActive: { borderColor: '#1e3a5f', backgroundColor: '#e8f0fe' },
+  planName: { fontSize: 18, fontWeight: '700', color: '#1e3a5f', marginBottom: 4 },
+  planPrice: { fontSize: 22, fontWeight: '800', color: '#2d7d46', marginBottom: 8 },
+  planFeature: { fontSize: 14, color: '#555', lineHeight: 22 },
+  button: {
+    backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16,
+    alignItems: 'center', marginTop: 8, marginBottom: 16,
+  },
+  buttonDisabled: { backgroundColor: '#ccc' },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  link: { textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 32 },
+  linkBold: { color: '#1e3a5f', fontWeight: '600' },
+  hint: { color: '#666', fontSize: 14, lineHeight: 22, marginBottom: 16 },
+});
