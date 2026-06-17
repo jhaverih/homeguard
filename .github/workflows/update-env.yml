@@ -1,0 +1,52 @@
+name: Update QNAP .env
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-env:
+    runs-on: [self-hosted, qnap]
+    steps:
+      - name: Write .env to QNAP
+        env:
+          DB_PASSWORD:    ${{ secrets.QNAP_DB_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.QNAP_REDIS_PASSWORD }}
+          JWT_SECRET:     ${{ secrets.QNAP_JWT_SECRET }}
+          MINIO_PASSWORD: ${{ secrets.QNAP_MINIO_PASSWORD }}
+          STRIPE_SECRET:  ${{ secrets.QNAP_STRIPE_SECRET }}
+          STRIPE_PK:      ${{ secrets.QNAP_STRIPE_PK }}
+          EXPO_TOKEN:     ${{ secrets.QNAP_EXPO_TOKEN }}
+        run: |
+          mkdir -p /share/Container/homeguard
+          cat > /share/Container/homeguard/.env << EOF
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=homeguard
+DB_USER=homeguard
+DB_PASSWORD=${DB_PASSWORD}
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=${REDIS_PASSWORD}
+JWT_SECRET=${JWT_SECRET}
+JWT_EXPIRES_IN=7d
+MINIO_ENDPOINT=minio
+MINIO_PORT=9000
+MINIO_USE_SSL=false
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
+MINIO_BUCKET_NAME=homeguard
+STRIPE_SECRET_KEY=${STRIPE_SECRET}
+STRIPE_PUBLISHABLE_KEY=${STRIPE_PK}
+STRIPE_WEBHOOK_SECRET=TODO_setup_webhook_at_stripe_dashboard
+PLATFORM_FEE_PERCENT=15
+EXPO_ACCESS_TOKEN=${EXPO_TOKEN}
+NODE_ENV=staging
+API_PORT=3000
+ADMIN_PORT=3002
+API_URL=http://192.168.86.29/api
+ALLOWED_ORIGINS=http://192.168.86.29
+EOF
+          echo ".env written successfully"
+
+      - name: Restart API container
+        run: docker restart infrastructure-api-1 && echo "API restarted"
