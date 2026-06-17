@@ -6,7 +6,7 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN npm run build
+RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM node:lts-alpine AS runner
