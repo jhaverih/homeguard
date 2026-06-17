@@ -6,7 +6,10 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=2048" npm run build
+RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
+    mkdir -p .next/standalone/node_modules && \
+    cp -rL node_modules/react .next/standalone/node_modules/react 2>/dev/null || true && \
+    cp -rL node_modules/react-dom .next/standalone/node_modules/react-dom 2>/dev/null || true
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM node:lts-alpine AS runner
