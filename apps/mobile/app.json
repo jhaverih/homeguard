@@ -26,7 +26,11 @@
         "backgroundColor": "#1e3a5f"
       },
       "package": "com.homeguard.app",
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -48,8 +52,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "your-eas-project-id-here"
-      }
-    }
+        "projectId": "9ec8fbd8-d213-4bc8-9c9d-646646255a46"
+      },
+      "router": {}
+    },
+    "owner": "hjhaveri01"
   }
 }
