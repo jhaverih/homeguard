@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -21,7 +21,7 @@ export interface CreateUserDto {
 }
 
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
   constructor(
     @InjectRepository(User)
     private usersRepo: Repository<User>,
@@ -30,6 +30,27 @@ export class UsersService {
     @InjectRepository(CustomerProfile)
     private customerProfileRepo: Repository<CustomerProfile>,
   ) {}
+
+  async onModuleInit() {
+    await this.seedAdmin();
+  }
+
+  private async seedAdmin() {
+    const existing = await this.usersRepo.findOne({ where: { email: 'admin@homeguard.com' } });
+    if (existing) return;
+    const hashed = await bcrypt.hash('Admin@1234', 12);
+    await this.usersRepo.save(
+      this.usersRepo.create({
+        email: 'admin@homeguard.com',
+        password: hashed,
+        firstName: 'Admin',
+        lastName: 'User',
+        roles: [UserRole.ADMIN],
+        activeRole: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      }),
+    );
+  }
 
   async create(dto: CreateUserDto): Promise<User> {
     const existing = await this.usersRepo.findOne({ where: { email: dto.email } });

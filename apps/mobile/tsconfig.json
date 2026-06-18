@@ -3,8 +3,18 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": ["./*"],
-      "@homeguard/shared": ["../../packages/shared/src"]
+      "@/*": [
+        "./*"
+      ],
+      "@homeguard/shared": [
+        "../../packages/shared/src"
+      ]
     }
-  }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

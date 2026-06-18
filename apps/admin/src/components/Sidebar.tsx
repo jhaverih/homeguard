@@ -38,8 +38,17 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="p-4 border-t border-brand-light">
+      <div className="p-4 border-t border-brand-light space-y-2">
         <p className="text-xs text-blue-200">HomeGuard Platform v1.0</p>
+        <button
+          onClick={() => {
+            localStorage.removeItem('admin_token');
+            window.location.href = '/login';
+          }}
+          className="w-full text-left text-xs text-blue-300 hover:text-white transition-colors"
+        >
+          Sign out
+        </button>
       </div>
     </aside>
   );
