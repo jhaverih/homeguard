@@ -20,6 +20,7 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
+          docker compose -f infrastructure/docker-compose.staging.yml down --volumes --remove-orphans || true
           docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
           docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate -d
           docker compose -f infrastructure/docker-compose.staging.yml ps
