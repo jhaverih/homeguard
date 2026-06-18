@@ -18,34 +18,35 @@ jobs:
           EXPO_TOKEN:     ${{ secrets.QNAP_EXPO_TOKEN }}
         run: |
           mkdir -p /share/Container/homeguard
-          cat > /share/Container/homeguard/.env << EOF
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=homeguard
-DB_USER=homeguard
-DB_PASSWORD=${DB_PASSWORD}
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_PASSWORD=${REDIS_PASSWORD}
-JWT_SECRET=${JWT_SECRET}
-JWT_EXPIRES_IN=7d
-MINIO_ENDPOINT=minio
-MINIO_PORT=9000
-MINIO_USE_SSL=false
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
-MINIO_BUCKET_NAME=homeguard
-STRIPE_SECRET_KEY=${STRIPE_SECRET}
-STRIPE_PUBLISHABLE_KEY=${STRIPE_PK}
-STRIPE_WEBHOOK_SECRET=TODO_setup_webhook_at_stripe_dashboard
-PLATFORM_FEE_PERCENT=15
-EXPO_ACCESS_TOKEN=${EXPO_TOKEN}
-NODE_ENV=staging
-API_PORT=3000
-ADMIN_PORT=3002
-API_URL=http://192.168.86.29/api
-ALLOWED_ORIGINS=http://192.168.86.29
-EOF
+          F=/share/Container/homeguard/.env
+          {
+            echo "DB_HOST=postgres"
+            echo "DB_PORT=5432"
+            echo "DB_NAME=homeguard"
+            echo "DB_USER=homeguard"
+            echo "DB_PASSWORD=${DB_PASSWORD}"
+            echo "REDIS_HOST=redis"
+            echo "REDIS_PORT=6379"
+            echo "REDIS_PASSWORD=${REDIS_PASSWORD}"
+            echo "JWT_SECRET=${JWT_SECRET}"
+            echo "JWT_EXPIRES_IN=7d"
+            echo "MINIO_ENDPOINT=minio"
+            echo "MINIO_PORT=9000"
+            echo "MINIO_USE_SSL=false"
+            echo "MINIO_ROOT_USER=minioadmin"
+            echo "MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}"
+            echo "MINIO_BUCKET_NAME=homeguard"
+            echo "STRIPE_SECRET_KEY=${STRIPE_SECRET}"
+            echo "STRIPE_PUBLISHABLE_KEY=${STRIPE_PK}"
+            echo "STRIPE_WEBHOOK_SECRET=TODO_setup_webhook_at_stripe_dashboard"
+            echo "PLATFORM_FEE_PERCENT=15"
+            echo "EXPO_ACCESS_TOKEN=${EXPO_TOKEN}"
+            echo "NODE_ENV=staging"
+            echo "API_PORT=3000"
+            echo "ADMIN_PORT=3002"
+            echo "API_URL=http://192.168.86.29/api"
+            echo "ALLOWED_ORIGINS=http://192.168.86.29"
+          } > "$F"
           echo ".env written successfully"
 
       - name: Restart API container
