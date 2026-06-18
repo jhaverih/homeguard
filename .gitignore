@@ -42,3 +42,4 @@ ios/
 
 # Test coverage
 coverage/
+infrastructure/.env
