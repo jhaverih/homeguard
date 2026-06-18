@@ -1,13 +1,94 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { adminApi } from '@/lib/api';
+
 export default function VendorsPage() {
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [approving, setApproving] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminApi.getVendors().then(setVendors).finally(() => setLoading(false));
+  }, []);
+
+  const approve = async (id: string) => {
+    setApproving(id);
+    try {
+      await adminApi.approveVendor(id);
+      setVendors((prev) => prev.map((v) => v.id === id ? { ...v, status: 'ACTIVE' } : v));
+    } finally {
+      setApproving(null);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-brand mb-2">Vendors</h1>
-      <p className="text-gray-500 mb-8">Manage service providers registered on the platform.</p>
-      <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-        <div className="text-4xl mb-4">🔧</div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">Vendor Management</h2>
-        <p className="text-gray-400 text-sm">Vendor list and approval interface will be available here.<br />Vendors register through the mobile app and appear for approval.</p>
-      </div>
+      <p className="text-gray-500 mb-8">Service providers registered on the platform.</p>
+
+      {loading ? (
+        <div className="text-gray-400 text-sm">Loading...</div>
+      ) : vendors.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+          <div className="text-4xl mb-4">🔧</div>
+          <p className="text-gray-400 text-sm">No vendors yet. They register through the mobile app.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Name</th>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Email</th>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Status</th>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Stripe</th>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Joined</th>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {vendors.map((v) => (
+                <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-gray-800">{v.name}</td>
+                  <td className="px-6 py-4 text-gray-500">{v.email}</td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+                      v.status === 'ACTIVE'
+                        ? 'bg-green-50 text-green-700'
+                        : v.status === 'PENDING_APPROVAL'
+                        ? 'bg-yellow-50 text-yellow-700'
+                        : 'bg-red-50 text-red-700'
+                    }`}>
+                      {v.status === 'PENDING_APPROVAL' ? 'Pending' : v.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {v.stripeConnected ? (
+                      <span className="text-green-600 text-xs font-semibold">✓ Connected</span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Not set up</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-gray-400">
+                    {new Date(v.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4">
+                    {v.status === 'PENDING_APPROVAL' && (
+                      <button
+                        onClick={() => approve(v.id)}
+                        disabled={approving === v.id}
+                        className="bg-vendor text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                      >
+                        {approving === v.id ? 'Approving…' : 'Approve'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

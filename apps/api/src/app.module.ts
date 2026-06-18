@@ -14,6 +14,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { PricingModule } from './pricing/pricing.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { HealthModule } from './health/health.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { HealthModule } from './health/health.module';
     ScheduleModule.forRoot(),
 
     HealthModule,
+    AdminModule,
     AuthModule,
     UsersModule,
     SubscriptionsModule,

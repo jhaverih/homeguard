@@ -1,16 +1,33 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { adminApi } from '@/lib/api';
+
 export default function DashboardPage() {
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    adminApi.getStats().then(setStats).catch(() => {});
+  }, []);
+
+  const cards = [
+    { label: 'Total Customers', value: stats?.totalCustomers ?? '—', icon: '🏠', color: 'bg-blue-50 text-brand' },
+    { label: 'Active Vendors', value: stats?.activeVendors ?? '—', icon: '🔧', color: 'bg-green-50 text-vendor' },
+    { label: 'Active Subscriptions', value: stats?.activeSubscriptions ?? '—', icon: '📋', color: 'bg-purple-50 text-purple-700' },
+    {
+      label: 'Revenue This Month',
+      value: stats ? `$${stats.revenueThisMonth.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
+      icon: '💰',
+      color: 'bg-yellow-50 text-yellow-700',
+    },
+  ];
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-brand mb-2">Dashboard</h1>
       <p className="text-gray-500 mb-8">Welcome to the HomeGuard admin panel.</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {[
-          { label: 'Total Customers', value: '—', icon: '🏠', color: 'bg-blue-50 text-brand' },
-          { label: 'Active Vendors', value: '—', icon: '🔧', color: 'bg-green-50 text-vendor' },
-          { label: 'Active Subscriptions', value: '—', icon: '📋', color: 'bg-purple-50 text-purple-700' },
-          { label: 'Revenue This Month', value: '—', icon: '💰', color: 'bg-yellow-50 text-yellow-700' },
-        ].map((card) => (
+        {cards.map((card) => (
           <div key={card.label} className={`${card.color} rounded-2xl p-6`}>
             <div className="text-3xl mb-3">{card.icon}</div>
             <div className="text-3xl font-bold mb-1">{card.value}</div>

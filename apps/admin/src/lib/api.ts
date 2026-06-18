@@ -33,3 +33,10 @@ export const subscriptionsApi = {
   getPlans: () => api.get('/subscriptions/plans').then((r) => r.data),
   updatePlan: (id: string, data: any) => api.patch(`/subscriptions/plans/${id}`, data).then((r) => r.data),
 };
+
+export const adminApi = {
+  getStats: () => api.get('/admin/stats').then((r) => r.data),
+  getCustomers: () => api.get('/admin/customers').then((r) => r.data),
+  getVendors: () => api.get('/admin/vendors').then((r) => r.data),
+  approveVendor: (id: string) => api.patch(`/admin/vendors/${id}/approve`).then((r) => r.data),
+};
