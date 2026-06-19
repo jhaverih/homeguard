@@ -39,7 +39,7 @@
     "babel-plugin-react-native-web": "^0.21.2",
     "babel-plugin-transform-flow-enums": "^0.0.2",
     "babel-preset-current-node-syntax": "^1.2.0",
-    "babel-preset-expo": "^56.0.15",
+    "babel-preset-expo": "~54.0.10",
     "babel-preset-jest": "^30.4.0",
     "badgin": "^1.2.3",
     "date-fns": "^4.1.0",
@@ -78,7 +78,6 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@types/react": "~18.3.0",
     "typescript": "^5.3.3"
   }
 }
