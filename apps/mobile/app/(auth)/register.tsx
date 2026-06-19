@@ -24,8 +24,12 @@ export default function RegisterScreen() {
       return;
     }
     if (selectedRole === 'CUSTOMER') {
-      const fetchedPlans: any = await subscriptionsApi.getPlans();
-      setPlans(fetchedPlans);
+      try {
+        const fetchedPlans: any = await subscriptionsApi.getPlans();
+        setPlans(fetchedPlans || []);
+      } catch {
+        setPlans([]);
+      }
       setStep('plan');
     } else {
       setStep('role');
@@ -38,18 +42,20 @@ export default function RegisterScreen() {
       const payload: any = {
         ...data,
         roles: [selectedRole],
-        address: data.address,
-        city: data.city,
-        state: data.state,
-        zipCode: data.zipCode,
       };
 
       const res: any = await authApi.register(payload);
+      // Store auth first so the subscribe call can use the token
       await setAuth(res.user, res.accessToken);
 
       if (selectedRole === 'CUSTOMER' && selectedPlanId) {
-        await subscriptionsApi.subscribe(selectedPlanId);
+        try {
+          await subscriptionsApi.subscribe(selectedPlanId);
+        } catch {
+          // Subscription can be chosen later from the dashboard
+        }
       }
+      // Navigation is handled automatically by AuthRedirect in _layout.tsx
     } catch (e: any) {
       Alert.alert('Registration Failed', e.message);
     } finally {
@@ -138,6 +144,11 @@ export default function RegisterScreen() {
       {step === 'plan' && (
         <>
           <Text style={styles.sectionLabel}>Choose Your Plan</Text>
+          {plans.length === 0 && (
+            <View style={styles.emptyPlans}>
+              <Text style={styles.emptyPlansText}>No plans available yet. You can select a plan after registering.</Text>
+            </View>
+          )}
           {plans.map((plan: any) => (
             <TouchableOpacity
               key={plan.id}
@@ -153,9 +164,9 @@ export default function RegisterScreen() {
           ))}
 
           <TouchableOpacity
-            style={[styles.button, !selectedPlanId && styles.buttonDisabled]}
+            style={styles.button}
             onPress={handleSubmit(onSubmit)}
-            disabled={!selectedPlanId || loading}
+            disabled={loading}
           >
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
           </TouchableOpacity>
@@ -214,4 +225,6 @@ const styles = StyleSheet.create({
   link: { textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 32 },
   linkBold: { color: '#1e3a5f', fontWeight: '600' },
   hint: { color: '#666', fontSize: 14, lineHeight: 22, marginBottom: 16 },
+  emptyPlans: { backgroundColor: '#fff4e5', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#f6ad55' },
+  emptyPlansText: { color: '#744210', fontSize: 14, lineHeight: 20 },
 });
