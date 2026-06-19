@@ -48,6 +48,10 @@ export default function VendorLayout() {
         options={{ title: 'My Jobs', tabBarIcon: ({ color }) => <Ionicons name="briefcase" size={24} color={color} /> }}
       />
       <Tabs.Screen
+        name="schedule"
+        options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={24} color={color} /> }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{ title: 'Alerts', tabBarIcon: ({ color }) => <Ionicons name="notifications" size={24} color={color} /> }}
       />

@@ -5,6 +5,7 @@ import clsx from 'clsx';
 
 const links = [
   { href: '/', label: 'Dashboard', icon: '📊' },
+  { href: '/calendar', label: 'Calendar', icon: '📅' },
   { href: '/pricing', label: 'Pricing', icon: '💰' },
   { href: '/vendors', label: 'Vendors', icon: '🔧' },
   { href: '/customers', label: 'Customers', icon: '🏠' },

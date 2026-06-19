@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not, IsNull } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { CustomerSubscription, SubscriptionStatus } from '../subscriptions/entities/customer-subscription.entity';
 import { Payment } from '../payments/entities/payment.entity';
-import { UserRole, UserStatus, PaymentStatus } from '../common/enums/role.enum';
+import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../common/enums/role.enum';
 
 @Injectable()
 export class AdminService {
@@ -12,6 +13,7 @@ export class AdminService {
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
+    @InjectRepository(ServiceRequest) private requestsRepo: Repository<ServiceRequest>,
   ) {}
 
   async getStats() {
@@ -100,5 +102,38 @@ export class AdminService {
   async approveVendor(vendorId: string) {
     await this.usersRepo.update(vendorId, { status: UserStatus.ACTIVE });
     return this.usersRepo.findOne({ where: { id: vendorId }, relations: ['vendorProfile'] });
+  }
+
+  async getSchedule(year?: number, month?: number) {
+    const requests = await this.requestsRepo.find({
+      where: { scheduledDate: Not(IsNull()) },
+      relations: ['customer', 'vendor'],
+      order: { scheduledDate: 'ASC' },
+    });
+
+    const filtered = (year !== undefined && month !== undefined)
+      ? requests.filter((r) => {
+          const d = new Date(r.scheduledDate);
+          return d.getFullYear() === year && d.getMonth() === month;
+        })
+      : requests;
+
+    return filtered.map((r) => ({
+      id: r.id,
+      scheduledDate: r.scheduledDate,
+      status: r.status,
+      address: r.address,
+      city: r.city,
+      state: r.state,
+      zipCode: r.zipCode,
+      customerNotes: r.customerNotes,
+      vendorNotes: r.vendorNotes,
+      customer: r.customer
+        ? { id: r.customer.id, name: `${r.customer.firstName} ${r.customer.lastName}`, email: r.customer.email, phone: r.customer.phone }
+        : { id: r.customerId, name: 'Unknown', email: '', phone: '' },
+      vendor: r.vendor
+        ? { id: r.vendor.id, name: `${r.vendor.firstName} ${r.vendor.lastName}`, email: r.vendor.email, phone: r.vendor.phone }
+        : null,
+    }));
   }
 }

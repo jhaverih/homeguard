@@ -39,4 +39,6 @@ export const adminApi = {
   getCustomers: () => api.get('/admin/customers').then((r) => r.data),
   getVendors: () => api.get('/admin/vendors').then((r) => r.data),
   approveVendor: (id: string) => api.patch(`/admin/vendors/${id}/approve`).then((r) => r.data),
+  getSchedule: (year: number, month: number) =>
+    api.get(`/admin/schedule?year=${year}&month=${month}`).then((r) => r.data),
 };

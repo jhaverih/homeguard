@@ -44,6 +44,10 @@ export default function CustomerLayout() {
         options={{ title: 'Request', tabBarIcon: ({ color }) => <Ionicons name="add-circle" size={24} color={color} /> }}
       />
       <Tabs.Screen
+        name="schedule"
+        options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={24} color={color} /> }}
+      />
+      <Tabs.Screen
         name="inspections"
         options={{ title: 'History', tabBarIcon: ({ color }) => <Ionicons name="document-text" size={24} color={color} /> }}
       />
