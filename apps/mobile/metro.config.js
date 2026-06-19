@@ -1,20 +1,26 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
+const fs = require('fs');
 
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
+const monorepoRootExists = fs.existsSync(path.resolve(monorepoRoot, 'package.json'));
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [monorepoRoot];
+if (monorepoRootExists) {
+  config.watchFolders = [monorepoRoot];
+  config.resolver.nodeModulesPaths = [
+    path.resolve(projectRoot, 'node_modules'),
+    path.resolve(monorepoRoot, 'node_modules'),
+  ];
+} else {
+  config.resolver.nodeModulesPaths = [
+    path.resolve(projectRoot, 'node_modules'),
+  ];
+}
 
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(monorepoRoot, 'node_modules'),
-];
-
-// Force ALL react requires (including from inside react-native's renderer)
-// to use the app-local react@19.1.0, not root node_modules/react@19.2.7
+// Force ALL react requires to use the app-local react, avoiding version conflicts
 config.resolver.extraNodeModules = {
   react: path.resolve(projectRoot, 'node_modules/react'),
   'react/jsx-runtime': path.resolve(projectRoot, 'node_modules/react/jsx-runtime'),
