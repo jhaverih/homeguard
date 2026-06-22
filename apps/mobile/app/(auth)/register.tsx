@@ -15,14 +15,12 @@ export default function RegisterScreen() {
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const { setAuth } = useAuthStore();
-  const { control, handleSubmit, getValues, formState: { errors } } = useForm();
+  const { control, handleSubmit, getValues, trigger, formState: { errors } } = useForm();
 
   const goToRoleStep = async () => {
-    const values = getValues();
-    if (!values.email || !values.password || !values.firstName || !values.lastName) {
-      Alert.alert('Missing Info', 'Please fill in all fields');
-      return;
-    }
+    const valid = await trigger();
+    if (!valid) return;
+
     if (selectedRole === 'CUSTOMER') {
       try {
         const fetchedPlans: any = await subscriptionsApi.getPlans();
@@ -90,16 +88,24 @@ export default function RegisterScreen() {
               key={field}
               control={control}
               name={field}
-              rules={{ required: field !== 'phone' ? `${field} is required` : false }}
+              rules={{
+                required: field !== 'phone' ? `${field === 'firstName' ? 'First name' : field === 'lastName' ? 'Last name' : 'Email'} is required` : false,
+                validate: field === 'email'
+                  ? (v: string) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || 'Enter a valid email address'
+                  : undefined,
+              }}
               render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={styles.input}
-                  placeholder={field === 'firstName' ? 'First Name' : field === 'lastName' ? 'Last Name' : field === 'email' ? 'Email' : 'Phone (optional)'}
-                  autoCapitalize={field === 'email' ? 'none' : 'words'}
-                  keyboardType={field === 'email' ? 'email-address' : field === 'phone' ? 'phone-pad' : 'default'}
-                  value={value}
-                  onChangeText={onChange}
-                />
+                <>
+                  <TextInput
+                    style={[styles.input, errors[field] && styles.inputError]}
+                    placeholder={field === 'firstName' ? 'First Name' : field === 'lastName' ? 'Last Name' : field === 'email' ? 'Email' : 'Phone (optional)'}
+                    autoCapitalize={field === 'email' ? 'none' : 'words'}
+                    keyboardType={field === 'email' ? 'email-address' : field === 'phone' ? 'phone-pad' : 'default'}
+                    value={value}
+                    onChangeText={onChange}
+                  />
+                  {errors[field] && <Text style={styles.errorText}>{(errors[field] as any)?.message}</Text>}
+                </>
               )}
             />
           ))}
@@ -107,9 +113,12 @@ export default function RegisterScreen() {
           <Controller
             control={control}
             name="password"
-            rules={{ required: 'Password required', minLength: { value: 8, message: 'Min 8 characters' } }}
+            rules={{ required: 'Password is required', minLength: { value: 8, message: 'Password must be at least 8 characters' } }}
             render={({ field: { onChange, value } }) => (
-              <TextInput style={styles.input} placeholder="Password (min 8 chars)" secureTextEntry value={value} onChangeText={onChange} />
+              <>
+                <TextInput style={[styles.input, errors.password && styles.inputError]} placeholder="Password (min 8 chars)" secureTextEntry value={value} onChangeText={onChange} />
+                {errors.password && <Text style={styles.errorText}>{(errors.password as any)?.message}</Text>}
+              </>
             )}
           />
 
@@ -121,14 +130,17 @@ export default function RegisterScreen() {
                   key={field}
                   control={control}
                   name={field}
-                  rules={{ required: `${field} is required` }}
+                  rules={{ required: `${field === 'address' ? 'Street address' : field === 'city' ? 'City' : field === 'state' ? 'State' : 'Zip code'} is required` }}
                   render={({ field: { onChange, value } }) => (
-                    <TextInput
-                      style={styles.input}
-                      placeholder={field === 'address' ? 'Street Address' : field === 'city' ? 'City' : field === 'state' ? 'State (e.g. FL)' : 'Zip Code'}
-                      value={value}
-                      onChangeText={onChange}
-                    />
+                    <>
+                      <TextInput
+                        style={[styles.input, errors[field] && styles.inputError]}
+                        placeholder={field === 'address' ? 'Street Address' : field === 'city' ? 'City' : field === 'state' ? 'State (e.g. FL)' : 'Zip Code'}
+                        value={value}
+                        onChangeText={onChange}
+                      />
+                      {errors[field] && <Text style={styles.errorText}>{(errors[field] as any)?.message}</Text>}
+                    </>
                   )}
                 />
               ))}
@@ -198,8 +210,10 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 16, fontWeight: '600', color: '#1e3a5f', marginBottom: 12, marginTop: 8 },
   input: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
-    padding: 16, fontSize: 16, marginBottom: 12,
+    padding: 16, fontSize: 16, marginBottom: 4,
   },
+  inputError: { borderColor: '#e53e3e' },
+  errorText: { color: '#e53e3e', fontSize: 12, marginBottom: 8, marginLeft: 4 },
   roleRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   roleChip: {
     flex: 1, padding: 16, borderRadius: 12, borderWidth: 2,
