@@ -55,7 +55,14 @@ export default function RegisterScreen() {
       }
       // Navigation is handled automatically by AuthRedirect in _layout.tsx
     } catch (e: any) {
-      Alert.alert('Registration Failed', e.message);
+      if (e.message === 'NETWORK_ERROR') {
+        Alert.alert(
+          'Cannot Connect to Server',
+          'Your phone cannot reach the HomeGuard server.\n\nMake sure your phone is connected to your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
+        );
+      } else {
+        Alert.alert('Registration Failed', e.message);
+      }
     } finally {
       setLoading(false);
     }

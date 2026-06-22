@@ -17,6 +17,10 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (res) => res.data,
   (err) => {
+    if (!err.response) {
+      // No response = network error (wrong WiFi, server down, timeout)
+      return Promise.reject(new Error('NETWORK_ERROR'));
+    }
     const raw = err.response?.data?.message;
     const message = Array.isArray(raw) ? raw[0] : (raw || 'Something went wrong');
     return Promise.reject(new Error(message));

@@ -19,7 +19,14 @@ export default function LoginScreen() {
       const res: any = await authApi.login(data.email, data.password);
       await setAuth(res.user, res.accessToken);
     } catch (e: any) {
-      Alert.alert('Login Failed', e.message);
+      if (e.message === 'NETWORK_ERROR') {
+        Alert.alert(
+          'Cannot Connect to Server',
+          'Your phone cannot reach the HomeGuard server.\n\nMake sure your phone is on your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
+        );
+      } else {
+        Alert.alert('Login Failed', e.message);
+      }
     } finally {
       setLoading(false);
     }
