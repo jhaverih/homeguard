@@ -87,7 +87,7 @@ export default function CustomerDashboard() {
           </TouchableOpacity>
         </View>
       ) : (
-        <TouchableOpacity style={styles.noSubCard} onPress={() => router.push('/(auth)/register')}>
+        <TouchableOpacity style={styles.noSubCard} onPress={() => router.push('/(customer)/subscribe')}>
           <Text style={styles.noSubTitle}>No Active Subscription</Text>
           <Text style={styles.noSubText}>Tap to choose a plan and protect your home.</Text>
         </TouchableOpacity>
