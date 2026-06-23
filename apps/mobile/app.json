@@ -46,7 +46,8 @@
           "icon": "./assets/notification-icon.png",
           "color": "#1e3a5f"
         }
-      ]
+      ],
+      "./plugins/withAndroidCleartextTraffic"
     ],
     "experiments": {
       "typedRoutes": true
