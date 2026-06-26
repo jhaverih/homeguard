@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, Link } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
-import { authApi, subscriptionsApi } from '../../src/services/api';
+import { authApi, subscriptionsApi, api } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
 export default function RegisterScreen() {
@@ -43,17 +43,21 @@ export default function RegisterScreen() {
       };
 
       const res: any = await authApi.register(payload);
-      // Store auth first so the subscribe call can use the token
-      await setAuth(res.user, res.accessToken);
 
       if (selectedRole === 'CUSTOMER' && selectedPlanId) {
         try {
+          // Set token before setAuth so the subscribe call can authenticate,
+          // but navigation only fires after setAuth — ensuring the subscription
+          // exists before the dashboard mounts and fetches it.
+          api.defaults.headers.common['Authorization'] = `Bearer ${res.accessToken}`;
           await subscriptionsApi.subscribe(selectedPlanId);
         } catch {
           // Subscription can be chosen later from the dashboard
         }
       }
-      // Navigation is handled automatically by AuthRedirect in _layout.tsx
+
+      // Triggers navigation via AuthRedirect in _layout.tsx — subscription already created
+      await setAuth(res.user, res.accessToken);
     } catch (e: any) {
       if (e.message === 'NETWORK_ERROR') {
         Alert.alert(

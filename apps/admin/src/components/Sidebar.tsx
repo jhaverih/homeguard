@@ -44,7 +44,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             localStorage.removeItem('admin_token');
-            window.location.href = '/login';
+            window.location.replace('/login');
           }}
           className="w-full text-left text-xs text-blue-300 hover:text-white transition-colors"
         >

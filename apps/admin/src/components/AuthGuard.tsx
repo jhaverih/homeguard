@@ -9,12 +9,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (!token && pathname !== '/login') {
-      router.replace('/login');
-    } else {
-      setReady(true);
-    }
+    const checkAuth = () => {
+      const token = localStorage.getItem('admin_token');
+      if (!token && pathname !== '/login') {
+        router.replace('/login');
+      } else {
+        setReady(true);
+      }
+    };
+
+    checkAuth();
+    // Handle bfcache: browser may restore a cached page without re-running effects
+    window.addEventListener('pageshow', checkAuth);
+    return () => window.removeEventListener('pageshow', checkAuth);
   }, [pathname]);
 
   if (!ready) {
