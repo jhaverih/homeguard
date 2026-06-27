@@ -25,7 +25,7 @@ export default function LoginScreen() {
           'Your phone cannot reach the HomeGuard server.\n\nMake sure your phone is on your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
         );
       } else {
-        Alert.alert('Login Failed', e.message);
+        Alert.alert('Login Failed', 'Login failed. Check your credentials.');
       }
     } finally {
       setLoading(false);
