@@ -28,6 +28,6 @@ EXPOSE 3002
 ENV PORT=3002
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3002',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))"
+  CMD node -e "require('http').get('http://127.0.0.1:3002',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))"
 
 CMD ["node", "server.js"]
