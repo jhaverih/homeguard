@@ -23,7 +23,7 @@ jobs:
           # Copy QNAP .env to infrastructure/ so Docker Compose variable interpolation
           # (${DB_PASSWORD}, ${REDIS_PASSWORD} etc.) resolves correctly for postgres/redis
           cp /share/Container/homeguard/.env infrastructure/.env 2>/dev/null || true
-          docker compose -f infrastructure/docker-compose.staging.yml down --volumes --remove-orphans || true
+          docker compose -f infrastructure/docker-compose.staging.yml down --remove-orphans || true
           docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
           docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate -d
           docker compose -f infrastructure/docker-compose.staging.yml ps
