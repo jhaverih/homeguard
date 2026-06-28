@@ -28,7 +28,7 @@ export class SubscriptionsService implements OnModuleInit {
         tier: PlanTier.BASIC,
         name: 'Basic Plan',
         description: '2 annual inspections covering AC, toilets, and light bulbs',
-        price: 199,
+        price: 99,
         inspectionsPerYear: 2,
         features: [
           'AC visual inspection & filter replacement',
@@ -41,7 +41,7 @@ export class SubscriptionsService implements OnModuleInit {
         tier: PlanTier.STANDARD,
         name: 'Standard Plan',
         description: 'Basic plan plus water leak monitoring for AC and washer',
-        price: 299,
+        price: 199,
         inspectionsPerYear: 2,
         features: [
           'All Basic plan features',
@@ -54,7 +54,7 @@ export class SubscriptionsService implements OnModuleInit {
         tier: PlanTier.PREMIUM,
         name: 'Premium Plan',
         description: 'Standard plan plus full HVAC monitoring',
-        price: 399,
+        price: 299,
         inspectionsPerYear: 2,
         features: [
           'All Standard plan features',

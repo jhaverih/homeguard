@@ -61,7 +61,7 @@ export class PaymentsService {
     const vendorAccountId = vendor.vendorProfile?.stripeConnectAccountId;
     if (!vendorAccountId) throw new BadRequestException('Vendor has not completed Stripe onboarding');
 
-    const platformFeePercent = Number(this.configService.get('PLATFORM_FEE_PERCENT', '15'));
+    const platformFeePercent = Number(this.configService.get('PLATFORM_FEE_PERCENT', '3'));
     const amountInCents = Math.round(amount * 100);
     const platformFeeInCents = Math.round(amountInCents * (platformFeePercent / 100));
 
