@@ -20,11 +20,20 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
-          # Copy QNAP .env to infrastructure/ so Docker Compose variable interpolation
-          # (${DB_PASSWORD}, ${REDIS_PASSWORD} etc.) resolves correctly for postgres/redis
           cp /share/Container/homeguard/.env infrastructure/.env 2>/dev/null || true
           docker compose -f infrastructure/docker-compose.staging.yml down --remove-orphans || true
           docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
+
+          # Start data services first so we can align the postgres password before the API starts
+          docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate -d postgres redis minio
+          until docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres pg_isready -U homeguard -q; do sleep 2; done
+
+          # Align postgres password with .env regardless of whether the volume is fresh or existing
+          DB_PASSWORD=$(grep '^DB_PASSWORD=' infrastructure/.env 2>/dev/null | cut -d= -f2 || echo 'changeme')
+          docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres \
+            psql -U homeguard -c "ALTER USER homeguard WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || true
+
+          # Now start everything
           docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate -d
           docker compose -f infrastructure/docker-compose.staging.yml ps
 
