@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import { setMemoryToken } from '../services/api';
 
 interface User {
   id: string;
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   setAuth: async (user, token) => {
+    setMemoryToken(token);
     await SecureStore.setItemAsync('accessToken', token);
     await SecureStore.setItemAsync('user', JSON.stringify(user));
     set({ user, token });
@@ -38,6 +40,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    setMemoryToken(null);
     await SecureStore.deleteItemAsync('accessToken');
     await SecureStore.deleteItemAsync('user');
     set({ user: null, token: null });
@@ -48,6 +51,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const token = await SecureStore.getItemAsync('accessToken');
       const userStr = await SecureStore.getItemAsync('user');
       if (token && userStr) {
+        setMemoryToken(token);
         set({ user: JSON.parse(userStr), token });
       }
     } finally {

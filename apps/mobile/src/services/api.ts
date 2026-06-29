@@ -8,9 +8,15 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+// In-memory token mirror so the interceptor doesn't depend on SecureStore
+// being readable in the same tick it was written — avoids a race on first
+// dashboard load immediately after registration/login.
+let _token: string | null = null;
+export const setMemoryToken = (t: string | null) => { _token = t; };
+
 api.interceptors.request.use(async (config) => {
   if (!config.headers.Authorization) {
-    const token = await SecureStore.getItemAsync('accessToken');
+    const token = _token ?? await SecureStore.getItemAsync('accessToken');
     if (token) config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
