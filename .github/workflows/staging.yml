@@ -21,7 +21,9 @@ jobs:
       - name: Deploy with Docker Compose
         run: |
           cp /share/Container/homeguard/.env infrastructure/.env 2>/dev/null || true
-          docker compose -f infrastructure/docker-compose.staging.yml down --remove-orphans || true
+
+          # Bring down only containers, preserve networks to avoid QNAP dnsmasq NAT errors on network recreate
+          docker compose -f infrastructure/docker-compose.staging.yml down --remove-orphans --timeout 30 || true
           docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
 
           # Start data services first so we can align the postgres password before the API starts
