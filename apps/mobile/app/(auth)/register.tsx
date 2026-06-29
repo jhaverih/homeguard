@@ -46,11 +46,9 @@ export default function RegisterScreen() {
 
       if (selectedRole === 'CUSTOMER' && selectedPlanId) {
         try {
-          // Set token before setAuth so the subscribe call can authenticate,
-          // but navigation only fires after setAuth — ensuring the subscription
-          // exists before the dashboard mounts and fetches it.
-          api.defaults.headers.common['Authorization'] = `Bearer ${res.accessToken}`;
-          await subscriptionsApi.subscribe(selectedPlanId);
+          await api.post(`/subscriptions/subscribe/${selectedPlanId}`, {}, {
+            headers: { Authorization: `Bearer ${res.accessToken}` },
+          });
         } catch {
           // Subscription can be chosen later from the dashboard
         }

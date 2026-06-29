@@ -9,8 +9,10 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('accessToken');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (!config.headers.Authorization) {
+    const token = await SecureStore.getItemAsync('accessToken');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
