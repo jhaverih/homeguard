@@ -16,16 +16,15 @@ export default function CustomerDashboard() {
 
   const load = async () => {
     try {
-      const [sub, reqs]: any = await Promise.all([
-        subscriptionsApi.getMySubscription(),
-        requestsApi.getMyRequests(),
-      ]);
+      const sub: any = await subscriptionsApi.getMySubscription();
       setSubscription(sub);
+    } catch (e) {}
+    try {
+      const reqs: any = await requestsApi.getMyRequests();
       setRequests(reqs || []);
-    } catch (e) {} finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    } catch (e) {}
+    setLoading(false);
+    setRefreshing(false);
   };
 
   useEffect(() => { load(); }, []);
