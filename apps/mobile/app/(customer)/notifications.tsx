@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { notificationsApi } from '../../src/services/api';
 
 export default function NotificationsScreen() {
@@ -25,7 +26,7 @@ export default function NotificationsScreen() {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, readAt: new Date() } : n));
   };
 
-  useEffect(() => { load(); }, []);
+  useFocusEffect(useCallback(() => { load(); }, []));
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
 

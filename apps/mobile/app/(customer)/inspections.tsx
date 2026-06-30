@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { inspectionsApi } from '../../src/services/api';
 
 export default function InspectionHistoryScreen() {
@@ -19,7 +20,7 @@ export default function InspectionHistoryScreen() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useFocusEffect(useCallback(() => { load(); }, []));
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
 

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { requestsApi } from '../../src/services/api';
 
@@ -23,7 +23,7 @@ export default function VendorDashboard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useFocusEffect(useCallback(() => { load(); }, []));
 
   const activeJob = myJobs.find((j) => ['ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(j.status));
   const upcomingJobs = myJobs.filter((j) => j.status === 'ACCEPTED').slice(0, 3);

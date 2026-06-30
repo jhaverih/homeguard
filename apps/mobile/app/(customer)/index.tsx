@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi } from '../../src/services/api';
 
@@ -27,7 +27,7 @@ export default function CustomerDashboard() {
     setRefreshing(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useFocusEffect(useCallback(() => { load(); }, []));
 
   const statusColor: Record<string, string> = {
     PENDING: '#f6ad55',
