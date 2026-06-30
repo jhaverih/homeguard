@@ -62,22 +62,37 @@ export class AdminService {
     });
     const subMap = new Map(subscriptions.map((s) => [s.customerId, s]));
 
-    return users.map((u) => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName}`,
-      email: u.email,
-      phone: u.phone,
-      status: u.status,
-      createdAt: u.createdAt,
-      subscription: subMap.has(u.id)
-        ? {
-            plan: subMap.get(u.id).plan?.name,
-            tier: subMap.get(u.id).plan?.tier,
-            inspectionsUsed: subMap.get(u.id).inspectionsUsed,
-            inspectionsRemaining: subMap.get(u.id).inspectionsRemaining,
-          }
-        : null,
-    }));
+    const activeRequests = await this.requestsRepo
+      .createQueryBuilder('r')
+      .select(['r.customerId', 'r.status'])
+      .where('r.status NOT IN (:...statuses)', { statuses: [ServiceRequestStatus.COMPLETED, 'CANCELLED'] })
+      .getMany();
+    const pendingMap = new Map<string, number>();
+    for (const r of activeRequests) {
+      pendingMap.set(r.customerId, (pendingMap.get(r.customerId) ?? 0) + 1);
+    }
+
+    return users.map((u) => {
+      const sub = subMap.get(u.id);
+      const pending = pendingMap.get(u.id) ?? 0;
+      return {
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`,
+        email: u.email,
+        phone: u.phone,
+        status: u.status,
+        createdAt: u.createdAt,
+        subscription: sub
+          ? {
+              plan: sub.plan?.name,
+              tier: sub.plan?.tier,
+              inspectionsCompleted: sub.inspectionsUsed,
+              inspectionsPending: pending,
+              inspectionsLeft: Math.max(0, (sub.plan?.inspectionsPerYear ?? 0) - sub.inspectionsUsed - pending),
+            }
+          : null,
+      };
+    });
   }
 
   async getVendors() {

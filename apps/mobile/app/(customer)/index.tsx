@@ -69,16 +69,21 @@ export default function CustomerDashboard() {
           </View>
           <View style={styles.subStats}>
             <View style={styles.stat}>
-              <Text style={styles.statNum}>{subscription.plan?.inspectionsPerYear - subscription.inspectionsUsed}</Text>
-              <Text style={styles.statLabel}>Inspections Left</Text>
+              <Text style={styles.statNum}>
+                {Math.max(0, subscription.plan?.inspectionsPerYear - subscription.inspectionsUsed -
+                  requests.filter((r: any) => !['COMPLETED', 'CANCELLED'].includes(r.status)).length)}
+              </Text>
+              <Text style={styles.statLabel}>Left</Text>
+            </View>
+            <View style={styles.stat}>
+              <Text style={styles.statNum}>
+                {requests.filter((r: any) => !['COMPLETED', 'CANCELLED'].includes(r.status)).length}
+              </Text>
+              <Text style={styles.statLabel}>Pending</Text>
             </View>
             <View style={styles.stat}>
               <Text style={styles.statNum}>{subscription.inspectionsUsed}</Text>
               <Text style={styles.statLabel}>Completed</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statNum}>{new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</Text>
-              <Text style={styles.statLabel}>Renews</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.requestBtn} onPress={() => router.push('/(customer)/request')}>

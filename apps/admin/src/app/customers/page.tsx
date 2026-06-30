@@ -48,8 +48,23 @@ export default function CustomersPage() {
                       <span className="text-gray-400 text-xs">No plan</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {c.subscription ? `${c.subscription.inspectionsUsed} used / ${c.subscription.inspectionsRemaining} left` : '—'}
+                  <td className="px-6 py-4">
+                    {c.subscription ? (
+                      <div className="flex gap-3 text-xs">
+                        <span className="flex flex-col items-center">
+                          <span className="font-bold text-green-600 text-sm">{c.subscription.inspectionsLeft}</span>
+                          <span className="text-gray-400">Left</span>
+                        </span>
+                        <span className="flex flex-col items-center">
+                          <span className="font-bold text-orange-500 text-sm">{c.subscription.inspectionsPending}</span>
+                          <span className="text-gray-400">Pending</span>
+                        </span>
+                        <span className="flex flex-col items-center">
+                          <span className="font-bold text-brand text-sm">{c.subscription.inspectionsCompleted}</span>
+                          <span className="text-gray-400">Done</span>
+                        </span>
+                      </div>
+                    ) : '—'}
                   </td>
                   <td className="px-6 py-4 text-gray-400">
                     {new Date(c.createdAt).toLocaleDateString()}
