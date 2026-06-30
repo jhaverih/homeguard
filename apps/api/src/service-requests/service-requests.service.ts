@@ -216,6 +216,14 @@ export class ServiceRequestsService {
     return req;
   }
 
+  async findByIdForUser(id: string, userId: string): Promise<ServiceRequest> {
+    const req = await this.findById(id);
+    const isOwner = req.customerId === userId || req.vendorId === userId;
+    const isOpenForVendors = req.status === ServiceRequestStatus.PENDING;
+    if (!isOwner && !isOpenForVendors) throw new ForbiddenException();
+    return req;
+  }
+
   async reschedule(
     requestId: string,
     userId: string,

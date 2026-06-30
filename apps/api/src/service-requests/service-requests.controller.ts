@@ -38,8 +38,8 @@ export class ServiceRequestsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findById(id);
+  findOne(@Request() req, @Param('id') id: string) {
+    return this.service.findByIdForUser(id, req.user.id);
   }
 
   @Post(':id/accept')
