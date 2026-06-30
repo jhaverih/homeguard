@@ -1,16 +1,98 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, RefreshControl, TextInput, Modal,
+  Alert, ActivityIndicator, RefreshControl, Modal, Platform,
 } from 'react-native';
+import RNDateTimePicker from '@react-native-community/datetimepicker';
+import { useFocusEffect } from 'expo-router';
 import { requestsApi } from '../../src/services/api';
+
+function DateTimeField({
+  label, value, onChange, accentColor = '#2d4a22',
+}: { label: string; value: Date; onChange: (d: Date) => void; accentColor?: string }) {
+  const [showDate, setShowDate] = useState(false);
+  const [showTime, setShowTime] = useState(false);
+  const [tempDate, setTempDate] = useState(value);
+
+  const formatted = value.toLocaleString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+
+  if (Platform.OS === 'android') {
+    return (
+      <View style={styles.fieldWrap}>
+        <Text style={[styles.pickerLabel, { color: accentColor }]}>{label}</Text>
+        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+          <Text style={styles.dateBtnText}>{formatted}</Text>
+          <Text style={styles.dateIcon}>📅</Text>
+        </TouchableOpacity>
+        {showDate && (
+          <RNDateTimePicker
+            value={value}
+            mode="date"
+            minimumDate={new Date()}
+            onChange={(_, d) => {
+              setShowDate(false);
+              if (d) { setTempDate(d); setShowTime(true); }
+            }}
+          />
+        )}
+        {showTime && (
+          <RNDateTimePicker
+            value={tempDate}
+            mode="time"
+            onChange={(_, d) => {
+              setShowTime(false);
+              if (d) onChange(d);
+            }}
+          />
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={[styles.pickerLabel, { color: accentColor }]}>{label}</Text>
+      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+        <Text style={styles.dateBtnText}>{formatted}</Text>
+        <Text style={styles.dateIcon}>📅</Text>
+      </TouchableOpacity>
+      <Modal visible={showDate} transparent animationType="slide">
+        <View style={styles.iosOverlay}>
+          <View style={styles.iosPickerCard}>
+            <RNDateTimePicker
+              value={value}
+              mode="datetime"
+              minimumDate={new Date()}
+              display="inline"
+              onChange={(_, d) => { if (d) onChange(d); }}
+              style={{ alignSelf: 'center' }}
+            />
+            <TouchableOpacity
+              style={[styles.iosDoneBtn, { backgroundColor: accentColor }]}
+              onPress={() => setShowDate(false)}
+            >
+              <Text style={styles.iosDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
 
 export default function OpenRequestsScreen() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string }>({ visible: false, requestId: '' });
-  const [scheduledDate, setScheduledDate] = useState('');
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  const [scheduledDate, setScheduledDate] = useState(tomorrow);
 
   const load = async () => {
     try {
@@ -23,9 +105,8 @@ export default function OpenRequestsScreen() {
   };
 
   const acceptJob = async () => {
-    if (!scheduledDate) { Alert.alert('Required', 'Please enter the scheduled date'); return; }
     try {
-      await requestsApi.accept(acceptModal.requestId, new Date(scheduledDate).toISOString());
+      await requestsApi.accept(acceptModal.requestId, scheduledDate.toISOString());
       setAcceptModal({ visible: false, requestId: '' });
       Alert.alert('Job Accepted!', 'The customer has been notified of your scheduled date.');
       load();
@@ -34,7 +115,7 @@ export default function OpenRequestsScreen() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useFocusEffect(useCallback(() => { load(); }, []));
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
 
   return (
@@ -50,13 +131,19 @@ export default function OpenRequestsScreen() {
       ) : (
         requests.map((req: any) => (
           <View key={req.id} style={styles.card}>
-            <Text style={styles.cardDate}>Preferred: {new Date(req.preferredDate).toLocaleDateString()}</Text>
+            <Text style={styles.cardDate}>Preferred: {new Date(req.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
             <Text style={styles.cardAddress}>{req.address}, {req.city}, {req.state} {req.zipCode}</Text>
             {req.customerNotes && <Text style={styles.cardNotes}>Notes: {req.customerNotes}</Text>}
             <Text style={styles.cardPosted}>Posted: {new Date(req.createdAt).toLocaleDateString()}</Text>
             <TouchableOpacity
               style={styles.acceptBtn}
-              onPress={() => { setAcceptModal({ visible: true, requestId: req.id }); setScheduledDate(''); }}
+              onPress={() => {
+                const d = new Date();
+                d.setDate(d.getDate() + 1);
+                d.setHours(9, 0, 0, 0);
+                setScheduledDate(d);
+                setAcceptModal({ visible: true, requestId: req.id });
+              }}
             >
               <Text style={styles.acceptBtnText}>Accept This Job</Text>
             </TouchableOpacity>
@@ -69,11 +156,11 @@ export default function OpenRequestsScreen() {
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Set Scheduled Date</Text>
             <Text style={styles.modalSubtitle}>When will you perform this inspection?</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DDTHH:MM (e.g. 2025-03-15T10:00)"
+            <DateTimeField
+              label="Inspection Date & Time"
               value={scheduledDate}
-              onChangeText={setScheduledDate}
+              onChange={setScheduledDate}
+              accentColor="#2d4a22"
             />
             <TouchableOpacity style={styles.confirmBtn} onPress={acceptJob}>
               <Text style={styles.confirmText}>Confirm & Accept</Text>
@@ -104,10 +191,21 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: '#2d4a22', marginBottom: 8 },
-  modalSubtitle: { color: '#666', marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16 },
+  modalSubtitle: { color: '#666', marginBottom: 8 },
   confirmBtn: { backgroundColor: '#2d4a22', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888' },
+  fieldWrap: { marginBottom: 16 },
+  pickerLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  dateBtn: {
+    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
+    padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  dateBtnText: { fontSize: 15, color: '#111', fontWeight: '500', flex: 1 },
+  dateIcon: { fontSize: 20 },
+  iosOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  iosPickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
+  iosDoneBtn: { borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  iosDoneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });

@@ -1,25 +1,96 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, Platform,
+  ScrollView, Alert, ActivityIndicator, Modal, Platform,
 } from 'react-native';
+import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { requestsApi } from '../../src/services/api';
 
+function DateTimeField({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
+  const [showDate, setShowDate] = useState(false);
+  const [showTime, setShowTime] = useState(false);
+  const [tempDate, setTempDate] = useState(value);
+
+  const formatted = value.toLocaleString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+
+  if (Platform.OS === 'android') {
+    return (
+      <View style={styles.fieldWrap}>
+        <Text style={styles.label}>{label}</Text>
+        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+          <Text style={styles.dateBtnText}>{formatted}</Text>
+          <Text style={styles.dateIcon}>📅</Text>
+        </TouchableOpacity>
+        {showDate && (
+          <RNDateTimePicker
+            value={value}
+            mode="date"
+            minimumDate={new Date()}
+            onChange={(_, d) => {
+              setShowDate(false);
+              if (d) { setTempDate(d); setShowTime(true); }
+            }}
+          />
+        )}
+        {showTime && (
+          <RNDateTimePicker
+            value={tempDate}
+            mode="time"
+            onChange={(_, d) => {
+              setShowTime(false);
+              if (d) onChange(d);
+            }}
+          />
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.label}>{label}</Text>
+      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+        <Text style={styles.dateBtnText}>{formatted}</Text>
+        <Text style={styles.dateIcon}>📅</Text>
+      </TouchableOpacity>
+      <Modal visible={showDate} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerCard}>
+            <RNDateTimePicker
+              value={value}
+              mode="datetime"
+              minimumDate={new Date()}
+              display="inline"
+              onChange={(_, d) => { if (d) onChange(d); }}
+              style={{ alignSelf: 'center' }}
+            />
+            <TouchableOpacity style={styles.doneBtn} onPress={() => setShowDate(false)}>
+              <Text style={styles.doneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
 export default function RequestInspectionScreen() {
   const [loading, setLoading] = useState(false);
-  const [preferredDate, setPreferredDate] = useState('');
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  const [preferredDate, setPreferredDate] = useState(tomorrow);
   const [notes, setNotes] = useState('');
 
   const submit = async () => {
-    if (!preferredDate) {
-      Alert.alert('Missing Info', 'Please enter a preferred date');
-      return;
-    }
     setLoading(true);
     try {
       await requestsApi.create({
-        preferredDate: new Date(preferredDate).toISOString(),
+        preferredDate: preferredDate.toISOString(),
         customerNotes: notes,
         address: '',
         city: '',
@@ -45,14 +116,7 @@ export default function RequestInspectionScreen() {
         Tell us when works best for you. An available vendor will accept and confirm the date.
       </Text>
 
-      <Text style={styles.label}>Preferred Date</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="YYYY-MM-DD (e.g. 2025-03-15)"
-        value={preferredDate}
-        onChangeText={setPreferredDate}
-        keyboardType="numbers-and-punctuation"
-      />
+      <DateTimeField label="Preferred Date & Time" value={preferredDate} onChange={setPreferredDate} />
 
       <Text style={styles.label}>Notes for the Vendor (optional)</Text>
       <TextInput
@@ -88,7 +152,14 @@ const styles = StyleSheet.create({
   content: { padding: 24 },
   title: { fontSize: 24, fontWeight: '700', color: '#1e3a5f', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#666', lineHeight: 22, marginBottom: 24 },
+  fieldWrap: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
+  dateBtn: {
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
+    padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  dateBtnText: { fontSize: 15, color: '#1e3a5f', fontWeight: '500', flex: 1 },
+  dateIcon: { fontSize: 20 },
   input: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
     padding: 16, fontSize: 16, marginBottom: 16,
@@ -101,4 +172,8 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888', fontSize: 14 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
+  doneBtn: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });

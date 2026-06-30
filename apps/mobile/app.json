@@ -49,7 +49,8 @@
           "color": "#1e3a5f"
         }
       ],
-      "./plugins/withAndroidCleartextTraffic"
+      "./plugins/withAndroidCleartextTraffic",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
