@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Modal, Platform,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
-import { requestsApi } from '../../src/services/api';
+import { requestsApi, userApi } from '../../src/services/api';
 
 function DateTimeField({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
   const [showDate, setShowDate] = useState(false);
@@ -85,17 +85,37 @@ export default function RequestInspectionScreen() {
   tomorrow.setHours(9, 0, 0, 0);
   const [preferredDate, setPreferredDate] = useState(tomorrow);
   const [notes, setNotes] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [zipCode, setZipCode] = useState('');
+
+  useEffect(() => {
+    userApi.getMe().then((res: any) => {
+      const p = res.data?.customerProfile;
+      if (p) {
+        if (p.address) setAddress(p.address);
+        if (p.city) setCity(p.city);
+        if (p.state) setState(p.state);
+        if (p.zipCode) setZipCode(p.zipCode);
+      }
+    }).catch(() => {});
+  }, []);
 
   const submit = async () => {
+    if (!address || !city || !state || !zipCode) {
+      Alert.alert('Missing Info', 'Please fill in the property address');
+      return;
+    }
     setLoading(true);
     try {
       await requestsApi.create({
         preferredDate: preferredDate.toISOString(),
         customerNotes: notes,
-        address: '',
-        city: '',
-        state: '',
-        zipCode: '',
+        address,
+        city,
+        state,
+        zipCode,
       });
       Alert.alert(
         'Request Sent!',
@@ -117,6 +137,38 @@ export default function RequestInspectionScreen() {
       </Text>
 
       <DateTimeField label="Preferred Date & Time" value={preferredDate} onChange={setPreferredDate} />
+
+      <Text style={styles.label}>Property Address</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Street address"
+        value={address}
+        onChangeText={setAddress}
+      />
+      <View style={styles.row}>
+        <TextInput
+          style={[styles.input, styles.flex2]}
+          placeholder="City"
+          value={city}
+          onChangeText={setCity}
+        />
+        <TextInput
+          style={[styles.input, styles.flex1, styles.ml8]}
+          placeholder="State"
+          value={state}
+          onChangeText={setState}
+          autoCapitalize="characters"
+          maxLength={2}
+        />
+        <TextInput
+          style={[styles.input, styles.flex1, styles.ml8]}
+          placeholder="ZIP"
+          value={zipCode}
+          onChangeText={setZipCode}
+          keyboardType="number-pad"
+          maxLength={5}
+        />
+      </View>
 
       <Text style={styles.label}>Notes for the Vendor (optional)</Text>
       <TextInput
@@ -172,6 +224,10 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888', fontSize: 14 },
+  row: { flexDirection: 'row', marginBottom: 0 },
+  flex1: { flex: 1 },
+  flex2: { flex: 2 },
+  ml8: { marginLeft: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   doneBtn: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
