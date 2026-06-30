@@ -116,7 +116,7 @@ export class UsersService implements OnModuleInit {
       .createQueryBuilder('user')
       .innerJoin('user.vendorProfile', 'vp', 'vp.isAvailable = true')
       .where('user.status = :status', { status: UserStatus.ACTIVE })
-      .andWhere(':role = ANY(user.roles)', { role: UserRole.VENDOR })
+      .andWhere('user.roles LIKE :role', { role: `%${UserRole.VENDOR}%` })
       .getMany();
   }
 
