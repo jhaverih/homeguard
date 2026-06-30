@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not, In } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
 import { AdditionalService } from './entities/additional-service.entity';
 import { ServiceRequestStatus, UserRole } from '../common/enums/role.enum';
@@ -33,7 +33,14 @@ export class ServiceRequestsService {
   }): Promise<ServiceRequest> {
     const subscription = await this.subscriptionsService.getActiveSubscription(customerId);
     if (!subscription) throw new BadRequestException('No active subscription found');
-    if (subscription.inspectionsRemaining <= 0) {
+
+    const pendingCount = await this.requestsRepo.count({
+      where: {
+        subscriptionId: subscription.id,
+        status: Not(In([ServiceRequestStatus.COMPLETED, ServiceRequestStatus.CANCELLED])),
+      },
+    });
+    if (subscription.inspectionsUsed + pendingCount >= subscription.plan.inspectionsPerYear) {
       throw new BadRequestException('No inspections remaining on your subscription');
     }
 
