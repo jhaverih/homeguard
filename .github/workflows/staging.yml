@@ -22,8 +22,8 @@ jobs:
         run: |
           cp /share/Container/homeguard/.env infrastructure/.env 2>/dev/null || true
 
-          # Bring down only containers, preserve networks to avoid QNAP dnsmasq NAT errors on network recreate
-          docker compose -f infrastructure/docker-compose.staging.yml down --remove-orphans --timeout 30 || true
+          # Stop containers (not down — down removes the network which causes QNAP dnsmasq NAT errors)
+          docker compose -f infrastructure/docker-compose.staging.yml stop || true
           docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
 
           # Start data services first so we can align the postgres password before the API starts
@@ -35,8 +35,8 @@ jobs:
           docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres \
             psql -U homeguard -c "ALTER USER homeguard WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || true
 
-          # Now start everything
-          docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate -d
+          # Start everything — --remove-orphans cleans stale containers without touching the network
+          docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate --remove-orphans -d
           docker compose -f infrastructure/docker-compose.staging.yml ps
 
       - name: Wait for API health check
