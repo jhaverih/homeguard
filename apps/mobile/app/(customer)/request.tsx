@@ -92,7 +92,7 @@ export default function RequestInspectionScreen() {
 
   useEffect(() => {
     userApi.getMe().then((res: any) => {
-      const p = res.data?.customerProfile;
+      const p = res?.customerProfile;
       if (p) {
         if (p.address) setAddress(p.address);
         if (p.city) setCity(p.city);

@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { setMemoryToken, usersApi } from '../services/api';
+import { setMemoryToken, userApi } from '../services/api';
 
 interface User {
   id: string;
@@ -41,7 +41,7 @@ async function registerPushToken() {
     if (status !== 'granted') return;
     const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? '9ec8fbd8-d213-4bc8-9c9d-646646255a46';
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-    await usersApi.updatePushToken(token);
+    await userApi.updatePushToken(token);
   } catch {
     // non-fatal — in-app notifications still work
   }
