@@ -49,4 +49,9 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   zipCode?: string;
+
+  @ApiProperty({ example: 'Acme Home Services LLC', required: false })
+  @IsOptional()
+  @IsString()
+  companyName?: string;
 }
