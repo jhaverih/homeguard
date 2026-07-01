@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
-import { requestsApi, inspectionsApi } from '../../src/services/api';
+import { requestsApi, inspectionsApi, userApi } from '../../src/services/api';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
   PENDING:         { color: '#6b7280', bg: '#f9fafb', label: 'Pending' },
@@ -89,14 +89,19 @@ export default function RequestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [request, setRequest] = useState<any>(null);
   const [notes, setNotes] = useState<any[]>([]);
+  const [profileAddress, setProfileAddress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [rescheduleModal, setRescheduleModal] = useState(false);
   const [newDate, setNewDate] = useState(new Date());
 
   const load = useCallback(async () => {
     try {
-      const req: any = await requestsApi.getOne(id);
+      const [req, me]: any[] = await Promise.all([
+        requestsApi.getOne(id),
+        userApi.getMe().catch(() => null),
+      ]);
       setRequest(req);
+      if (me?.customerProfile) setProfileAddress(me.customerProfile);
       try {
         const n: any = await inspectionsApi.getNotes(id);
         setNotes(n || []);
@@ -141,7 +146,12 @@ export default function RequestDetailScreen() {
       </View>
 
       <Text style={styles.sectionTitle}>Address</Text>
-      <Text style={styles.value}>{request.address}, {request.city}, {request.state} {request.zipCode}</Text>
+      {(() => {
+        const addr = request.address ? request : profileAddress;
+        return addr?.address
+          ? <Text style={styles.value}>{addr.address}, {addr.city}, {addr.state} {addr.zipCode}</Text>
+          : <Text style={[styles.value, { color: '#aaa', fontStyle: 'italic' }]}>No address recorded</Text>;
+      })()}
 
       <Text style={styles.sectionTitle}>Preferred Date</Text>
       <Text style={styles.value}>{new Date(request.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
