@@ -18,6 +18,7 @@ export interface CreateUserDto {
   city?: string;
   state?: string;
   zipCode?: string;
+  companyName?: string;
 }
 
 @Injectable()
@@ -77,7 +78,10 @@ export class UsersService implements OnModuleInit {
     }
 
     if (dto.roles.includes(UserRole.VENDOR)) {
-      const profile = this.vendorProfileRepo.create({ userId: saved.id });
+      const profile = this.vendorProfileRepo.create({
+        userId: saved.id,
+        ...(dto.companyName ? { companyName: dto.companyName } : {}),
+      });
       await this.vendorProfileRepo.save(profile);
     }
 

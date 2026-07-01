@@ -16,6 +16,9 @@ export class VendorProfile {
   @Column()
   userId: string;
 
+  @Column({ nullable: true })
+  companyName: string;
+
   @Column({ nullable: true, type: 'text' })
   bio: string;
 

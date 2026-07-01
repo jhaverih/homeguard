@@ -131,6 +131,28 @@ export default function RegisterScreen() {
             )}
           />
 
+          {selectedRole === 'VENDOR' && (
+            <>
+              <Text style={styles.sectionLabel}>Company Details</Text>
+              <Controller
+                control={control}
+                name="companyName"
+                rules={{ required: 'Company name is required' }}
+                render={({ field: { onChange, value } }) => (
+                  <>
+                    <TextInput
+                      style={[styles.input, errors.companyName && styles.inputError]}
+                      placeholder="Company / Business Name"
+                      value={value}
+                      onChangeText={onChange}
+                    />
+                    {errors.companyName && <Text style={styles.errorText}>{(errors.companyName as any)?.message}</Text>}
+                  </>
+                )}
+              />
+            </>
+          )}
+
           {selectedRole === 'CUSTOMER' && (
             <>
               <Text style={styles.sectionLabel}>Home Address</Text>

@@ -39,6 +39,7 @@ export default function VendorsPage() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Name</th>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Company</th>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Email</th>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Status</th>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Stripe</th>
@@ -50,6 +51,7 @@ export default function VendorsPage() {
               {vendors.map((v) => (
                 <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-800">{v.name}</td>
+                  <td className="px-6 py-4 text-gray-600">{v.companyName ?? <span className="text-gray-300 text-xs">—</span>}</td>
                   <td className="px-6 py-4 text-gray-500">{v.email}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${

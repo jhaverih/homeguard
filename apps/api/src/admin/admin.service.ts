@@ -109,6 +109,7 @@ export class AdminService {
       email: u.email,
       phone: u.phone,
       status: u.status,
+      companyName: u.vendorProfile?.companyName ?? null,
       createdAt: u.createdAt,
       stripeConnected: !!u.vendorProfile?.stripeConnectAccountId,
     }));
