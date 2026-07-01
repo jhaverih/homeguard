@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -121,7 +121,21 @@ export class UsersService implements OnModuleInit {
   }
 
   async updateProfile(userId: string, data: Partial<User>): Promise<User> {
-    await this.usersRepo.update(userId, data);
+    const allowed = ['email', 'firstName', 'lastName', 'phone'];
+    const update: any = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) update[key] = data[key];
+    }
+    if (Object.keys(update).length) await this.usersRepo.update(userId, update);
     return this.findById(userId);
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { id: userId }, select: ['id', 'password'] });
+    if (!user) throw new NotFoundException('User not found');
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) throw new BadRequestException('Current password is incorrect');
+    const hashed = await bcrypt.hash(newPassword, 12);
+    await this.usersRepo.update(userId, { password: hashed });
   }
 }

@@ -26,8 +26,13 @@ export class UsersController {
     return this.usersService.updatePushToken(req.user.id, body.token);
   }
 
-  @Patch('me')
+  @Patch('me/profile')
   updateProfile(@Request() req, @Body() body: any) {
     return this.usersService.updateProfile(req.user.id, body);
+  }
+
+  @Patch('me/password')
+  changePassword(@Request() req, @Body() body: { currentPassword: string; newPassword: string }) {
+    return this.usersService.changePassword(req.user.id, body.currentPassword, body.newPassword);
   }
 }
