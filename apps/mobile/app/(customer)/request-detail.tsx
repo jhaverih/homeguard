@@ -93,6 +93,7 @@ export default function RequestDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [rescheduleModal, setRescheduleModal] = useState(false);
   const [newDate, setNewDate] = useState(new Date());
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -120,6 +121,19 @@ export default function RequestDetailScreen() {
   const openReschedule = () => {
     setNewDate(request.scheduledDate ? new Date(request.scheduledDate) : new Date());
     setRescheduleModal(true);
+  };
+
+  const approveService = async (serviceId: string) => {
+    setApprovingId(serviceId);
+    try {
+      await requestsApi.approveService(serviceId);
+      Alert.alert('Approved', 'The recommended service has been approved.');
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   const submitReschedule = async () => {
@@ -189,6 +203,35 @@ export default function RequestDetailScreen() {
         </>
       )}
 
+      {request.additionalServices?.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Recommended Services</Text>
+          {request.additionalServices.map((svc: any) => (
+            <View key={svc.id} style={[styles.svcCard, svc.approved && styles.svcCardApproved]}>
+              <View style={styles.svcHeader}>
+                <Text style={styles.svcName}>{svc.name}</Text>
+                <Text style={styles.svcPrice}>${parseFloat(svc.price).toFixed(2)}</Text>
+              </View>
+              <Text style={styles.svcDesc}>{svc.description}</Text>
+              {svc.approved ? (
+                <Text style={styles.svcApprovedLabel}>Approved</Text>
+              ) : (
+                <TouchableOpacity
+                  style={styles.approveBtn}
+                  onPress={() => approveService(svc.id)}
+                  disabled={approvingId === svc.id}
+                >
+                  {approvingId === svc.id
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.approveBtnText}>Approve</Text>
+                  }
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </>
+      )}
+
       {canReschedule && (
         <TouchableOpacity style={styles.rescheduleBtn} onPress={openReschedule}>
           <Text style={styles.rescheduleBtnText}>Reschedule</Text>
@@ -252,4 +295,13 @@ const styles = StyleSheet.create({
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888' },
+  svcCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+  svcCardApproved: { borderColor: '#059669', backgroundColor: '#f0fdf4' },
+  svcHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  svcName: { fontSize: 15, fontWeight: '700', color: '#1e3a5f', flex: 1, marginRight: 8 },
+  svcPrice: { fontSize: 15, fontWeight: '700', color: '#059669' },
+  svcDesc: { fontSize: 13, color: '#555', lineHeight: 18, marginBottom: 10 },
+  approveBtn: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
 });

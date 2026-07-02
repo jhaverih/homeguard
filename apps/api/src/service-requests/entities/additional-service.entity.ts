@@ -9,7 +9,7 @@ export class AdditionalService {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => ServiceRequest)
+  @ManyToOne(() => ServiceRequest, (r) => r.additionalServices)
   @JoinColumn()
   serviceRequest: ServiceRequest;
 

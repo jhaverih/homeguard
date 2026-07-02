@@ -4,6 +4,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { CustomerSubscription } from '../../subscriptions/entities/customer-subscription.entity';
+import { AdditionalService } from './additional-service.entity';
 import { ServiceRequestStatus } from '../../common/enums/role.enum';
 
 export enum ServiceType {
@@ -73,6 +74,9 @@ export class ServiceRequest {
 
   @Column()
   zipCode: string;
+
+  @OneToMany(() => AdditionalService, (s) => s.serviceRequest)
+  additionalServices: AdditionalService[];
 
   @CreateDateColumn()
   createdAt: Date;

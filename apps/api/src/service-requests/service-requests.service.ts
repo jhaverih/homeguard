@@ -211,7 +211,7 @@ export class ServiceRequestsService {
   }
 
   async findById(id: string): Promise<ServiceRequest> {
-    const req = await this.requestsRepo.findOne({ where: { id } });
+    const req = await this.requestsRepo.findOne({ where: { id }, relations: ['additionalServices'] });
     if (!req) throw new NotFoundException('Service request not found');
     return req;
   }
