@@ -54,8 +54,44 @@ export class UsersService implements OnModuleInit {
   }
 
   async create(dto: CreateUserDto): Promise<User> {
-    const existing = await this.usersRepo.findOne({ where: { email: dto.email } });
-    if (existing) throw new ConflictException('Email already in use');
+    const existing = await this.usersRepo.findOne({
+      where: { email: dto.email },
+      relations: ['vendorProfile', 'customerProfile'],
+    });
+
+    if (existing) {
+      const newRoles = dto.roles.filter((r) => !existing.roles.includes(r));
+      if (newRoles.length === 0) throw new ConflictException('Email already in use');
+
+      existing.roles = [...existing.roles, ...newRoles];
+      if (newRoles.includes(UserRole.VENDOR)) {
+        existing.status = UserStatus.PENDING_APPROVAL;
+      }
+      const saved = await this.usersRepo.save(existing);
+
+      if (newRoles.includes(UserRole.CUSTOMER) && dto.address && !existing.customerProfile) {
+        await this.customerProfileRepo.save(
+          this.customerProfileRepo.create({
+            userId: saved.id,
+            address: dto.address,
+            city: dto.city,
+            state: dto.state,
+            zipCode: dto.zipCode,
+          }),
+        );
+      }
+
+      if (newRoles.includes(UserRole.VENDOR) && !existing.vendorProfile) {
+        await this.vendorProfileRepo.save(
+          this.vendorProfileRepo.create({
+            userId: saved.id,
+            ...(dto.companyName ? { companyName: dto.companyName } : {}),
+          }),
+        );
+      }
+
+      return saved;
+    }
 
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = this.usersRepo.create({
