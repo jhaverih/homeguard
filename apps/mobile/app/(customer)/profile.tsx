@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
-import { userApi, subscriptionsApi } from '../../src/services/api';
+import { userApi, subscriptionsApi, teamApi } from '../../src/services/api';
 import { api } from '../../src/services/api';
 
 export default function CustomerProfileScreen() {
@@ -13,6 +13,10 @@ export default function CustomerProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [showFamilyForm, setShowFamilyForm] = useState(false);
+  const [familyEmail, setFamilyEmail] = useState('');
+  const [addingMember, setAddingMember] = useState(false);
 
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -25,17 +29,57 @@ export default function CustomerProfileScreen() {
   useFocusEffect(useCallback(() => {
     (async () => {
       try {
-        const [me, sub]: any[] = await Promise.all([
+        const [me, sub, members]: any[] = await Promise.all([
           userApi.getMe(),
           subscriptionsApi.getMySubscription().catch(() => null),
+          teamApi.getMembers().catch(() => []),
         ]);
         setProfile(me?.customerProfile);
         setSubscription(sub);
+        setFamilyMembers(Array.isArray(members) ? members : []);
       } finally {
         setLoading(false);
       }
     })();
   }, []));
+
+  const addFamilyMember = async () => {
+    if (!familyEmail.trim()) { Alert.alert('Required', 'Enter the family member\'s email address'); return; }
+    setAddingMember(true);
+    try {
+      await teamApi.addMember(familyEmail.trim().toLowerCase());
+      const members: any = await teamApi.getMembers();
+      setFamilyMembers(Array.isArray(members) ? members : []);
+      setFamilyEmail('');
+      setShowFamilyForm(false);
+      Alert.alert('Added', 'Family member added. They can now see your inspections.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const removeFamilyMember = (member: any) => {
+    Alert.alert(
+      'Remove Family Member',
+      `Remove ${member.firstName} ${member.lastName} from your household?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive',
+          onPress: async () => {
+            try {
+              await teamApi.removeMember(member.id);
+              setFamilyMembers((prev) => prev.filter((m) => m.id !== member.id));
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -99,6 +143,50 @@ export default function CustomerProfileScreen() {
         <Row label="Email" value={user?.email} />
         {address && <Row label="Home Address" value={address} />}
         {subscription?.plan && <Row label="Current Plan" value={subscription.plan.name} />}
+      </View>
+
+      <Text style={styles.sectionTitle}>Family Members</Text>
+      <View style={styles.card}>
+        {familyMembers.length === 0 && !showFamilyForm && (
+          <Text style={styles.emptyNote}>No family members added yet.</Text>
+        )}
+        {familyMembers.map((m: any) => (
+          <View key={m.id} style={styles.memberRow}>
+            <View style={styles.memberAvatar}>
+              <Text style={styles.memberAvatarText}>{m.firstName?.[0]}{m.lastName?.[0]}</Text>
+            </View>
+            <View style={styles.memberInfo}>
+              <Text style={styles.memberName}>{m.firstName} {m.lastName}</Text>
+              <Text style={styles.memberEmail}>{m.email}</Text>
+            </View>
+            <TouchableOpacity onPress={() => removeFamilyMember(m)} style={styles.removeBtn}>
+              <Text style={styles.removeBtnText}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+        {showFamilyForm && (
+          <View style={styles.formInner}>
+            <TextInput
+              style={styles.input}
+              placeholder="Family member's email"
+              value={familyEmail}
+              onChangeText={setFamilyEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity style={styles.saveBtn} onPress={addFamilyMember} disabled={addingMember}>
+              {addingMember ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Member</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setShowFamilyForm(false); setFamilyEmail(''); }} style={styles.cancelInlineBtn}>
+              <Text style={styles.cancelInlineText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {!showFamilyForm && (
+          <TouchableOpacity style={styles.addFamilyBtn} onPress={() => setShowFamilyForm(true)}>
+            <Text style={styles.addFamilyBtnText}>+ Add Family Member</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Text style={styles.sectionTitle}>Security</Text>
@@ -179,4 +267,17 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   logoutBtn: { backgroundColor: '#fed7d7', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   logoutText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
+  emptyNote: { fontSize: 14, color: '#aaa', paddingHorizontal: 16, paddingVertical: 14, fontStyle: 'italic' },
+  memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  memberAvatarText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  memberInfo: { flex: 1 },
+  memberName: { fontSize: 14, fontWeight: '700', color: '#1e3a5f' },
+  memberEmail: { fontSize: 12, color: '#888', marginTop: 1 },
+  removeBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
+  removeBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
+  addFamilyBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: '#1e3a5f', borderStyle: 'dashed', padding: 13, alignItems: 'center' },
+  addFamilyBtnText: { fontSize: 14, fontWeight: '700', color: '#1e3a5f' },
+  cancelInlineBtn: { alignItems: 'center', paddingVertical: 10 },
+  cancelInlineText: { color: '#888', fontSize: 14 },
 });

@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Body, Param, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UsersService } from './users.service';
@@ -34,5 +34,21 @@ export class UsersController {
   @Patch('me/password')
   changePassword(@Request() req, @Body() body: { currentPassword: string; newPassword: string }) {
     return this.usersService.changePassword(req.user.id, body.currentPassword, body.newPassword);
+  }
+
+  @Get('me/team')
+  getTeam(@Request() req) {
+    return this.usersService.getTeamMembers(req.user.id);
+  }
+
+  @Post('me/team')
+  addTeamMember(@Request() req, @Body() body: { email: string }) {
+    return this.usersService.addTeamMember(req.user.id, body.email);
+  }
+
+  @Delete('me/team/:memberId')
+  @HttpCode(204)
+  removeTeamMember(@Request() req, @Param('memberId') memberId: string) {
+    return this.usersService.removeTeamMember(req.user.id, memberId);
   }
 }

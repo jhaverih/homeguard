@@ -41,6 +41,9 @@ export class User {
   @Column({ nullable: true })
   expoPushToken: string;
 
+  @Column({ nullable: true })
+  parentUserId: string;
+
   @OneToOne(() => VendorProfile, (profile) => profile.user, { cascade: true, eager: false })
   vendorProfile: VendorProfile;
 

@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
 import { VendorProfile } from './entities/vendor-profile.entity';
@@ -158,6 +158,59 @@ export class UsersService implements OnModuleInit {
       .where('user.status = :status', { status: UserStatus.ACTIVE })
       .andWhere('user.roles LIKE :role', { role: `%${UserRole.VENDOR}%` })
       .getMany();
+  }
+
+  async addTeamMember(ownerId: string, email: string): Promise<User> {
+    const owner = await this.findById(ownerId);
+    const member = await this.usersRepo.findOne({ where: { email } });
+    if (!member) throw new NotFoundException('No user found with that email address');
+    if (member.id === ownerId) throw new BadRequestException('Cannot add yourself as a team member');
+    if (member.parentUserId) throw new BadRequestException('This user already belongs to another account');
+
+    // Validate role compatibility
+    if (owner.roles.includes(UserRole.VENDOR) && !member.roles.includes(UserRole.VENDOR)) {
+      throw new BadRequestException('Technicians must have the vendor role. Ask them to register as a vendor first.');
+    }
+    if (!owner.roles.includes(UserRole.VENDOR) && !member.roles.includes(UserRole.CUSTOMER)) {
+      throw new BadRequestException('Family members must have the customer role.');
+    }
+
+    member.parentUserId = ownerId;
+    return this.usersRepo.save(member);
+  }
+
+  async getTeamMembers(ownerId: string): Promise<User[]> {
+    return this.usersRepo.find({
+      where: { parentUserId: ownerId },
+      relations: ['vendorProfile', 'customerProfile'],
+    });
+  }
+
+  async removeTeamMember(ownerId: string, memberId: string): Promise<void> {
+    const member = await this.usersRepo.findOne({ where: { id: memberId, parentUserId: ownerId } });
+    if (!member) throw new NotFoundException('Team member not found');
+    member.parentUserId = null;
+    await this.usersRepo.save(member);
+  }
+
+  async getEffectiveSubscriptionOwnerId(userId: string): Promise<string> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    return user?.parentUserId ?? userId;
+  }
+
+  async getRelatedCustomerIds(userId: string): Promise<string[]> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) return [userId];
+
+    if (user.parentUserId) {
+      // This is a family member — include parent and all siblings
+      const siblings = await this.usersRepo.find({ where: { parentUserId: user.parentUserId } });
+      return [...new Set([userId, user.parentUserId, ...siblings.map((s) => s.id)])];
+    }
+
+    // This is a primary user — include all family members
+    const members = await this.usersRepo.find({ where: { parentUserId: userId } });
+    return [userId, ...members.map((m) => m.id)];
   }
 
   async updateProfile(userId: string, data: Partial<User>): Promise<User> {

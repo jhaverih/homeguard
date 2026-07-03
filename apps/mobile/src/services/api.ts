@@ -47,6 +47,12 @@ export const userApi = {
   updatePushToken: (token: string) => api.patch('/users/me/push-token', { token }),
 };
 
+export const teamApi = {
+  getMembers: () => api.get('/users/me/team'),
+  addMember: (email: string) => api.post('/users/me/team', { email }),
+  removeMember: (memberId: string) => api.delete(`/users/me/team/${memberId}`),
+};
+
 export const subscriptionsApi = {
   getPlans: () => api.get('/subscriptions/plans'),
   getMySubscription: () => api.get('/subscriptions/my'),

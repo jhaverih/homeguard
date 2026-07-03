@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In } from 'typeorm';
+import { Repository, Not, In, FindOptionsWhere } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
 import { AdditionalService } from './entities/additional-service.entity';
 import { ServiceRequestStatus, UserRole } from '../common/enums/role.enum';
@@ -32,7 +32,9 @@ export class ServiceRequestsService {
     zipCode: string;
     isPaidAddon?: boolean;
   }): Promise<ServiceRequest> {
-    const subscription = await this.subscriptionsService.getActiveSubscription(customerId);
+    // Family members use the parent's subscription
+    const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
+    const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
     if (!subscription) throw new BadRequestException('No active subscription found');
 
     const pendingCount = await this.requestsRepo.count({
@@ -198,8 +200,9 @@ export class ServiceRequestsService {
   }
 
   async getCustomerRequests(customerId: string): Promise<ServiceRequest[]> {
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     return this.requestsRepo.find({
-      where: { customerId },
+      where: { customerId: In(relatedIds) } as FindOptionsWhere<ServiceRequest>,
       order: { createdAt: 'DESC' },
     });
   }
@@ -220,7 +223,8 @@ export class ServiceRequestsService {
 
   async cancelRequest(requestId: string, customerId: string): Promise<ServiceRequest> {
     const req = await this.findById(requestId);
-    if (req.customerId !== customerId) throw new ForbiddenException();
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    if (!relatedIds.includes(req.customerId)) throw new ForbiddenException();
     if (req.status === ServiceRequestStatus.COMPLETED) {
       throw new BadRequestException('Cannot cancel a completed inspection');
     }
@@ -252,10 +256,14 @@ export class ServiceRequestsService {
 
   async findByIdForUser(id: string, userId: string): Promise<ServiceRequest> {
     const req = await this.findById(id);
-    const isOwner = req.customerId === userId || req.vendorId === userId;
-    const isOpenForVendors = req.status === ServiceRequestStatus.PENDING;
-    if (!isOwner && !isOpenForVendors) throw new ForbiddenException();
-    return req;
+    if (req.vendorId === userId) return req;
+    if (req.status === ServiceRequestStatus.PENDING) return req;
+
+    // Allow family members and parent to view each other's requests
+    const relatedIds = await this.usersService.getRelatedCustomerIds(userId);
+    if (relatedIds.includes(req.customerId)) return req;
+
+    throw new ForbiddenException();
   }
 
   async reschedule(
