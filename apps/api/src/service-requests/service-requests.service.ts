@@ -234,7 +234,10 @@ export class ServiceRequestsService {
   }
 
   async findById(id: string): Promise<ServiceRequest> {
-    const req = await this.requestsRepo.findOne({ where: { id }, relations: ['additionalServices'] });
+    const req = await this.requestsRepo.findOne({
+      where: { id },
+      relations: ['additionalServices', 'vendor', 'vendor.vendorProfile', 'customer'],
+    });
     if (!req) throw new NotFoundException('Service request not found');
     return req;
   }

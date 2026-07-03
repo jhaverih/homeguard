@@ -207,6 +207,18 @@ export default function RequestDetailScreen() {
         </>
       )}
 
+      {request.vendor && (
+        <>
+          <Text style={styles.sectionTitle}>Service Provider</Text>
+          <View style={styles.vendorCard}>
+            <Text style={styles.vendorName}>{request.vendor.firstName} {request.vendor.lastName}</Text>
+            {request.vendor.vendorProfile?.companyName && (
+              <Text style={styles.vendorCompany}>{request.vendor.vendorProfile.companyName}</Text>
+            )}
+          </View>
+        </>
+      )}
+
       {request.vendorNotes && (
         <>
           <Text style={styles.sectionTitle}>Vendor Notes</Text>
@@ -335,4 +347,7 @@ const styles = StyleSheet.create({
   approveBtn: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
+  vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: '#e2e8f0' },
+  vendorName: { fontSize: 15, fontWeight: '700', color: '#1e3a5f' },
+  vendorCompany: { fontSize: 13, color: '#64748b', marginTop: 2 },
 });

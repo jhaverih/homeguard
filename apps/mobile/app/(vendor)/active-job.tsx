@@ -66,6 +66,9 @@ export default function ActiveJobScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.customerBox}>
         <Text style={styles.customerLabel}>Customer</Text>
+        {job.customer && (
+          <Text style={styles.customerName}>{job.customer.firstName} {job.customer.lastName}</Text>
+        )}
         <Text style={styles.customerAddress}>{job.address}</Text>
         <Text style={styles.customerCity}>{job.city}, {job.state} {job.zipCode}</Text>
         {job.customerNotes && <Text style={styles.customerNotes}>Note: {job.customerNotes}</Text>}
@@ -122,7 +125,8 @@ const styles = StyleSheet.create({
   content: { padding: 16 },
   customerBox: { backgroundColor: '#2d4a22', borderRadius: 16, padding: 20, marginBottom: 16 },
   customerLabel: { fontSize: 12, color: '#a8d5a2', marginBottom: 4, fontWeight: '600', textTransform: 'uppercase' },
-  customerAddress: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  customerName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  customerAddress: { fontSize: 14, color: '#c8e6c0', marginBottom: 2 },
   customerCity: { fontSize: 14, color: '#c8e6c0', marginBottom: 8 },
   customerNotes: { fontSize: 13, color: '#a8d5a2', fontStyle: 'italic' },
   actionBtn: { borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 16 },
