@@ -14,6 +14,10 @@ export class ChatMessage {
   @Column()
   senderId: string;
 
+  @ManyToOne(() => User, { nullable: true, eager: false })
+  @JoinColumn({ name: 'senderId' })
+  sender: User;
+
   @Column({ type: 'text' })
   content: string;
 

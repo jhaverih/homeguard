@@ -65,8 +65,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       content: data.content,
     });
     const saved = await this.messagesRepo.save(message);
+    const withSender = await this.messagesRepo.findOne({
+      where: { id: saved.id },
+      relations: ['sender'],
+    });
+    const payload = {
+      ...withSender,
+      senderName: withSender?.sender
+        ? `${withSender.sender.firstName} ${withSender.sender.lastName}`
+        : undefined,
+    };
 
-    this.server.to(data.roomId).emit('new-message', saved);
+    this.server.to(data.roomId).emit('new-message', payload);
 
     if (!this.connectedUsers.has(data.recipientId)) {
       await this.notificationsService.notifyUser(
@@ -83,11 +93,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('get-messages')
   async getMessages(@MessageBody() data: { roomId: string }) {
-    return this.messagesRepo.find({
+    const messages = await this.messagesRepo.find({
       where: { roomId: data.roomId },
       order: { createdAt: 'ASC' },
       take: 100,
+      relations: ['sender'],
     });
+    return messages.map((m) => ({
+      ...m,
+      senderName: m.sender ? `${m.sender.firstName} ${m.sender.lastName}` : undefined,
+    }));
   }
 
   @SubscribeMessage('mark-read')

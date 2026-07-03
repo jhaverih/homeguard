@@ -61,12 +61,22 @@ export default function ChatScreen() {
         keyExtractor={(item) => item.id || item.createdAt}
         contentContainerStyle={styles.messageList}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-        renderItem={({ item }) => (
-          <View style={[styles.bubble, isMe(item.senderId) ? styles.myBubble : styles.theirBubble]}>
-            <Text style={[styles.bubbleText, isMe(item.senderId) && styles.myBubbleText]}>{item.content}</Text>
-            <Text style={styles.bubbleTime}>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const mine = isMe(item.senderId);
+          return (
+            <View style={[styles.bubbleWrapper, mine ? styles.wrapperRight : styles.wrapperLeft]}>
+              {!mine && item.senderName && (
+                <Text style={styles.senderName}>{item.senderName}</Text>
+              )}
+              <View style={[styles.bubble, mine ? styles.myBubble : styles.theirBubble]}>
+                <Text style={[styles.bubbleText, mine && styles.myBubbleText]}>{item.content}</Text>
+                <Text style={[styles.bubbleTime, mine && styles.myBubbleTime]}>
+                  {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            </View>
+          );
+        }}
       />
 
       <View style={styles.inputRow}>
@@ -91,15 +101,21 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#1e3a5f', padding: 16 },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
   messageList: { padding: 16, paddingBottom: 8 },
+  bubbleWrapper: { marginBottom: 8, maxWidth: '80%' },
+  wrapperLeft: { alignSelf: 'flex-start' },
+  wrapperRight: { alignSelf: 'flex-end' },
+  senderName: { fontSize: 11, fontWeight: '600', color: '#888', marginBottom: 3, marginLeft: 4 },
   bubble: {
-    maxWidth: '80%', borderRadius: 16, padding: 12, marginBottom: 8,
-    backgroundColor: '#fff', alignSelf: 'flex-start',
+    borderRadius: 16, padding: 12,
+    backgroundColor: '#fff',
     elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2,
   },
-  myBubble: { alignSelf: 'flex-end', backgroundColor: '#1e3a5f' },
+  myBubble: { backgroundColor: '#1e3a5f' },
+  theirBubble: { backgroundColor: '#fff' },
   bubbleText: { fontSize: 15, color: '#333', lineHeight: 22 },
   myBubbleText: { color: '#fff' },
   bubbleTime: { fontSize: 11, color: '#aaa', marginTop: 4, alignSelf: 'flex-end' },
+  myBubbleTime: { color: 'rgba(255,255,255,0.6)' },
   inputRow: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee', gap: 8 },
   input: {
     flex: 1, backgroundColor: '#f8f9fa', borderRadius: 20, paddingHorizontal: 16,
