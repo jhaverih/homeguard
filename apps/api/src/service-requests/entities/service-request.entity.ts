@@ -63,6 +63,12 @@ export class ServiceRequest {
   @Column({ nullable: true, type: 'text' })
   vendorNotes: string;
 
+  @Column({ default: false })
+  isPaidAddon: boolean;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  addonPrice: number;
+
   @Column()
   address: string;
 

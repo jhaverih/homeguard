@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
-import { requestsApi, userApi } from '../../src/services/api';
+import { Ionicons } from '@expo/vector-icons';
+import { requestsApi, userApi, subscriptionsApi } from '../../src/services/api';
 
 function DateTimeField({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
   const [showDate, setShowDate] = useState(false);
@@ -27,23 +28,14 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
         </TouchableOpacity>
         {showDate && (
           <RNDateTimePicker
-            value={value}
-            mode="date"
-            minimumDate={new Date()}
-            onChange={(_, d) => {
-              setShowDate(false);
-              if (d) { setTempDate(d); setShowTime(true); }
-            }}
+            value={value} mode="date" minimumDate={new Date()}
+            onChange={(_, d) => { setShowDate(false); if (d) { setTempDate(d); setShowTime(true); } }}
           />
         )}
         {showTime && (
           <RNDateTimePicker
-            value={tempDate}
-            mode="time"
-            onChange={(_, d) => {
-              setShowTime(false);
-              if (d) onChange(d);
-            }}
+            value={tempDate} mode="time"
+            onChange={(_, d) => { setShowTime(false); if (d) onChange(d); }}
           />
         )}
       </View>
@@ -61,12 +53,8 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <RNDateTimePicker
-              value={value}
-              mode="datetime"
-              minimumDate={new Date()}
-              display="inline"
-              onChange={(_, d) => { if (d) onChange(d); }}
-              style={{ alignSelf: 'center' }}
+              value={value} mode="datetime" minimumDate={new Date()} display="inline"
+              onChange={(_, d) => { if (d) onChange(d); }} style={{ alignSelf: 'center' }}
             />
             <TouchableOpacity style={styles.doneBtn} onPress={() => setShowDate(false)}>
               <Text style={styles.doneBtnText}>Done</Text>
@@ -80,6 +68,9 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
 
 export default function RequestInspectionScreen() {
   const [loading, setLoading] = useState(false);
+  const [subscription, setSubscription] = useState<any>(null);
+  const [addonConfirmModal, setAddonConfirmModal] = useState(false);
+
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(9, 0, 0, 0);
@@ -100,13 +91,36 @@ export default function RequestInspectionScreen() {
         if (p.zipCode) setZipCode(p.zipCode);
       }
     }).catch(() => {});
+    subscriptionsApi.getMySubscription().then((s: any) => setSubscription(s)).catch(() => {});
   }, []);
 
-  const submit = async () => {
+  const inspectionsRemaining = subscription
+    ? Math.max(0, (subscription.plan?.inspectionsPerYear ?? 0) - (subscription.inspectionsUsed ?? 0))
+    : null;
+  const limitReached = inspectionsRemaining !== null && inspectionsRemaining <= 0;
+  const addonPrice = subscription?.plan?.addonInspectionPrice
+    ? parseFloat(subscription.plan.addonInspectionPrice)
+    : 79;
+
+  const validateForm = () => {
     if (!address || !city || !state || !zipCode) {
-      Alert.alert('Missing Info', 'Please fill in the property address');
-      return;
+      Alert.alert('Missing Info', 'Please fill in the property address.');
+      return false;
     }
+    return true;
+  };
+
+  const handleSubmit = () => {
+    if (!validateForm()) return;
+    if (limitReached) {
+      setAddonConfirmModal(true);
+    } else {
+      doSubmit(false);
+    }
+  };
+
+  const doSubmit = async (isPaidAddon: boolean) => {
+    setAddonConfirmModal(false);
     setLoading(true);
     try {
       await requestsApi.create({
@@ -116,10 +130,13 @@ export default function RequestInspectionScreen() {
         city,
         state,
         zipCode,
+        isPaidAddon,
       });
       Alert.alert(
         'Request Sent!',
-        'We are finding available vendors. You will be notified when one accepts.',
+        isPaidAddon
+          ? `Your additional inspection has been requested. You will be billed $${addonPrice.toFixed(2)} upon completion.`
+          : 'We are finding available vendors. You will be notified when one accepts.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e: any) {
@@ -133,47 +150,48 @@ export default function RequestInspectionScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Request an Inspection</Text>
       <Text style={styles.subtitle}>
-        Tell us when works best for you. An available vendor will accept and confirm the date.
+        Tell us when works best. An available vendor will accept and confirm.
       </Text>
+
+      {/* Quota banner */}
+      {subscription && (
+        <View style={[styles.quotaBanner, limitReached ? styles.quotaBannerWarn : styles.quotaBannerOk]}>
+          <Ionicons
+            name={limitReached ? 'alert-circle-outline' : 'shield-checkmark-outline'}
+            size={18}
+            color={limitReached ? '#92400e' : '#065f46'}
+          />
+          <Text style={[styles.quotaText, limitReached ? styles.quotaTextWarn : styles.quotaTextOk]}>
+            {limitReached
+              ? `All ${subscription.plan?.inspectionsPerYear} plan inspections used. Additional inspections available for $${addonPrice.toFixed(2)} each.`
+              : `${inspectionsRemaining} inspection${inspectionsRemaining === 1 ? '' : 's'} remaining on your plan.`
+            }
+          </Text>
+        </View>
+      )}
 
       <DateTimeField label="Preferred Date & Time" value={preferredDate} onChange={setPreferredDate} />
 
       <Text style={styles.label}>Property Address</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Street address"
-        value={address}
-        onChangeText={setAddress}
-      />
+      <TextInput style={styles.input} placeholder="Street address" value={address} onChangeText={setAddress} />
       <View style={styles.row}>
+        <TextInput style={[styles.input, styles.flex2]} placeholder="City" value={city} onChangeText={setCity} />
         <TextInput
-          style={[styles.input, styles.flex2]}
-          placeholder="City"
-          value={city}
-          onChangeText={setCity}
+          style={[styles.input, styles.flex1, styles.ml8]}
+          placeholder="State" value={state} onChangeText={setState}
+          autoCapitalize="characters" maxLength={2}
         />
         <TextInput
           style={[styles.input, styles.flex1, styles.ml8]}
-          placeholder="State"
-          value={state}
-          onChangeText={setState}
-          autoCapitalize="characters"
-          maxLength={2}
-        />
-        <TextInput
-          style={[styles.input, styles.flex1, styles.ml8]}
-          placeholder="ZIP"
-          value={zipCode}
-          onChangeText={setZipCode}
-          keyboardType="number-pad"
-          maxLength={5}
+          placeholder="ZIP" value={zipCode} onChangeText={setZipCode}
+          keyboardType="number-pad" maxLength={5}
         />
       </View>
 
       <Text style={styles.label}>Notes for the Vendor (optional)</Text>
       <TextInput
         style={[styles.input, styles.textArea]}
-        placeholder="Any special instructions or things the vendor should know..."
+        placeholder="Any special instructions..."
         value={notes}
         onChangeText={setNotes}
         multiline
@@ -185,16 +203,46 @@ export default function RequestInspectionScreen() {
         <Text style={styles.infoItem}>✓ AC visual inspection & filter replacement</Text>
         <Text style={styles.infoItem}>✓ Toilet water leakage check</Text>
         <Text style={styles.infoItem}>✓ Light bulb replacement</Text>
-        <Text style={styles.infoItem}>✓ Any additional items from your plan</Text>
+        <Text style={styles.infoItem}>✓ Full checklist report after inspection</Text>
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={submit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send Request</Text>}
+      <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
+        {loading
+          ? <ActivityIndicator color="#fff" />
+          : <Text style={styles.buttonText}>
+              {limitReached ? `Book Additional Inspection ($${addonPrice.toFixed(2)})` : 'Send Request'}
+            </Text>
+        }
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
         <Text style={styles.cancelText}>Cancel</Text>
       </TouchableOpacity>
+
+      {/* Addon confirmation modal */}
+      <Modal visible={addonConfirmModal} transparent animationType="fade">
+        <View style={styles.addonOverlay}>
+          <View style={styles.addonCard}>
+            <Ionicons name="calendar-outline" size={40} color="#1e3a5f" style={{ alignSelf: 'center', marginBottom: 12 }} />
+            <Text style={styles.addonTitle}>Book Additional Inspection</Text>
+            <Text style={styles.addonBody}>
+              You've used all inspections included in your {subscription?.plan?.name}. This additional
+              inspection will be billed separately.
+            </Text>
+            <View style={styles.addonPriceRow}>
+              <Text style={styles.addonPriceLabel}>Additional Inspection Fee</Text>
+              <Text style={styles.addonPrice}>${addonPrice.toFixed(2)}</Text>
+            </View>
+            <Text style={styles.addonNote}>Payment will be processed upon completion of the inspection.</Text>
+            <TouchableOpacity style={styles.addonConfirmBtn} onPress={() => doSubmit(true)}>
+              <Text style={styles.addonConfirmText}>Confirm & Book — ${addonPrice.toFixed(2)}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.addonCancelBtn} onPress={() => setAddonConfirmModal(false)}>
+              <Text style={styles.addonCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -203,19 +251,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   content: { padding: 24 },
   title: { fontSize: 24, fontWeight: '700', color: '#1e3a5f', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#666', lineHeight: 22, marginBottom: 24 },
+  subtitle: { fontSize: 14, color: '#666', lineHeight: 22, marginBottom: 16 },
+  quotaBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1 },
+  quotaBannerOk: { backgroundColor: '#ecfdf5', borderColor: '#6ee7b7' },
+  quotaBannerWarn: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+  quotaText: { fontSize: 13, lineHeight: 20, flex: 1 },
+  quotaTextOk: { color: '#065f46' },
+  quotaTextWarn: { color: '#92400e' },
   fieldWrap: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
-  dateBtn: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
-    padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
+  dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateBtnText: { fontSize: 15, color: '#1e3a5f', fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
-  input: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
-    padding: 16, fontSize: 16, marginBottom: 16,
-  },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16 },
   textArea: { height: 100, textAlignVertical: 'top' },
   infoBox: { backgroundColor: '#e8f0fe', borderRadius: 12, padding: 16, marginBottom: 24 },
   infoTitle: { fontSize: 14, fontWeight: '700', color: '#1e3a5f', marginBottom: 8 },
@@ -232,4 +280,16 @@ const styles = StyleSheet.create({
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   doneBtn: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
   doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  addonOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  addonCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24 },
+  addonTitle: { fontSize: 20, fontWeight: '700', color: '#1e3a5f', textAlign: 'center', marginBottom: 12 },
+  addonBody: { fontSize: 14, color: '#64748b', lineHeight: 22, textAlign: 'center', marginBottom: 20 },
+  addonPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f4ff', borderRadius: 12, padding: 16, marginBottom: 12 },
+  addonPriceLabel: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  addonPrice: { fontSize: 22, fontWeight: '800', color: '#1e3a5f' },
+  addonNote: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 20 },
+  addonConfirmBtn: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 10 },
+  addonConfirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  addonCancelBtn: { alignItems: 'center', padding: 12 },
+  addonCancelText: { color: '#888', fontSize: 14 },
 });

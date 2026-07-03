@@ -30,6 +30,7 @@ export class ServiceRequestsService {
     city: string;
     state: string;
     zipCode: string;
+    isPaidAddon?: boolean;
   }): Promise<ServiceRequest> {
     const subscription = await this.subscriptionsService.getActiveSubscription(customerId);
     if (!subscription) throw new BadRequestException('No active subscription found');
@@ -40,9 +41,14 @@ export class ServiceRequestsService {
         status: Not(In([ServiceRequestStatus.COMPLETED, ServiceRequestStatus.CANCELLED])),
       },
     });
-    if (subscription.inspectionsUsed + pendingCount >= subscription.plan.inspectionsPerYear) {
+    const limitReached = subscription.inspectionsUsed + pendingCount >= subscription.plan.inspectionsPerYear;
+    if (limitReached && !dto.isPaidAddon) {
       throw new BadRequestException('No inspections remaining on your subscription');
     }
+
+    const addonPrice = limitReached && dto.isPaidAddon
+      ? Number(subscription.plan.addonInspectionPrice)
+      : null;
 
     const request = this.requestsRepo.create({
       customerId,
@@ -55,6 +61,8 @@ export class ServiceRequestsService {
       city: dto.city,
       state: dto.state,
       zipCode: dto.zipCode,
+      isPaidAddon: !!addonPrice,
+      addonPrice,
     });
 
     const saved = await this.requestsRepo.save(request);
@@ -102,7 +110,7 @@ export class ServiceRequestsService {
     request.status = status;
     if (status === ServiceRequestStatus.COMPLETED) {
       request.completedAt = new Date();
-      await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId);
+      await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
     }
     const saved = await this.requestsRepo.save(request);
 

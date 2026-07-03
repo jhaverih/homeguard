@@ -182,6 +182,14 @@ export default function RequestDetailScreen() {
         <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
       </View>
 
+      {request.isPaidAddon && (
+        <View style={styles.addonBanner}>
+          <Text style={styles.addonBannerText}>
+            Additional Inspection — ${parseFloat(request.addonPrice).toFixed(2)} billed upon completion
+          </Text>
+        </View>
+      )}
+
       <Text style={styles.sectionTitle}>Address</Text>
       {(() => {
         const addr = request.address ? request : profileAddress;
@@ -346,6 +354,8 @@ const styles = StyleSheet.create({
   svcDesc: { fontSize: 13, color: '#555', lineHeight: 18, marginBottom: 10 },
   approveBtn: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  addonBanner: { backgroundColor: '#fef3c7', borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#fde68a' },
+  addonBannerText: { fontSize: 13, color: '#92400e', fontWeight: '600' },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
   vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: '#e2e8f0' },
   vendorName: { fontSize: 15, fontWeight: '700', color: '#1e3a5f' },

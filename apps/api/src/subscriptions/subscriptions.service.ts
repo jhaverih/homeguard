@@ -30,6 +30,7 @@ export class SubscriptionsService implements OnModuleInit {
         description: '2 annual inspections covering AC, toilets, and light bulbs',
         price: 99,
         inspectionsPerYear: 2,
+        addonInspectionPrice: 89,
         features: [
           'AC visual inspection & filter replacement',
           'Toilet water leakage verification',
@@ -43,6 +44,7 @@ export class SubscriptionsService implements OnModuleInit {
         description: 'Basic plan plus water leak monitoring for AC and washer',
         price: 199,
         inspectionsPerYear: 2,
+        addonInspectionPrice: 79,
         features: [
           'All Basic plan features',
           'AC drainage pan water leak monitoring',
@@ -56,6 +58,7 @@ export class SubscriptionsService implements OnModuleInit {
         description: 'Standard plan plus full HVAC monitoring',
         price: 299,
         inspectionsPerYear: 2,
+        addonInspectionPrice: 69,
         features: [
           'All Standard plan features',
           'Full HVAC system monitoring',
@@ -101,10 +104,10 @@ export class SubscriptionsService implements OnModuleInit {
     return this.subscriptionsRepo.save(subscription);
   }
 
-  async incrementInspectionsUsed(subscriptionId: string): Promise<void> {
+  async incrementInspectionsUsed(subscriptionId: string, isAddon = false): Promise<void> {
     const sub = await this.subscriptionsRepo.findOne({ where: { id: subscriptionId }, relations: ['plan'] });
     if (!sub) throw new NotFoundException('Subscription not found');
-    if (sub.inspectionsUsed >= sub.plan.inspectionsPerYear) {
+    if (!isAddon && sub.inspectionsUsed >= sub.plan.inspectionsPerYear) {
       throw new BadRequestException('No inspections remaining on this subscription');
     }
     await this.subscriptionsRepo.increment({ id: subscriptionId }, 'inspectionsUsed', 1);

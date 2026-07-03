@@ -23,6 +23,9 @@ export class SubscriptionPlan {
   @Column({ default: 2 })
   inspectionsPerYear: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 79 })
+  addonInspectionPrice: number;
+
   @Column({ type: 'simple-array' })
   features: string[];
 
