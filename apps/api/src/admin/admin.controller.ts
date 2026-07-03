@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -36,6 +36,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Approve a vendor' })
   approveVendor(@Param('id') id: string) {
     return this.service.approveVendor(id);
+  }
+
+  @Delete('vendors/:id')
+  @ApiOperation({ summary: 'Remove (deactivate) a vendor' })
+  removeVendor(@Param('id') id: string) {
+    return this.service.removeVendor(id);
   }
 
   @Get('schedule')

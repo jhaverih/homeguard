@@ -19,7 +19,7 @@ function RoleSwitcher() {
 
   return (
     <TouchableOpacity style={styles.switchBtn} onPress={switchToCustomer}>
-      <Text style={styles.switchText}>Switch to Customer</Text>
+      <Text style={styles.switchText}>Switch to Homeowner</Text>
     </TouchableOpacity>
   );
 }
@@ -33,32 +33,33 @@ export default function VendorLayout() {
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
         tabBarActiveTintColor: '#2d4a22',
+        tabBarInactiveTintColor: '#94a3b8',
+        tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
       <Tabs.Screen
         name="index"
-        options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Ionicons name="grid" size={24} color={color} /> }}
+        options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Ionicons name="grid" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="requests"
-        options={{ title: 'Open Jobs', tabBarIcon: ({ color }) => <Ionicons name="list" size={24} color={color} /> }}
+        options={{ title: 'Open Jobs', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="my-jobs"
-        options={{ title: 'My Jobs', tabBarIcon: ({ color }) => <Ionicons name="briefcase" size={24} color={color} /> }}
+        options={{ title: 'My Jobs', tabBarIcon: ({ color }) => <Ionicons name="briefcase" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="schedule"
-        options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={24} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{ title: 'Alerts', tabBarIcon: ({ color }) => <Ionicons name="notifications" size={24} color={color} /> }}
+        options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }}
+        options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }}
       />
+      <Tabs.Screen name="active-job" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
     </Tabs>
   );
 }

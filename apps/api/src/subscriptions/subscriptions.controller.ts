@@ -33,6 +33,22 @@ export class SubscriptionsController {
     return this.service.subscribe(req.user.id, planId);
   }
 
+  @Post('cancel')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Cancel my active subscription' })
+  cancel(@Request() req) {
+    return this.service.cancelSubscription(req.user.id);
+  }
+
+  @Post('change/:planId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Change my subscription plan' })
+  changePlan(@Request() req, @Param('planId') planId: string) {
+    return this.service.changePlan(req.user.id, planId);
+  }
+
   @Patch('plans/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)

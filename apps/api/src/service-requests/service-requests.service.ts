@@ -210,6 +210,29 @@ export class ServiceRequestsService {
     });
   }
 
+  async cancelRequest(requestId: string, customerId: string): Promise<ServiceRequest> {
+    const req = await this.findById(requestId);
+    if (req.customerId !== customerId) throw new ForbiddenException();
+    if (req.status === ServiceRequestStatus.COMPLETED) {
+      throw new BadRequestException('Cannot cancel a completed inspection');
+    }
+    if (req.status === ServiceRequestStatus.CANCELLED) {
+      throw new BadRequestException('Request is already cancelled');
+    }
+    req.status = ServiceRequestStatus.CANCELLED;
+    const saved = await this.requestsRepo.save(req);
+    if (req.vendorId) {
+      await this.notificationsService.notifyUser(
+        req.vendorId,
+        NotificationType.JOB_COMPLETED,
+        'Inspection Cancelled',
+        'The customer has cancelled this inspection request.',
+        { serviceRequestId: saved.id },
+      );
+    }
+    return saved;
+  }
+
   async findById(id: string): Promise<ServiceRequest> {
     const req = await this.requestsRepo.findOne({ where: { id }, relations: ['additionalServices'] });
     if (!req) throw new NotFoundException('Service request not found');

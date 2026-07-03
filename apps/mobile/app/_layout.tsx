@@ -22,7 +22,7 @@ function AuthRedirect() {
     const inAuth = segments[0] === '(auth)';
 
     if (!user) {
-      if (!inAuth) router.replace('/(auth)/login');
+      if (!inAuth) router.replace('/(auth)/welcome');
     } else if (inAuth) {
       // Logged-in user landed on an auth screen — send to their dashboard
       if (user.activeRole === 'VENDOR') {

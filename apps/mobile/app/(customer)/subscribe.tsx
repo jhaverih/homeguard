@@ -1,27 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { subscriptionsApi } from '../../src/services/api';
 
 export default function SubscribeScreen() {
   const [plans, setPlans] = useState<any[]>([]);
+  const [subscription, setSubscription] = useState<any>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [showChangePlan, setShowChangePlan] = useState(false);
 
-  useEffect(() => {
-    subscriptionsApi.getPlans()
-      .then((data: any) => setPlans(data || []))
-      .catch(() => setPlans([]))
-      .finally(() => setFetching(false));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setFetching(true);
+      Promise.all([
+        subscriptionsApi.getPlans().catch(() => []),
+        subscriptionsApi.getMySubscription().catch(() => null),
+      ]).then(([p, s]: any[]) => {
+        setPlans(p || []);
+        setSubscription(s || null);
+      }).finally(() => setFetching(false));
+    }, [])
+  );
 
   const subscribe = async () => {
     if (!selectedPlanId) {
-      Alert.alert('Select a Plan', 'Please select a subscription plan to continue.');
+      Alert.alert('Select a Plan', 'Please select a plan to continue.');
       return;
     }
     setLoading(true);
@@ -31,88 +41,242 @@ export default function SubscribeScreen() {
         { text: 'OK', onPress: () => router.replace('/(customer)') },
       ]);
     } catch (e: any) {
-      Alert.alert('Subscription Failed', e.message === 'NETWORK_ERROR'
-        ? 'Cannot connect to server. Make sure you are on home WiFi.'
-        : e.message);
+      Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const changePlan = async () => {
+    if (!selectedPlanId) {
+      Alert.alert('Select a Plan', 'Please select the plan you want to switch to.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await subscriptionsApi.changePlan(selectedPlanId);
+      Alert.alert('Plan Updated', 'Your subscription plan has been changed.');
+      setShowChangePlan(false);
+      setSelectedPlanId('');
+      const s: any = await subscriptionsApi.getMySubscription().catch(() => null);
+      setSubscription(s);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelPlan = () => {
+    Alert.alert(
+      'Cancel Subscription',
+      'Are you sure you want to cancel? Your subscription will remain active until ' +
+        new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '.',
+      [
+        { text: 'Keep Subscription', style: 'cancel' },
+        {
+          text: 'Cancel Subscription', style: 'destructive',
+          onPress: async () => {
+            try {
+              await subscriptionsApi.cancelSubscription();
+              Alert.alert(
+                'Subscription Cancelled',
+                'Your subscription renewal has been cancelled. Access continues until ' +
+                  new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '.',
+              );
+              setSubscription((prev: any) => ({ ...prev, status: 'CANCELLED' }));
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (fetching) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
+
+  if (subscription && !showChangePlan) {
+    const endDate = new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const isCancelled = subscription.status === 'CANCELLED';
+
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.activeCard}>
+          <View style={styles.activeCardTop}>
+            <Ionicons name="shield-checkmark" size={32} color="#1e3a5f" />
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={styles.activePlanName}>{subscription.plan?.name}</Text>
+              <Text style={styles.activePlanPrice}>${subscription.plan?.price}<Text style={styles.activePlanPer}>/yr</Text></Text>
+            </View>
+            <View style={[styles.statusBadge, isCancelled ? styles.statusCancelled : styles.statusActive]}>
+              <Text style={[styles.statusText, isCancelled ? { color: '#c53030' } : { color: '#059669' }]}>
+                {isCancelled ? 'Cancelled' : 'Active'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Inspections used</Text>
+            <Text style={styles.infoVal}>{subscription.inspectionsUsed} / {subscription.plan?.inspectionsPerYear}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{isCancelled ? 'Access until' : 'Renews on'}</Text>
+            <Text style={styles.infoVal}>{endDate}</Text>
+          </View>
+
+          {subscription.plan?.features?.map((f: string, i: number) => (
+            <View key={i} style={styles.featureRow}>
+              <Ionicons name="checkmark-circle" size={16} color="#059669" />
+              <Text style={styles.featureText}>{f}</Text>
+            </View>
+          ))}
+        </View>
+
+        {isCancelled ? (
+          <View style={styles.cancelledNote}>
+            <Ionicons name="information-circle-outline" size={18} color="#744210" />
+            <Text style={styles.cancelledNoteText}>
+              Renewal has been cancelled. Your subscription will expire on {endDate}.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity style={styles.changeBtn} onPress={() => { setShowChangePlan(true); setSelectedPlanId(''); }}>
+              <Ionicons name="swap-horizontal" size={18} color="#1e3a5f" />
+              <Text style={styles.changeBtnText}>Change Plan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={cancelPlan}>
+              <Ionicons name="close-circle-outline" size={18} color="#c53030" />
+              <Text style={styles.cancelBtnText}>Cancel Subscription</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Choose Your Plan</Text>
-      <Text style={styles.subtitle}>Select the plan that best fits your home.</Text>
-
-      {plans.map((plan: any) => (
-        <TouchableOpacity
-          key={plan.id}
-          style={[styles.planCard, selectedPlanId === plan.id && styles.planCardActive]}
-          onPress={() => setSelectedPlanId(plan.id)}
-        >
-          <View style={styles.planHeader}>
-            <Text style={styles.planName}>{plan.name}</Text>
-            <Text style={styles.planPrice}>${plan.price}<Text style={styles.planPer}>/yr</Text></Text>
-          </View>
-          <Text style={styles.planDesc}>{plan.description}</Text>
-          {plan.features?.map((f: string, i: number) => (
-            <Text key={i} style={styles.planFeature}>✓  {f}</Text>
-          ))}
-          {selectedPlanId === plan.id && (
-            <View style={styles.selectedBadge}>
-              <Text style={styles.selectedBadgeText}>Selected</Text>
-            </View>
-          )}
+      {showChangePlan && (
+        <TouchableOpacity style={styles.backRow} onPress={() => setShowChangePlan(false)}>
+          <Ionicons name="arrow-back" size={18} color="#1e3a5f" />
+          <Text style={styles.backText}>Back to my plan</Text>
         </TouchableOpacity>
-      ))}
+      )}
+
+      <Text style={styles.title}>{showChangePlan ? 'Switch Plan' : 'Choose Your Plan'}</Text>
+      <Text style={styles.subtitle}>
+        {showChangePlan ? 'Select a new plan to switch to.' : 'Select the plan that best fits your home.'}
+      </Text>
+
+      {plans.map((plan: any) => {
+        const isCurrent = subscription?.planId === plan.id;
+        return (
+          <TouchableOpacity
+            key={plan.id}
+            style={[styles.planCard, selectedPlanId === plan.id && styles.planCardActive, isCurrent && styles.planCardCurrent]}
+            onPress={() => !isCurrent && setSelectedPlanId(plan.id)}
+            activeOpacity={isCurrent ? 1 : 0.8}
+          >
+            <View style={styles.planHeader}>
+              <Text style={styles.planName}>{plan.name}</Text>
+              <Text style={styles.planPrice}>${plan.price}<Text style={styles.planPer}>/yr</Text></Text>
+            </View>
+            <Text style={styles.planDesc}>{plan.description}</Text>
+            {plan.features?.map((f: string, i: number) => (
+              <Text key={i} style={styles.planFeature}>✓  {f}</Text>
+            ))}
+            {isCurrent && <Text style={styles.currentLabel}>Current Plan</Text>}
+          </TouchableOpacity>
+        );
+      })}
 
       <TouchableOpacity
         style={[styles.button, !selectedPlanId && styles.buttonDisabled]}
-        onPress={subscribe}
-        disabled={loading}
+        onPress={showChangePlan ? changePlan : subscribe}
+        disabled={loading || !selectedPlanId}
       >
-        {loading
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={styles.buttonText}>Activate Subscription</Text>}
+        {loading ? <ActivityIndicator color="#fff" /> : (
+          <Text style={styles.buttonText}>{showChangePlan ? 'Switch Plan' : 'Activate Subscription'}</Text>
+        )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.skipBtn} onPress={() => router.back()}>
-        <Text style={styles.skipText}>Maybe later</Text>
-      </TouchableOpacity>
+      {!showChangePlan && (
+        <TouchableOpacity style={styles.skipBtn} onPress={() => router.back()}>
+          <Text style={styles.skipText}>Maybe later</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  content: { padding: 24, paddingTop: 48, paddingBottom: 40 },
-  title: { fontSize: 26, fontWeight: '800', color: '#1e3a5f', marginBottom: 6 },
-  subtitle: { fontSize: 15, color: '#666', marginBottom: 24 },
+  content: { padding: 20, paddingBottom: 40 },
+  activeCard: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 16,
+    borderWidth: 1.5, borderColor: '#e2e8f0',
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  activeCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  activePlanName: { fontSize: 18, fontWeight: '700', color: '#1e3a5f' },
+  activePlanPrice: { fontSize: 20, fontWeight: '800', color: '#2d7d46', marginTop: 2 },
+  activePlanPer: { fontSize: 13, fontWeight: '400', color: '#888' },
+  statusBadge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
+  statusActive: { backgroundColor: '#dcfce7' },
+  statusCancelled: { backgroundColor: '#fed7d7' },
+  statusText: { fontSize: 12, fontWeight: '700' },
+  divider: { height: 1, backgroundColor: '#f0f0f0', marginBottom: 14 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  infoLabel: { fontSize: 14, color: '#64748b' },
+  infoVal: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  featureText: { fontSize: 13, color: '#444', flex: 1 },
+  cancelledNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: '#fffbeb', borderRadius: 12, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: '#fde68a',
+  },
+  cancelledNoteText: { flex: 1, fontSize: 13, color: '#744210', lineHeight: 20 },
+  changeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#eff6ff', borderRadius: 14, padding: 16, marginBottom: 10,
+    borderWidth: 1.5, borderColor: '#bfdbfe',
+  },
+  changeBtnText: { color: '#1e3a5f', fontWeight: '700', fontSize: 15 },
+  cancelBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#fff5f5', borderRadius: 14, padding: 16,
+    borderWidth: 1.5, borderColor: '#fed7d7',
+  },
+  cancelBtnText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
+  backText: { color: '#1e3a5f', fontWeight: '600', fontSize: 14 },
+  title: { fontSize: 24, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
+  subtitle: { fontSize: 14, color: '#64748b', marginBottom: 20 },
   planCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 16,
+    backgroundColor: '#fff', borderRadius: 16, padding: 18, marginBottom: 14,
     borderWidth: 2, borderColor: '#e2e8f0',
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
   },
   planCardActive: { borderColor: '#1e3a5f', backgroundColor: '#f0f4ff' },
-  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  planName: { fontSize: 18, fontWeight: '700', color: '#1e3a5f' },
-  planPrice: { fontSize: 22, fontWeight: '800', color: '#2d7d46' },
-  planPer: { fontSize: 14, fontWeight: '400', color: '#888' },
-  planDesc: { fontSize: 13, color: '#666', marginBottom: 12, lineHeight: 18 },
-  planFeature: { fontSize: 14, color: '#444', lineHeight: 24 },
-  selectedBadge: {
-    marginTop: 12, alignSelf: 'flex-start',
-    backgroundColor: '#1e3a5f', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 4,
-  },
-  selectedBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  planCardCurrent: { borderColor: '#94a3b8', opacity: 0.7 },
+  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  planName: { fontSize: 17, fontWeight: '700', color: '#1e3a5f' },
+  planPrice: { fontSize: 20, fontWeight: '800', color: '#2d7d46' },
+  planPer: { fontSize: 13, fontWeight: '400', color: '#888' },
+  planDesc: { fontSize: 13, color: '#666', marginBottom: 10, lineHeight: 18 },
+  planFeature: { fontSize: 13, color: '#444', lineHeight: 22 },
+  currentLabel: { marginTop: 8, fontSize: 12, color: '#64748b', fontStyle: 'italic' },
   button: {
-    backgroundColor: '#1e3a5f', borderRadius: 14, padding: 16,
+    backgroundColor: '#1e3a5f', borderRadius: 14, padding: 17,
     alignItems: 'center', marginTop: 8,
   },
   buttonDisabled: { backgroundColor: '#94a3b8' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  skipBtn: { alignItems: 'center', marginTop: 16 },
+  skipBtn: { alignItems: 'center', marginTop: 14 },
   skipText: { color: '#888', fontSize: 14 },
 });

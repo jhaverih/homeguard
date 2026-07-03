@@ -3,15 +3,19 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
-import { router, Link } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
+import { Ionicons } from '@expo/vector-icons';
 import { authApi, subscriptionsApi, api } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
 export default function RegisterScreen() {
+  const { role: roleParam } = useLocalSearchParams<{ role?: string }>();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'account' | 'role' | 'plan'>('account');
-  const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'VENDOR'>('CUSTOMER');
+  const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'VENDOR'>(
+    roleParam === 'VENDOR' ? 'VENDOR' : 'CUSTOMER'
+  );
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const { setAuth } = useAuthStore();
@@ -70,27 +74,27 @@ export default function RegisterScreen() {
     }
   };
 
+  const isVendor = selectedRole === 'VENDOR';
+  const accent = isVendor ? '#2d4a22' : '#1e3a5f';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <Ionicons name="arrow-back" size={22} color="#64748b" />
+      </TouchableOpacity>
+
       <Text style={styles.logo}>🏠 HomeGuard</Text>
       <Text style={styles.title}>Create Account</Text>
 
+      <View style={[styles.roleBadge, { backgroundColor: isVendor ? '#e8f5e9' : '#e8f0fe' }]}>
+        <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={16} color={accent} />
+        <Text style={[styles.roleBadgeText, { color: accent }]}>
+          {isVendor ? 'Service Provider Account' : 'Homeowner Account'}
+        </Text>
+      </View>
+
       {step === 'account' && (
         <>
-          <Text style={styles.sectionLabel}>I am a:</Text>
-          <View style={styles.roleRow}>
-            {(['CUSTOMER', 'VENDOR'] as const).map((role) => (
-              <TouchableOpacity
-                key={role}
-                style={[styles.roleChip, selectedRole === role && styles.roleChipActive]}
-                onPress={() => setSelectedRole(role)}
-              >
-                <Text style={[styles.roleChipText, selectedRole === role && styles.roleChipTextActive]}>
-                  {role === 'CUSTOMER' ? '🏠 Homeowner' : '🔧 Service Provider'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
 
           {(['firstName', 'lastName', 'email', 'phone'] as const).map((field) => (
             <Controller
@@ -226,18 +230,25 @@ export default function RegisterScreen() {
         </>
       )}
 
-      <Link href="/(auth)/login" style={styles.link}>
-        Already have an account? <Text style={styles.linkBold}>Sign in</Text>
-      </Link>
+      <TouchableOpacity
+        style={styles.loginRow}
+        onPress={() => router.push({ pathname: '/(auth)/login', params: { role: selectedRole } })}
+      >
+        <Text style={styles.loginText}>Already have an account? </Text>
+        <Text style={[styles.loginLink, { color: accent }]}>Sign in</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  content: { padding: 24, paddingTop: 60 },
-  logo: { fontSize: 32, textAlign: 'center', marginBottom: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: '#1e3a5f', textAlign: 'center', marginBottom: 24 },
+  content: { padding: 24, paddingTop: 48, paddingBottom: 32 },
+  backBtn: { marginBottom: 8 },
+  logo: { fontSize: 28, textAlign: 'center', marginBottom: 6 },
+  title: { fontSize: 24, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 12 },
+  roleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, gap: 6, marginBottom: 20 },
+  roleBadgeText: { fontSize: 13, fontWeight: '600' },
   sectionLabel: { fontSize: 16, fontWeight: '600', color: '#1e3a5f', marginBottom: 12, marginTop: 8 },
   input: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
@@ -267,8 +278,9 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { backgroundColor: '#ccc' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  link: { textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 32 },
-  linkBold: { color: '#1e3a5f', fontWeight: '600' },
+  loginRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 32 },
+  loginText: { color: '#64748b', fontSize: 14 },
+  loginLink: { fontSize: 14, fontWeight: '600' },
   hint: { color: '#666', fontSize: 14, lineHeight: 22, marginBottom: 16 },
   emptyPlans: { backgroundColor: '#fff4e5', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#f6ad55' },
   emptyPlansText: { color: '#744210', fontSize: 14, lineHeight: 20 },

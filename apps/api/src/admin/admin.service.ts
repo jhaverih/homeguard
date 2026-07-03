@@ -120,6 +120,11 @@ export class AdminService {
     return this.usersRepo.findOne({ where: { id: vendorId }, relations: ['vendorProfile'] });
   }
 
+  async removeVendor(vendorId: string) {
+    await this.usersRepo.update(vendorId, { status: UserStatus.SUSPENDED });
+    return { success: true };
+  }
+
   async getSchedule(year?: number, month?: number) {
     const requests = await this.requestsRepo.find({
       where: { scheduledDate: Not(IsNull()) },

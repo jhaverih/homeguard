@@ -123,6 +123,28 @@ export default function RequestDetailScreen() {
     setRescheduleModal(true);
   };
 
+  const cancelRequest = () => {
+    Alert.alert(
+      'Cancel Inspection',
+      'Are you sure you want to cancel this inspection request?',
+      [
+        { text: 'Keep It', style: 'cancel' },
+        {
+          text: 'Cancel Request', style: 'destructive',
+          onPress: async () => {
+            try {
+              await requestsApi.cancel(id);
+              Alert.alert('Cancelled', 'Your inspection request has been cancelled.');
+              load();
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const approveService = async (serviceId: string) => {
     setApprovingId(serviceId);
     try {
@@ -151,6 +173,7 @@ export default function RequestDetailScreen() {
 
   const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.PENDING;
   const canReschedule = !['COMPLETED', 'CANCELLED'].includes(request.status);
+  const canCancel = !['COMPLETED', 'CANCELLED'].includes(request.status);
   const canChat = !!request.vendorId;
 
   return (
@@ -247,6 +270,12 @@ export default function RequestDetailScreen() {
         </TouchableOpacity>
       )}
 
+      {canCancel && (
+        <TouchableOpacity style={styles.cancelRequestBtn} onPress={cancelRequest}>
+          <Text style={styles.cancelRequestText}>Cancel Inspection</Text>
+        </TouchableOpacity>
+      )}
+
       <Modal visible={rescheduleModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
@@ -295,6 +324,8 @@ const styles = StyleSheet.create({
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888' },
+  cancelRequestBtn: { backgroundColor: '#fff5f5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: '#fed7d7' },
+  cancelRequestText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
   svcCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
   svcCardApproved: { borderColor: '#059669', backgroundColor: '#f0fdf4' },
   svcHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },

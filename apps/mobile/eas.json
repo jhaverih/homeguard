@@ -4,6 +4,9 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "node": "22.0.0"
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
@@ -18,7 +21,15 @@
         "EXPO_PUBLIC_API_URL": "http://192.168.86.29/api"
       }
     },
+    "store-test": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://192.168.86.29/api"
+      }
+    },
     "production": {
+      "distribution": "store",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.homeguard.app/api"
@@ -26,6 +37,12 @@
     }
   },
   "submit": {
+    "store-test": {
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal"
+      }
+    },
     "production": {
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",

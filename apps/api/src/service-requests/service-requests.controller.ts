@@ -77,4 +77,10 @@ export class ServiceRequestsController {
   reschedule(@Request() req, @Param('id') id: string, @Body() body: { newDate: string }) {
     return this.service.reschedule(id, req.user.id, body.newDate);
   }
+
+  @Patch(':id/cancel')
+  @ApiOperation({ summary: 'Customer: cancel an inspection request' })
+  cancel(@Request() req, @Param('id') id: string) {
+    return this.service.cancelRequest(id, req.user.id);
+  }
 }

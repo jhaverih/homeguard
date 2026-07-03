@@ -19,7 +19,7 @@ function RoleSwitcher() {
 
   return (
     <TouchableOpacity style={styles.switchBtn} onPress={switchToVendor}>
-      <Text style={styles.switchText}>Switch to Vendor</Text>
+      <Text style={styles.switchText}>Switch to Provider</Text>
     </TouchableOpacity>
   );
 }
@@ -33,32 +33,37 @@ export default function CustomerLayout() {
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
         tabBarActiveTintColor: '#1e3a5f',
+        tabBarInactiveTintColor: '#94a3b8',
+        tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       })}
     >
       <Tabs.Screen
         name="index"
-        options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} /> }}
+        options={{ title: 'Home', tabBarIcon: ({ color }) => <Ionicons name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="request"
-        options={{ title: 'Request', tabBarIcon: ({ color }) => <Ionicons name="add-circle" size={24} color={color} /> }}
+        options={{ title: 'Book', tabBarIcon: ({ color }) => <Ionicons name="add-circle" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="schedule"
-        options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={24} color={color} /> }}
+        options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="inspections"
-        options={{ title: 'History', tabBarIcon: ({ color }) => <Ionicons name="document-text" size={24} color={color} /> }}
+        options={{ title: 'History', tabBarIcon: ({ color }) => <Ionicons name="time" size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="notifications"
-        options={{ title: 'Alerts', tabBarIcon: ({ color }) => <Ionicons name="notifications" size={24} color={color} /> }}
+        name="subscribe"
+        options={{ title: 'My Plan', tabBarIcon: ({ color }) => <Ionicons name="shield-checkmark" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }}
+        options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }}
       />
+      <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
     </Tabs>
   );
 }

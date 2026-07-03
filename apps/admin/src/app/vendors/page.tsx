@@ -6,6 +6,7 @@ export default function VendorsPage() {
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   useEffect(() => {
     adminApi.getVendors().then(setVendors).finally(() => setLoading(false));
@@ -18,6 +19,17 @@ export default function VendorsPage() {
       setVendors((prev) => prev.map((v) => v.id === id ? { ...v, status: 'ACTIVE' } : v));
     } finally {
       setApproving(null);
+    }
+  };
+
+  const remove = async (id: string, name: string) => {
+    if (!confirm(`Suspend vendor "${name}"? They will no longer be able to log in.`)) return;
+    setRemoving(id);
+    try {
+      await adminApi.removeVendor(id);
+      setVendors((prev) => prev.map((v) => v.id === id ? { ...v, status: 'SUSPENDED' } : v));
+    } finally {
+      setRemoving(null);
     }
   };
 
@@ -74,7 +86,7 @@ export default function VendorsPage() {
                   <td className="px-6 py-4 text-gray-400">
                     {new Date(v.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 flex gap-2">
                     {v.status === 'PENDING_APPROVAL' && (
                       <button
                         onClick={() => approve(v.id)}
@@ -82,6 +94,15 @@ export default function VendorsPage() {
                         className="bg-vendor text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
                       >
                         {approving === v.id ? 'Approving…' : 'Approve'}
+                      </button>
+                    )}
+                    {v.status !== 'SUSPENDED' && (
+                      <button
+                        onClick={() => remove(v.id, v.name)}
+                        disabled={removing === v.id}
+                        className="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+                      >
+                        {removing === v.id ? 'Removing…' : 'Suspend'}
                       </button>
                     )}
                   </td>

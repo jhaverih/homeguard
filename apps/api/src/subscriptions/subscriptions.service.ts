@@ -110,6 +110,23 @@ export class SubscriptionsService implements OnModuleInit {
     await this.subscriptionsRepo.increment({ id: subscriptionId }, 'inspectionsUsed', 1);
   }
 
+  async cancelSubscription(customerId: string): Promise<CustomerSubscription> {
+    const sub = await this.getActiveSubscription(customerId);
+    if (!sub) throw new NotFoundException('No active subscription found');
+    sub.status = SubscriptionStatus.CANCELLED;
+    return this.subscriptionsRepo.save(sub);
+  }
+
+  async changePlan(customerId: string, newPlanId: string): Promise<CustomerSubscription> {
+    const sub = await this.getActiveSubscription(customerId);
+    if (!sub) throw new NotFoundException('No active subscription found');
+    const plan = await this.plansRepo.findOne({ where: { id: newPlanId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    sub.planId = newPlanId;
+    sub.plan = plan;
+    return this.subscriptionsRepo.save(sub);
+  }
+
   async updatePlan(planId: string, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
     await this.plansRepo.update(planId, data);
     return this.plansRepo.findOne({ where: { id: planId } });

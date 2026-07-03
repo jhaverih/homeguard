@@ -51,6 +51,8 @@ export const subscriptionsApi = {
   getPlans: () => api.get('/subscriptions/plans'),
   getMySubscription: () => api.get('/subscriptions/my'),
   subscribe: (planId: string) => api.post(`/subscriptions/subscribe/${planId}`),
+  cancelSubscription: () => api.post('/subscriptions/cancel'),
+  changePlan: (planId: string) => api.post(`/subscriptions/change/${planId}`),
 };
 
 export const requestsApi = {
@@ -65,6 +67,7 @@ export const requestsApi = {
   recommendService: (id: string, data: any) => api.post(`/service-requests/${id}/additional-services`, data),
   approveService: (serviceId: string) => api.post(`/service-requests/additional-services/${serviceId}/approve`),
   reschedule: (id: string, newDate: string) => api.patch(`/service-requests/${id}/reschedule`, { newDate }),
+  cancel: (id: string) => api.patch(`/service-requests/${id}/cancel`),
 };
 
 export const inspectionsApi = {
