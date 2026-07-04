@@ -37,6 +37,12 @@ export class ServiceRequestsController {
     return this.service.getPendingRequests();
   }
 
+  @Get('additional-services/pending')
+  @ApiOperation({ summary: 'Customer: get all unapproved additional service recommendations' })
+  getPendingAdditionalServices(@Request() req) {
+    return this.service.getPendingAdditionalServices(req.user.id);
+  }
+
   @Get(':id')
   findOne(@Request() req, @Param('id') id: string) {
     return this.service.findByIdForUser(id, req.user.id);

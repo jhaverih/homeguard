@@ -8,10 +8,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi } from '../../src/services/api';
 
+
 export default function CustomerDashboard() {
   const { user } = useAuthStore();
   const [subscription, setSubscription] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -23,6 +25,10 @@ export default function CustomerDashboard() {
     try {
       const reqs: any = await requestsApi.getMyRequests();
       setRequests(reqs || []);
+    } catch (e) {}
+    try {
+      const approvals: any = await requestsApi.getPendingAdditionalServices();
+      setPendingApprovals((approvals || []).length);
     } catch (e) {}
     setLoading(false);
     setRefreshing(false);
@@ -111,6 +117,25 @@ export default function CustomerDashboard() {
         <Ionicons name="chevron-forward" size={20} color="#a8c4e5" />
       </TouchableOpacity>
 
+      {pendingApprovals > 0 && (
+        <TouchableOpacity style={styles.approvalsCard} onPress={() => router.push('/(customer)/approvals')}>
+          <View style={styles.approvalsLeft}>
+            <View style={styles.approvalsIcon}>
+              <Ionicons name="construct" size={20} color="#c05621" />
+            </View>
+            <View>
+              <Text style={styles.approvalsTitle}>Additional Services Pending</Text>
+              <Text style={styles.approvalsSub}>
+                {pendingApprovals} recommendation{pendingApprovals !== 1 ? 's' : ''} need{pendingApprovals === 1 ? 's' : ''} your approval
+              </Text>
+            </View>
+          </View>
+          <View style={styles.approvalsBadge}>
+            <Text style={styles.approvalsBadgeText}>{pendingApprovals}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
       <Text style={styles.sectionTitle}>Recent Requests</Text>
 
       {requests.length === 0 ? (
@@ -168,6 +193,13 @@ const styles = StyleSheet.create({
   aiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   aiCardTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
   aiCardSub: { fontSize: 12, color: '#a8c4e5', marginTop: 2 },
+  approvalsCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 0, backgroundColor: '#fff4e5', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: '#f6ad55' },
+  approvalsLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  approvalsIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#feebc8', alignItems: 'center', justifyContent: 'center' },
+  approvalsTitle: { fontSize: 14, fontWeight: '700', color: '#c05621' },
+  approvalsSub: { fontSize: 12, color: '#744210', marginTop: 2 },
+  approvalsBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#ed8936', alignItems: 'center', justifyContent: 'center' },
+  approvalsBadgeText: { fontSize: 13, fontWeight: '800', color: '#fff' },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1e3a5f', margin: 16, marginBottom: 8 },
   emptyCard: { margin: 16, backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center' },
   emptyText: { color: '#888', textAlign: 'center', lineHeight: 22 },

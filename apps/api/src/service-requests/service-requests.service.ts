@@ -221,6 +221,21 @@ export class ServiceRequestsService {
     });
   }
 
+  async getPendingAdditionalServices(customerId: string): Promise<AdditionalService[]> {
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    const requests = await this.requestsRepo.find({
+      where: { customerId: In(relatedIds) } as FindOptionsWhere<ServiceRequest>,
+      select: ['id'],
+    });
+    if (requests.length === 0) return [];
+    const requestIds = requests.map((r) => r.id);
+    return this.additionalRepo.find({
+      where: { serviceRequestId: In(requestIds), approved: false },
+      relations: ['serviceRequest', 'serviceRequest.vendor'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async cancelRequest(requestId: string, customerId: string): Promise<ServiceRequest> {
     const req = await this.findById(requestId);
     const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
