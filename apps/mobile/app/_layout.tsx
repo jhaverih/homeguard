@@ -2,20 +2,21 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { useAuthStore } from '../src/store/auth.store';
 import { registerForPushNotificationsAsync } from '../src/services/notifications';
+
+const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PK || '';
 
 function AuthRedirect() {
   const { user, isLoading, loadFromStorage } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
-  // Restore auth state from secure storage on first mount
   useEffect(() => {
     loadFromStorage();
   }, []);
 
-  // Redirect whenever auth state or current route changes
   useEffect(() => {
     if (isLoading) return;
 
@@ -24,7 +25,6 @@ function AuthRedirect() {
     if (!user) {
       if (!inAuth) router.replace('/(auth)/welcome');
     } else if (inAuth) {
-      // Logged-in user landed on an auth screen — send to their dashboard
       if (user.activeRole === 'VENDOR') {
         router.replace('/(vendor)');
       } else {
@@ -46,10 +46,12 @@ export default function RootLayout() {
   }, [user?.id]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="auto" />
-      <AuthRedirect />
-      <Stack screenOptions={{ headerShown: false }} />
-    </GestureHandlerRootView>
+    <StripeProvider publishableKey={STRIPE_PK} merchantIdentifier="merchant.com.homeguard">
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar style="auto" />
+        <AuthRedirect />
+        <Stack screenOptions={{ headerShown: false }} />
+      </GestureHandlerRootView>
+    </StripeProvider>
   );
 }

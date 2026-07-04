@@ -6,9 +6,11 @@ import {
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { subscriptionsApi } from '../../src/services/api';
 
 export default function SubscribeScreen() {
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [plans, setPlans] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
@@ -29,6 +31,29 @@ export default function SubscribeScreen() {
     }, [])
   );
 
+  const presentStripeSheet = async (clientSecret: string): Promise<boolean> => {
+    if (!clientSecret) return true; // No Stripe price configured — fallback mode
+
+    const { error: initError } = await initPaymentSheet({
+      paymentIntentClientSecret: clientSecret,
+      merchantDisplayName: 'HomeGuard',
+      allowsDelayedPaymentMethods: false,
+    });
+    if (initError) {
+      Alert.alert('Payment Setup Failed', initError.message);
+      return false;
+    }
+
+    const { error: presentError } = await presentPaymentSheet();
+    if (presentError) {
+      if (presentError.code !== 'Canceled') {
+        Alert.alert('Payment Failed', presentError.message);
+      }
+      return false;
+    }
+    return true;
+  };
+
   const subscribe = async () => {
     if (!selectedPlanId) {
       Alert.alert('Select a Plan', 'Please select a plan to continue.');
@@ -36,10 +61,15 @@ export default function SubscribeScreen() {
     }
     setLoading(true);
     try {
-      await subscriptionsApi.subscribe(selectedPlanId);
-      Alert.alert('Success!', 'Your subscription is now active.', [
-        { text: 'OK', onPress: () => router.replace('/(customer)') },
-      ]);
+      const res: any = await subscriptionsApi.subscribe(selectedPlanId);
+      const paymentOk = await presentStripeSheet(res?.clientSecret ?? '');
+      if (!paymentOk) return;
+
+      Alert.alert(
+        'Subscribed!',
+        'Your HomeGuard subscription is now active. Annual billing is handled automatically.',
+        [{ text: 'OK', onPress: () => router.replace('/(customer)') }],
+      );
     } catch (e: any) {
       Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
     } finally {
@@ -70,8 +100,9 @@ export default function SubscribeScreen() {
   const cancelPlan = () => {
     Alert.alert(
       'Cancel Subscription',
-      'Are you sure you want to cancel? Your subscription will remain active until ' +
-        new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '.',
+      'Are you sure? Your subscription stays active until ' +
+        new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +
+        ' and renewal will be cancelled.',
       [
         { text: 'Keep Subscription', style: 'cancel' },
         {
@@ -81,7 +112,7 @@ export default function SubscribeScreen() {
               await subscriptionsApi.cancelSubscription();
               Alert.alert(
                 'Subscription Cancelled',
-                'Your subscription renewal has been cancelled. Access continues until ' +
+                'Renewal cancelled. Access continues until ' +
                   new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '.',
               );
               setSubscription((prev: any) => ({ ...prev, status: 'CANCELLED' }));
@@ -169,7 +200,7 @@ export default function SubscribeScreen() {
 
       <Text style={styles.title}>{showChangePlan ? 'Switch Plan' : 'Choose Your Plan'}</Text>
       <Text style={styles.subtitle}>
-        {showChangePlan ? 'Select a new plan to switch to.' : 'Select the plan that best fits your home.'}
+        {showChangePlan ? 'Select a new plan to switch to.' : 'Select the plan that best fits your home. Billed annually. Cancel anytime.'}
       </Text>
 
       {plans.map((plan: any) => {
@@ -200,7 +231,7 @@ export default function SubscribeScreen() {
         disabled={loading || !selectedPlanId}
       >
         {loading ? <ActivityIndicator color="#fff" /> : (
-          <Text style={styles.buttonText}>{showChangePlan ? 'Switch Plan' : 'Activate Subscription'}</Text>
+          <Text style={styles.buttonText}>{showChangePlan ? 'Switch Plan' : 'Subscribe & Pay'}</Text>
         )}
       </TouchableOpacity>
 

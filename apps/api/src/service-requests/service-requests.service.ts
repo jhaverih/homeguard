@@ -1,16 +1,17 @@
 import {
-  Injectable, NotFoundException, BadRequestException, ForbiddenException,
+  Injectable, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In, FindOptionsWhere } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
 import { AdditionalService } from './entities/additional-service.entity';
-import { ServiceRequestStatus, UserRole } from '../common/enums/role.enum';
+import { ServiceRequestStatus, UserRole, PaymentType } from '../common/enums/role.enum';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class ServiceRequestsService {
@@ -23,6 +24,8 @@ export class ServiceRequestsService {
     private usersService: UsersService,
     private notificationsService: NotificationsService,
     private uploadsService: UploadsService,
+    @Inject(forwardRef(() => PaymentsService))
+    private paymentsService: PaymentsService,
   ) {}
 
   async create(customerId: string, dto: {
@@ -123,6 +126,25 @@ export class ServiceRequestsService {
       request.completionPhotoKeys = completionPhotoKeys;
       request.completedAt = new Date();
       await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
+
+      // Create auth holds for any approved additional services
+      const approvedServices = await this.additionalRepo.find({
+        where: { serviceRequestId: requestId, approved: true },
+      });
+      for (const svc of approvedServices) {
+        try {
+          await this.paymentsService.createAuthHold(
+            requestId,
+            request.customerId,
+            vendorId,
+            Number(svc.price),
+            svc.name,
+            PaymentType.ADDITIONAL_SERVICE,
+          );
+        } catch (err) {
+          // Don't block job completion if payment hold fails
+        }
+      }
     }
 
     request.status = status;

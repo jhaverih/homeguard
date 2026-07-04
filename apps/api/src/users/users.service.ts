@@ -151,6 +151,10 @@ export class UsersService implements OnModuleInit {
     await this.usersRepo.update(userId, { expoPushToken: token });
   }
 
+  async updateStripeCustomerId(userId: string, stripeCustomerId: string): Promise<void> {
+    await this.usersRepo.update(userId, { stripeCustomerId });
+  }
+
   async findAvailableVendors(): Promise<User[]> {
     return this.usersRepo
       .createQueryBuilder('user')

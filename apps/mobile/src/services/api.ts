@@ -56,7 +56,8 @@ export const teamApi = {
 export const subscriptionsApi = {
   getPlans: () => api.get('/subscriptions/plans'),
   getMySubscription: () => api.get('/subscriptions/my'),
-  subscribe: (planId: string) => api.post(`/subscriptions/subscribe/${planId}`),
+  subscribe: (planId: string): Promise<{ clientSecret: string; subscriptionId?: string }> =>
+    api.post(`/subscriptions/subscribe/${planId}`) as any,
   cancelSubscription: () => api.post('/subscriptions/cancel'),
   changePlan: (planId: string) => api.post(`/subscriptions/change/${planId}`),
 };
@@ -124,6 +125,8 @@ export const disputesApi = {
 
 export const paymentsApi = {
   getOnboardingLink: () => api.post('/payments/vendor/onboarding'),
-  createIntent: (data: any) => api.post('/payments/create-intent', data),
+  getPending: (): Promise<any[]> => api.get('/payments/pending') as any,
+  authorize: (paymentId: string) => api.patch(`/payments/${paymentId}/authorize`, {}),
+  getVendorHistory: (): Promise<any[]> => api.get('/payments/vendor/history') as any,
   getHistory: () => api.get('/payments/history'),
 };

@@ -29,6 +29,9 @@ export class SubscriptionPlan {
   @Column({ type: 'simple-array' })
   features: string[];
 
+  @Column({ nullable: true })
+  stripePriceId: string;
+
   @Column({ default: true })
   isActive: boolean;
 

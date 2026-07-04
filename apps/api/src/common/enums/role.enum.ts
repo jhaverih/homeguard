@@ -27,9 +27,17 @@ export enum PlanTier {
 
 export enum PaymentStatus {
   PENDING = 'PENDING',
+  AUTHORIZED = 'AUTHORIZED',
   SUCCEEDED = 'SUCCEEDED',
+  DISPUTED = 'DISPUTED',
   FAILED = 'FAILED',
   REFUNDED = 'REFUNDED',
+}
+
+export enum PaymentType {
+  ADDITIONAL_SERVICE = 'ADDITIONAL_SERVICE',
+  ADDON_INSPECTION = 'ADDON_INSPECTION',
+  SUBSCRIPTION = 'SUBSCRIPTION',
 }
 
 export enum NoteType {

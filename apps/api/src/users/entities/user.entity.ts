@@ -44,6 +44,9 @@ export class User {
   @Column({ nullable: true })
   parentUserId: string;
 
+  @Column({ nullable: true })
+  stripeCustomerId: string;
+
   @OneToOne(() => VendorProfile, (profile) => profile.user, { cascade: true, eager: false })
   vendorProfile: VendorProfile;
 

@@ -1,15 +1,19 @@
 import {
-  Controller, Post, Get, Body, Headers, RawBodyRequest,
+  Controller, Post, Get, Patch, Param, Body, Headers, RawBodyRequest,
   UseGuards, Request, Req, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly service: PaymentsService) {}
+  constructor(
+    private readonly service: PaymentsService,
+    private readonly subscriptionsService: SubscriptionsService,
+  ) {}
 
   @Post('vendor/onboarding')
   @ApiBearerAuth()
@@ -19,14 +23,28 @@ export class PaymentsController {
     return this.service.createVendorOnboardingLink(req.user.id);
   }
 
-  @Post('create-intent')
+  @Get('pending')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Customer: create payment intent for a service' })
-  createIntent(@Request() req, @Body() body: { serviceRequestId: string; vendorId: string; amount: number }) {
-    return this.service.createPaymentIntent(
-      body.serviceRequestId, req.user.id, body.vendorId, body.amount,
-    );
+  @ApiOperation({ summary: 'Customer: get pending payments requiring authorization' })
+  getPending(@Request() req) {
+    return this.service.getPendingPayments(req.user.id);
+  }
+
+  @Patch(':id/authorize')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: confirm payment was authorized via payment sheet' })
+  authorize(@Param('id') id: string, @Request() req) {
+    return this.service.authorizePayment(id, req.user.id);
+  }
+
+  @Get('vendor/history')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Vendor: get payment history with fee breakdown' })
+  getVendorHistory(@Request() req) {
+    return this.service.getVendorHistory(req.user.id);
   }
 
   @Get('history')
@@ -41,7 +59,16 @@ export class PaymentsController {
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Stripe webhook endpoint' })
-  webhook(@Req() req: RawBodyRequest<Request>, @Headers('stripe-signature') sig: string) {
+  async webhook(@Req() req: RawBodyRequest<Request>, @Headers('stripe-signature') sig: string) {
+    // Route subscription events to SubscriptionsService
+    let parsed: any;
+    try { parsed = JSON.parse(req.rawBody.toString()); } catch { parsed = {}; }
+
+    const subEvents = ['invoice.payment_succeeded', 'invoice.payment_failed', 'customer.subscription.deleted'];
+    if (subEvents.includes(parsed?.type)) {
+      return this.subscriptionsService.handleSubscriptionWebhook(parsed);
+    }
+
     return this.service.handleWebhook(req.rawBody, sig);
   }
 }

@@ -1,28 +1,37 @@
-import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
 import { CustomerSubscription, SubscriptionStatus } from './entities/customer-subscription.entity';
 import { PlanTier } from '../common/enums/role.enum';
 import { addYears } from './utils/date.util';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class SubscriptionsService implements OnModuleInit {
+  private stripe: Stripe;
+  private readonly logger = new Logger(SubscriptionsService.name);
+
   constructor(
     @InjectRepository(SubscriptionPlan)
     private plansRepo: Repository<SubscriptionPlan>,
     @InjectRepository(CustomerSubscription)
     private subscriptionsRepo: Repository<CustomerSubscription>,
-  ) {}
+    private configService: ConfigService,
+    private usersService: UsersService,
+  ) {
+    this.stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY', ''), {
+      apiVersion: '2024-04-10',
+    });
+  }
 
   async onModuleInit() {
     await this.seedPlans();
   }
 
   private async seedPlans() {
-    const count = await this.plansRepo.count();
-    if (count > 0) return;
-
     const plans = [
       {
         tier: PlanTier.BASIC,
@@ -68,9 +77,63 @@ export class SubscriptionsService implements OnModuleInit {
       },
     ];
 
-    for (const plan of plans) {
-      await this.plansRepo.save(this.plansRepo.create(plan));
+    for (const planData of plans) {
+      let existing = await this.plansRepo.findOne({ where: { tier: planData.tier } });
+
+      if (!existing) {
+        existing = await this.plansRepo.save(this.plansRepo.create(planData));
+      }
+
+      if (!existing.stripePriceId && this.configService.get('STRIPE_SECRET_KEY', '').startsWith('sk_')) {
+        try {
+          const price = await this.ensureStripePriceForPlan(existing);
+          await this.plansRepo.update(existing.id, { stripePriceId: price.id });
+          this.logger.log(`Stripe Price synced for ${planData.tier}: ${price.id}`);
+        } catch (err) {
+          this.logger.warn(`Could not create Stripe price for ${planData.tier}: ${err.message}`);
+        }
+      }
     }
+  }
+
+  private async ensureStripePriceForPlan(plan: SubscriptionPlan): Promise<Stripe.Price> {
+    const lookupKey = `homeguard_${plan.tier.toLowerCase()}`;
+
+    const existing = await this.stripe.prices.list({
+      lookup_keys: [lookupKey],
+      active: true,
+    });
+
+    if (existing.data.length > 0) return existing.data[0];
+
+    const product = await this.stripe.products.create({
+      name: plan.name,
+      description: plan.description,
+      metadata: { planTier: plan.tier },
+    });
+
+    return this.stripe.prices.create({
+      product: product.id,
+      unit_amount: Math.round(Number(plan.price) * 100),
+      currency: 'usd',
+      recurring: { interval: 'year' },
+      lookup_key: lookupKey,
+      metadata: { planTier: plan.tier },
+    });
+  }
+
+  async getOrCreateStripeCustomer(userId: string): Promise<string> {
+    const user = await this.usersService.findById(userId);
+    if (user.stripeCustomerId) return user.stripeCustomerId;
+
+    const customer = await this.stripe.customers.create({
+      email: user.email,
+      name: user.fullName,
+      metadata: { userId },
+    });
+
+    await this.usersService.updateStripeCustomerId(userId, customer.id);
+    return customer.id;
   }
 
   async getPlans(): Promise<SubscriptionPlan[]> {
@@ -84,13 +147,18 @@ export class SubscriptionsService implements OnModuleInit {
     });
   }
 
-  async subscribe(customerId: string, planId: string): Promise<CustomerSubscription> {
+  async subscribe(customerId: string, planId: string): Promise<{ clientSecret: string; subscriptionId?: string; paymentIntentId?: string }> {
     const existing = await this.getActiveSubscription(customerId);
     if (existing) throw new BadRequestException('Customer already has an active subscription');
 
     const plan = await this.plansRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
 
+    if (plan.stripePriceId) {
+      return this.subscribeViaStripe(customerId, plan);
+    }
+
+    // Fallback: manual subscription (no Stripe price configured yet)
     const now = new Date();
     const subscription = this.subscriptionsRepo.create({
       customerId,
@@ -100,8 +168,38 @@ export class SubscriptionsService implements OnModuleInit {
       startDate: now,
       endDate: addYears(now, 1),
     });
+    await this.subscriptionsRepo.save(subscription);
+    return { clientSecret: '' };
+  }
 
-    return this.subscriptionsRepo.save(subscription);
+  private async subscribeViaStripe(customerId: string, plan: SubscriptionPlan): Promise<{ clientSecret: string; subscriptionId: string }> {
+    const stripeCustomerId = await this.getOrCreateStripeCustomer(customerId);
+
+    const subscription = await this.stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [{ price: plan.stripePriceId }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: { save_default_payment_method: 'on_subscription' },
+      expand: ['latest_invoice.payment_intent'],
+      metadata: { customerId, planId: plan.id },
+    });
+
+    const invoice = subscription.latest_invoice as Stripe.Invoice;
+    const pi = invoice.payment_intent as Stripe.PaymentIntent;
+
+    const now = new Date();
+    const dbSub = this.subscriptionsRepo.create({
+      customerId,
+      planId: plan.id,
+      status: SubscriptionStatus.ACTIVE,
+      inspectionsUsed: 0,
+      startDate: now,
+      endDate: addYears(now, 1),
+      stripeSubscriptionId: subscription.id,
+    });
+    await this.subscriptionsRepo.save(dbSub);
+
+    return { clientSecret: pi.client_secret, subscriptionId: subscription.id };
   }
 
   async incrementInspectionsUsed(subscriptionId: string, isAddon = false): Promise<void> {
@@ -116,6 +214,15 @@ export class SubscriptionsService implements OnModuleInit {
   async cancelSubscription(customerId: string): Promise<CustomerSubscription> {
     const sub = await this.getActiveSubscription(customerId);
     if (!sub) throw new NotFoundException('No active subscription found');
+
+    if (sub.stripeSubscriptionId) {
+      try {
+        await this.stripe.subscriptions.cancel(sub.stripeSubscriptionId);
+      } catch (err) {
+        this.logger.warn(`Stripe subscription cancel failed: ${err.message}`);
+      }
+    }
+
     sub.status = SubscriptionStatus.CANCELLED;
     return this.subscriptionsRepo.save(sub);
   }
@@ -125,6 +232,15 @@ export class SubscriptionsService implements OnModuleInit {
     if (!sub) throw new NotFoundException('No active subscription found');
     const plan = await this.plansRepo.findOne({ where: { id: newPlanId } });
     if (!plan) throw new NotFoundException('Plan not found');
+
+    if (sub.stripeSubscriptionId && plan.stripePriceId) {
+      const stripeSub = await this.stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+      await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
+        items: [{ id: stripeSub.items.data[0].id, price: plan.stripePriceId }],
+        proration_behavior: 'create_prorations',
+      });
+    }
+
     sub.planId = newPlanId;
     sub.plan = plan;
     return this.subscriptionsRepo.save(sub);
@@ -133,5 +249,44 @@ export class SubscriptionsService implements OnModuleInit {
   async updatePlan(planId: string, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
     await this.plansRepo.update(planId, data);
     return this.plansRepo.findOne({ where: { id: planId } });
+  }
+
+  async handleSubscriptionWebhook(event: Stripe.Event): Promise<void> {
+    if (event.type === 'invoice.payment_succeeded') {
+      const invoice = event.data.object as Stripe.Invoice;
+      const stripeSubId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+      if (!stripeSubId) return;
+
+      const sub = await this.subscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (!sub) return;
+
+      if (sub.status !== SubscriptionStatus.ACTIVE) {
+        sub.status = SubscriptionStatus.ACTIVE;
+        const now = new Date();
+        sub.startDate = now;
+        sub.endDate = addYears(now, 1);
+        await this.subscriptionsRepo.save(sub);
+      }
+    }
+
+    if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object as Stripe.Invoice;
+      const stripeSubId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+      if (!stripeSubId) return;
+      const sub = await this.subscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (sub) {
+        sub.status = SubscriptionStatus.CANCELLED;
+        await this.subscriptionsRepo.save(sub);
+      }
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      const stripeSub = event.data.object as Stripe.Subscription;
+      const sub = await this.subscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSub.id } });
+      if (sub && sub.status === SubscriptionStatus.ACTIVE) {
+        sub.status = SubscriptionStatus.CANCELLED;
+        await this.subscriptionsRepo.save(sub);
+      }
+    }
   }
 }

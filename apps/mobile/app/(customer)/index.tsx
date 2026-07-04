@@ -1,19 +1,22 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { useAuthStore } from '../../src/store/auth.store';
-import { subscriptionsApi, requestsApi } from '../../src/services/api';
-
+import { subscriptionsApi, requestsApi, paymentsApi } from '../../src/services/api';
 
 export default function CustomerDashboard() {
   const { user } = useAuthStore();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [subscription, setSubscription] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -30,28 +33,62 @@ export default function CustomerDashboard() {
       const approvals: any = await requestsApi.getPendingAdditionalServices();
       setPendingApprovals((approvals || []).length);
     } catch (e) {}
+    try {
+      const payments = await paymentsApi.getPending();
+      setPendingPayments(payments || []);
+    } catch (e) {}
     setLoading(false);
     setRefreshing(false);
   };
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
-  const statusColor: Record<string, string> = {
-    PENDING: '#f6ad55',
-    ACCEPTED: '#68d391',
-    VENDOR_EN_ROUTE: '#4299e1',
-    IN_PROGRESS: '#9f7aea',
-    COMPLETED: '#2d7d46',
-    CANCELLED: '#fc8181',
+  const handlePayNow = async (payment: any) => {
+    if (!payment.stripeClientSecret) {
+      Alert.alert('Error', 'Payment details unavailable. Please contact support.');
+      return;
+    }
+
+    setPayingId(payment.id);
+    try {
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: payment.stripeClientSecret,
+        merchantDisplayName: 'HomeGuard',
+      });
+      if (initError) {
+        Alert.alert('Payment Setup Failed', initError.message);
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+      if (presentError) {
+        if (presentError.code !== 'Canceled') {
+          Alert.alert('Payment Failed', presentError.message);
+        }
+        return;
+      }
+
+      // Notify backend that payment was authorized
+      await paymentsApi.authorize(payment.id);
+      Alert.alert(
+        'Payment Authorized',
+        `$${Number(payment.amount).toFixed(2)} authorized. Funds will be released in 48 hours unless a dispute is raised.`,
+      );
+      await load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not process payment.');
+    } finally {
+      setPayingId(null);
+    }
   };
 
+  const statusColor: Record<string, string> = {
+    PENDING: '#f6ad55', ACCEPTED: '#68d391', VENDOR_EN_ROUTE: '#4299e1',
+    IN_PROGRESS: '#9f7aea', COMPLETED: '#2d7d46', CANCELLED: '#fc8181',
+  };
   const statusLabel: Record<string, string> = {
-    PENDING: 'Waiting for vendor',
-    ACCEPTED: 'Scheduled',
-    VENDOR_EN_ROUTE: 'Vendor on the way',
-    IN_PROGRESS: 'In progress',
-    COMPLETED: 'Completed',
-    CANCELLED: 'Cancelled',
+    PENDING: 'Waiting for vendor', ACCEPTED: 'Scheduled', VENDOR_EN_ROUTE: 'Vendor on the way',
+    IN_PROGRESS: 'In progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled',
   };
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
@@ -103,6 +140,62 @@ export default function CustomerDashboard() {
           <Text style={styles.noSubText}>Tap to choose a plan and protect your home.</Text>
         </TouchableOpacity>
       )}
+
+      {/* Pending payments requiring authorization */}
+      {pendingPayments.map((payment) => {
+        const isAuthorized = payment.status === 'AUTHORIZED';
+        const isPaying = payingId === payment.id;
+
+        return (
+          <View key={payment.id} style={styles.paymentCard}>
+            <View style={styles.paymentCardTop}>
+              <View style={styles.paymentIcon}>
+                <Ionicons name="card" size={20} color="#c05621" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.paymentTitle}>{payment.description}</Text>
+                <Text style={styles.paymentSub}>
+                  {isAuthorized ? 'Payment authorized — dispute window open' : 'Payment pending your approval'}
+                </Text>
+              </View>
+              <Text style={styles.paymentAmount}>${Number(payment.amount).toFixed(2)}</Text>
+            </View>
+
+            {isAuthorized ? (
+              <View style={styles.authorizedNote}>
+                <Ionicons name="time-outline" size={14} color="#2d7d46" />
+                <Text style={styles.authorizedNoteText}>
+                  Funds release {new Date(payment.disputeWindowExpiresAt).toLocaleDateString()} unless disputed
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.paymentActions}>
+              {!isAuthorized && (
+                <TouchableOpacity
+                  style={[styles.payNowBtn, isPaying && styles.payNowBtnDisabled]}
+                  onPress={() => handlePayNow(payment)}
+                  disabled={isPaying}
+                >
+                  {isPaying
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <><Ionicons name="card" size={15} color="#fff" /><Text style={styles.payNowBtnText}> Pay Now</Text></>
+                  }
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.disputeBtn}
+                onPress={() => router.push(
+                  `/(customer)/dispute?serviceRequestId=${payment.serviceRequestId}&vendorId=${payment.vendorId}&stripePaymentIntentId=${payment.stripePaymentIntentId}&amount=${payment.amount}`
+                )}
+              >
+                <Ionicons name="shield-half-outline" size={15} color="#c53030" />
+                <Text style={styles.disputeBtnText}> Dispute</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })}
 
       <TouchableOpacity style={styles.aiCard} onPress={() => router.push('/(customer)/assistant')}>
         <View style={styles.aiCardLeft}>
@@ -188,7 +281,25 @@ const styles = StyleSheet.create({
   noSubCard: { margin: 16, backgroundColor: '#fff4e5', borderRadius: 16, padding: 20, borderWidth: 2, borderColor: '#f6ad55' },
   noSubTitle: { fontSize: 16, fontWeight: '700', color: '#c05621', marginBottom: 4 },
   noSubText: { color: '#744210', fontSize: 14 },
-  aiCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 16, marginTop: 0, backgroundColor: '#1e3a5f', borderRadius: 14, padding: 16 },
+  paymentCard: {
+    marginHorizontal: 16, marginBottom: 8,
+    backgroundColor: '#fff', borderRadius: 14, padding: 16,
+    borderWidth: 2, borderColor: '#fed7d7',
+  },
+  paymentCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  paymentIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff5f5', alignItems: 'center', justifyContent: 'center' },
+  paymentTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  paymentSub: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  paymentAmount: { fontSize: 18, fontWeight: '800', color: '#c05621' },
+  authorizedNote: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', borderRadius: 8, padding: 8, marginBottom: 8 },
+  authorizedNoteText: { fontSize: 12, color: '#2d7d46', flex: 1 },
+  paymentActions: { flexDirection: 'row', gap: 8 },
+  payNowBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1e3a5f', borderRadius: 10, padding: 12 },
+  payNowBtnDisabled: { backgroundColor: '#94a3b8' },
+  payNowBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  disputeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fed7d7', borderRadius: 10, padding: 12, paddingHorizontal: 16 },
+  disputeBtnText: { color: '#c53030', fontWeight: '700', fontSize: 14 },
+  aiCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 16, marginTop: 8, backgroundColor: '#1e3a5f', borderRadius: 14, padding: 16 },
   aiCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   aiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   aiCardTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
