@@ -197,6 +197,7 @@ export default function VendorProfileScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Technician's email"
+                placeholderTextColor="#94a3b8"
                 value={techEmail}
                 onChangeText={setTechEmail}
                 keyboardType="email-address"
@@ -253,7 +254,7 @@ const styles = StyleSheet.create({
   removeBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
   removeBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
   formInner: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: '#f8f9fa' },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: '#f8f9fa', color: '#0f172a' },
   addBtn: { backgroundColor: '#2d4a22', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 4 },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelInlineBtn: { alignItems: 'center', paddingVertical: 10 },

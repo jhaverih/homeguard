@@ -112,6 +112,7 @@ export default function RegisterScreen() {
                   <TextInput
                     style={[styles.input, errors[field] && styles.inputError]}
                     placeholder={field === 'firstName' ? 'First Name' : field === 'lastName' ? 'Last Name' : field === 'email' ? 'Email' : 'Phone (optional)'}
+                    placeholderTextColor="#94a3b8"
                     autoCapitalize={field === 'email' ? 'none' : 'words'}
                     keyboardType={field === 'email' ? 'email-address' : field === 'phone' ? 'phone-pad' : 'default'}
                     value={value}
@@ -129,7 +130,7 @@ export default function RegisterScreen() {
             rules={{ required: 'Password is required', minLength: { value: 8, message: 'Password must be at least 8 characters' } }}
             render={({ field: { onChange, value } }) => (
               <>
-                <TextInput style={[styles.input, errors.password && styles.inputError]} placeholder="Password (min 8 chars)" secureTextEntry value={value} onChangeText={onChange} />
+                <TextInput style={[styles.input, errors.password && styles.inputError]} placeholder="Password (min 8 chars)" placeholderTextColor="#94a3b8" secureTextEntry value={value} onChangeText={onChange} />
                 {errors.password && <Text style={styles.errorText}>{(errors.password as any)?.message}</Text>}
               </>
             )}
@@ -147,6 +148,7 @@ export default function RegisterScreen() {
                     <TextInput
                       style={[styles.input, errors.companyName && styles.inputError]}
                       placeholder="Company / Business Name"
+                      placeholderTextColor="#94a3b8"
                       value={value}
                       onChangeText={onChange}
                     />
@@ -171,6 +173,7 @@ export default function RegisterScreen() {
                       <TextInput
                         style={[styles.input, errors[field] && styles.inputError]}
                         placeholder={field === 'address' ? 'Street Address' : field === 'city' ? 'City' : field === 'state' ? 'State (e.g. FL)' : 'Zip Code'}
+                        placeholderTextColor="#94a3b8"
                         value={value}
                         onChangeText={onChange}
                       />
@@ -252,7 +255,7 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 16, fontWeight: '600', color: '#1e3a5f', marginBottom: 12, marginTop: 8 },
   input: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
-    padding: 16, fontSize: 16, marginBottom: 4,
+    padding: 16, fontSize: 16, marginBottom: 4, color: '#0f172a',
   },
   inputError: { borderColor: '#e53e3e' },
   errorText: { color: '#e53e3e', fontSize: 12, marginBottom: 8, marginLeft: 4 },

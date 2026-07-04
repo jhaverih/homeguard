@@ -173,17 +173,17 @@ export default function RequestInspectionScreen() {
       <DateTimeField label="Preferred Date & Time" value={preferredDate} onChange={setPreferredDate} />
 
       <Text style={styles.label}>Property Address</Text>
-      <TextInput style={styles.input} placeholder="Street address" value={address} onChangeText={setAddress} />
+      <TextInput style={styles.input} placeholder="Street address" placeholderTextColor="#94a3b8" value={address} onChangeText={setAddress} />
       <View style={styles.row}>
-        <TextInput style={[styles.input, styles.flex2]} placeholder="City" value={city} onChangeText={setCity} />
+        <TextInput style={[styles.input, styles.flex2]} placeholder="City" placeholderTextColor="#94a3b8" value={city} onChangeText={setCity} />
         <TextInput
           style={[styles.input, styles.flex1, styles.ml8]}
-          placeholder="State" value={state} onChangeText={setState}
+          placeholder="State" placeholderTextColor="#94a3b8" value={state} onChangeText={setState}
           autoCapitalize="characters" maxLength={2}
         />
         <TextInput
           style={[styles.input, styles.flex1, styles.ml8]}
-          placeholder="ZIP" value={zipCode} onChangeText={setZipCode}
+          placeholder="ZIP" placeholderTextColor="#94a3b8" value={zipCode} onChangeText={setZipCode}
           keyboardType="number-pad" maxLength={5}
         />
       </View>
@@ -192,6 +192,7 @@ export default function RequestInspectionScreen() {
       <TextInput
         style={[styles.input, styles.textArea]}
         placeholder="Any special instructions..."
+        placeholderTextColor="#94a3b8"
         value={notes}
         onChangeText={setNotes}
         multiline
@@ -263,7 +264,7 @@ const styles = StyleSheet.create({
   dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateBtnText: { fontSize: 15, color: '#1e3a5f', fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16 },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16, color: '#0f172a' },
   textArea: { height: 100, textAlignVertical: 'top' },
   infoBox: { backgroundColor: '#e8f0fe', borderRadius: 12, padding: 16, marginBottom: 24 },
   infoTitle: { fontSize: 14, fontWeight: '700', color: '#1e3a5f', marginBottom: 8 },

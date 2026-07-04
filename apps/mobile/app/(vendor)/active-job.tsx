@@ -450,9 +450,9 @@ export default function ActiveJobScreen() {
           </View>
 
           <TextInput style={styles.input} placeholder="Title (e.g. AC Drainage Blockage)"
-            value={noteTitle} onChangeText={setNoteTitle} />
+            placeholderTextColor="#94a3b8" value={noteTitle} onChangeText={setNoteTitle} />
           <TextInput style={[styles.input, styles.textArea]} placeholder="Describe what you found or performed..."
-            value={noteContent} onChangeText={setNoteContent} multiline />
+            placeholderTextColor="#94a3b8" value={noteContent} onChangeText={setNoteContent} multiline />
           <Text style={styles.photoLabel}>Note photos <Text style={styles.required}>*</Text></Text>
           <PhotoStrip
             photos={notePhotos}
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
   typeChipFinding: { borderColor: '#c05621' },
   typeChipText: { fontSize: 13, fontWeight: '600', color: '#374151' },
   typeChipTextActive: { color: '#fff' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 10 },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 10, color: '#0f172a' },
   textArea: { height: 90, textAlignVertical: 'top' },
   saveBtn: { backgroundColor: '#2d4a22', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 8 },
   saveBtnDisabled: { backgroundColor: '#94a3b8' },

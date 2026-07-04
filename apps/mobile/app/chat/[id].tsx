@@ -83,6 +83,7 @@ export default function ChatScreen() {
         <TextInput
           style={styles.input}
           placeholder="Type a message..."
+          placeholderTextColor="#94a3b8"
           value={text}
           onChangeText={setText}
           multiline
@@ -119,7 +120,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee', gap: 8 },
   input: {
     flex: 1, backgroundColor: '#f8f9fa', borderRadius: 20, paddingHorizontal: 16,
-    paddingVertical: 10, fontSize: 15, maxHeight: 100,
+    paddingVertical: 10, fontSize: 15, maxHeight: 100, color: '#0f172a',
   },
   sendBtn: { backgroundColor: '#1e3a5f', borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
   sendBtnText: { color: '#fff', fontWeight: '600' },

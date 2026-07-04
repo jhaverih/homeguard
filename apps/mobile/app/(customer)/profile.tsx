@@ -207,6 +207,7 @@ export default function CustomerProfileScreen() {
             <TextInput
               style={styles.input}
               placeholder="Family member's email"
+              placeholderTextColor="#94a3b8"
               value={familyEmail}
               onChangeText={setFamilyEmail}
               keyboardType="email-address"
@@ -250,6 +251,7 @@ export default function CustomerProfileScreen() {
             <TextInput
               style={styles.input}
               placeholder="New email address"
+              placeholderTextColor="#94a3b8"
               value={newEmail}
               onChangeText={setNewEmail}
               keyboardType="email-address"
@@ -269,9 +271,9 @@ export default function CustomerProfileScreen() {
         </TouchableOpacity>
         {showPasswordForm && (
           <View style={styles.formInner}>
-            <TextInput style={styles.input} placeholder="Current password" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
-            <TextInput style={styles.input} placeholder="New password" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-            <TextInput style={styles.input} placeholder="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+            <TextInput style={styles.input} placeholder="Current password" placeholderTextColor="#94a3b8" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
+            <TextInput style={styles.input} placeholder="New password" placeholderTextColor="#94a3b8" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
+            <TextInput style={styles.input} placeholder="Confirm new password" placeholderTextColor="#94a3b8" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
             <TouchableOpacity style={styles.saveBtn} onPress={changePassword} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Update Password</Text>}
             </TouchableOpacity>
@@ -312,7 +314,7 @@ const styles = StyleSheet.create({
   actionChevron: { fontSize: 12, color: '#aaa' },
   divider: { height: 1, backgroundColor: '#f0f0f0' },
   formInner: { paddingHorizontal: 16, paddingBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: '#f8f9fa' },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: '#f8f9fa', color: '#0f172a' },
   saveBtn: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   logoutBtn: { backgroundColor: '#fed7d7', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
