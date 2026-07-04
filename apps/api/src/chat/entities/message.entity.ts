@@ -11,7 +11,7 @@ export class ChatMessage {
   @Column()
   roomId: string;
 
-  @Column()
+  @Column({ nullable: true })
   senderId: string;
 
   @ManyToOne(() => User, { nullable: true, eager: false })
