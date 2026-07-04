@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Delete, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -54,5 +54,20 @@ export class AdminController {
       year ? parseInt(year, 10) : undefined,
       month !== undefined ? parseInt(month, 10) : undefined,
     );
+  }
+
+  @Patch('vendors/:id/plan')
+  @ApiOperation({ summary: 'Set vendor plan tier (STANDARD or ELITE) with optional expiry date' })
+  setVendorPlan(
+    @Param('id') id: string,
+    @Body() body: { tier: 'STANDARD' | 'ELITE'; expiresAt?: string },
+  ) {
+    return this.service.setVendorPlan(id, body.tier, body.expiresAt);
+  }
+
+  @Post('vendors/downgrade-check')
+  @ApiOperation({ summary: 'Manually trigger downgrade check for expired Elite plans' })
+  runDowngradeCheck() {
+    return this.service.runVendorDowngradeCheck();
   }
 }

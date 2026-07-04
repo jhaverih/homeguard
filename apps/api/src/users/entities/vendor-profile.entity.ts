@@ -40,6 +40,12 @@ export class VendorProfile {
   @Column({ default: true })
   isAvailable: boolean;
 
+  @Column({ type: 'varchar', default: 'STANDARD' })
+  planTier: 'STANDARD' | 'ELITE';
+
+  @Column({ type: 'timestamp', nullable: true })
+  elitePlanExpiresAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

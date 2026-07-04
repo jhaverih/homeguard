@@ -167,12 +167,27 @@ export class UsersService implements OnModuleInit {
     if (member.id === ownerId) throw new BadRequestException('Cannot add yourself as a team member');
     if (member.parentUserId) throw new BadRequestException('This user already belongs to another account');
 
+    const isVendorOwner = owner.roles.includes(UserRole.VENDOR);
+
     // Validate role compatibility
-    if (owner.roles.includes(UserRole.VENDOR) && !member.roles.includes(UserRole.VENDOR)) {
+    if (isVendorOwner && !member.roles.includes(UserRole.VENDOR)) {
       throw new BadRequestException('Technicians must have the vendor role. Ask them to register as a vendor first.');
     }
-    if (!owner.roles.includes(UserRole.VENDOR) && !member.roles.includes(UserRole.CUSTOMER)) {
+    if (!isVendorOwner && !member.roles.includes(UserRole.CUSTOMER)) {
       throw new BadRequestException('Family members must have the customer role.');
+    }
+
+    // Req 6: enforce team size limit for vendors on STANDARD plan
+    if (isVendorOwner) {
+      const profile = await this.vendorProfileRepo.findOne({ where: { userId: ownerId } });
+      if (profile?.planTier !== 'ELITE') {
+        const currentCount = await this.usersRepo.count({ where: { parentUserId: ownerId } });
+        if (currentCount >= 5) {
+          throw new BadRequestException(
+            'Standard plan allows up to 5 technicians. Upgrade to Elite to add unlimited team members.',
+          );
+        }
+      }
     }
 
     member.parentUserId = ownerId;

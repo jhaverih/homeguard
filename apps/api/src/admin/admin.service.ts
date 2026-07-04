@@ -1,19 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull } from 'typeorm';
+import { Repository, Not, IsNull, LessThanOrEqual } from 'typeorm';
 import { User } from '../users/entities/user.entity';
+import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { CustomerSubscription, SubscriptionStatus } from '../subscriptions/entities/customer-subscription.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../common/enums/role.enum';
+import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectRepository(User) private usersRepo: Repository<User>,
+    @InjectRepository(VendorProfile) private vendorProfileRepo: Repository<VendorProfile>,
     @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     @InjectRepository(ServiceRequest) private requestsRepo: Repository<ServiceRequest>,
+    private notificationsService: NotificationsService,
   ) {}
 
   async getStats() {
@@ -112,6 +116,8 @@ export class AdminService {
       companyName: u.vendorProfile?.companyName ?? null,
       createdAt: u.createdAt,
       stripeConnected: !!u.vendorProfile?.stripeConnectAccountId,
+      planTier: u.vendorProfile?.planTier ?? 'STANDARD',
+      elitePlanExpiresAt: u.vendorProfile?.elitePlanExpiresAt ?? null,
     }));
   }
 
@@ -123,6 +129,52 @@ export class AdminService {
   async removeVendor(vendorId: string) {
     await this.usersRepo.update(vendorId, { status: UserStatus.SUSPENDED });
     return { success: true };
+  }
+
+  async setVendorPlan(vendorId: string, tier: 'STANDARD' | 'ELITE', expiresAt?: string) {
+    const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
+    if (!profile) throw new NotFoundException('Vendor profile not found');
+
+    profile.planTier = tier;
+    profile.elitePlanExpiresAt = tier === 'ELITE' && expiresAt ? new Date(expiresAt) : null;
+    await this.vendorProfileRepo.save(profile);
+
+    await this.notificationsService.notifyUser(
+      vendorId,
+      NotificationType.NEW_REQUEST,
+      tier === 'ELITE' ? 'Elite Plan Activated' : 'Plan Updated',
+      tier === 'ELITE'
+        ? `Your account has been upgraded to the Elite plan. You can now add unlimited technicians.`
+        : `Your account has been updated to the Standard plan.`,
+      {},
+    );
+
+    return { vendorId, tier, expiresAt: profile.elitePlanExpiresAt };
+  }
+
+  async runVendorDowngradeCheck(): Promise<{ downgraded: number }> {
+    const expired = await this.vendorProfileRepo.find({
+      where: {
+        planTier: 'ELITE',
+        elitePlanExpiresAt: LessThanOrEqual(new Date()),
+      },
+    });
+
+    for (const profile of expired) {
+      profile.planTier = 'STANDARD';
+      profile.elitePlanExpiresAt = null;
+      await this.vendorProfileRepo.save(profile);
+
+      await this.notificationsService.notifyUser(
+        profile.userId,
+        NotificationType.NEW_REQUEST,
+        'Plan Downgraded to Standard',
+        'Your Elite plan has expired. Your account has been moved to the Standard plan. Team size is now limited to 5 technicians.',
+        {},
+      ).catch(() => {});
+    }
+
+    return { downgraded: expired.length };
   }
 
   async getSchedule(year?: number, month?: number) {
