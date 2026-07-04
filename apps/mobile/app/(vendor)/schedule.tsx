@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, PanResponder,
 } from 'react-native';
 import { router } from 'expo-router';
 import { requestsApi } from '../../src/services/api';
@@ -22,16 +22,13 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
-
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
-
 function formatFullDate(iso: string) {
   const d = new Date(iso);
   return `${FULL_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
-
 function buildWeekDays(anchor: Date): Date[] {
   const dow = anchor.getDay();
   return Array.from({ length: 7 }, (_, i) => {
@@ -39,6 +36,14 @@ function buildWeekDays(anchor: Date): Date[] {
     d.setDate(anchor.getDate() - dow + i);
     return d;
   });
+}
+function buildMonthGrid(year: number, month: number): (Date | null)[] {
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = Array(firstDow).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
 }
 
 export default function VendorSchedule() {
@@ -48,6 +53,34 @@ export default function VendorSchedule() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [weekAnchor, setWeekAnchor] = useState<Date>(today);
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [monthAnchor, setMonthAnchor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+
+  const viewModeRef = useRef(viewMode);
+  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
+
+  const prevWeek = useCallback(() => {
+    setWeekAnchor((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
+  }, []);
+  const nextWeek = useCallback(() => {
+    setWeekAnchor((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
+  }, []);
+  const prevMonth = useCallback(() => {
+    setMonthAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  }, []);
+  const nextMonth = useCallback(() => {
+    setMonthAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  }, []);
+
+  const swipe = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, { dx, dy }) => Math.abs(dx) > Math.abs(dy) + 8 && Math.abs(dx) > 12,
+      onPanResponderRelease: (_, { dx }) => {
+        if (dx < -60) { viewModeRef.current === 'week' ? nextWeek() : nextMonth(); }
+        else if (dx > 60) { viewModeRef.current === 'week' ? prevWeek() : prevMonth(); }
+      },
+    }),
+  ).current;
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +97,9 @@ export default function VendorSchedule() {
   useEffect(() => { load(); }, [load]);
 
   const scheduled = jobs.filter((j) => j.scheduledDate && j.status !== 'CANCELLED');
+  const weekDays = buildWeekDays(weekAnchor);
+  const selectedDayItems = scheduled.filter((j) => isSameDay(new Date(j.scheduledDate), selectedDate));
+  const todayJobs = scheduled.filter((j) => isSameDay(new Date(j.scheduledDate), today));
   const upcoming = scheduled
     .filter((j) => new Date(j.scheduledDate) >= today)
     .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
@@ -72,23 +108,7 @@ export default function VendorSchedule() {
     .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime())
     .slice(0, 5);
 
-  const weekDays = buildWeekDays(weekAnchor);
-  const selectedDayItems = scheduled.filter((j) => isSameDay(new Date(j.scheduledDate), selectedDate));
-
-  const hasEventOnDay = (d: Date) => scheduled.some((j) => isSameDay(new Date(j.scheduledDate), d));
-
-  const todayJobs = scheduled.filter((j) => isSameDay(new Date(j.scheduledDate), today));
-
-  const prevWeek = () => {
-    const d = new Date(weekAnchor);
-    d.setDate(d.getDate() - 7);
-    setWeekAnchor(d);
-  };
-  const nextWeek = () => {
-    const d = new Date(weekAnchor);
-    d.setDate(d.getDate() + 7);
-    setWeekAnchor(d);
-  };
+  const monthCells = buildMonthGrid(monthAnchor.getFullYear(), monthAnchor.getMonth());
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
 
@@ -97,52 +117,88 @@ export default function VendorSchedule() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
-      {/* Today summary banner */}
-      {todayJobs.length > 0 && (
+      {todayJobs.length > 0 && viewMode === 'week' && (
         <View style={styles.todayBanner}>
           <Text style={styles.todayBannerTitle}>Today's Jobs</Text>
           <Text style={styles.todayBannerCount}>{todayJobs.length} visit{todayJobs.length > 1 ? 's' : ''} scheduled</Text>
         </View>
       )}
 
-      {/* Week strip */}
-      <View style={styles.weekStrip}>
+      {/* Calendar strip — swipeable */}
+      <View style={styles.weekStrip} {...swipe.panHandlers}>
         <View style={styles.weekHeader}>
-          <TouchableOpacity onPress={prevWeek} style={styles.weekNavBtn}>
+          <TouchableOpacity onPress={viewMode === 'week' ? prevWeek : prevMonth} style={styles.weekNavBtn}>
             <Text style={styles.weekNavText}>‹</Text>
           </TouchableOpacity>
-          <Text style={styles.weekTitle}>
-            {MONTHS[weekDays[0].getMonth()]} {weekDays[0].getDate()} – {MONTHS[weekDays[6].getMonth()]} {weekDays[6].getDate()}, {weekDays[6].getFullYear()}
-          </Text>
-          <TouchableOpacity onPress={nextWeek} style={styles.weekNavBtn}>
+
+          <TouchableOpacity onPress={() => setViewMode(v => v === 'week' ? 'month' : 'week')} style={styles.viewToggle}>
+            <Text style={styles.weekTitle}>
+              {viewMode === 'week'
+                ? `${MONTHS[weekDays[0].getMonth()]} ${weekDays[0].getDate()} – ${MONTHS[weekDays[6].getMonth()]} ${weekDays[6].getDate()}, ${weekDays[6].getFullYear()}`
+                : `${FULL_MONTHS[monthAnchor.getMonth()]} ${monthAnchor.getFullYear()}`
+              }
+            </Text>
+            <Text style={styles.viewToggleHint}>{viewMode === 'week' ? 'Month ▾' : 'Week ▴'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={viewMode === 'week' ? nextWeek : nextMonth} style={styles.weekNavBtn}>
             <Text style={styles.weekNavText}>›</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.weekDays}>
-          {weekDays.map((d, i) => {
-            const isSelected = isSameDay(d, selectedDate);
-            const isToday = isSameDay(d, today);
-            const count = scheduled.filter((j) => isSameDay(new Date(j.scheduledDate), d)).length;
-            return (
-              <TouchableOpacity key={i} style={styles.weekDay} onPress={() => setSelectedDate(d)}>
-                <Text style={[styles.dowText, isSelected && styles.selectedDowText]}>{DOW_SHORT[i]}</Text>
-                <View style={[styles.dayCircle, isSelected && styles.selectedDayCircle, isToday && !isSelected && styles.todayCircle]}>
-                  <Text style={[styles.dayNum, isSelected && styles.selectedDayNum, isToday && !isSelected && styles.todayNum]}>
-                    {d.getDate()}
-                  </Text>
-                </View>
-                {count > 0 && (
-                  <View style={[styles.countBadge, isSelected && styles.selectedCountBadge]}>
-                    <Text style={[styles.countText, isSelected && styles.selectedCountText]}>{count}</Text>
+
+        {viewMode === 'week' ? (
+          <View style={styles.weekDays}>
+            {weekDays.map((d, i) => {
+              const isSelected = isSameDay(d, selectedDate);
+              const isToday = isSameDay(d, today);
+              const count = scheduled.filter((j) => isSameDay(new Date(j.scheduledDate), d)).length;
+              return (
+                <TouchableOpacity key={i} style={styles.weekDay} onPress={() => setSelectedDate(d)}>
+                  <Text style={[styles.dowText, isSelected && styles.selectedDowText]}>{DOW_SHORT[i]}</Text>
+                  <View style={[styles.dayCircle, isSelected && styles.selectedDayCircle, isToday && !isSelected && styles.todayCircle]}>
+                    <Text style={[styles.dayNum, isSelected && styles.selectedDayNum, isToday && !isSelected && styles.todayNum]}>
+                      {d.getDate()}
+                    </Text>
                   </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  {count > 0 && (
+                    <View style={[styles.countBadge, isSelected && styles.selectedCountBadge]}>
+                      <Text style={[styles.countText, isSelected && styles.selectedCountText]}>{count}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.monthGrid}>
+            {DOW_SHORT.map((d) => (
+              <Text key={d} style={styles.monthDowLabel}>{d}</Text>
+            ))}
+            {monthCells.map((cell, idx) => {
+              if (!cell) return <View key={`e-${idx}`} style={styles.monthCell} />;
+              const isSelected = isSameDay(cell, selectedDate);
+              const isToday = isSameDay(cell, today);
+              const count = scheduled.filter((j) => isSameDay(new Date(j.scheduledDate), cell)).length;
+              return (
+                <TouchableOpacity key={idx} style={styles.monthCell} onPress={() => { setSelectedDate(cell); }}>
+                  <View style={[styles.monthDayCircle, isSelected && styles.selectedDayCircle, isToday && !isSelected && styles.todayCircle]}>
+                    <Text style={[styles.monthDayNum, isSelected && styles.selectedDayNum, isToday && !isSelected && styles.todayNum]}>
+                      {cell.getDate()}
+                    </Text>
+                  </View>
+                  {count > 0 && (
+                    <View style={[styles.monthDot, isSelected && styles.monthDotSelected]}>
+                      <Text style={styles.monthDotText}>{count}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </View>
 
-      {/* Selected day jobs */}
+      {/* Selected day */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
           {isSameDay(selectedDate, today) ? 'Today' : formatFullDate(selectedDate.toISOString())}
@@ -157,7 +213,6 @@ export default function VendorSchedule() {
         )}
       </View>
 
-      {/* Upcoming jobs */}
       {upcoming.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Upcoming Jobs</Text>
@@ -165,7 +220,6 @@ export default function VendorSchedule() {
         </View>
       )}
 
-      {/* Past jobs */}
       {past.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Jobs</Text>
@@ -205,9 +259,7 @@ function JobCard({ job }: { job: any }) {
         <Text style={styles.jobDate}>{formatFullDate(job.scheduledDate)}</Text>
         <Text style={styles.jobAddress}>{job.address}</Text>
         <Text style={styles.jobCity}>{job.city}, {job.state} {job.zipCode}</Text>
-        {job.customerNotes && (
-          <Text style={styles.jobNote} numberOfLines={1}>Customer: {job.customerNotes}</Text>
-        )}
+        {job.customerNotes && <Text style={styles.jobNote} numberOfLines={1}>Customer: {job.customerNotes}</Text>}
         {isActive && <Text style={styles.tapHint}>Tap to manage active job →</Text>}
       </View>
     </TouchableOpacity>
@@ -223,7 +275,9 @@ const styles = StyleSheet.create({
   weekHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 },
   weekNavBtn: { padding: 4 },
   weekNavText: { color: '#a8d5a2', fontSize: 28, lineHeight: 28 },
-  weekTitle: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  viewToggle: { alignItems: 'center', flex: 1 },
+  weekTitle: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  viewToggleHint: { color: '#a8d5a2', fontSize: 11, marginTop: 2 },
   weekDays: { flexDirection: 'row', paddingHorizontal: 8 },
   weekDay: { flex: 1, alignItems: 'center', gap: 4 },
   dowText: { fontSize: 11, color: '#a8d5a2', fontWeight: '500' },
@@ -238,6 +292,14 @@ const styles = StyleSheet.create({
   selectedCountBadge: { backgroundColor: '#2d4a22' },
   countText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   selectedCountText: { color: '#fff' },
+  monthGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 4 },
+  monthDowLabel: { width: '14.28%', textAlign: 'center', color: '#a8d5a2', fontSize: 11, fontWeight: '600', paddingBottom: 6 },
+  monthCell: { width: '14.28%', alignItems: 'center', paddingVertical: 3 },
+  monthDayCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  monthDayNum: { fontSize: 13, color: '#a8d5a2', fontWeight: '500' },
+  monthDot: { marginTop: 2, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
+  monthDotSelected: { backgroundColor: '#2d4a22' },
+  monthDotText: { fontSize: 9, color: '#fff', fontWeight: '700' },
   section: { marginTop: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#2d4a22', paddingHorizontal: 16, paddingVertical: 12 },
   jobCard: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6 },

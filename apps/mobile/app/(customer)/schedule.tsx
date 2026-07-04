@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, PanResponder,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { requestsApi } from '../../src/services/api';
@@ -22,16 +22,13 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
-
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
-
 function formatFullDate(iso: string) {
   const d = new Date(iso);
   return `${FULL_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
-
 function buildWeekDays(anchor: Date): Date[] {
   const dow = anchor.getDay();
   return Array.from({ length: 7 }, (_, i) => {
@@ -39,6 +36,14 @@ function buildWeekDays(anchor: Date): Date[] {
     d.setDate(anchor.getDate() - dow + i);
     return d;
   });
+}
+function buildMonthGrid(year: number, month: number): (Date | null)[] {
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = Array(firstDow).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
 }
 
 export default function CustomerSchedule() {
@@ -48,6 +53,38 @@ export default function CustomerSchedule() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [weekAnchor, setWeekAnchor] = useState<Date>(today);
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [monthAnchor, setMonthAnchor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+
+  const viewModeRef = useRef(viewMode);
+  useRef(() => { viewModeRef.current = viewMode; });
+
+  const prevWeek = useCallback(() => {
+    setWeekAnchor((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
+  }, []);
+  const nextWeek = useCallback(() => {
+    setWeekAnchor((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
+  }, []);
+  const prevMonth = useCallback(() => {
+    setMonthAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  }, []);
+  const nextMonth = useCallback(() => {
+    setMonthAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  }, []);
+
+  // Update ref whenever viewMode changes so PanResponder closure can read it
+  const _vmRef = useRef(viewMode);
+  _vmRef.current = viewMode;
+
+  const swipe = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, { dx, dy }) => Math.abs(dx) > Math.abs(dy) + 8 && Math.abs(dx) > 12,
+      onPanResponderRelease: (_, { dx }) => {
+        if (dx < -60) { _vmRef.current === 'week' ? nextWeek() : nextMonth(); }
+        else if (dx > 60) { _vmRef.current === 'week' ? prevWeek() : prevMonth(); }
+      },
+    }),
+  ).current;
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +101,8 @@ export default function CustomerSchedule() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const scheduled = requests.filter((r) => r.scheduledDate && r.status !== 'CANCELLED');
+  const weekDays = buildWeekDays(weekAnchor);
+  const selectedDayItems = scheduled.filter((r) => isSameDay(new Date(r.scheduledDate), selectedDate));
   const upcoming = scheduled
     .filter((r) => new Date(r.scheduledDate) >= today)
     .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
@@ -72,21 +111,7 @@ export default function CustomerSchedule() {
     .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime())
     .slice(0, 5);
 
-  const weekDays = buildWeekDays(weekAnchor);
-  const selectedDayItems = scheduled.filter((r) => isSameDay(new Date(r.scheduledDate), selectedDate));
-
-  const hasEventOnDay = (d: Date) => scheduled.some((r) => isSameDay(new Date(r.scheduledDate), d));
-
-  const prevWeek = () => {
-    const d = new Date(weekAnchor);
-    d.setDate(d.getDate() - 7);
-    setWeekAnchor(d);
-  };
-  const nextWeek = () => {
-    const d = new Date(weekAnchor);
-    d.setDate(d.getDate() + 7);
-    setWeekAnchor(d);
-  };
+  const monthCells = buildMonthGrid(monthAnchor.getFullYear(), monthAnchor.getMonth());
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
 
@@ -95,40 +120,73 @@ export default function CustomerSchedule() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
-      {/* Week strip */}
-      <View style={styles.weekStrip}>
+      {/* Calendar strip — swipeable */}
+      <View style={styles.weekStrip} {...swipe.panHandlers}>
         <View style={styles.weekHeader}>
-          <TouchableOpacity onPress={prevWeek} style={styles.weekNavBtn}>
+          <TouchableOpacity onPress={viewMode === 'week' ? prevWeek : prevMonth} style={styles.weekNavBtn}>
             <Text style={styles.weekNavText}>‹</Text>
           </TouchableOpacity>
-          <Text style={styles.weekTitle}>
-            {MONTHS[weekDays[0].getMonth()]} {weekDays[0].getDate()} – {MONTHS[weekDays[6].getMonth()]} {weekDays[6].getDate()}, {weekDays[6].getFullYear()}
-          </Text>
-          <TouchableOpacity onPress={nextWeek} style={styles.weekNavBtn}>
+
+          <TouchableOpacity onPress={() => setViewMode(v => v === 'week' ? 'month' : 'week')} style={styles.viewToggle}>
+            <Text style={styles.weekTitle}>
+              {viewMode === 'week'
+                ? `${MONTHS[weekDays[0].getMonth()]} ${weekDays[0].getDate()} – ${MONTHS[weekDays[6].getMonth()]} ${weekDays[6].getDate()}, ${weekDays[6].getFullYear()}`
+                : `${FULL_MONTHS[monthAnchor.getMonth()]} ${monthAnchor.getFullYear()}`
+              }
+            </Text>
+            <Text style={styles.viewToggleHint}>{viewMode === 'week' ? 'Month ▾' : 'Week ▴'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={viewMode === 'week' ? nextWeek : nextMonth} style={styles.weekNavBtn}>
             <Text style={styles.weekNavText}>›</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.weekDays}>
-          {weekDays.map((d, i) => {
-            const isSelected = isSameDay(d, selectedDate);
-            const isToday = isSameDay(d, today);
-            const hasEvent = hasEventOnDay(d);
-            return (
-              <TouchableOpacity key={i} style={styles.weekDay} onPress={() => setSelectedDate(d)}>
-                <Text style={[styles.dowText, isSelected && styles.selectedDowText]}>{DOW_SHORT[i]}</Text>
-                <View style={[styles.dayCircle, isSelected && styles.selectedDayCircle, isToday && !isSelected && styles.todayCircle]}>
-                  <Text style={[styles.dayNum, isSelected && styles.selectedDayNum, isToday && !isSelected && styles.todayNum]}>
-                    {d.getDate()}
-                  </Text>
-                </View>
-                {hasEvent && <View style={[styles.eventDot, isSelected && styles.selectedEventDot]} />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+
+        {viewMode === 'week' ? (
+          <View style={styles.weekDays}>
+            {weekDays.map((d, i) => {
+              const isSelected = isSameDay(d, selectedDate);
+              const isToday = isSameDay(d, today);
+              const hasEvent = scheduled.some((r) => isSameDay(new Date(r.scheduledDate), d));
+              return (
+                <TouchableOpacity key={i} style={styles.weekDay} onPress={() => setSelectedDate(d)}>
+                  <Text style={[styles.dowText, isSelected && styles.selectedDowText]}>{DOW_SHORT[i]}</Text>
+                  <View style={[styles.dayCircle, isSelected && styles.selectedDayCircle, isToday && !isSelected && styles.todayCircle]}>
+                    <Text style={[styles.dayNum, isSelected && styles.selectedDayNum, isToday && !isSelected && styles.todayNum]}>
+                      {d.getDate()}
+                    </Text>
+                  </View>
+                  {hasEvent && <View style={[styles.eventDot, isSelected && styles.selectedEventDot]} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.monthGrid}>
+            {DOW_SHORT.map((d) => (
+              <Text key={d} style={styles.monthDowLabel}>{d}</Text>
+            ))}
+            {monthCells.map((cell, idx) => {
+              if (!cell) return <View key={`e-${idx}`} style={styles.monthCell} />;
+              const isSelected = isSameDay(cell, selectedDate);
+              const isToday = isSameDay(cell, today);
+              const hasEvent = scheduled.some((r) => isSameDay(new Date(r.scheduledDate), cell));
+              return (
+                <TouchableOpacity key={idx} style={styles.monthCell} onPress={() => setSelectedDate(cell)}>
+                  <View style={[styles.monthDayCircle, isSelected && styles.selectedDayCircle, isToday && !isSelected && styles.todayCircle]}>
+                    <Text style={[styles.monthDayNum, isSelected && styles.selectedDayNum, isToday && !isSelected && styles.todayNum]}>
+                      {cell.getDate()}
+                    </Text>
+                  </View>
+                  {hasEvent && <View style={[styles.eventDot, isSelected && styles.selectedEventDot]} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </View>
 
-      {/* Selected day visits */}
+      {/* Selected day */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
           {isSameDay(selectedDate, today) ? 'Today' : formatFullDate(selectedDate.toISOString())}
@@ -143,7 +201,6 @@ export default function CustomerSchedule() {
         )}
       </View>
 
-      {/* Upcoming visits */}
       {upcoming.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Upcoming Visits</Text>
@@ -151,7 +208,6 @@ export default function CustomerSchedule() {
         </View>
       )}
 
-      {/* Past visits */}
       {past.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Visits</Text>
@@ -189,9 +245,7 @@ function VisitCard({ req }: { req: any }) {
         </View>
         <Text style={styles.visitDate}>{formatFullDate(req.scheduledDate)}</Text>
         <Text style={styles.visitAddress}>{req.address}, {req.city}, {req.state}</Text>
-        {req.customerNotes && (
-          <Text style={styles.visitNote} numberOfLines={1}>Note: {req.customerNotes}</Text>
-        )}
+        {req.customerNotes && <Text style={styles.visitNote} numberOfLines={1}>Note: {req.customerNotes}</Text>}
       </View>
     </TouchableOpacity>
   );
@@ -203,7 +257,9 @@ const styles = StyleSheet.create({
   weekHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 },
   weekNavBtn: { padding: 4 },
   weekNavText: { color: '#a8c4e5', fontSize: 28, lineHeight: 28 },
-  weekTitle: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  viewToggle: { alignItems: 'center', flex: 1 },
+  weekTitle: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  viewToggleHint: { color: '#a8c4e5', fontSize: 11, marginTop: 2 },
   weekDays: { flexDirection: 'row', paddingHorizontal: 8 },
   weekDay: { flex: 1, alignItems: 'center', gap: 4 },
   dowText: { fontSize: 11, color: '#a8c4e5', fontWeight: '500' },
@@ -216,6 +272,11 @@ const styles = StyleSheet.create({
   todayNum: { color: '#fff', fontWeight: '700' },
   eventDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#60a5fa' },
   selectedEventDot: { backgroundColor: '#1e3a5f' },
+  monthGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 4 },
+  monthDowLabel: { width: '14.28%', textAlign: 'center', color: '#a8c4e5', fontSize: 11, fontWeight: '600', paddingBottom: 6 },
+  monthCell: { width: '14.28%', alignItems: 'center', paddingVertical: 3 },
+  monthDayCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  monthDayNum: { fontSize: 13, color: '#a8c4e5', fontWeight: '500' },
   section: { marginTop: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1e3a5f', paddingHorizontal: 16, paddingVertical: 12 },
   visitCard: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6 },
