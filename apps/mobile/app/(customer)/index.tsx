@@ -4,6 +4,7 @@ import {
   RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi } from '../../src/services/api';
 
@@ -97,6 +98,19 @@ export default function CustomerDashboard() {
         </TouchableOpacity>
       )}
 
+      <TouchableOpacity style={styles.aiCard} onPress={() => router.push('/(customer)/assistant')}>
+        <View style={styles.aiCardLeft}>
+          <View style={styles.aiIcon}>
+            <Ionicons name="chatbubbles" size={22} color="#fff" />
+          </View>
+          <View>
+            <Text style={styles.aiCardTitle}>AI Home Assistant</Text>
+            <Text style={styles.aiCardSub}>Ask about maintenance, repairs & inspections</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#a8c4e5" />
+      </TouchableOpacity>
+
       <Text style={styles.sectionTitle}>Recent Requests</Text>
 
       {requests.length === 0 ? (
@@ -149,6 +163,11 @@ const styles = StyleSheet.create({
   noSubCard: { margin: 16, backgroundColor: '#fff4e5', borderRadius: 16, padding: 20, borderWidth: 2, borderColor: '#f6ad55' },
   noSubTitle: { fontSize: 16, fontWeight: '700', color: '#c05621', marginBottom: 4 },
   noSubText: { color: '#744210', fontSize: 14 },
+  aiCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 16, marginTop: 0, backgroundColor: '#1e3a5f', borderRadius: 14, padding: 16 },
+  aiCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  aiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  aiCardTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  aiCardSub: { fontSize: 12, color: '#a8c4e5', marginTop: 2 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#1e3a5f', margin: 16, marginBottom: 8 },
   emptyCard: { margin: 16, backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center' },
   emptyText: { color: '#888', textAlign: 'center', lineHeight: 22 },

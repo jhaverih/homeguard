@@ -1,0 +1,91 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+import { InspectionNote } from '../inspections/entities/inspection.entity';
+import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { ServiceRequestStatus } from '../common/enums/role.enum';
+
+const SYSTEM_PROMPT = `You are HomeGuard's AI maintenance assistant. You help homeowners understand their home inspection results, plan maintenance, and answer questions about home upkeep.
+
+Keep responses concise and practical — 2-5 sentences unless a detailed list is genuinely needed.
+Always be friendly and reassuring. Suggest scheduling a HomeGuard inspection when relevant.
+Do not provide legal or structural engineering advice; recommend a professional for those.`;
+
+@Injectable()
+export class MaintenanceBotService {
+  private readonly ollamaUrl: string;
+  private readonly model: string;
+
+  constructor(
+    @InjectRepository(InspectionNote)
+    private notesRepo: Repository<InspectionNote>,
+    @InjectRepository(ServiceRequest)
+    private requestsRepo: Repository<ServiceRequest>,
+    private config: ConfigService,
+  ) {
+    this.ollamaUrl = this.config.get('OLLAMA_URL', 'http://172.29.20.1:11434');
+    this.model = this.config.get('OLLAMA_MODEL', 'llama3.2');
+  }
+
+  private async buildContext(customerId: string): Promise<string> {
+    const recentRequests = await this.requestsRepo.find({
+      where: { customerId, status: ServiceRequestStatus.COMPLETED },
+      order: { completedAt: 'DESC' },
+      take: 5,
+    });
+
+    if (recentRequests.length === 0) return '';
+
+    const requestIds = recentRequests.map((r) => r.id);
+    const notes = await this.notesRepo
+      .createQueryBuilder('n')
+      .where('n.serviceRequestId IN (:...ids)', { ids: requestIds })
+      .orderBy('n.createdAt', 'DESC')
+      .take(10)
+      .getMany();
+
+    if (notes.length === 0 && recentRequests.length === 0) return '';
+
+    const lines: string[] = ['\n\nCustomer inspection history:'];
+
+    for (const req of recentRequests) {
+      const date = req.completedAt
+        ? new Date(req.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Unknown date';
+      lines.push(`\nInspection on ${date} at ${req.address}, ${req.city}, ${req.state}:`);
+      if (req.vendorNotes) lines.push(`  Vendor notes: ${req.vendorNotes}`);
+
+      const reqNotes = notes.filter((n) => n.serviceRequestId === req.id);
+      for (const n of reqNotes) {
+        lines.push(`  ${n.title}: ${n.content}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  async chat(
+    customerId: string,
+    message: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+  ): Promise<string> {
+    const context = await this.buildContext(customerId);
+    const systemContent = SYSTEM_PROMPT + context;
+
+    const messages = [
+      { role: 'system', content: systemContent },
+      ...history.slice(-6), // keep last 3 turns for context
+      { role: 'user', content: message },
+    ];
+
+    const response = await axios.post(
+      `${this.ollamaUrl}/api/chat`,
+      { model: this.model, messages, stream: false },
+      { timeout: 60000 },
+    );
+
+    return response.data?.message?.content ?? 'Sorry, I could not generate a response.';
+  }
+}

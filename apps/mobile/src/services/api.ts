@@ -91,6 +91,11 @@ export const notificationsApi = {
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
 };
 
+export const maintenanceBotApi = {
+  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+    api.post('/maintenance-bot/chat', { message, history }),
+};
+
 export const paymentsApi = {
   getOnboardingLink: () => api.post('/payments/vendor/onboarding'),
   createIntent: (data: any) => api.post('/payments/create-intent', data),
