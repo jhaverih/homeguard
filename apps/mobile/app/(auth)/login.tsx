@@ -1,16 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator, SafeAreaView,
 } from 'react-native';
-import { router, Link, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 import { authApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
+const SAVED_EMAIL_KEY = 'hg_saved_email';
+const SAVED_PASSWORD_KEY = 'hg_saved_password';
+const BIOMETRIC_ENABLED_KEY = 'hg_biometric_enabled';
+
+async function getBiometricLabel(): Promise<string> {
+  const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+  if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) return 'Face ID';
+  if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) return 'Fingerprint';
+  return 'Biometrics';
+}
+
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const { setAuth } = useAuthStore();
   const { control, handleSubmit, formState: { errors } } = useForm();
   const { role } = useLocalSearchParams<{ role?: string }>();
@@ -19,16 +36,56 @@ export default function LoginScreen() {
   const accent = isVendor ? '#2d4a22' : '#1e3a5f';
   const roleLabel = isVendor ? 'Service Provider' : 'Homeowner';
 
+  useEffect(() => {
+    (async () => {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+      const available = hasHardware && isEnrolled;
+      setBiometricAvailable(available);
+      setBiometricEnabled(available && enabled === 'true');
+      if (available) setBiometricLabel(await getBiometricLabel());
+    })();
+  }, []);
+
+  const doLogin = async (email: string, password: string) => {
+    const res: any = await authApi.login(email, password);
+    await setAuth(res.user, res.accessToken);
+    return res;
+  };
+
+  const promptSaveCredentials = (email: string, password: string) => {
+    Alert.alert(
+      `Enable ${biometricLabel} Sign-In?`,
+      `Sign in faster next time using ${biometricLabel} instead of typing your password.`,
+      [
+        { text: 'Not Now', style: 'cancel' },
+        {
+          text: 'Enable',
+          onPress: async () => {
+            await SecureStore.setItemAsync(SAVED_EMAIL_KEY, email);
+            await SecureStore.setItemAsync(SAVED_PASSWORD_KEY, password);
+            await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, 'true');
+            setBiometricEnabled(true);
+          },
+        },
+      ],
+    );
+  };
+
   const onSubmit = async (data: any) => {
     setLoading(true);
     try {
-      const res: any = await authApi.login(data.email, data.password);
-      await setAuth(res.user, res.accessToken);
+      await doLogin(data.email, data.password);
+      // After successful manual login, offer to set up biometrics
+      if (biometricAvailable && !biometricEnabled) {
+        promptSaveCredentials(data.email, data.password);
+      }
     } catch (e: any) {
       if (e.message === 'NETWORK_ERROR') {
         Alert.alert(
           'Cannot Connect to Server',
-          'Your phone cannot reach the HomeGuard server.\n\nMake sure your phone is on your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
+          'Make sure your phone is on your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
         );
       } else {
         Alert.alert('Login Failed', 'Incorrect email or password. Please try again.');
@@ -37,6 +94,46 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: `Sign in to HomeGuard`,
+        fallbackLabel: 'Use Password',
+        disableDeviceFallback: false,
+      });
+
+      if (!result.success) {
+        if (result.error !== 'user_cancel' && result.error !== 'system_cancel') {
+          Alert.alert('Authentication Failed', 'Biometric authentication was not successful.');
+        }
+        return;
+      }
+
+      const email = await SecureStore.getItemAsync(SAVED_EMAIL_KEY);
+      const password = await SecureStore.getItemAsync(SAVED_PASSWORD_KEY);
+
+      if (!email || !password) {
+        Alert.alert('Credentials Not Found', 'Please sign in with your password to re-enable biometric login.');
+        await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+        setBiometricEnabled(false);
+        return;
+      }
+
+      await doLogin(email, password);
+    } catch (e: any) {
+      if (e.message === 'NETWORK_ERROR') {
+        Alert.alert('Cannot Connect to Server', 'Make sure you are on your home WiFi.');
+      } else {
+        Alert.alert('Sign-In Failed', 'Please try again or use your password.');
+      }
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
+
+  const biometricIcon = biometricLabel === 'Face ID' ? 'scan-outline' : 'finger-print-outline';
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -53,6 +150,32 @@ export default function LoginScreen() {
 
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Sign in to your HomeGuard account</Text>
+
+          {/* Biometric quick sign-in button */}
+          {biometricEnabled && (
+            <TouchableOpacity
+              style={[styles.biometricBtn, { borderColor: accent }]}
+              onPress={handleBiometricLogin}
+              disabled={biometricLoading}
+            >
+              {biometricLoading ? (
+                <ActivityIndicator color={accent} />
+              ) : (
+                <>
+                  <Ionicons name={biometricIcon as any} size={28} color={accent} />
+                  <Text style={[styles.biometricLabel, { color: accent }]}>Sign in with {biometricLabel}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {biometricEnabled && (
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or use password</Text>
+              <View style={styles.dividerLine} />
+            </View>
+          )}
 
           <Controller
             control={control}
@@ -117,17 +240,22 @@ const styles = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, gap: 6, marginBottom: 24 },
   badgeText: { fontSize: 14, fontWeight: '600' },
   title: { fontSize: 28, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 6 },
-  subtitle: { fontSize: 15, color: '#64748b', textAlign: 'center', marginBottom: 32 },
+  subtitle: { fontSize: 15, color: '#64748b', textAlign: 'center', marginBottom: 28 },
+  biometricBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderWidth: 2, borderRadius: 14, padding: 16, marginBottom: 8, backgroundColor: '#fff',
+  },
+  biometricLabel: { fontSize: 16, fontWeight: '700' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 10 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
+  dividerText: { fontSize: 13, color: '#94a3b8' },
   input: {
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14,
     padding: 16, fontSize: 16, marginBottom: 12, color: '#0f172a',
   },
   inputError: { borderColor: '#e53e3e' },
   error: { color: '#e53e3e', fontSize: 12, marginTop: -8, marginBottom: 8, marginLeft: 4 },
-  button: {
-    borderRadius: 14, padding: 17,
-    alignItems: 'center', marginTop: 8, marginBottom: 20,
-  },
+  button: { borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 8, marginBottom: 20 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   registerRow: { flexDirection: 'row', justifyContent: 'center' },
   registerText: { color: '#64748b', fontSize: 14 },

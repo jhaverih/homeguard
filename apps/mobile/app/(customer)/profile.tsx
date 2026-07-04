@@ -4,15 +4,24 @@ import {
   TextInput, ActivityIndicator,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuthStore } from '../../src/store/auth.store';
 import { userApi, subscriptionsApi, teamApi } from '../../src/services/api';
 import { api } from '../../src/services/api';
+
+const BIOMETRIC_ENABLED_KEY = 'hg_biometric_enabled';
+const SAVED_EMAIL_KEY = 'hg_saved_email';
+const SAVED_PASSWORD_KEY = 'hg_saved_password';
 
 export default function CustomerProfileScreen() {
   const { user, logout } = useAuthStore();
   const [profile, setProfile] = useState<any>(null);
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [showFamilyForm, setShowFamilyForm] = useState(false);
   const [familyEmail, setFamilyEmail] = useState('');
@@ -37,6 +46,16 @@ export default function CustomerProfileScreen() {
         setProfile(me?.customerProfile);
         setSubscription(sub);
         setFamilyMembers(Array.isArray(members) ? members : []);
+
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+        if (hasHardware && isEnrolled) {
+          const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+          setBiometricEnabled(enabled === 'true');
+          const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+          if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) setBiometricLabel('Face ID');
+          else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) setBiometricLabel('Fingerprint');
+        }
       } finally {
         setLoading(false);
       }
@@ -75,6 +94,25 @@ export default function CustomerProfileScreen() {
             } catch (e: any) {
               Alert.alert('Error', e.message);
             }
+          },
+        },
+      ],
+    );
+  };
+
+  const disableBiometric = () => {
+    Alert.alert(
+      `Disable ${biometricLabel} Sign-In`,
+      'You will need to enter your password the next time you sign in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disable', style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+            await SecureStore.deleteItemAsync(SAVED_EMAIL_KEY);
+            await SecureStore.deleteItemAsync(SAVED_PASSWORD_KEY);
+            setBiometricEnabled(false);
           },
         },
       ],
@@ -191,6 +229,18 @@ export default function CustomerProfileScreen() {
 
       <Text style={styles.sectionTitle}>Security</Text>
       <View style={styles.card}>
+        {biometricEnabled && (
+          <>
+            <View style={styles.actionRow}>
+              <Ionicons name="finger-print-outline" size={20} color="#059669" style={{ marginRight: 8 }} />
+              <Text style={[styles.actionLabel, { color: '#059669', flex: 1 }]}>{biometricLabel} Sign-In Active</Text>
+              <TouchableOpacity onPress={disableBiometric} style={styles.disableBtn}>
+                <Text style={styles.disableBtnText}>Disable</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.divider} />
+          </>
+        )}
         <TouchableOpacity style={styles.actionRow} onPress={() => { setShowEmailForm(!showEmailForm); setShowPasswordForm(false); }}>
           <Text style={styles.actionLabel}>Change Email</Text>
           <Text style={styles.actionChevron}>{showEmailForm ? '▲' : '▶'}</Text>
@@ -280,4 +330,6 @@ const styles = StyleSheet.create({
   addFamilyBtnText: { fontSize: 14, fontWeight: '700', color: '#1e3a5f' },
   cancelInlineBtn: { alignItems: 'center', paddingVertical: 10 },
   cancelInlineText: { color: '#888', fontSize: 14 },
+  disableBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
+  disableBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
 });

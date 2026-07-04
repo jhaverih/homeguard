@@ -4,13 +4,22 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuthStore } from '../../src/store/auth.store';
 import { paymentsApi, userApi, teamApi } from '../../src/services/api';
+
+const BIOMETRIC_ENABLED_KEY = 'hg_biometric_enabled';
+const SAVED_EMAIL_KEY = 'hg_saved_email';
+const SAVED_PASSWORD_KEY = 'hg_saved_password';
 
 export default function VendorProfileScreen() {
   const { user, logout } = useAuthStore();
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [companyName, setCompanyName] = useState<string>('');
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [showTeamForm, setShowTeamForm] = useState(false);
   const [techEmail, setTechEmail] = useState('');
@@ -24,6 +33,16 @@ export default function VendorProfileScreen() {
       }).catch(() => {});
       teamApi.getMembers().then((res: any) => {
         setTeamMembers(Array.isArray(res) ? res : []);
+      }).catch(() => {});
+      LocalAuthentication.hasHardwareAsync().then(async (has) => {
+        const enrolled = await LocalAuthentication.isEnrolledAsync();
+        if (has && enrolled) {
+          const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+          setBiometricEnabled(enabled === 'true');
+          const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+          if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) setBiometricLabel('Face ID');
+          else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) setBiometricLabel('Fingerprint');
+        }
       }).catch(() => {});
     }, [])
   );
@@ -78,6 +97,25 @@ export default function VendorProfileScreen() {
     );
   };
 
+  const disableBiometric = () => {
+    Alert.alert(
+      `Disable ${biometricLabel} Sign-In`,
+      'You will need to enter your password the next time you sign in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disable', style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+            await SecureStore.deleteItemAsync(SAVED_EMAIL_KEY);
+            await SecureStore.deleteItemAsync(SAVED_PASSWORD_KEY);
+            setBiometricEnabled(false);
+          },
+        },
+      ],
+    );
+  };
+
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -109,6 +147,19 @@ export default function VendorProfileScreen() {
           </View>
         ) : null}
       </View>
+
+      {biometricEnabled && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Security</Text>
+          <View style={[styles.teamCard, { flexDirection: 'row', alignItems: 'center', padding: 16 }]}>
+            <Ionicons name="finger-print-outline" size={22} color="#059669" style={{ marginRight: 10 }} />
+            <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#059669' }}>{biometricLabel} Sign-In Active</Text>
+            <TouchableOpacity onPress={disableBiometric} style={styles.removeBtn}>
+              <Text style={styles.removeBtnText}>Disable</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Payments</Text>
