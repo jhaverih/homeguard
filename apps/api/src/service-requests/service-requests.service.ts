@@ -10,6 +10,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/notifications.service';
+import { UploadsService } from '../uploads/uploads.service';
 
 @Injectable()
 export class ServiceRequestsService {
@@ -21,6 +22,7 @@ export class ServiceRequestsService {
     private subscriptionsService: SubscriptionsService,
     private usersService: UsersService,
     private notificationsService: NotificationsService,
+    private uploadsService: UploadsService,
   ) {}
 
   async create(customerId: string, dto: {
@@ -105,15 +107,25 @@ export class ServiceRequestsService {
     return saved;
   }
 
-  async updateStatus(requestId: string, vendorId: string, status: ServiceRequestStatus): Promise<ServiceRequest> {
+  async updateStatus(
+    requestId: string,
+    vendorId: string,
+    status: ServiceRequestStatus,
+    completionPhotoKeys?: string[],
+  ): Promise<ServiceRequest> {
     const request = await this.findById(requestId);
     if (request.vendorId !== vendorId) throw new ForbiddenException();
 
-    request.status = status;
     if (status === ServiceRequestStatus.COMPLETED) {
+      if (!completionPhotoKeys || completionPhotoKeys.length === 0) {
+        throw new BadRequestException('At least one completion photo is required to mark a job complete');
+      }
+      request.completionPhotoKeys = completionPhotoKeys;
       request.completedAt = new Date();
       await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
     }
+
+    request.status = status;
     const saved = await this.requestsRepo.save(request);
 
     const notifMap: Partial<Record<ServiceRequestStatus, { type: NotificationType; title: string; body: string }>> = {
@@ -267,6 +279,16 @@ export class ServiceRequestsService {
     });
     if (!req) throw new NotFoundException('Service request not found');
     return req;
+  }
+
+  async findByIdWithPhotos(id: string): Promise<any> {
+    const req = await this.findById(id);
+    const completionPhotoUrls = await Promise.all(
+      (req.completionPhotoKeys || []).map((key) =>
+        this.uploadsService.getSignedUrl(key).catch(() => null),
+      ),
+    );
+    return { ...req, completionPhotoUrls: completionPhotoUrls.filter(Boolean) };
   }
 
   async findByIdForUser(id: string, userId: string): Promise<ServiceRequest> {

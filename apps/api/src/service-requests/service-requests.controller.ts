@@ -48,6 +48,11 @@ export class ServiceRequestsController {
     return this.service.findByIdForUser(id, req.user.id);
   }
 
+  @Get(':id/with-photos')
+  findOneWithPhotos(@Request() req, @Param('id') id: string) {
+    return this.service.findByIdWithPhotos(id);
+  }
+
   @Post(':id/accept')
   @ApiOperation({ summary: 'Vendor: accept a request and set scheduled date' })
   accept(@Request() req, @Param('id') id: string, @Body() body: { scheduledDate: string }) {
@@ -56,8 +61,12 @@ export class ServiceRequestsController {
 
   @Patch(':id/status')
   @ApiOperation({ summary: 'Vendor: update request status (en-route, in-progress, completed)' })
-  updateStatus(@Request() req, @Param('id') id: string, @Body() body: { status: ServiceRequestStatus }) {
-    return this.service.updateStatus(id, req.user.id, body.status);
+  updateStatus(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { status: ServiceRequestStatus; completionPhotoKeys?: string[] },
+  ) {
+    return this.service.updateStatus(id, req.user.id, body.status, body.completionPhotoKeys);
   }
 
   @Patch(':id/notes')

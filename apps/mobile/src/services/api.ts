@@ -67,8 +67,10 @@ export const requestsApi = {
   getVendorJobs: () => api.get('/service-requests/vendor/my'),
   getPending: () => api.get('/service-requests/pending'),
   getOne: (id: string) => api.get(`/service-requests/${id}`),
+  getOneWithPhotos: (id: string) => api.get(`/service-requests/${id}/with-photos`),
   accept: (id: string, scheduledDate: string) => api.post(`/service-requests/${id}/accept`, { scheduledDate }),
-  updateStatus: (id: string, status: string) => api.patch(`/service-requests/${id}/status`, { status }),
+  updateStatus: (id: string, status: string, completionPhotoKeys?: string[]) =>
+    api.patch(`/service-requests/${id}/status`, { status, ...(completionPhotoKeys ? { completionPhotoKeys } : {}) }),
   addNotes: (id: string, notes: string) => api.patch(`/service-requests/${id}/notes`, { notes }),
   recommendService: (id: string, data: any) => api.post(`/service-requests/${id}/additional-services`, data),
   approveService: (serviceId: string) => api.post(`/service-requests/additional-services/${serviceId}/approve`),
@@ -95,6 +97,29 @@ export const notificationsApi = {
 export const maintenanceBotApi = {
   chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) =>
     api.post('/maintenance-bot/chat', { message, history }),
+};
+
+export const uploadsApi = {
+  uploadPhoto: async (uri: string, folder: string): Promise<{ key: string; url: string }> => {
+    const formData = new FormData();
+    formData.append('file', { uri, type: 'image/jpeg', name: 'photo.jpg' } as any);
+    return api.post(`/uploads?folder=${folder}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    }) as any;
+  },
+};
+
+export const disputesApi = {
+  open: (data: {
+    serviceRequestId: string;
+    vendorId: string;
+    stripePaymentIntentId?: string;
+    category: string;
+    description: string;
+    photoKeys?: string[];
+  }) => api.post('/disputes', data),
+  getMy: () => api.get('/disputes/my'),
 };
 
 export const paymentsApi = {

@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, Modal, Platform,
+  ActivityIndicator, Alert, Modal, Platform, Image,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, userApi } from '../../src/services/api';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
@@ -98,7 +99,7 @@ export default function RequestDetailScreen() {
   const load = useCallback(async () => {
     try {
       const [req, me]: any[] = await Promise.all([
-        requestsApi.getOne(id),
+        requestsApi.getOneWithPhotos(id),
         userApi.getMe().catch(() => null),
       ]);
       setRequest(req);
@@ -234,13 +235,37 @@ export default function RequestDetailScreen() {
         </>
       )}
 
+      {request.completionPhotoUrls?.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Completion Photos</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+            {request.completionPhotoUrls.map((url: string, i: number) => (
+              <Image key={i} source={{ uri: url }} style={styles.photoThumb} />
+            ))}
+          </ScrollView>
+        </>
+      )}
+
       {notes.length > 0 && (
         <>
           <Text style={styles.sectionTitle}>Inspection Notes</Text>
           {notes.map((n: any) => (
-            <View key={n.id} style={styles.noteCard}>
+            <View key={n.id} style={[styles.noteCard, n.type === 'FINDING' && styles.noteCardFinding]}>
+              {n.type === 'FINDING' && (
+                <View style={styles.findingBadge}>
+                  <Ionicons name="warning" size={12} color="#c05621" />
+                  <Text style={styles.findingBadgeText}>Finding</Text>
+                </View>
+              )}
               <Text style={styles.noteTitle}>{n.title}</Text>
               <Text style={styles.noteContent}>{n.content}</Text>
+              {n.photoUrls?.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                  {n.photoUrls.map((url: string, i: number) => (
+                    <Image key={i} source={{ uri: url }} style={styles.notePhotoThumb} />
+                  ))}
+                </ScrollView>
+              )}
             </View>
           ))}
         </>
@@ -322,8 +347,13 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#888', textTransform: 'uppercase', marginTop: 16, marginBottom: 4 },
   value: { fontSize: 16, color: '#1e3a5f' },
   noteCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
+  noteCardFinding: { borderLeftWidth: 3, borderLeftColor: '#ed8936' },
   noteTitle: { fontSize: 14, fontWeight: '700', color: '#1e3a5f', marginBottom: 4 },
   noteContent: { fontSize: 14, color: '#555', lineHeight: 20 },
+  findingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff4e5', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginBottom: 6 },
+  findingBadgeText: { fontSize: 11, fontWeight: '700', color: '#c05621' },
+  photoThumb: { width: 120, height: 90, borderRadius: 10, marginRight: 8 },
+  notePhotoThumb: { width: 80, height: 60, borderRadius: 8, marginRight: 6 },
   rescheduleBtn: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 28 },
   rescheduleBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   chatBtn: { backgroundColor: '#2563eb', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 12 },

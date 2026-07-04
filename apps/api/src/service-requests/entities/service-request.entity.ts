@@ -84,6 +84,10 @@ export class ServiceRequest {
   @OneToMany(() => AdditionalService, (s) => s.serviceRequest)
   additionalServices: AdditionalService[];
 
+  // MinIO object keys uploaded by vendor as proof of completion (min 1 required)
+  @Column({ type: 'simple-array', nullable: true })
+  completionPhotoKeys: string[];
+
   @CreateDateColumn()
   createdAt: Date;
 

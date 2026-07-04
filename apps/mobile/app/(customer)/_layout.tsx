@@ -66,6 +66,7 @@ export default function CustomerLayout() {
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="assistant" options={{ href: null, title: 'AI Assistant' }} />
       <Tabs.Screen name="approvals" options={{ href: null, title: 'Approvals' }} />
+      <Tabs.Screen name="dispute" options={{ href: null, title: 'Dispute' }} />
     </Tabs>
   );
 }

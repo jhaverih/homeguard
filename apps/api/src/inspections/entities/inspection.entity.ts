@@ -2,7 +2,7 @@ import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn,
 } from 'typeorm';
 import { ServiceRequest } from '../../service-requests/entities/service-request.entity';
-import { User } from '../../users/entities/user.entity';
+import { NoteType } from '../../common/enums/role.enum';
 
 @Entity('inspection_notes')
 export class InspectionNote {
@@ -19,12 +19,16 @@ export class InspectionNote {
   @Column()
   vendorId: string;
 
+  @Column({ type: 'enum', enum: NoteType, default: NoteType.OBSERVATION })
+  type: NoteType;
+
   @Column()
   title: string;
 
   @Column({ type: 'text' })
   content: string;
 
+  // Stores MinIO object keys; resolved to signed URLs before returning to clients
   @Column({ type: 'simple-array', nullable: true })
   photoUrls: string[];
 
