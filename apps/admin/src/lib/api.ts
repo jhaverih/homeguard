@@ -34,6 +34,12 @@ export const subscriptionsApi = {
   updatePlan: (id: string, data: any) => api.patch(`/subscriptions/plans/${id}`, data).then((r) => r.data),
 };
 
+export const disputesApi = {
+  getAll: () => api.get('/disputes').then((r) => r.data),
+  resolve: (id: string, resolution: string, note: string) =>
+    api.patch(`/disputes/${id}/resolve`, { resolution, note }).then((r) => r.data),
+};
+
 export const adminApi = {
   getStats: () => api.get('/admin/stats').then((r) => r.data),
   getCustomers: () => api.get('/admin/customers').then((r) => r.data),

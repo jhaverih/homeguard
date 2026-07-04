@@ -11,6 +11,7 @@ const links = [
   { href: '/customers', label: 'Customers', icon: '🏠' },
   { href: '/subscriptions', label: 'Subscriptions', icon: '📋' },
   { href: '/payments', label: 'Payments', icon: '💳' },
+  { href: '/disputes', label: 'Disputes', icon: '⚖️' },
 ];
 
 export function Sidebar() {
