@@ -14,6 +14,7 @@ import { useAuthStore } from '../../src/store/auth.store';
 const SAVED_EMAIL_KEY = 'hg_saved_email';
 const SAVED_PASSWORD_KEY = 'hg_saved_password';
 const BIOMETRIC_ENABLED_KEY = 'hg_biometric_enabled';
+const REMEMBERED_EMAIL_KEY = 'hg_remembered_email';
 
 async function getBiometricLabel(): Promise<string> {
   const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
@@ -29,28 +30,17 @@ export default function LoginScreen() {
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [biometricLoading, setBiometricLoading] = useState(false);
   const { setAuth } = useAuthStore();
-  const { control, handleSubmit, formState: { errors } } = useForm();
+  const { control, handleSubmit, setValue, formState: { errors } } = useForm();
   const { role } = useLocalSearchParams<{ role?: string }>();
 
   const isVendor = role === 'VENDOR';
   const accent = isVendor ? '#2d4a22' : '#1e3a5f';
   const roleLabel = isVendor ? 'Service Provider' : 'Homeowner';
 
-  useEffect(() => {
-    (async () => {
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-      const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
-      const available = hasHardware && isEnrolled;
-      setBiometricAvailable(available);
-      setBiometricEnabled(available && enabled === 'true');
-      if (available) setBiometricLabel(await getBiometricLabel());
-    })();
-  }, []);
-
   const doLogin = async (email: string, password: string) => {
     const res: any = await authApi.login(email, password);
     await setAuth(res.user, res.accessToken);
+    await SecureStore.setItemAsync(REMEMBERED_EMAIL_KEY, email);
     return res;
   };
 
@@ -77,7 +67,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await doLogin(data.email, data.password);
-      // After successful manual login, offer to set up biometrics
       if (biometricAvailable && !biometricEnabled) {
         promptSaveCredentials(data.email, data.password);
       }
@@ -99,23 +88,18 @@ export default function LoginScreen() {
     setBiometricLoading(true);
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: `Sign in to HomeGuard`,
+        promptMessage: 'Sign in to HomeGuard',
         fallbackLabel: 'Use Password',
         disableDeviceFallback: false,
       });
 
-      if (!result.success) {
-        if (result.error !== 'user_cancel' && result.error !== 'system_cancel') {
-          Alert.alert('Authentication Failed', 'Biometric authentication was not successful.');
-        }
-        return;
-      }
+      // User cancelled or sensor not available — silently show password form
+      if (!result.success) return;
 
       const email = await SecureStore.getItemAsync(SAVED_EMAIL_KEY);
       const password = await SecureStore.getItemAsync(SAVED_PASSWORD_KEY);
 
       if (!email || !password) {
-        Alert.alert('Credentials Not Found', 'Please sign in with your password to re-enable biometric login.');
         await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
         setBiometricEnabled(false);
         return;
@@ -125,13 +109,34 @@ export default function LoginScreen() {
     } catch (e: any) {
       if (e.message === 'NETWORK_ERROR') {
         Alert.alert('Cannot Connect to Server', 'Make sure you are on your home WiFi.');
-      } else {
-        Alert.alert('Sign-In Failed', 'Please try again or use your password.');
       }
+      // Other errors: silently fall through to password form
     } finally {
       setBiometricLoading(false);
     }
   };
+
+  useEffect(() => {
+    (async () => {
+      // Load hardware state
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+      const available = hasHardware && isEnrolled;
+      setBiometricAvailable(available);
+      setBiometricEnabled(available && enabled === 'true');
+      if (available) setBiometricLabel(await getBiometricLabel());
+
+      // Pre-fill remembered email
+      const savedEmail = await SecureStore.getItemAsync(REMEMBERED_EMAIL_KEY);
+      if (savedEmail) setValue('email', savedEmail);
+
+      // Auto-trigger biometric prompt if already enrolled
+      if (available && enabled === 'true') {
+        setTimeout(handleBiometricLogin, 400);
+      }
+    })();
+  }, []);
 
   const biometricIcon = biometricLabel === 'Face ID' ? 'scan-outline' : 'finger-print-outline';
 
@@ -151,7 +156,7 @@ export default function LoginScreen() {
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Sign in to your HomeGuard account</Text>
 
-          {/* Biometric quick sign-in button */}
+          {/* Biometric quick sign-in — shown while prompt loads or as fallback button */}
           {biometricEnabled && (
             <TouchableOpacity
               style={[styles.biometricBtn, { borderColor: accent }]}

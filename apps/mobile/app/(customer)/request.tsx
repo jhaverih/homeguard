@@ -4,7 +4,7 @@ import {
   ScrollView, Alert, ActivityIndicator, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, userApi, subscriptionsApi } from '../../src/services/api';
 
@@ -75,11 +75,16 @@ export default function RequestInspectionScreen() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(9, 0, 0, 0);
   const [preferredDate, setPreferredDate] = useState(tomorrow);
+  const { prefilledNotes } = useLocalSearchParams<{ prefilledNotes?: string }>();
   const [notes, setNotes] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
+
+  useEffect(() => {
+    if (prefilledNotes) setNotes(prefilledNotes);
+  }, [prefilledNotes]);
 
   useEffect(() => {
     userApi.getMe().then((res: any) => {
