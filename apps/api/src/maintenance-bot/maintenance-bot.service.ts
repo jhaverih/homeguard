@@ -36,7 +36,7 @@ export class MaintenanceBotService implements OnModuleInit {
     axios.post(
       `${this.ollamaUrl}/api/chat`,
       { model: this.model, messages: [{ role: 'user', content: 'hi' }], stream: false, keep_alive: -1 },
-      { timeout: 300000 },
+      { timeout: 720000 },
     ).then(() => {
       this.logger.log(`Ollama model ${this.model} warm and ready`);
     }).catch((err) => {
