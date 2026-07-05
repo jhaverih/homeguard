@@ -4,7 +4,7 @@ import {
 } from 'typeorm';
 import { ChatSession } from './chat-session.entity';
 
-@Entity('chat_messages')
+@Entity('bot_messages')
 export class ChatMessage {
   @PrimaryGeneratedColumn('uuid')
   id: string;
