@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, KeyboardAvoidingView, ActivityIndicator,
-  SafeAreaView,
+  SafeAreaView, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { maintenanceBotApi } from '../../src/services/api';
@@ -60,6 +60,7 @@ export default function AssistantScreen() {
       setMessages((prev) => [...prev, errMsg]);
     } finally {
       setLoading(false);
+      Keyboard.dismiss();
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [messages, loading]);
@@ -111,8 +112,8 @@ export default function AssistantScreen() {
           }
         />
 
-        {/* Quick prompts — only show when conversation is fresh */}
-        {messages.length === 1 && !loading && (
+        {/* Quick prompts — always visible as shortcuts */}
+        {!loading && (
           <View style={styles.quickPrompts}>
             {QUICK_PROMPTS.map((q) => (
               <TouchableOpacity key={q} style={styles.chip} onPress={() => sendMessage(q)}>
