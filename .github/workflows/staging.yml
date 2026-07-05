@@ -35,6 +35,9 @@ jobs:
           docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres \
             psql -U homeguard -c "ALTER USER homeguard WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || true
 
+          # Build admin with no-cache so Next.js standalone output is never served from a stale layer
+          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin
+
           # Start everything — --remove-orphans cleans stale containers without touching the network
           docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate --remove-orphans -d
           docker compose -f infrastructure/docker-compose.staging.yml ps
