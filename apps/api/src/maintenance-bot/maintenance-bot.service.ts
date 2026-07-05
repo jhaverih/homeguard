@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -14,9 +14,10 @@ Always be friendly and reassuring. Suggest scheduling a HomeGuard inspection whe
 Do not provide legal or structural engineering advice; recommend a professional for those.`;
 
 @Injectable()
-export class MaintenanceBotService {
+export class MaintenanceBotService implements OnModuleInit {
   private readonly ollamaUrl: string;
   private readonly model: string;
+  private readonly logger = new Logger(MaintenanceBotService.name);
 
   constructor(
     @InjectRepository(InspectionNote)
@@ -27,6 +28,20 @@ export class MaintenanceBotService {
   ) {
     this.ollamaUrl = this.config.get('OLLAMA_URL', 'http://172.29.20.1:11434');
     this.model = this.config.get('OLLAMA_MODEL', 'llama3.2');
+  }
+
+  onModuleInit() {
+    // Pre-warm Ollama in background so the model is loaded before the first user request
+    this.logger.log(`Pre-warming Ollama model ${this.model} at ${this.ollamaUrl}`);
+    axios.post(
+      `${this.ollamaUrl}/api/chat`,
+      { model: this.model, messages: [{ role: 'user', content: 'hi' }], stream: false, keep_alive: -1 },
+      { timeout: 300000 },
+    ).then(() => {
+      this.logger.log(`Ollama model ${this.model} warm and ready`);
+    }).catch((err) => {
+      this.logger.warn(`Ollama pre-warm failed (will retry on first user message): ${err.message}`);
+    });
   }
 
   private async buildContext(customerId: string): Promise<string> {
@@ -82,8 +97,8 @@ export class MaintenanceBotService {
 
     const response = await axios.post(
       `${this.ollamaUrl}/api/chat`,
-      { model: this.model, messages, stream: false },
-      { timeout: 60000 },
+      { model: this.model, messages, stream: false, keep_alive: -1 },
+      { timeout: 600000 },
     );
 
     return response.data?.message?.content ?? 'Sorry, I could not generate a response.';

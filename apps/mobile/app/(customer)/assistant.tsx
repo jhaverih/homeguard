@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
+  FlatList, KeyboardAvoidingView, ActivityIndicator,
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -86,7 +86,7 @@ export default function AssistantScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={90}
       >
         <FlatList
@@ -104,7 +104,7 @@ export default function AssistantScreen() {
                 </View>
                 <View style={styles.typingBubble}>
                   <ActivityIndicator size="small" color="#64748b" />
-                  <Text style={styles.typingText}>Thinking…</Text>
+                  <Text style={styles.typingText}>AI thinking… (takes a few mins)</Text>
                 </View>
               </View>
             ) : null

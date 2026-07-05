@@ -95,9 +95,28 @@ export const notificationsApi = {
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
 };
 
+// Separate client for AI assistant — Ollama inference can take 3+ minutes on low-end hardware
+const aiApi = axios.create({ baseURL: API_URL, timeout: 600000 });
+aiApi.interceptors.request.use(async (config) => {
+  if (!config.headers.Authorization) {
+    const token = _token ?? await SecureStore.getItemAsync('accessToken');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+aiApi.interceptors.response.use(
+  (res) => res.data,
+  (err) => {
+    if (!err.response) return Promise.reject(new Error('NETWORK_ERROR'));
+    const raw = err.response?.data?.message;
+    const message = Array.isArray(raw) ? raw[0] : (raw || 'Something went wrong');
+    return Promise.reject(new Error(message));
+  },
+);
+
 export const maintenanceBotApi = {
   chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) =>
-    api.post('/maintenance-bot/chat', { message, history }),
+    aiApi.post('/maintenance-bot/chat', { message, history }),
 };
 
 export const uploadsApi = {
