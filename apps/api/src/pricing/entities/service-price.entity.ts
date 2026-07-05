@@ -16,6 +16,12 @@ export class ServicePrice {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   basePrice: number;
 
+  @Column({ type: 'text', nullable: true })
+  unitDescription: string | null;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  markupPercent: number | null;
+
   @Column({ default: true })
   isActive: boolean;
 
