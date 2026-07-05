@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -6,6 +6,8 @@ import axios from 'axios';
 import { InspectionNote } from '../inspections/entities/inspection.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { ServiceRequestStatus } from '../common/enums/role.enum';
+import { ChatSession } from './entities/chat-session.entity';
+import { ChatMessage } from './entities/chat-message.entity';
 
 const SYSTEM_PROMPT = `You are HomeGuard's AI maintenance assistant. You help homeowners understand their home inspection results, plan maintenance, and answer questions about home upkeep.
 
@@ -24,6 +26,10 @@ export class MaintenanceBotService implements OnModuleInit {
     private notesRepo: Repository<InspectionNote>,
     @InjectRepository(ServiceRequest)
     private requestsRepo: Repository<ServiceRequest>,
+    @InjectRepository(ChatSession)
+    private sessionsRepo: Repository<ChatSession>,
+    @InjectRepository(ChatMessage)
+    private messagesRepo: Repository<ChatMessage>,
     private config: ConfigService,
   ) {
     this.ollamaUrl = this.config.get('OLLAMA_URL', 'http://172.29.20.1:11434');
@@ -31,7 +37,6 @@ export class MaintenanceBotService implements OnModuleInit {
   }
 
   onModuleInit() {
-    // Pre-warm Ollama in background so the model is loaded before the first user request
     this.logger.log(`Pre-warming Ollama model ${this.model} at ${this.ollamaUrl}`);
     axios.post(
       `${this.ollamaUrl}/api/chat`,
@@ -61,37 +66,31 @@ export class MaintenanceBotService implements OnModuleInit {
       .take(10)
       .getMany();
 
-    if (notes.length === 0 && recentRequests.length === 0) return '';
-
     const lines: string[] = ['\n\nCustomer inspection history:'];
-
     for (const req of recentRequests) {
       const date = req.completedAt
         ? new Date(req.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : 'Unknown date';
       lines.push(`\nInspection on ${date} at ${req.address}, ${req.city}, ${req.state}:`);
       if (req.vendorNotes) lines.push(`  Vendor notes: ${req.vendorNotes}`);
-
       const reqNotes = notes.filter((n) => n.serviceRequestId === req.id);
-      for (const n of reqNotes) {
-        lines.push(`  ${n.title}: ${n.content}`);
-      }
+      for (const n of reqNotes) lines.push(`  ${n.title}: ${n.content}`);
     }
 
     return lines.join('\n');
   }
 
-  async chat(
+  private async callOllama(
     customerId: string,
     message: string,
-    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    history: Array<{ role: 'user' | 'assistant'; content: string }>,
   ): Promise<string> {
     const context = await this.buildContext(customerId);
     const systemContent = SYSTEM_PROMPT + context;
 
     const messages = [
       { role: 'system', content: systemContent },
-      ...history.slice(-6), // keep last 3 turns for context
+      ...history.slice(-6),
       { role: 'user', content: message },
     ];
 
@@ -102,5 +101,73 @@ export class MaintenanceBotService implements OnModuleInit {
     );
 
     return response.data?.message?.content ?? 'Sorry, I could not generate a response.';
+  }
+
+  async chat(
+    customerId: string,
+    message: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    sessionId?: string,
+  ): Promise<{ reply: string; sessionId: string }> {
+    // Find or create session
+    let session: ChatSession | null = null;
+    if (sessionId) {
+      session = await this.sessionsRepo.findOne({ where: { id: sessionId, customerId } });
+    }
+    if (!session) {
+      const title = message.length > 45 ? message.substring(0, 45) + '…' : message;
+      session = await this.sessionsRepo.save(this.sessionsRepo.create({ customerId, title }));
+    }
+
+    // Persist user message
+    await this.messagesRepo.save(
+      this.messagesRepo.create({ sessionId: session.id, role: 'user', content: message }),
+    );
+
+    const reply = await this.callOllama(customerId, message, history);
+
+    // Persist assistant reply
+    await this.messagesRepo.save(
+      this.messagesRepo.create({ sessionId: session.id, role: 'assistant', content: reply }),
+    );
+
+    return { reply, sessionId: session.id };
+  }
+
+  async getSessions(customerId: string): Promise<any[]> {
+    const sessions = await this.sessionsRepo.find({
+      where: { customerId },
+      order: { createdAt: 'DESC' },
+      take: 30,
+    });
+
+    return Promise.all(
+      sessions.map(async (s) => {
+        const messageCount = await this.messagesRepo.count({ where: { sessionId: s.id } });
+        return { id: s.id, title: s.title, createdAt: s.createdAt, messageCount };
+      }),
+    );
+  }
+
+  async getSession(
+    customerId: string,
+    sessionId: string,
+  ): Promise<{ id: string; title: string; messages: ChatMessage[] }> {
+    const session = await this.sessionsRepo.findOne({ where: { id: sessionId, customerId } });
+    if (!session) throw new NotFoundException('Session not found');
+
+    const messages = await this.messagesRepo.find({
+      where: { sessionId },
+      order: { createdAt: 'ASC' },
+    });
+
+    return { id: session.id, title: session.title, messages };
+  }
+
+  async deleteSession(customerId: string, sessionId: string): Promise<{ success: boolean }> {
+    const session = await this.sessionsRepo.findOne({ where: { id: sessionId, customerId } });
+    if (!session) throw new NotFoundException('Session not found');
+    await this.sessionsRepo.remove(session);
+    return { success: true };
   }
 }

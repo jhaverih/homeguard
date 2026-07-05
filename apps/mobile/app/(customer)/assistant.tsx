@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, KeyboardAvoidingView, ActivityIndicator,
-  SafeAreaView, Keyboard,
+  SafeAreaView, Keyboard, Modal, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,23 +66,29 @@ const SEASONAL_TASKS: Record<string, string[]> = {
 let msgId = 0;
 const uid = () => String(++msgId);
 
+const INITIAL_MESSAGE: Message = {
+  id: uid(),
+  role: 'assistant',
+  content: "Hi! I'm your HomeGuard AI assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
+};
+
 export default function AssistantScreen() {
   const season = getCurrentSeason();
   const tasks = SEASONAL_TASKS[season];
   const { emoji, label } = SEASON_META[season];
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: uid(),
-      role: 'assistant',
-      content: "Hi! I'm your HomeGuard AI assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [seasonExpanded, setSeasonExpanded] = useState(true);
   const [checkedTasks, setCheckedTasks] = useState<Set<number>>(new Set());
+
+  // History modal
+  const [showHistory, setShowHistory] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const toggleTask = (i: number) => {
     setCheckedTasks((prev) => {
@@ -99,6 +105,66 @@ export default function AssistantScreen() {
     router.push({ pathname: '/(customer)/request', params: { prefilledNotes: notes } });
   };
 
+  const startNewChat = () => {
+    setMessages([INITIAL_MESSAGE]);
+    setSessionId(null);
+    setCheckedTasks(new Set());
+  };
+
+  const openHistory = async () => {
+    setShowHistory(true);
+    setHistoryLoading(true);
+    try {
+      const data = await maintenanceBotApi.getSessions();
+      setSessions(data);
+    } catch {
+      setSessions([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const loadSession = async (id: string) => {
+    setShowHistory(false);
+    setLoading(true);
+    try {
+      const data: any = await maintenanceBotApi.getSession(id);
+      const restored: Message[] = data.messages.map((m: any) => ({
+        id: uid(),
+        role: m.role,
+        content: m.content,
+      }));
+      setMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
+      setSessionId(id);
+    } catch {
+      Alert.alert('Error', 'Could not load that conversation.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteSession = (id: string, title: string) => {
+    Alert.alert(
+      'Delete Conversation',
+      `Delete "${title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              await maintenanceBotApi.deleteSession(id);
+              setSessions((prev) => prev.filter((s) => s.id !== id));
+              if (sessionId === id) startNewChat();
+            } catch {
+              Alert.alert('Error', 'Could not delete that conversation.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const sendMessage = useCallback(async (text: string) => {
     const userText = text.trim();
     if (!userText || loading) return;
@@ -109,13 +175,14 @@ export default function AssistantScreen() {
     setLoading(true);
 
     const history = messages
-      .slice(1)
+      .filter((m) => m.role !== 'assistant' || m.id !== INITIAL_MESSAGE.id)
       .map((m) => ({ role: m.role, content: m.content }));
 
     try {
-      const res: any = await maintenanceBotApi.chat(userText, history);
+      const res: any = await maintenanceBotApi.chat(userText, history, sessionId);
       const botMsg: Message = { id: uid(), role: 'assistant', content: res.reply };
       setMessages((prev) => [...prev, botMsg]);
+      if (res.sessionId && !sessionId) setSessionId(res.sessionId);
     } catch (e: any) {
       const errMsg: Message = {
         id: uid(),
@@ -130,7 +197,7 @@ export default function AssistantScreen() {
       Keyboard.dismiss();
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [messages, loading]);
+  }, [messages, loading, sessionId]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
@@ -150,8 +217,25 @@ export default function AssistantScreen() {
     );
   };
 
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header action row */}
+      <View style={styles.headerRow}>
+        {sessionId && (
+          <TouchableOpacity style={styles.newChatBtn} onPress={startNewChat}>
+            <Ionicons name="add-circle-outline" size={18} color="#1e3a5f" />
+            <Text style={styles.newChatText}>New Chat</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.historyBtn, !sessionId && { marginLeft: 'auto' }]} onPress={openHistory}>
+          <Ionicons name="time-outline" size={18} color="#64748b" />
+          <Text style={styles.historyBtnText}>History</Text>
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"
@@ -188,22 +272,13 @@ export default function AssistantScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.seasonTitle}>{emoji} {label} Maintenance</Text>
-              <Ionicons
-                name={seasonExpanded ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color="#1e3a5f"
-              />
+              <Ionicons name={seasonExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#1e3a5f" />
             </TouchableOpacity>
 
             {seasonExpanded && (
               <>
                 {tasks.map((task, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={styles.taskRow}
-                    onPress={() => toggleTask(i)}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity key={i} style={styles.taskRow} onPress={() => toggleTask(i)} activeOpacity={0.7}>
                     <Ionicons
                       name={checkedTasks.has(i) ? 'checkbox' : 'square-outline'}
                       size={20}
@@ -214,7 +289,6 @@ export default function AssistantScreen() {
                     </Text>
                   </TouchableOpacity>
                 ))}
-
                 {checkedTasks.size > 0 && (
                   <TouchableOpacity style={styles.requestBtn} onPress={requestSeasonalService}>
                     <Ionicons name="calendar-outline" size={15} color="#fff" />
@@ -228,7 +302,7 @@ export default function AssistantScreen() {
           </View>
         )}
 
-        {/* Quick prompts — always visible as shortcuts */}
+        {/* Quick prompts */}
         {!loading && (
           <View style={styles.quickPrompts}>
             {QUICK_PROMPTS.map((q) => (
@@ -260,12 +334,65 @@ export default function AssistantScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Chat history modal */}
+      <Modal visible={showHistory} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f8f9fa' }}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>Conversation History</Text>
+            <TouchableOpacity onPress={() => setShowHistory(false)}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+
+          {historyLoading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color="#1e3a5f" />
+          ) : sessions.length === 0 ? (
+            <View style={{ alignItems: 'center', padding: 40 }}>
+              <Ionicons name="chatbubble-outline" size={48} color="#cbd5e1" />
+              <Text style={{ marginTop: 16, color: '#94a3b8', fontSize: 16, textAlign: 'center' }}>
+                No conversations yet.{'\n'}Start chatting to save your first conversation.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={sessions}
+              keyExtractor={(s) => s.id}
+              contentContainerStyle={{ padding: 16 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.sessionRow} onPress={() => loadSession(item.id)}>
+                  <View style={styles.sessionIcon}>
+                    <Ionicons name="chatbubbles-outline" size={20} color="#1e3a5f" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sessionTitle} numberOfLines={2}>{item.title}</Text>
+                    <Text style={styles.sessionMeta}>
+                      {formatDate(item.createdAt)} · {item.messageCount} message{item.messageCount !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.sessionDeleteBtn}
+                    onPress={() => deleteSession(item.id, item.title)}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#e53e3e" />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', backgroundColor: '#fff', gap: 8 },
+  newChatBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#e8f0fe', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  newChatText: { fontSize: 13, color: '#1e3a5f', fontWeight: '600' },
+  historyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6 },
+  historyBtnText: { fontSize: 13, color: '#64748b' },
   messageList: { padding: 16, paddingBottom: 8 },
   bubbleRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end' },
   bubbleRowLeft: { justifyContent: 'flex-start' },
@@ -298,4 +425,12 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#f1f5f9', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#0f172a', maxHeight: 100 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: '#94a3b8' },
+  // History modal
+  historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  historyTitle: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
+  sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+  sessionIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e8f0fe', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  sessionTitle: { fontSize: 14, fontWeight: '600', color: '#1e293b', marginBottom: 4 },
+  sessionMeta: { fontSize: 12, color: '#94a3b8' },
+  sessionDeleteBtn: { padding: 6 },
 });

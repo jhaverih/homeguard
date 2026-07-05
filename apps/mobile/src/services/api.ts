@@ -115,8 +115,11 @@ aiApi.interceptors.response.use(
 );
 
 export const maintenanceBotApi = {
-  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) =>
-    aiApi.post('/maintenance-bot/chat', { message, history }),
+  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>, sessionId?: string | null) =>
+    aiApi.post('/maintenance-bot/chat', { message, history, ...(sessionId ? { sessionId } : {}) }),
+  getSessions: (): Promise<any[]> => api.get('/maintenance-bot/sessions') as any,
+  getSession: (id: string): Promise<any> => api.get(`/maintenance-bot/sessions/${id}`) as any,
+  deleteSession: (id: string) => api.delete(`/maintenance-bot/sessions/${id}`),
 };
 
 export const uploadsApi = {
@@ -144,6 +147,8 @@ export const disputesApi = {
 
 export const paymentsApi = {
   getOnboardingLink: () => api.post('/payments/vendor/onboarding'),
+  getVendorStripeStatus: (): Promise<{ connected: boolean; onboardingComplete: boolean }> =>
+    api.get('/payments/vendor/stripe-status') as any,
   getPending: (): Promise<any[]> => api.get('/payments/pending') as any,
   authorize: (paymentId: string) => api.patch(`/payments/${paymentId}/authorize`, {}),
   getVendorHistory: (): Promise<any[]> => api.get('/payments/vendor/history') as any,

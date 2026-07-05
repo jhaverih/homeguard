@@ -232,9 +232,25 @@ export class PaymentsService {
         );
         break;
       }
+
+      case 'account.updated': {
+        const account = event.data.object as Stripe.Account;
+        if (account.charges_enabled && account.details_submitted) {
+          await this.usersService.markVendorStripeComplete(account.id);
+        }
+        break;
+      }
     }
 
     return { received: true };
+  }
+
+  async getVendorStripeStatus(vendorId: string): Promise<{ connected: boolean; onboardingComplete: boolean }> {
+    const vendor = await this.usersService.findById(vendorId);
+    return {
+      connected: !!vendor.vendorProfile?.stripeConnectAccountId,
+      onboardingComplete: vendor.vendorProfile?.stripeOnboardingComplete ?? false,
+    };
   }
 
   async recordDisputedPayment(stripePaymentIntentId: string): Promise<void> {

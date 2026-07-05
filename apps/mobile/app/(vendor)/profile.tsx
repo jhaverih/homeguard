@@ -10,6 +10,8 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuthStore } from '../../src/store/auth.store';
 import { paymentsApi, userApi, teamApi } from '../../src/services/api';
 
+type StripeStatus = { connected: boolean; onboardingComplete: boolean };
+
 const BIOMETRIC_ENABLED_KEY = 'hg_biometric_enabled';
 const SAVED_EMAIL_KEY = 'hg_saved_email';
 const SAVED_PASSWORD_KEY = 'hg_saved_password';
@@ -17,6 +19,7 @@ const SAVED_PASSWORD_KEY = 'hg_saved_password';
 export default function VendorProfileScreen() {
   const { user, logout } = useAuthStore();
   const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [companyName, setCompanyName] = useState<string>('');
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -31,6 +34,7 @@ export default function VendorProfileScreen() {
         const vp = res?.vendorProfile;
         if (vp?.companyName) setCompanyName(vp.companyName);
       }).catch(() => {});
+      paymentsApi.getVendorStripeStatus().then((s) => setStripeStatus(s)).catch(() => {});
       teamApi.getMembers().then((res: any) => {
         setTeamMembers(Array.isArray(res) ? res : []);
       }).catch(() => {});
@@ -164,13 +168,41 @@ export default function VendorProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Payments</Text>
+
+        {/* Stripe status indicator */}
+        {stripeStatus && (
+          <View style={[
+            styles.stripeStatus,
+            stripeStatus.onboardingComplete ? styles.stripeStatusGreen : styles.stripeStatusOrange,
+          ]}>
+            <Ionicons
+              name={stripeStatus.onboardingComplete ? 'checkmark-circle' : 'alert-circle'}
+              size={18}
+              color={stripeStatus.onboardingComplete ? '#059669' : '#d97706'}
+            />
+            <Text style={[styles.stripeStatusText, { color: stripeStatus.onboardingComplete ? '#059669' : '#d97706' }]}>
+              {stripeStatus.onboardingComplete
+                ? 'Stripe Connected — receiving payouts'
+                : stripeStatus.connected
+                  ? 'Stripe setup incomplete — finish to receive payouts'
+                  : 'Stripe not connected — set up to receive payouts'}
+            </Text>
+          </View>
+        )}
+
         <TouchableOpacity style={styles.stripeBtn} onPress={startOnboarding} disabled={onboardingLoading}>
           {onboardingLoading
             ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.stripeBtnText}>💳 Set Up / Manage Stripe Payouts</Text>
+            : <Text style={styles.stripeBtnText}>
+                {stripeStatus?.onboardingComplete ? '💳 Manage Stripe Payouts' : '💳 Set Up Stripe Payouts'}
+              </Text>
           }
         </TouchableOpacity>
-        <Text style={styles.stripeHint}>Required to receive payments. Stripe will verify your identity.</Text>
+        <Text style={styles.stripeHint}>
+          {stripeStatus?.onboardingComplete
+            ? 'Update your bank account, view transfers, or manage your Stripe account.'
+            : 'Required to receive payments. Stripe will verify your identity and bank details.'}
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -242,6 +274,10 @@ const styles = StyleSheet.create({
   infoValue: { fontSize: 14, color: '#2d4a22', fontWeight: '600', flexShrink: 1, textAlign: 'right', marginLeft: 8 },
   section: { width: '100%', marginBottom: 24 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#2d4a22', marginBottom: 12 },
+  stripeStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginBottom: 10 },
+  stripeStatusGreen: { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#6ee7b7' },
+  stripeStatusOrange: { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a' },
+  stripeStatusText: { flex: 1, fontSize: 13, fontWeight: '500' },
   stripeBtn: { backgroundColor: '#635bff', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   stripeBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   stripeHint: { fontSize: 12, color: '#888', textAlign: 'center' },

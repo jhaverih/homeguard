@@ -151,6 +151,29 @@ export default function RequestInspectionScreen() {
     }
   };
 
+  // Gate: require active subscription before requesting services
+  if (subscription === null && !loading) {
+    return (
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <ScrollView style={styles.container} contentContainerStyle={[styles.content, { alignItems: 'center', paddingTop: 60 }]}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#e8f0fe', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <Ionicons name="shield-outline" size={38} color="#1e3a5f" />
+          </View>
+          <Text style={[styles.title, { textAlign: 'center' }]}>Subscription Required</Text>
+          <Text style={[styles.subtitle, { textAlign: 'center' }]}>
+            A HomeGuard plan is required to request inspection services. Choose a plan to get started.
+          </Text>
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 16, width: '100%' }]}
+            onPress={() => router.push('/(customer)/subscribe')}
+          >
+            <Text style={styles.buttonText}>View Plans & Subscribe</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">

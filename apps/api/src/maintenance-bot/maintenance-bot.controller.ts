@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MaintenanceBotService } from './maintenance-bot.service';
@@ -17,8 +17,27 @@ export class MaintenanceBotController {
     @Body() body: {
       message: string;
       history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+      sessionId?: string;
     },
   ) {
-    return this.service.chat(req.user.id, body.message, body.history ?? []).then((reply) => ({ reply }));
+    return this.service.chat(req.user.id, body.message, body.history ?? [], body.sessionId);
+  }
+
+  @Get('sessions')
+  @ApiOperation({ summary: 'List AI chat sessions for the current user' })
+  getSessions(@Request() req) {
+    return this.service.getSessions(req.user.id);
+  }
+
+  @Get('sessions/:id')
+  @ApiOperation({ summary: 'Get messages for a specific chat session' })
+  getSession(@Request() req, @Param('id') id: string) {
+    return this.service.getSession(req.user.id, id);
+  }
+
+  @Delete('sessions/:id')
+  @ApiOperation({ summary: 'Delete a chat session' })
+  deleteSession(@Request() req, @Param('id') id: string) {
+    return this.service.deleteSession(req.user.id, id);
   }
 }

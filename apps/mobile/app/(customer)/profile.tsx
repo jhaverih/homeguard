@@ -229,6 +229,40 @@ export default function CustomerProfileScreen() {
         )}
       </View>
 
+      <Text style={styles.sectionTitle}>Payment & Plan</Text>
+      <View style={styles.card}>
+        {subscription ? (
+          <>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Active Plan</Text>
+              <Text style={styles.rowValue}>{subscription.plan?.name ?? 'Active'}</Text>
+            </View>
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Text style={styles.rowLabel}>Status</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={[styles.rowValue, { color: '#059669' }]}>Payments active</Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          <View style={{ padding: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Ionicons name="alert-circle-outline" size={20} color="#d97706" />
+              <Text style={{ fontSize: 14, color: '#d97706', fontWeight: '600', flex: 1 }}>
+                No active plan — required to request services
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={{ backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center' }}
+              onPress={() => router.push('/(customer)/subscribe')}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>View Plans & Subscribe</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
       <Text style={styles.sectionTitle}>Security</Text>
       <View style={styles.card}>
         {biometricEnabled && (

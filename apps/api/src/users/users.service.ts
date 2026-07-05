@@ -242,6 +242,15 @@ export class UsersService implements OnModuleInit {
     return this.findById(userId);
   }
 
+  async markVendorStripeComplete(stripeAccountId: string): Promise<void> {
+    const profile = await this.vendorProfileRepo.findOne({
+      where: { stripeConnectAccountId: stripeAccountId },
+    });
+    if (profile) {
+      await this.vendorProfileRepo.update(profile.id, { stripeOnboardingComplete: true });
+    }
+  }
+
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
     const user = await this.usersRepo.findOne({ where: { id: userId }, select: ['id', 'password'] });
     if (!user) throw new NotFoundException('User not found');
