@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Alert, ActivityIndicator, Modal, Platform, Image, FlatList,
+  TextInput, Alert, ActivityIndicator, Modal, Platform, Image, FlatList, KeyboardAvoidingView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
@@ -365,7 +365,8 @@ export default function ActiveJobScreen() {
   const isCompleted = job.status === 'COMPLETED';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {/* Customer Header */}
       <View style={styles.customerBox}>
         <Text style={styles.customerLabel}>Customer</Text>
@@ -550,6 +551,7 @@ export default function ActiveJobScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

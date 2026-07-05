@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, Modal, Platform,
+  ScrollView, Alert, ActivityIndicator, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
@@ -147,7 +147,8 @@ export default function RequestInspectionScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Request an Inspection</Text>
       <Text style={styles.subtitle}>
         Tell us when works best. An available vendor will accept and confirm.
@@ -245,6 +246,7 @@ export default function RequestInspectionScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
