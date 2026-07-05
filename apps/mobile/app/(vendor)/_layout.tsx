@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -51,7 +51,7 @@ function StripeSetupGate({ onRefresh }: { onRefresh: () => void }) {
         </View>
         <Text style={styles.gateTitle}>Set Up Payouts to Get Started</Text>
         <Text style={styles.gateBody}>
-          Connect your Stripe account so HomeGuard can pay you when jobs are completed.
+          Connect your Stripe account so Houmi can pay you when jobs are completed.
           This only takes a few minutes and is required before you can accept service requests.
         </Text>
 
@@ -105,7 +105,7 @@ export default function VendorLayout() {
   if (checking) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#2d4a22" />
+        <ActivityIndicator size="large" color="#0B4A45" />
       </View>
     );
   }
@@ -116,10 +116,10 @@ export default function VendorLayout() {
         <Tabs
           screenOptions={{
             headerRight: () => <RoleSwitcher />,
-            headerStyle: { backgroundColor: '#2d4a22' },
+            headerStyle: { backgroundColor: '#0B4A45' },
             headerTintColor: '#fff',
             headerTitleStyle: { fontWeight: '700' },
-            tabBarActiveTintColor: '#2d4a22',
+            tabBarActiveTintColor: '#0B4A45',
             tabBarInactiveTintColor: '#94a3b8',
             tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
             tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
@@ -144,10 +144,10 @@ export default function VendorLayout() {
     <Tabs
       screenOptions={{
         headerRight: () => <RoleSwitcher />,
-        headerStyle: { backgroundColor: '#2d4a22' },
+        headerStyle: { backgroundColor: '#0B4A45' },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: '#2d4a22',
+        tabBarActiveTintColor: '#0B4A45',
         tabBarInactiveTintColor: '#94a3b8',
         tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
@@ -166,7 +166,7 @@ export default function VendorLayout() {
 }
 
 const styles = StyleSheet.create({
-  switchBtn: { marginRight: 16, backgroundColor: '#1e3a5f', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  switchBtn: { marginRight: 16, backgroundColor: '#0B4A45', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   switchText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   // Gate overlay
   gate: {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
@@ -30,7 +30,7 @@ export default function MyJobsScreen() {
   };
 
   useEffect(() => { load(); }, []);
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -68,14 +68,14 @@ export default function MyJobsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#2d4a22', margin: 16 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16 },
   empty: { padding: 32, alignItems: 'center' },
   emptyText: { color: '#888', textAlign: 'center' },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, marginBottom: 12 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  cardDate: { fontSize: 15, fontWeight: '700', color: '#2d4a22' },
+  cardDate: { fontSize: 15, fontWeight: '700', color: '#0B4A45' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
   badgeText: { fontSize: 12, fontWeight: '600' },
   cardAddress: { fontSize: 14, color: '#555', marginBottom: 8 },
-  cardCta: { fontSize: 12, color: '#2d4a22', fontWeight: '600' },
+  cardCta: { fontSize: 12, color: '#0B4A45', fontWeight: '600' },
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, ActivityIndicator, Modal, Platform, Image, FlatList, KeyboardAvoidingView,
@@ -53,10 +53,10 @@ function PhotoStrip({
       {photos.length < maxPhotos && (
         <TouchableOpacity style={ps.addBtn} onPress={onAdd} disabled={uploading}>
           {uploading ? (
-            <ActivityIndicator size="small" color="#2d4a22" />
+            <ActivityIndicator size="small" color="#0B4A45" />
           ) : (
             <>
-              <Ionicons name="camera" size={22} color="#2d4a22" />
+              <Ionicons name="camera" size={22} color="#0B4A45" />
               <Text style={ps.addText}>Add</Text>
             </>
           )}
@@ -357,7 +357,7 @@ export default function ActiveJobScreen() {
     }
   };
 
-  if (loading || !job) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
+  if (loading || !job) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   const nextAction = NEXT_STATUS[job.status];
   const canReschedule = !['COMPLETED', 'CANCELLED'].includes(job.status);
@@ -408,7 +408,7 @@ export default function ActiveJobScreen() {
             {INSPECTION_TASKS.map((task) => (
               <TouchableOpacity key={task.id} style={styles.checkRow} onPress={() => toggleTask(task.id)} activeOpacity={0.7}>
                 <Ionicons name={checkedTasks.has(task.id) ? 'checkbox' : 'square-outline'} size={22}
-                  color={checkedTasks.has(task.id) ? '#2d4a22' : '#94a3b8'} />
+                  color={checkedTasks.has(task.id) ? '#0B4A45' : '#94a3b8'} />
                 <Text style={[styles.checkLabel, checkedTasks.has(task.id) && styles.checkLabelDone]}>{task.label}</Text>
               </TouchableOpacity>
             ))}
@@ -483,7 +483,7 @@ export default function ActiveJobScreen() {
               </View>
               <Text style={styles.catalogDesc}>{item.description}</Text>
               {selectedCatalogItem?.id === item.id && (
-                <Ionicons name="checkmark-circle" size={18} color="#2d4a22" style={{ marginTop: 6 }} />
+                <Ionicons name="checkmark-circle" size={18} color="#0B4A45" style={{ marginTop: 6 }} />
               )}
             </TouchableOpacity>
           ))}
@@ -561,14 +561,14 @@ const ps = StyleSheet.create({
   img: { width: '100%', height: '100%' },
   removeBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 10 },
   spinner: { position: 'absolute', bottom: 4, left: 4 },
-  addBtn: { width: 76, height: 76, borderRadius: 10, borderWidth: 1.5, borderColor: '#2d4a22', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0fdf4' },
-  addText: { fontSize: 11, color: '#2d4a22', marginTop: 2, fontWeight: '600' },
+  addBtn: { width: 76, height: 76, borderRadius: 10, borderWidth: 1.5, borderColor: '#0B4A45', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0fdf4' },
+  addText: { fontSize: 11, color: '#0B4A45', marginTop: 2, fontWeight: '600' },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   content: { padding: 16 },
-  customerBox: { backgroundColor: '#2d4a22', borderRadius: 16, padding: 20, marginBottom: 12 },
+  customerBox: { backgroundColor: '#0B4A45', borderRadius: 16, padding: 20, marginBottom: 12 },
   customerLabel: { fontSize: 12, color: '#a8d5a2', marginBottom: 4, fontWeight: '600', textTransform: 'uppercase' },
   customerName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
   customerAddress: { fontSize: 14, color: '#c8e6c0', marginBottom: 2 },
@@ -576,54 +576,54 @@ const styles = StyleSheet.create({
   customerNotes: { fontSize: 13, color: '#a8d5a2', fontStyle: 'italic' },
   scheduledRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 12, gap: 8, borderWidth: 1, borderColor: '#e2e8f0' },
   scheduledLabel: { fontSize: 13, fontWeight: '600', color: '#64748b' },
-  scheduledDate: { fontSize: 13, fontWeight: '700', color: '#2d4a22', flex: 1 },
+  scheduledDate: { fontSize: 13, fontWeight: '700', color: '#0B4A45', flex: 1 },
   actionBtn: { borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 12 },
   actionBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   completedBadge: { backgroundColor: '#c6f6d5', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
-  completedText: { color: '#2d7d46', fontWeight: '700', fontSize: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#2d4a22', marginBottom: 4, marginTop: 16 },
+  completedText: { color: '#17897D', fontWeight: '700', fontSize: 16 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', marginBottom: 4, marginTop: 16 },
   sectionHint: { fontSize: 13, color: '#888', marginBottom: 12 },
   photoLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
   required: { color: '#c53030' },
   checklistCard: { backgroundColor: '#fff', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 },
   checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   checkLabel: { fontSize: 14, color: '#374151', flex: 1 },
-  checkLabelDone: { color: '#2d4a22', fontWeight: '600' },
+  checkLabelDone: { color: '#0B4A45', fontWeight: '600' },
   typeRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   typeChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, borderWidth: 1.5, borderColor: '#cbd5e1', backgroundColor: '#fff' },
-  typeChipActive: { backgroundColor: '#2d4a22', borderColor: '#2d4a22' },
+  typeChipActive: { backgroundColor: '#0B4A45', borderColor: '#0B4A45' },
   typeChipFinding: { borderColor: '#c05621' },
   typeChipText: { fontSize: 13, fontWeight: '600', color: '#374151' },
   typeChipTextActive: { color: '#fff' },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 10, color: '#0f172a' },
   textArea: { height: 90, textAlignVertical: 'top' },
-  saveBtn: { backgroundColor: '#2d4a22', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 8 },
+  saveBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 8 },
   saveBtnDisabled: { backgroundColor: '#94a3b8' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   completeSeparator: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 20 },
   completeBtn: { flexDirection: 'row', backgroundColor: '#059669', borderRadius: 14, padding: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   completeBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   catalogCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5, borderColor: '#e2e8f0' },
-  catalogCardSelected: { borderColor: '#2d4a22', backgroundColor: '#f0fdf4' },
+  catalogCardSelected: { borderColor: '#0B4A45', backgroundColor: '#f0fdf4' },
   catalogHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  catalogName: { fontSize: 14, fontWeight: '700', color: '#1e3a5f', flex: 1, marginRight: 8 },
-  catalogPrice: { fontSize: 14, fontWeight: '700', color: '#2d7d46' },
+  catalogName: { fontSize: 14, fontWeight: '700', color: '#0B4A45', flex: 1, marginRight: 8 },
+  catalogPrice: { fontSize: 14, fontWeight: '700', color: '#17897D' },
   catalogDesc: { fontSize: 12, color: '#64748b', lineHeight: 18 },
-  rescheduleBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 10, borderWidth: 1.5, borderColor: '#2d4a22' },
-  rescheduleBtnText: { color: '#2d4a22', fontWeight: '700', fontSize: 15 },
-  chatBtn: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 32 },
+  rescheduleBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 10, borderWidth: 1.5, borderColor: '#0B4A45' },
+  rescheduleBtnText: { color: '#0B4A45', fontWeight: '700', fontSize: 15 },
+  chatBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 32 },
   chatBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#2d4a22', marginBottom: 6 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', marginBottom: 6 },
   modalSubtitle: { fontSize: 14, color: '#64748b', marginBottom: 16 },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   dateBtn: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   dateBtnText: { fontSize: 15, color: '#111', fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
-  doneBtn: { backgroundColor: '#2d4a22', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  doneBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
   doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  confirmBtn: { backgroundColor: '#2d4a22', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  confirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888' },

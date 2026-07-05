@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Modal, Platform, Image,
@@ -170,7 +170,7 @@ export default function RequestDetailScreen() {
     }
   };
 
-  if (loading || !request) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
+  if (loading || !request) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.PENDING;
   const canReschedule = !['COMPLETED', 'CANCELLED'].includes(request.status);
@@ -345,22 +345,22 @@ const styles = StyleSheet.create({
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99, marginBottom: 20 },
   statusText: { fontSize: 13, fontWeight: '700' },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#888', textTransform: 'uppercase', marginTop: 16, marginBottom: 4 },
-  value: { fontSize: 16, color: '#1e3a5f' },
+  value: { fontSize: 16, color: '#0B4A45' },
   noteCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   noteCardFinding: { borderLeftWidth: 3, borderLeftColor: '#ed8936' },
-  noteTitle: { fontSize: 14, fontWeight: '700', color: '#1e3a5f', marginBottom: 4 },
+  noteTitle: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
   noteContent: { fontSize: 14, color: '#555', lineHeight: 20 },
   findingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff4e5', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginBottom: 6 },
   findingBadgeText: { fontSize: 11, fontWeight: '700', color: '#c05621' },
   photoThumb: { width: 120, height: 90, borderRadius: 10, marginRight: 8 },
   notePhotoThumb: { width: 80, height: 60, borderRadius: 8, marginRight: 6 },
-  rescheduleBtn: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 28 },
+  rescheduleBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 28 },
   rescheduleBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   chatBtn: { backgroundColor: '#2563eb', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 12 },
   chatBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1e3a5f', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', marginBottom: 16 },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   dateBtn: {
     backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
@@ -368,9 +368,9 @@ const styles = StyleSheet.create({
   },
   dateBtnText: { fontSize: 15, color: '#111', fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
-  doneBtn: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  doneBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
   doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  confirmBtn: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  confirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888' },
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   svcCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
   svcCardApproved: { borderColor: '#059669', backgroundColor: '#f0fdf4' },
   svcHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  svcName: { fontSize: 15, fontWeight: '700', color: '#1e3a5f', flex: 1, marginRight: 8 },
+  svcName: { fontSize: 15, fontWeight: '700', color: '#0B4A45', flex: 1, marginRight: 8 },
   svcPrice: { fontSize: 15, fontWeight: '700', color: '#059669' },
   svcDesc: { fontSize: 13, color: '#555', lineHeight: 18, marginBottom: 10 },
   approveBtn: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
@@ -388,6 +388,6 @@ const styles = StyleSheet.create({
   addonBannerText: { fontSize: 13, color: '#92400e', fontWeight: '600' },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
   vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: '#e2e8f0' },
-  vendorName: { fontSize: 15, fontWeight: '700', color: '#1e3a5f' },
+  vendorName: { fontSize: 15, fontWeight: '700', color: '#0B4A45' },
   vendorCompany: { fontSize: 13, color: '#64748b', marginTop: 2 },
 });

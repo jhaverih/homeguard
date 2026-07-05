@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "HomeGuard",
+    "name": "Houmi",
     "slug": "homeguard",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,20 +10,20 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1e3a5f"
+      "backgroundColor": "#0B4A45"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.homeguard.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "HomeGuard needs camera access to take inspection photos.",
-        "NSPhotoLibraryUsageDescription": "HomeGuard needs photo library access to upload inspection photos."
+        "NSCameraUsageDescription": "Houmi needs camera access to take inspection photos.",
+        "NSPhotoLibraryUsageDescription": "Houmi needs photo library access to upload inspection photos."
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1e3a5f"
+        "backgroundColor": "#0B4A45"
       },
       "package": "com.homeguard.app",
       "softwareKeyboardLayoutMode": "resize",
@@ -47,7 +47,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#1e3a5f"
+          "color": "#0B4A45"
         }
       ],
       "./plugins/withAndroidCleartextTraffic",

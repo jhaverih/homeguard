@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@homeguard.com');
+  const [email, setEmail] = useState('admin@houmi.app');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,8 +33,17 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-3">🏠</div>
-          <h1 className="text-2xl font-bold text-brand">HomeGuard</h1>
+          <div className="flex justify-center mb-4">
+            <svg viewBox="0 0 520 160" width="160" height="49" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="75,20 20,72 130,72" fill="#0F6F66"/>
+              <rect x="38" y="72" width="74" height="64" rx="10" fill="#0F6F66"/>
+              <rect x="50" y="90" width="18" height="18" rx="5" fill="#FFFFFF"/>
+              <circle cx="112" cy="118" r="25" fill="#FFFFFF"/>
+              <circle cx="112" cy="118" r="20" fill="#FF7A45"/>
+              <path d="M103,118 L110,125 L122,109" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="150" y="106" fontFamily="'Poppins','Segoe UI',Helvetica,Arial,sans-serif" fontSize="72" fontWeight="700" letterSpacing="-1" fill="#0B4A45">Houmi</text>
+            </svg>
+          </div>
           <p className="text-sm text-gray-400 mt-1">Admin Portal</p>
         </div>
 
@@ -77,7 +86,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          Default: admin@homeguard.com / Admin@1234
+          Default: admin@houmi.app / Admin@1234
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, ActivityIndicator, RefreshControl, Modal, Platform,
@@ -8,7 +8,7 @@ import { useFocusEffect } from 'expo-router';
 import { requestsApi } from '../../src/services/api';
 
 function DateTimeField({
-  label, value, onChange, accentColor = '#2d4a22',
+  label, value, onChange, accentColor = '#0B4A45',
 }: { label: string; value: Date; onChange: (d: Date) => void; accentColor?: string }) {
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
@@ -116,7 +116,7 @@ export default function OpenRequestsScreen() {
   };
 
   useFocusEffect(useCallback(() => { load(); }, []));
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -160,7 +160,7 @@ export default function OpenRequestsScreen() {
               label="Inspection Date & Time"
               value={scheduledDate}
               onChange={setScheduledDate}
-              accentColor="#2d4a22"
+              accentColor="#0B4A45"
             />
             <TouchableOpacity style={styles.confirmBtn} onPress={acceptJob}>
               <Text style={styles.confirmText}>Confirm & Accept</Text>
@@ -177,22 +177,22 @@ export default function OpenRequestsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#2d4a22', margin: 16, marginBottom: 4 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#666', marginHorizontal: 16, marginBottom: 16 },
   empty: { padding: 32, alignItems: 'center' },
   emptyText: { color: '#888', textAlign: 'center' },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, marginBottom: 12 },
-  cardDate: { fontSize: 14, fontWeight: '700', color: '#2d4a22', marginBottom: 4 },
+  cardDate: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
   cardAddress: { fontSize: 15, color: '#333', marginBottom: 4 },
   cardNotes: { fontSize: 13, color: '#666', marginBottom: 4, fontStyle: 'italic' },
   cardPosted: { fontSize: 12, color: '#aaa', marginBottom: 12 },
-  acceptBtn: { backgroundColor: '#2d4a22', borderRadius: 10, padding: 14, alignItems: 'center' },
+  acceptBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
   acceptBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#2d4a22', marginBottom: 8 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
   modalSubtitle: { color: '#666', marginBottom: 8 },
-  confirmBtn: { backgroundColor: '#2d4a22', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  confirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888' },

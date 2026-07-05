@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Alert, ActivityIndicator, SafeAreaView,
@@ -34,7 +34,7 @@ export default function LoginScreen() {
   const { role } = useLocalSearchParams<{ role?: string }>();
 
   const isVendor = role === 'VENDOR';
-  const accent = isVendor ? '#2d4a22' : '#1e3a5f';
+  const accent = isVendor ? '#0B4A45' : '#0B4A45';
   const roleLabel = isVendor ? 'Service Provider' : 'Homeowner';
 
   const doLogin = async (email: string, password: string) => {
@@ -88,7 +88,7 @@ export default function LoginScreen() {
     setBiometricLoading(true);
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Sign in to HomeGuard',
+        promptMessage: 'Sign in to Houmi',
         fallbackLabel: 'Use Password',
         disableDeviceFallback: false,
       });
@@ -148,13 +148,13 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <View style={styles.inner}>
-          <View style={[styles.badge, { backgroundColor: isVendor ? '#e8f5e9' : '#e8f0fe' }]}>
+          <View style={[styles.badge, { backgroundColor: isVendor ? '#e8f5e9' : '#EBF1EF' }]}>
             <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={20} color={accent} />
             <Text style={[styles.badgeText, { color: accent }]}>{roleLabel}</Text>
           </View>
 
           <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your HomeGuard account</Text>
+          <Text style={styles.subtitle}>Sign in to your Houmi account</Text>
 
           {/* Biometric quick sign-in — shown while prompt loads or as fallback button */}
           {biometricEnabled && (

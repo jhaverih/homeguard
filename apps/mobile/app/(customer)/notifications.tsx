@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
@@ -28,7 +28,7 @@ export default function NotificationsScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -57,12 +57,12 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#1e3a5f', margin: 16 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16 },
   empty: { padding: 32, alignItems: 'center' },
   emptyText: { color: '#888' },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  cardUnread: { borderLeftWidth: 4, borderLeftColor: '#1e3a5f' },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#1e3a5f', marginBottom: 4 },
+  cardUnread: { borderLeftWidth: 4, borderLeftColor: '#0B4A45' },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
   cardBody: { fontSize: 14, color: '#555', lineHeight: 20 },
   cardTime: { fontSize: 12, color: '#aaa', marginTop: 8 },
 });

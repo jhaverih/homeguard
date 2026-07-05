@@ -99,7 +99,7 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  header: { backgroundColor: '#1e3a5f', padding: 16 },
+  header: { backgroundColor: '#0B4A45', padding: 16 },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
   messageList: { padding: 16, paddingBottom: 8 },
   bubbleWrapper: { marginBottom: 8, maxWidth: '80%' },
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2,
   },
-  myBubble: { backgroundColor: '#1e3a5f' },
+  myBubble: { backgroundColor: '#0B4A45' },
   theirBubble: { backgroundColor: '#fff' },
   bubbleText: { fontSize: 15, color: '#333', lineHeight: 22 },
   myBubbleText: { color: '#fff' },
@@ -122,6 +122,6 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: '#f8f9fa', borderRadius: 20, paddingHorizontal: 16,
     paddingVertical: 10, fontSize: 15, maxHeight: 100, color: '#0f172a',
   },
-  sendBtn: { backgroundColor: '#1e3a5f', borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
+  sendBtn: { backgroundColor: '#0B4A45', borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
   sendBtnText: { color: '#fff', fontWeight: '600' },
 });

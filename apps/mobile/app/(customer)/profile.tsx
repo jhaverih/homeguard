@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView,
   TextInput, ActivityIndicator, KeyboardAvoidingView,
@@ -161,7 +161,7 @@ export default function CustomerProfileScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   const address = profile?.address
     ? `${profile.address}, ${profile.city}, ${profile.state} ${profile.zipCode}`
@@ -254,7 +254,7 @@ export default function CustomerProfileScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              style={{ backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center' }}
+              style={{ backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' }}
               onPress={() => router.push('/(customer)/subscribe')}
             >
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>View Plans & Subscribe</Text>
@@ -337,35 +337,35 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   content: { padding: 24, paddingTop: 32 },
   avatarWrap: { alignItems: 'center', marginBottom: 28 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: '700' },
-  name: { fontSize: 22, fontWeight: '700', color: '#1e3a5f' },
+  name: { fontSize: 22, fontWeight: '700', color: '#0B4A45' },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#888', textTransform: 'uppercase', marginBottom: 8, marginTop: 4 },
   card: { backgroundColor: '#fff', borderRadius: 14, marginBottom: 20, overflow: 'hidden' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   rowLabel: { fontSize: 14, color: '#888', flex: 1 },
-  rowValue: { fontSize: 14, fontWeight: '600', color: '#1e3a5f', flex: 2, textAlign: 'right' },
+  rowValue: { fontSize: 14, fontWeight: '600', color: '#0B4A45', flex: 2, textAlign: 'right' },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
-  actionLabel: { fontSize: 15, fontWeight: '600', color: '#1e3a5f' },
+  actionLabel: { fontSize: 15, fontWeight: '600', color: '#0B4A45' },
   actionChevron: { fontSize: 12, color: '#aaa' },
   divider: { height: 1, backgroundColor: '#f0f0f0' },
   formInner: { paddingHorizontal: 16, paddingBottom: 16 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: '#f8f9fa', color: '#0f172a' },
-  saveBtn: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center' },
+  saveBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   logoutBtn: { backgroundColor: '#fed7d7', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   logoutText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
   emptyNote: { fontSize: 14, color: '#aaa', paddingHorizontal: 16, paddingVertical: 14, fontStyle: 'italic' },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   memberAvatarText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   memberInfo: { flex: 1 },
-  memberName: { fontSize: 14, fontWeight: '700', color: '#1e3a5f' },
+  memberName: { fontSize: 14, fontWeight: '700', color: '#0B4A45' },
   memberEmail: { fontSize: 12, color: '#888', marginTop: 1 },
   removeBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
   removeBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
-  addFamilyBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: '#1e3a5f', borderStyle: 'dashed', padding: 13, alignItems: 'center' },
-  addFamilyBtnText: { fontSize: 14, fontWeight: '700', color: '#1e3a5f' },
+  addFamilyBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: '#0B4A45', borderStyle: 'dashed', padding: 13, alignItems: 'center' },
+  addFamilyBtnText: { fontSize: 14, fontWeight: '700', color: '#0B4A45' },
   cancelInlineBtn: { alignItems: 'center', paddingVertical: 10 },
   cancelInlineText: { color: '#888', fontSize: 14 },
   disableBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },

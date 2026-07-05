@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
@@ -26,7 +26,7 @@ export default function VendorNotificationsScreen() {
   };
 
   useEffect(() => { load(); }, []);
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -55,12 +55,12 @@ export default function VendorNotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#2d4a22', margin: 16 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16 },
   empty: { padding: 32, alignItems: 'center' },
   emptyText: { color: '#888' },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  cardUnread: { borderLeftWidth: 4, borderLeftColor: '#2d4a22' },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#2d4a22', marginBottom: 4 },
+  cardUnread: { borderLeftWidth: 4, borderLeftColor: '#0B4A45' },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
   cardBody: { fontSize: 14, color: '#555', lineHeight: 20 },
   cardTime: { fontSize: 12, color: '#aaa', marginTop: 8 },
 });

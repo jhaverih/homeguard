@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../src/store/auth.store';
@@ -24,7 +24,7 @@ export default function Index() {
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-      <ActivityIndicator size="large" color="#1e3a5f" />
+      <ActivityIndicator size="large" color="#0B4A45" />
     </View>
   );
 }

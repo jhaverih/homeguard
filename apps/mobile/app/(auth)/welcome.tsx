@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+﻿import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -8,7 +8,7 @@ export default function WelcomeScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.hero}>
           <Text style={styles.logo}>🏠</Text>
-          <Text style={styles.brand}>HomeGuard</Text>
+          <Text style={styles.brand}>Houmi</Text>
           <Text style={styles.tagline}>Professional Home Care & Inspections</Text>
         </View>
 
@@ -20,11 +20,11 @@ export default function WelcomeScreen() {
             activeOpacity={0.85}
             onPress={() => router.push({ pathname: '/(auth)/login', params: { role: 'CUSTOMER' } })}
           >
-            <View style={[styles.cardIconBox, { backgroundColor: '#e8f0fe' }]}>
-              <Ionicons name="home-outline" size={30} color="#1e3a5f" />
+            <View style={[styles.cardIconBox, { backgroundColor: '#EBF1EF' }]}>
+              <Ionicons name="home-outline" size={30} color="#0B4A45" />
             </View>
             <View style={styles.cardBody}>
-              <Text style={[styles.cardTitle, { color: '#1e3a5f' }]}>I'm a Homeowner</Text>
+              <Text style={[styles.cardTitle, { color: '#0B4A45' }]}>I'm a Homeowner</Text>
               <Text style={styles.cardDesc}>Schedule inspections, manage your home</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
@@ -36,24 +36,24 @@ export default function WelcomeScreen() {
             onPress={() => router.push({ pathname: '/(auth)/login', params: { role: 'VENDOR' } })}
           >
             <View style={[styles.cardIconBox, { backgroundColor: '#e8f5e9' }]}>
-              <Ionicons name="construct-outline" size={30} color="#2d4a22" />
+              <Ionicons name="construct-outline" size={30} color="#0B4A45" />
             </View>
             <View style={styles.cardBody}>
-              <Text style={[styles.cardTitle, { color: '#2d4a22' }]}>I'm a Service Provider</Text>
+              <Text style={[styles.cardTitle, { color: '#0B4A45' }]}>I'm a Service Provider</Text>
               <Text style={styles.cardDesc}>Manage jobs, schedule visits, grow your business</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>© 2026 HomeGuard. All rights reserved.</Text>
+        <Text style={styles.footer}>© 2026 Houmi. All rights reserved.</Text>
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1e3a5f' },
+  container: { flex: 1, backgroundColor: '#0B4A45' },
   safe: { flex: 1 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   logo: { fontSize: 64, marginBottom: 16 },

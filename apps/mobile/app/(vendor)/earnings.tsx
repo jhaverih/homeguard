@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import { paymentsApi } from '../../src/services/api';
 const STATUS_COLOR: Record<string, string> = {
   PENDING: '#f6ad55',
   AUTHORIZED: '#4299e1',
-  SUCCEEDED: '#2d7d46',
+  SUCCEEDED: '#17897D',
   DISPUTED: '#c53030',
   FAILED: '#94a3b8',
 };
@@ -44,7 +44,7 @@ export default function EarningsScreen() {
     .filter((p) => ['PENDING', 'AUTHORIZED'].includes(p.status))
     .reduce((sum, p) => sum + Number(p.vendorAmount), 0);
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -101,7 +101,7 @@ export default function EarningsScreen() {
 
               <View style={styles.breakdown}>
                 <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Billed to HomeGuard</Text>
+                  <Text style={styles.breakdownLabel}>Billed to Houmi</Text>
                   <Text style={styles.breakdownValue}>${amount.toFixed(2)}</Text>
                 </View>
                 <View style={styles.breakdownRow}>
@@ -124,7 +124,7 @@ export default function EarningsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   summary: {
-    flexDirection: 'row', backgroundColor: '#2d4a22', padding: 24,
+    flexDirection: 'row', backgroundColor: '#0B4A45', padding: 24,
     justifyContent: 'space-around', alignItems: 'center',
   },
   summaryItem: { alignItems: 'center' },
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9', margin: 16, borderRadius: 10, padding: 12,
   },
   feeNoteText: { flex: 1, fontSize: 12, color: '#64748b', lineHeight: 18 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e3a5f', marginHorizontal: 16, marginBottom: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#0B4A45', marginHorizontal: 16, marginBottom: 8 },
   emptyCard: {
     margin: 16, backgroundColor: '#fff', borderRadius: 16, padding: 32,
     alignItems: 'center', gap: 8,
@@ -158,5 +158,5 @@ const styles = StyleSheet.create({
   breakdownValue: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
   breakdownNetRow: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 8, marginTop: 4 },
   breakdownNetLabel: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  breakdownNetValue: { fontSize: 16, fontWeight: '800', color: '#2d4a22' },
+  breakdownNetValue: { fontSize: 16, fontWeight: '800', color: '#0B4A45' },
 });

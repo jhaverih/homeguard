@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+﻿import { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator,
@@ -36,7 +36,7 @@ export default function SubscribeScreen() {
 
     const { error: initError } = await initPaymentSheet({
       paymentIntentClientSecret: clientSecret,
-      merchantDisplayName: 'HomeGuard',
+      merchantDisplayName: 'Houmi',
       allowsDelayedPaymentMethods: false,
     });
     if (initError) {
@@ -67,7 +67,7 @@ export default function SubscribeScreen() {
 
       Alert.alert(
         'Subscribed!',
-        'Your HomeGuard subscription is now active. Annual billing is handled automatically.',
+        'Your Houmi subscription is now active. Annual billing is handled automatically.',
         [{ text: 'OK', onPress: () => router.replace('/(customer)') }],
       );
     } catch (e: any) {
@@ -125,7 +125,7 @@ export default function SubscribeScreen() {
     );
   };
 
-  if (fetching) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
+  if (fetching) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   if (subscription && !showChangePlan) {
     const endDate = new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -135,7 +135,7 @@ export default function SubscribeScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.activeCard}>
           <View style={styles.activeCardTop}>
-            <Ionicons name="shield-checkmark" size={32} color="#1e3a5f" />
+            <Ionicons name="shield-checkmark" size={32} color="#0B4A45" />
             <View style={{ flex: 1, marginLeft: 14 }}>
               <Text style={styles.activePlanName}>{subscription.plan?.name}</Text>
               <Text style={styles.activePlanPrice}>${subscription.plan?.price}<Text style={styles.activePlanPer}>/yr</Text></Text>
@@ -176,7 +176,7 @@ export default function SubscribeScreen() {
         ) : (
           <>
             <TouchableOpacity style={styles.changeBtn} onPress={() => { setShowChangePlan(true); setSelectedPlanId(''); }}>
-              <Ionicons name="swap-horizontal" size={18} color="#1e3a5f" />
+              <Ionicons name="swap-horizontal" size={18} color="#0B4A45" />
               <Text style={styles.changeBtnText}>Change Plan</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelBtn} onPress={cancelPlan}>
@@ -193,7 +193,7 @@ export default function SubscribeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {showChangePlan && (
         <TouchableOpacity style={styles.backRow} onPress={() => setShowChangePlan(false)}>
-          <Ionicons name="arrow-back" size={18} color="#1e3a5f" />
+          <Ionicons name="arrow-back" size={18} color="#0B4A45" />
           <Text style={styles.backText}>Back to my plan</Text>
         </TouchableOpacity>
       )}
@@ -253,8 +253,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   activeCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  activePlanName: { fontSize: 18, fontWeight: '700', color: '#1e3a5f' },
-  activePlanPrice: { fontSize: 20, fontWeight: '800', color: '#2d7d46', marginTop: 2 },
+  activePlanName: { fontSize: 18, fontWeight: '700', color: '#0B4A45' },
+  activePlanPrice: { fontSize: 20, fontWeight: '800', color: '#17897D', marginTop: 2 },
   activePlanPer: { fontSize: 13, fontWeight: '400', color: '#888' },
   statusBadge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
   statusActive: { backgroundColor: '#dcfce7' },
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff6ff', borderRadius: 14, padding: 16, marginBottom: 10,
     borderWidth: 1.5, borderColor: '#bfdbfe',
   },
-  changeBtnText: { color: '#1e3a5f', fontWeight: '700', fontSize: 15 },
+  changeBtnText: { color: '#0B4A45', fontWeight: '700', fontSize: 15 },
   cancelBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#fff5f5', borderRadius: 14, padding: 16,
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
-  backText: { color: '#1e3a5f', fontWeight: '600', fontSize: 14 },
+  backText: { color: '#0B4A45', fontWeight: '600', fontSize: 14 },
   title: { fontSize: 24, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
   subtitle: { fontSize: 14, color: '#64748b', marginBottom: 20 },
   planCard: {
@@ -293,17 +293,17 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#e2e8f0',
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
   },
-  planCardActive: { borderColor: '#1e3a5f', backgroundColor: '#f0f4ff' },
+  planCardActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
   planCardCurrent: { borderColor: '#94a3b8', opacity: 0.7 },
   planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  planName: { fontSize: 17, fontWeight: '700', color: '#1e3a5f' },
-  planPrice: { fontSize: 20, fontWeight: '800', color: '#2d7d46' },
+  planName: { fontSize: 17, fontWeight: '700', color: '#0B4A45' },
+  planPrice: { fontSize: 20, fontWeight: '800', color: '#17897D' },
   planPer: { fontSize: 13, fontWeight: '400', color: '#888' },
   planDesc: { fontSize: 13, color: '#666', marginBottom: 10, lineHeight: 18 },
   planFeature: { fontSize: 13, color: '#444', lineHeight: 22 },
   currentLabel: { marginTop: 8, fontSize: 12, color: '#64748b', fontStyle: 'italic' },
   button: {
-    backgroundColor: '#1e3a5f', borderRadius: 14, padding: 17,
+    backgroundColor: '#0B4A45', borderRadius: 14, padding: 17,
     alignItems: 'center', marginTop: 8,
   },
   buttonDisabled: { backgroundColor: '#94a3b8' },

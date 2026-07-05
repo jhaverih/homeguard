@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, PanResponder,
@@ -110,7 +110,7 @@ export default function VendorSchedule() {
 
   const monthCells = buildMonthGrid(monthAnchor.getFullYear(), monthAnchor.getMonth());
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -268,10 +268,10 @@ function JobCard({ job }: { job: any }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  todayBanner: { backgroundColor: '#2d4a22', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  todayBanner: { backgroundColor: '#0B4A45', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   todayBannerTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
   todayBannerCount: { color: '#a8d5a2', fontSize: 13, fontWeight: '600' },
-  weekStrip: { backgroundColor: '#2d4a22', paddingBottom: 16 },
+  weekStrip: { backgroundColor: '#0B4A45', paddingBottom: 16 },
   weekHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 },
   weekNavBtn: { padding: 4 },
   weekNavText: { color: '#a8d5a2', fontSize: 28, lineHeight: 28 },
@@ -286,10 +286,10 @@ const styles = StyleSheet.create({
   selectedDayCircle: { backgroundColor: '#fff' },
   todayCircle: { backgroundColor: 'rgba(255,255,255,0.2)' },
   dayNum: { fontSize: 15, color: '#a8d5a2', fontWeight: '500' },
-  selectedDayNum: { color: '#2d4a22', fontWeight: '800' },
+  selectedDayNum: { color: '#0B4A45', fontWeight: '800' },
   todayNum: { color: '#fff', fontWeight: '700' },
   countBadge: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 99, paddingHorizontal: 6, paddingVertical: 1 },
-  selectedCountBadge: { backgroundColor: '#2d4a22' },
+  selectedCountBadge: { backgroundColor: '#0B4A45' },
   countText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   selectedCountText: { color: '#fff' },
   monthGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 4 },
@@ -298,12 +298,12 @@ const styles = StyleSheet.create({
   monthDayCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   monthDayNum: { fontSize: 13, color: '#a8d5a2', fontWeight: '500' },
   monthDot: { marginTop: 2, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  monthDotSelected: { backgroundColor: '#2d4a22' },
+  monthDotSelected: { backgroundColor: '#0B4A45' },
   monthDotText: { fontSize: 9, color: '#fff', fontWeight: '700' },
   section: { marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#2d4a22', paddingHorizontal: 16, paddingVertical: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', paddingHorizontal: 16, paddingVertical: 12 },
   jobCard: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6 },
-  activeJobCard: { borderWidth: 2, borderColor: '#2d4a22' },
+  activeJobCard: { borderWidth: 2, borderColor: '#0B4A45' },
   jobTimeline: { width: 4 },
   jobContent: { flex: 1, padding: 14 },
   jobHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
@@ -314,10 +314,10 @@ const styles = StyleSheet.create({
   jobAddress: { fontSize: 14, fontWeight: '600', color: '#333' },
   jobCity: { fontSize: 13, color: '#777' },
   jobNote: { fontSize: 12, color: '#999', marginTop: 4, fontStyle: 'italic' },
-  tapHint: { fontSize: 12, color: '#2d4a22', fontWeight: '600', marginTop: 6 },
+  tapHint: { fontSize: 12, color: '#0B4A45', fontWeight: '600', marginTop: 6 },
   emptyCard: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 28, marginHorizontal: 16, marginBottom: 10 },
   emptyIcon: { fontSize: 36, marginBottom: 8 },
   emptyText: { color: '#888', textAlign: 'center', lineHeight: 22, fontSize: 14 },
-  requestBtn: { marginTop: 16, backgroundColor: '#2d4a22', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
+  requestBtn: { marginTop: 16, backgroundColor: '#0B4A45', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
   requestBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

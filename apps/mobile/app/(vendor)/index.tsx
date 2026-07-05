@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
@@ -29,7 +29,7 @@ export default function VendorDashboard() {
   const upcomingJobs = myJobs.filter((j) => j.status === 'ACCEPTED').slice(0, 3);
   const completedCount = myJobs.filter((j) => j.status === 'COMPLETED').length;
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#2d4a22" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -104,14 +104,14 @@ export default function VendorDashboard() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  header: { backgroundColor: '#2d4a22', padding: 24, paddingTop: 16 },
+  header: { backgroundColor: '#0B4A45', padding: 24, paddingTop: 16 },
   greeting: { fontSize: 24, fontWeight: '700', color: '#fff' },
   subtitle: { fontSize: 14, color: '#a8d5a2', marginTop: 4 },
   statsRow: { flexDirection: 'row', padding: 16, gap: 12 },
   statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  statNum: { fontSize: 28, fontWeight: '800', color: '#2d4a22' },
+  statNum: { fontSize: 28, fontWeight: '800', color: '#0B4A45' },
   statLabel: { fontSize: 12, color: '#888', marginTop: 2 },
-  activeJobCard: { margin: 16, marginTop: 0, backgroundColor: '#2d4a22', borderRadius: 16, padding: 20 },
+  activeJobCard: { margin: 16, marginTop: 0, backgroundColor: '#0B4A45', borderRadius: 16, padding: 20 },
   activeJobHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   activeJobTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
   activeDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#68d391' },
@@ -121,10 +121,10 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', padding: 16, paddingTop: 0, gap: 12 },
   actionBtn: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   actionIcon: { fontSize: 28, marginBottom: 8 },
-  actionText: { fontSize: 13, fontWeight: '600', color: '#2d4a22' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#2d4a22', margin: 16, marginBottom: 8 },
+  actionText: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 8 },
   jobCard: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  jobDate: { fontSize: 14, fontWeight: '700', color: '#2d4a22', marginBottom: 4 },
+  jobDate: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
   jobAddress: { fontSize: 14, color: '#555', marginBottom: 2 },
   jobCustomer: { fontSize: 12, color: '#888' },
 });

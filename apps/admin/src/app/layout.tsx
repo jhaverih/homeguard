@@ -3,8 +3,8 @@ import './globals.css';
 import { AuthGuard } from '@/components/AuthGuard';
 
 export const metadata: Metadata = {
-  title: 'HomeGuard Admin',
-  description: 'HomeGuard Platform Administration',
+  title: 'Houmi Admin',
+  description: 'Houmi Platform Administration',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+﻿import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
@@ -29,10 +29,10 @@ export default function CustomerLayout() {
     <Tabs
       screenOptions={({ route }) => ({
         headerRight: () => <RoleSwitcher />,
-        headerStyle: { backgroundColor: '#1e3a5f' },
+        headerStyle: { backgroundColor: '#0B4A45' },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: '#1e3a5f',
+        tabBarActiveTintColor: '#0B4A45',
         tabBarInactiveTintColor: '#94a3b8',
         tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
@@ -72,6 +72,6 @@ export default function CustomerLayout() {
 }
 
 const styles = StyleSheet.create({
-  switchBtn: { marginRight: 16, backgroundColor: '#2d7d46', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  switchBtn: { marginRight: 16, backgroundColor: '#17897D', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   switchText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 });

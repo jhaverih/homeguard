@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+﻿import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, KeyboardAvoidingView, ActivityIndicator,
@@ -69,7 +69,7 @@ const uid = () => String(++msgId);
 const INITIAL_MESSAGE: Message = {
   id: uid(),
   role: 'assistant',
-  content: "Hi! I'm your HomeGuard AI assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
+  content: "Hi! I'm your Houmi AI assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
 };
 
 export default function AssistantScreen() {
@@ -226,7 +226,7 @@ export default function AssistantScreen() {
       <View style={styles.headerRow}>
         {sessionId && (
           <TouchableOpacity style={styles.newChatBtn} onPress={startNewChat}>
-            <Ionicons name="add-circle-outline" size={18} color="#1e3a5f" />
+            <Ionicons name="add-circle-outline" size={18} color="#0B4A45" />
             <Text style={styles.newChatText}>New Chat</Text>
           </TouchableOpacity>
         )}
@@ -272,7 +272,7 @@ export default function AssistantScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.seasonTitle}>{emoji} {label} Maintenance</Text>
-              <Ionicons name={seasonExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#1e3a5f" />
+              <Ionicons name={seasonExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#0B4A45" />
             </TouchableOpacity>
 
             {seasonExpanded && (
@@ -282,7 +282,7 @@ export default function AssistantScreen() {
                     <Ionicons
                       name={checkedTasks.has(i) ? 'checkbox' : 'square-outline'}
                       size={20}
-                      color={checkedTasks.has(i) ? '#1e3a5f' : '#94a3b8'}
+                      color={checkedTasks.has(i) ? '#0B4A45' : '#94a3b8'}
                     />
                     <Text style={[styles.taskText, checkedTasks.has(i) && styles.taskTextChecked]}>
                       {task}
@@ -346,7 +346,7 @@ export default function AssistantScreen() {
           </View>
 
           {historyLoading ? (
-            <ActivityIndicator style={{ marginTop: 40 }} color="#1e3a5f" />
+            <ActivityIndicator style={{ marginTop: 40 }} color="#0B4A45" />
           ) : sessions.length === 0 ? (
             <View style={{ alignItems: 'center', padding: 40 }}>
               <Ionicons name="chatbubble-outline" size={48} color="#cbd5e1" />
@@ -362,7 +362,7 @@ export default function AssistantScreen() {
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.sessionRow} onPress={() => loadSession(item.id)}>
                   <View style={styles.sessionIcon}>
-                    <Ionicons name="chatbubbles-outline" size={20} color="#1e3a5f" />
+                    <Ionicons name="chatbubbles-outline" size={20} color="#0B4A45" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sessionTitle} numberOfLines={2}>{item.title}</Text>
@@ -389,17 +389,17 @@ export default function AssistantScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', backgroundColor: '#fff', gap: 8 },
-  newChatBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#e8f0fe', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  newChatText: { fontSize: 13, color: '#1e3a5f', fontWeight: '600' },
+  newChatBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EBF1EF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  newChatText: { fontSize: 13, color: '#0B4A45', fontWeight: '600' },
   historyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6 },
   historyBtnText: { fontSize: 13, color: '#64748b' },
   messageList: { padding: 16, paddingBottom: 8 },
   bubbleRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end' },
   bubbleRowLeft: { justifyContent: 'flex-start' },
   bubbleRowRight: { justifyContent: 'flex-end' },
-  botAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0 },
+  botAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0 },
   bubble: { maxWidth: '78%', borderRadius: 18, padding: 12 },
-  userBubble: { backgroundColor: '#1e3a5f', borderBottomRightRadius: 4 },
+  userBubble: { backgroundColor: '#0B4A45', borderBottomRightRadius: 4 },
   botBubble: { backgroundColor: '#fff', borderBottomLeftRadius: 4, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   bubbleText: { fontSize: 15, lineHeight: 22 },
   userBubbleText: { color: '#fff' },
@@ -410,26 +410,26 @@ const styles = StyleSheet.create({
   // Seasonal card
   seasonCard: { backgroundColor: '#fff', marginHorizontal: 12, marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
   seasonHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10 },
-  seasonTitle: { fontSize: 13, fontWeight: '700', color: '#1e3a5f' },
+  seasonTitle: { fontSize: 13, fontWeight: '700', color: '#0B4A45' },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   taskText: { flex: 1, fontSize: 13, color: '#64748b' },
-  taskTextChecked: { color: '#1e3a5f', fontWeight: '600' },
-  requestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#1e3a5f', margin: 10, borderRadius: 10, paddingVertical: 10 },
+  taskTextChecked: { color: '#0B4A45', fontWeight: '600' },
+  requestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#0B4A45', margin: 10, borderRadius: 10, paddingVertical: 10 },
   requestBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   // Quick prompts
   quickPrompts: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
-  chip: { backgroundColor: '#e8f0fe', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: '#c7d7f8' },
-  chipText: { fontSize: 13, color: '#1e3a5f', fontWeight: '500' },
+  chip: { backgroundColor: '#EBF1EF', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: '#B8DAD6' },
+  chipText: { fontSize: 13, color: '#0B4A45', fontWeight: '500' },
   // Input bar
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e2e8f0', gap: 10 },
   input: { flex: 1, backgroundColor: '#f1f5f9', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#0f172a', maxHeight: 100 },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center' },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: '#94a3b8' },
   // History modal
   historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   historyTitle: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
   sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  sessionIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e8f0fe', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  sessionIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#EBF1EF', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   sessionTitle: { fontSize: 14, fontWeight: '600', color: '#1e293b', marginBottom: 4 },
   sessionMeta: { fontSize: 12, color: '#94a3b8' },
   sessionDeleteBtn: { padding: 6 },

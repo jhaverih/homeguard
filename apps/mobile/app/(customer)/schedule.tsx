@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+﻿import { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, PanResponder,
@@ -113,7 +113,7 @@ export default function CustomerSchedule() {
 
   const monthCells = buildMonthGrid(monthAnchor.getFullYear(), monthAnchor.getMonth());
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#1e3a5f" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   return (
     <ScrollView
@@ -253,7 +253,7 @@ function VisitCard({ req }: { req: any }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
-  weekStrip: { backgroundColor: '#1e3a5f', paddingBottom: 16 },
+  weekStrip: { backgroundColor: '#0B4A45', paddingBottom: 16 },
   weekHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 },
   weekNavBtn: { padding: 4 },
   weekNavText: { color: '#a8c4e5', fontSize: 28, lineHeight: 28 },
@@ -268,17 +268,17 @@ const styles = StyleSheet.create({
   selectedDayCircle: { backgroundColor: '#fff' },
   todayCircle: { backgroundColor: 'rgba(255,255,255,0.2)' },
   dayNum: { fontSize: 15, color: '#a8c4e5', fontWeight: '500' },
-  selectedDayNum: { color: '#1e3a5f', fontWeight: '800' },
+  selectedDayNum: { color: '#0B4A45', fontWeight: '800' },
   todayNum: { color: '#fff', fontWeight: '700' },
   eventDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#60a5fa' },
-  selectedEventDot: { backgroundColor: '#1e3a5f' },
+  selectedEventDot: { backgroundColor: '#0B4A45' },
   monthGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 4 },
   monthDowLabel: { width: '14.28%', textAlign: 'center', color: '#a8c4e5', fontSize: 11, fontWeight: '600', paddingBottom: 6 },
   monthCell: { width: '14.28%', alignItems: 'center', paddingVertical: 3 },
   monthDayCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   monthDayNum: { fontSize: 13, color: '#a8c4e5', fontWeight: '500' },
   section: { marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1e3a5f', paddingHorizontal: 16, paddingVertical: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', paddingHorizontal: 16, paddingVertical: 12 },
   visitCard: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6 },
   visitTimeline: { width: 4 },
   visitContent: { flex: 1, padding: 14 },
@@ -292,6 +292,6 @@ const styles = StyleSheet.create({
   emptyCard: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 28, marginHorizontal: 16, marginBottom: 10 },
   emptyIcon: { fontSize: 36, marginBottom: 8 },
   emptyText: { color: '#888', textAlign: 'center', lineHeight: 22, fontSize: 14 },
-  requestBtn: { marginTop: 16, backgroundColor: '#1e3a5f', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
+  requestBtn: { marginTop: 16, backgroundColor: '#0B4A45', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
   requestBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

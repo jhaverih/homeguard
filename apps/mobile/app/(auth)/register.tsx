@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView,
@@ -64,7 +64,7 @@ export default function RegisterScreen() {
       if (e.message === 'NETWORK_ERROR') {
         Alert.alert(
           'Cannot Connect to Server',
-          'Your phone cannot reach the HomeGuard server.\n\nMake sure your phone is connected to your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
+          'Your phone cannot reach the Houmi server.\n\nMake sure your phone is connected to your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
         );
       } else {
         Alert.alert('Registration Failed', e.message);
@@ -75,7 +75,7 @@ export default function RegisterScreen() {
   };
 
   const isVendor = selectedRole === 'VENDOR';
-  const accent = isVendor ? '#2d4a22' : '#1e3a5f';
+  const accent = isVendor ? '#0B4A45' : '#0B4A45';
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
@@ -84,10 +84,10 @@ export default function RegisterScreen() {
         <Ionicons name="arrow-back" size={22} color="#64748b" />
       </TouchableOpacity>
 
-      <Text style={styles.logo}>🏠 HomeGuard</Text>
+      <Text style={styles.logo}>🏠 Houmi</Text>
       <Text style={styles.title}>Create Account</Text>
 
-      <View style={[styles.roleBadge, { backgroundColor: isVendor ? '#e8f5e9' : '#e8f0fe' }]}>
+      <View style={[styles.roleBadge, { backgroundColor: isVendor ? '#e8f5e9' : '#EBF1EF' }]}>
         <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={16} color={accent} />
         <Text style={[styles.roleBadgeText, { color: accent }]}>
           {isVendor ? 'Service Provider Account' : 'Homeowner Account'}
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 12 },
   roleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, gap: 6, marginBottom: 20 },
   roleBadgeText: { fontSize: 13, fontWeight: '600' },
-  sectionLabel: { fontSize: 16, fontWeight: '600', color: '#1e3a5f', marginBottom: 12, marginTop: 8 },
+  sectionLabel: { fontSize: 16, fontWeight: '600', color: '#0B4A45', marginBottom: 12, marginTop: 8 },
   input: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
     padding: 16, fontSize: 16, marginBottom: 4, color: '#0f172a',
@@ -266,19 +266,19 @@ const styles = StyleSheet.create({
     flex: 1, padding: 16, borderRadius: 12, borderWidth: 2,
     borderColor: '#ddd', backgroundColor: '#fff', alignItems: 'center',
   },
-  roleChipActive: { borderColor: '#1e3a5f', backgroundColor: '#e8f0fe' },
+  roleChipActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
   roleChipText: { fontSize: 14, fontWeight: '600', color: '#666' },
-  roleChipTextActive: { color: '#1e3a5f' },
+  roleChipTextActive: { color: '#0B4A45' },
   planCard: {
     backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12,
     borderWidth: 2, borderColor: '#ddd',
   },
-  planCardActive: { borderColor: '#1e3a5f', backgroundColor: '#e8f0fe' },
-  planName: { fontSize: 18, fontWeight: '700', color: '#1e3a5f', marginBottom: 4 },
-  planPrice: { fontSize: 22, fontWeight: '800', color: '#2d7d46', marginBottom: 8 },
+  planCardActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
+  planName: { fontSize: 18, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
+  planPrice: { fontSize: 22, fontWeight: '800', color: '#17897D', marginBottom: 8 },
   planFeature: { fontSize: 14, color: '#555', lineHeight: 22 },
   button: {
-    backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16,
+    backgroundColor: '#0B4A45', borderRadius: 12, padding: 16,
     alignItems: 'center', marginTop: 8, marginBottom: 16,
   },
   buttonDisabled: { backgroundColor: '#ccc' },

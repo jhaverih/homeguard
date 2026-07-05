@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Modal, Platform, KeyboardAvoidingView,
@@ -156,12 +156,12 @@ export default function RequestInspectionScreen() {
     return (
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView style={styles.container} contentContainerStyle={[styles.content, { alignItems: 'center', paddingTop: 60 }]}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#e8f0fe', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-            <Ionicons name="shield-outline" size={38} color="#1e3a5f" />
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#EBF1EF', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <Ionicons name="shield-outline" size={38} color="#0B4A45" />
           </View>
           <Text style={[styles.title, { textAlign: 'center' }]}>Subscription Required</Text>
           <Text style={[styles.subtitle, { textAlign: 'center' }]}>
-            A HomeGuard plan is required to request inspection services. Choose a plan to get started.
+            A Houmi plan is required to request inspection services. Choose a plan to get started.
           </Text>
           <TouchableOpacity
             style={[styles.button, { marginTop: 16, width: '100%' }]}
@@ -253,7 +253,7 @@ export default function RequestInspectionScreen() {
       <Modal visible={addonConfirmModal} transparent animationType="fade">
         <View style={styles.addonOverlay}>
           <View style={styles.addonCard}>
-            <Ionicons name="calendar-outline" size={40} color="#1e3a5f" style={{ alignSelf: 'center', marginBottom: 12 }} />
+            <Ionicons name="calendar-outline" size={40} color="#0B4A45" style={{ alignSelf: 'center', marginBottom: 12 }} />
             <Text style={styles.addonTitle}>Book Additional Inspection</Text>
             <Text style={styles.addonBody}>
               You've used all inspections included in your {subscription?.plan?.name}. This additional
@@ -281,7 +281,7 @@ export default function RequestInspectionScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   content: { padding: 24 },
-  title: { fontSize: 24, fontWeight: '700', color: '#1e3a5f', marginBottom: 8 },
+  title: { fontSize: 24, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#666', lineHeight: 22, marginBottom: 16 },
   quotaBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1 },
   quotaBannerOk: { backgroundColor: '#ecfdf5', borderColor: '#6ee7b7' },
@@ -292,14 +292,14 @@ const styles = StyleSheet.create({
   fieldWrap: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
   dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dateBtnText: { fontSize: 15, color: '#1e3a5f', fontWeight: '500', flex: 1 },
+  dateBtnText: { fontSize: 15, color: '#0B4A45', fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16, color: '#0f172a' },
   textArea: { height: 100, textAlignVertical: 'top' },
-  infoBox: { backgroundColor: '#e8f0fe', borderRadius: 12, padding: 16, marginBottom: 24 },
-  infoTitle: { fontSize: 14, fontWeight: '700', color: '#1e3a5f', marginBottom: 8 },
-  infoItem: { fontSize: 14, color: '#2c5282', lineHeight: 24 },
-  button: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
+  infoBox: { backgroundColor: '#EBF1EF', borderRadius: 12, padding: 16, marginBottom: 24 },
+  infoTitle: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
+  infoItem: { fontSize: 14, color: '#17897D', lineHeight: 24 },
+  button: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888', fontSize: 14 },
@@ -309,17 +309,17 @@ const styles = StyleSheet.create({
   ml8: { marginLeft: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
-  doneBtn: { backgroundColor: '#1e3a5f', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  doneBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
   doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   addonOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
   addonCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24 },
-  addonTitle: { fontSize: 20, fontWeight: '700', color: '#1e3a5f', textAlign: 'center', marginBottom: 12 },
+  addonTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', textAlign: 'center', marginBottom: 12 },
   addonBody: { fontSize: 14, color: '#64748b', lineHeight: 22, textAlign: 'center', marginBottom: 20 },
-  addonPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f4ff', borderRadius: 12, padding: 16, marginBottom: 12 },
+  addonPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EBF1EF', borderRadius: 12, padding: 16, marginBottom: 12 },
   addonPriceLabel: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  addonPrice: { fontSize: 22, fontWeight: '800', color: '#1e3a5f' },
+  addonPrice: { fontSize: 22, fontWeight: '800', color: '#0B4A45' },
   addonNote: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 20 },
-  addonConfirmBtn: { backgroundColor: '#1e3a5f', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 10 },
+  addonConfirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 10 },
   addonConfirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   addonCancelBtn: { alignItems: 'center', padding: 12 },
   addonCancelText: { color: '#888', fontSize: 14 },
