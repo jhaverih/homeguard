@@ -4,6 +4,7 @@ import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { userApi } from '../../src/services/api';
+import { HoumiIcon, HoumiLogo } from '../../src/components/HoumiLogo';
 
 function RoleSwitcher() {
   const { user, setUser } = useAuthStore();
@@ -40,7 +41,11 @@ export default function CustomerLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: 'Home', tabBarIcon: ({ color }) => <Ionicons name="home" size={22} color={color} /> }}
+        options={{
+          title: 'Home',
+          headerTitle: () => <HoumiLogo size="sm" onDark />,
+          tabBarIcon: ({ color, focused }) => <HoumiIcon size="sm" onDark={false} />,
+        }}
       />
       <Tabs.Screen
         name="request"
@@ -64,7 +69,7 @@ export default function CustomerLayout() {
       />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="assistant" options={{ href: null, title: 'AI Assistant' }} />
+      <Tabs.Screen name="assistant" options={{ href: null, title: 'Houmi Assistant' }} />
       <Tabs.Screen name="approvals" options={{ href: null, title: 'Approvals' }} />
       <Tabs.Screen name="dispute" options={{ href: null, title: 'Dispute' }} />
     </Tabs>

@@ -6,6 +6,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
+import { HoumiLogo } from '../../src/components/HoumiLogo';
 import { authApi, subscriptionsApi, api } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
@@ -84,7 +85,9 @@ export default function RegisterScreen() {
         <Ionicons name="arrow-back" size={22} color="#64748b" />
       </TouchableOpacity>
 
-      <Text style={styles.logo}>🏠 Houmi</Text>
+      <View style={styles.logoRow}>
+        <HoumiLogo size="md" />
+      </View>
       <Text style={styles.title}>Create Account</Text>
 
       <View style={[styles.roleBadge, { backgroundColor: isVendor ? '#e8f5e9' : '#EBF1EF' }]}>
@@ -250,7 +253,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   content: { padding: 24, paddingTop: 48, paddingBottom: 32 },
   backBtn: { marginBottom: 8 },
-  logo: { fontSize: 28, textAlign: 'center', marginBottom: 6 },
+  logoRow: { alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 24, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 12 },
   roleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, gap: 6, marginBottom: 20 },
   roleBadgeText: { fontSize: 13, fontWeight: '600' },

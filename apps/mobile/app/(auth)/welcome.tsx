@@ -1,14 +1,14 @@
 ﻿import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { HoumiLogo } from '../../src/components/HoumiLogo';
 
 export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.hero}>
-          <Text style={styles.logo}>🏠</Text>
-          <Text style={styles.brand}>Houmi</Text>
+          <HoumiLogo size="xl" onDark />
           <Text style={styles.tagline}>Professional Home Care & Inspections</Text>
         </View>
 
@@ -56,9 +56,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0B4A45' },
   safe: { flex: 1 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  logo: { fontSize: 64, marginBottom: 16 },
-  brand: { fontSize: 38, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
-  tagline: { fontSize: 15, color: 'rgba(255,255,255,0.65)', marginTop: 10, textAlign: 'center', lineHeight: 22 },
+  tagline: { fontSize: 15, color: 'rgba(255,255,255,0.65)', marginTop: 20, textAlign: 'center', lineHeight: 22 },
   cards: { paddingHorizontal: 24, paddingBottom: 24 },
   question: { fontSize: 14, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginBottom: 16, fontWeight: '500', letterSpacing: 0.3 },
   card: {

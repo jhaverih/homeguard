@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { HoumiIcon, HoumiLogo } from '../../src/components/HoumiLogo';
 import {
   TouchableOpacity, Text, StyleSheet, View, AppState,
   ActivityIndicator, Linking,
@@ -125,7 +126,7 @@ export default function VendorLayout() {
             tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
           }}
         >
-          <Tabs.Screen name="index" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Ionicons name="grid" size={22} color={color} /> }} />
+          <Tabs.Screen name="index" options={{ title: 'Dashboard', headerTitle: () => <HoumiLogo size="sm" onDark />, tabBarIcon: ({ color, focused }) => <HoumiIcon size="sm" onDark={false} /> }} />
           <Tabs.Screen name="requests" options={{ title: 'Open Jobs', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }} />
           <Tabs.Screen name="my-jobs" options={{ title: 'My Jobs', tabBarIcon: ({ color }) => <Ionicons name="briefcase" size={22} color={color} /> }} />
           <Tabs.Screen name="schedule" options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={22} color={color} /> }} />

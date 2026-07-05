@@ -6,6 +6,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
+import { HoumiLogo, HoumiIcon } from '../../src/components/HoumiLogo';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { authApi } from '../../src/services/api';
@@ -148,13 +149,15 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <View style={styles.inner}>
-          <View style={[styles.badge, { backgroundColor: isVendor ? '#e8f5e9' : '#EBF1EF' }]}>
-            <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={20} color={accent} />
-            <Text style={[styles.badgeText, { color: accent }]}>{roleLabel}</Text>
+          <View style={styles.logoRow}>
+            <HoumiLogo size="md" />
           </View>
 
           <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your Houmi account</Text>
+          <View style={[styles.badge, { backgroundColor: isVendor ? '#e8f5e9' : '#EBF1EF' }]}>
+            <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={16} color={accent} />
+            <Text style={[styles.badgeText, { color: accent }]}>{roleLabel} Sign In</Text>
+          </View>
 
           {/* Biometric quick sign-in — shown while prompt loads or as fallback button */}
           {biometricEnabled && (
@@ -242,10 +245,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   backBtn: { padding: 16 },
   inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 40 },
+  logoRow: { alignItems: 'center', marginBottom: 20 },
   badge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, gap: 6, marginBottom: 24 },
   badgeText: { fontSize: 14, fontWeight: '600' },
-  title: { fontSize: 28, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 6 },
-  subtitle: { fontSize: 15, color: '#64748b', textAlign: 'center', marginBottom: 28 },
+  title: { fontSize: 28, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 10 },
   biometricBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     borderWidth: 2, borderRadius: 14, padding: 16, marginBottom: 8, backgroundColor: '#fff',
