@@ -22,8 +22,8 @@ services:
     init: true
     environment:
       - NODE_ENV=staging
-      - OLLAMA_URL=http://172.29.20.1:11434
-      - OLLAMA_MODEL=llama3.2
+      - OLLAMA_URL=http://192.168.86.29:11434
+      - OLLAMA_MODEL=llama3.2:1b
     env_file:
       - path: /share/Container/homeguard/.env
         required: false

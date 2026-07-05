@@ -365,7 +365,7 @@ export default function ActiveJobScreen() {
   const isCompleted = job.status === 'COMPLETED';
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {/* Customer Header */}
       <View style={styles.customerBox}>
