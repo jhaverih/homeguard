@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class UploadsService implements OnModuleInit {
   private s3: S3Client;
+  private s3Public: S3Client;
   private bucket: string;
   private readonly logger = new Logger(UploadsService.name);
 
@@ -14,13 +15,27 @@ export class UploadsService implements OnModuleInit {
 
   async onModuleInit() {
     this.bucket = this.configService.get('MINIO_BUCKET_NAME', 'homeguard');
+    const port = this.configService.get('MINIO_PORT', '9000');
+    const creds = {
+      accessKeyId: this.configService.get('MINIO_ROOT_USER', 'minioadmin'),
+      secretAccessKey: this.configService.get('MINIO_ROOT_PASSWORD', 'changeme'),
+    };
+
+    // Internal client for PUT operations (Docker service name resolves inside the cluster)
     this.s3 = new S3Client({
-      endpoint: `http://${this.configService.get('MINIO_ENDPOINT', 'minio')}:${this.configService.get('MINIO_PORT', '9000')}`,
+      endpoint: `http://${this.configService.get('MINIO_ENDPOINT', 'minio')}:${port}`,
       region: 'us-east-1',
-      credentials: {
-        accessKeyId: this.configService.get('MINIO_ROOT_USER', 'minioadmin'),
-        secretAccessKey: this.configService.get('MINIO_ROOT_PASSWORD', 'changeme'),
-      },
+      credentials: creds,
+      forcePathStyle: true,
+    });
+
+    // Public client for signed URL generation — URLs must be reachable by mobile clients
+    const publicEndpoint = this.configService.get<string>('MINIO_PUBLIC_ENDPOINT')
+      || `http://${this.configService.get('MINIO_ENDPOINT', 'minio')}:${port}`;
+    this.s3Public = new S3Client({
+      endpoint: publicEndpoint,
+      region: 'us-east-1',
+      credentials: creds,
       forcePathStyle: true,
     });
   }
@@ -38,6 +53,6 @@ export class UploadsService implements OnModuleInit {
 
   async getSignedUrl(key: string): Promise<string> {
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
-    return getSignedUrl(this.s3, command, { expiresIn: 3600 });
+    return getSignedUrl(this.s3Public, command, { expiresIn: 3600 });
   }
 }
