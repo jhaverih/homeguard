@@ -19,9 +19,6 @@ export class InspectionsService {
     dto: { title: string; content: string; type?: NoteType; photoUrls?: string[] },
   ): Promise<InspectionNote> {
     const photoKeys = dto.photoUrls || [];
-    if (photoKeys.length === 0) {
-      throw new BadRequestException('At least one photo is required for every inspection note');
-    }
 
     const note = this.notesRepo.create({
       serviceRequestId,
