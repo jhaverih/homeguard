@@ -12,6 +12,7 @@ import { UsersModule } from '../users/users.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PaymentsModule } from '../payments/payments.module';
     NotificationsModule,
     UploadsModule,
     forwardRef(() => PaymentsModule),
+    PricingModule,
   ],
   providers: [ServiceRequestsService, DisputesService],
   controllers: [ServiceRequestsController, DisputesController],

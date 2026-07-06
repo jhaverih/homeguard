@@ -14,9 +14,15 @@ export class ServiceRequestsController {
   constructor(private readonly service: ServiceRequestsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Customer: create a new service request' })
+  @ApiOperation({ summary: 'Customer: create a new inspection request' })
   create(@Request() req, @Body() body: any) {
     return this.service.create(req.user.id, body);
+  }
+
+  @Post('standalone')
+  @ApiOperation({ summary: 'Customer: request a standalone paid service from the catalog' })
+  createStandalone(@Request() req, @Body() body: any) {
+    return this.service.createStandaloneService(req.user.id, body);
   }
 
   @Get('my')

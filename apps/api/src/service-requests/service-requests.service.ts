@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { PaymentsService } from '../payments/payments.service';
+import { PricingService } from '../pricing/pricing.service';
 
 @Injectable()
 export class ServiceRequestsService {
@@ -26,6 +27,7 @@ export class ServiceRequestsService {
     private uploadsService: UploadsService,
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
+    private pricingService: PricingService,
   ) {}
 
   async create(customerId: string, dto: {
@@ -81,6 +83,67 @@ export class ServiceRequestsService {
         NotificationType.NEW_REQUEST,
         'New Inspection Request',
         `A customer in ${dto.city}, ${dto.state} needs an inspection.`,
+        { serviceRequestId: saved.id },
+      );
+    }
+
+    return saved;
+  }
+
+  async createStandaloneService(customerId: string, dto: {
+    servicePriceId: string;
+    preferredDate: string;
+    customerNotes?: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  }): Promise<ServiceRequest> {
+    const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
+    const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
+    if (!subscription) throw new BadRequestException('No active subscription found');
+
+    const prices = await this.pricingService.getAll();
+    const servicePrice = prices.find((p) => p.id === dto.servicePriceId);
+    if (!servicePrice) throw new BadRequestException('Service not found');
+
+    const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
+    const customerPrice = Math.round(Number(servicePrice.basePrice) * (1 + markup / 100) * 100) / 100;
+
+    const request = this.requestsRepo.create({
+      customerId,
+      subscriptionId: subscription.id,
+      type: ServiceType.ADDITIONAL_SERVICE,
+      status: ServiceRequestStatus.PENDING,
+      preferredDate: new Date(dto.preferredDate),
+      customerNotes: dto.customerNotes,
+      address: dto.address,
+      city: dto.city,
+      state: dto.state,
+      zipCode: dto.zipCode,
+      isPaidAddon: false,
+      addonPrice: customerPrice,
+    });
+
+    const saved = await this.requestsRepo.save(request);
+
+    // Pre-create the approved additional service so vendor sees it immediately
+    await this.additionalRepo.save(this.additionalRepo.create({
+      serviceRequestId: saved.id,
+      name: servicePrice.name,
+      description: servicePrice.description,
+      price: customerPrice,
+      approved: true,
+      approvedAt: new Date(),
+    }));
+
+    const vendors = await this.usersService.findAvailableVendors();
+    if (vendors.length > 0) {
+      await this.notificationsService.notifyVendors(
+        vendors,
+        NotificationType.NEW_REQUEST,
+        'New Service Request',
+        `A customer needs: ${servicePrice.name} in ${dto.city}, ${dto.state}.`,
         { serviceRequestId: saved.id },
       );
     }

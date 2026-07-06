@@ -1,6 +1,6 @@
 ﻿import { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator,
+  View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator, Image,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { inspectionsApi } from '../../src/services/api';
@@ -44,7 +44,11 @@ export default function InspectionHistoryScreen() {
             <Text style={styles.noteTitle}>{note.title}</Text>
             <Text style={styles.noteContent}>{note.content}</Text>
             {note.photoUrls?.length > 0 && (
-              <Text style={styles.photoCount}>📷 {note.photoUrls.length} photo(s)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoStrip}>
+                {note.photoUrls.map((url: string, i: number) => (
+                  <Image key={i} source={{ uri: url }} style={styles.photo} />
+                ))}
+              </ScrollView>
             )}
           </View>
         ))
@@ -64,5 +68,6 @@ const styles = StyleSheet.create({
   noteDate: { fontSize: 12, color: '#888', marginBottom: 4 },
   noteTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
   noteContent: { fontSize: 14, color: '#555', lineHeight: 22 },
-  photoCount: { fontSize: 13, color: '#4299e1', marginTop: 8 },
+  photoStrip: { marginTop: 10 },
+  photo: { width: 100, height: 100, borderRadius: 8, marginRight: 8 },
 });

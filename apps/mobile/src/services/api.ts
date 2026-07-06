@@ -90,6 +90,10 @@ export const pricingApi = {
   getAll: () => api.get('/pricing'),
 };
 
+export const standaloneServiceApi = {
+  create: (body: any) => api.post('/service-requests/standalone', body),
+};
+
 export const notificationsApi = {
   getAll: () => api.get('/notifications'),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
