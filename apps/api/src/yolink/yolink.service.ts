@@ -2,8 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import axios from 'axios';
 import * as mqtt from 'mqtt';
 import { YolinkHome } from './entities/yolink-home.entity';
 import { AlertsService } from '../alerts/alerts.service';
@@ -36,7 +35,6 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(YolinkHome) private homesRepo: Repository<YolinkHome>,
     private configService: ConfigService,
-    private httpService: HttpService,
     private alertsService: AlertsService,
   ) {}
 
@@ -63,12 +61,10 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     const secret = this.configService.get<string>('YOLINK_SECRET_KEY');
     if (!uaid || !secret) throw new Error('Yolink credentials not configured');
 
-    const res = await firstValueFrom(
-      this.httpService.post(
-        YOLINK_TOKEN_URL,
-        `grant_type=client_credentials&client_id=${uaid}&client_secret=${secret}`,
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
-      ),
+    const res = await axios.post<any>(
+      YOLINK_TOKEN_URL,
+      `grant_type=client_credentials&client_id=${uaid}&client_secret=${secret}`,
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
     );
 
     this.accessToken = res.data.access_token;
@@ -78,11 +74,9 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
 
   private async yolinkRequest(method: string, params?: any): Promise<any> {
     const token = await this.getAccessToken();
-    const res = await firstValueFrom(
-      this.httpService.post(YOLINK_API_URL, { method, params }, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      }),
-    );
+    const res = await axios.post<any>(YOLINK_API_URL, { method, params }, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
     if (res.data.code !== '000000') throw new Error(`Yolink API error: ${res.data.desc}`);
     return res.data.data;
   }
