@@ -83,10 +83,19 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
 
   // ── MQTT connection ──────────────────────────────────────────────────────────
 
-  private async connectMqtt(uaid: string, secret: string) {
+  private async connectMqtt(uaid: string, _secret: string) {
     try {
       const token = await this.getAccessToken();
-      const topic = `yl-home/${uaid}/+/report`;
+
+      // Yolink MQTT uses homeId (not UAID) in the topic
+      const homeData = await this.yolinkRequest('Home.getGeneralInfo');
+      const homeId: string = homeData?.id ?? homeData?.homeId ?? uaid;
+      this.logger.log(`Yolink homeId resolved: ${homeId}`);
+
+      // Persist homeId on all active homes for this UAID so event routing works
+      await this.homesRepo.update({ yolinkUAID: uaid, isActive: true }, { yolinkHomeId: homeId });
+
+      const topic = `yl-home/${homeId}/+/report`;
 
       this.mqttClient = mqtt.connect(MQTT_BROKER, {
         username: token,
@@ -105,10 +114,12 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
         });
       });
 
-      this.mqttClient.on('message', (_topic, raw) => {
+      this.mqttClient.on('message', (msgTopic, raw) => {
         try {
           const payload = JSON.parse(raw.toString());
-          this.processEvent(uaid, payload).catch((e) =>
+          // Extract homeId from topic: yl-home/{homeId}/{deviceId}/report
+          const topicHomeId = msgTopic.split('/')[1] ?? homeId;
+          this.processEventByHomeId(topicHomeId, payload).catch((e) =>
             this.logger.error('Error processing Yolink event', e),
           );
         } catch (e) {
@@ -118,9 +129,9 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
 
       this.mqttClient.on('error', (err) => this.logger.error('Yolink MQTT error', err.message));
       this.mqttClient.on('reconnect', () => this.logger.log('Yolink MQTT reconnecting…'));
-      this.mqttClient.on('disconnect', (packet) => this.logger.warn(`Yolink MQTT disconnected by broker — reason code: ${packet?.reasonCode ?? 'unknown'}`));
+      this.mqttClient.on('disconnect', (packet) => this.logger.warn(`Yolink MQTT disconnected by broker — reason code: ${(packet as any)?.reasonCode ?? 'unknown'}`));
       this.mqttClient.on('close', () => this.logger.warn('Yolink MQTT connection closed'));
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Failed to start Yolink MQTT connection', err.message);
     }
   }
@@ -132,20 +143,32 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     await this.processEvent(uaid, payload);
   }
 
-  // ── Event processing (shared by MQTT and webhook) ─────────────────────────────
+  // ── Event processing ─────────────────────────────────────────────────────────
+
+  async processEventByHomeId(homeId: string, payload: any): Promise<void> {
+    const home = await this.homesRepo.findOne({ where: { yolinkHomeId: homeId, isActive: true } });
+    if (!home) {
+      this.logger.warn(`No customer linked to Yolink homeId: ${homeId}`);
+      return;
+    }
+    await this.dispatchAlert(home, payload);
+  }
 
   async processEvent(uaid: string, payload: any): Promise<void> {
+    const home = await this.homesRepo.findOne({ where: { yolinkUAID: uaid, isActive: true } });
+    if (!home) {
+      this.logger.warn(`No customer linked to Yolink UAID: ${uaid}`);
+      return;
+    }
+    await this.dispatchAlert(home, payload);
+  }
+
+  private async dispatchAlert(home: YolinkHome, payload: any): Promise<void> {
     const { event, deviceId, deviceType, data } = payload;
 
     const config = EVENT_CONFIG[event];
     if (!config) {
       this.logger.debug(`Ignoring non-alert Yolink event: ${event}`);
-      return;
-    }
-
-    const home = await this.homesRepo.findOne({ where: { yolinkUAID: uaid, isActive: true } });
-    if (!home) {
-      this.logger.warn(`No customer linked to Yolink UAID: ${uaid}`);
       return;
     }
 

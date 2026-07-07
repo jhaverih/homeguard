@@ -7,6 +7,7 @@ export class YolinkHome {
   @Column() customerId: string;
   @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'customerId' }) customer: User;
   @Column() yolinkUAID: string;
+  @Column({ nullable: true }) yolinkHomeId: string;
   @Column() homeName: string;
   @Column({ nullable: true }) address: string;
   @Column({ default: true }) isActive: boolean;
