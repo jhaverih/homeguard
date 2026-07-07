@@ -122,7 +122,14 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // ── Event processing (shared by MQTT and manual webhook trigger) ─────────────
+  // ── Webhook fallback (Yolink cloud can also push via HTTP) ──────────────────
+
+  async handleWebhook(payload: any): Promise<void> {
+    const uaid = this.configService.get<string>('YOLINK_UAID') ?? '';
+    await this.processEvent(uaid, payload);
+  }
+
+  // ── Event processing (shared by MQTT and webhook) ─────────────────────────────
 
   async processEvent(uaid: string, payload: any): Promise<void> {
     const { event, deviceId, deviceType, data } = payload;
