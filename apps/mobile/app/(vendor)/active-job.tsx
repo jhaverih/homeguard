@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, pricingApi, uploadsApi } from '../../src/services/api';
 
@@ -14,19 +14,20 @@ const NEXT_STATUS: Record<string, { label: string; next: string; color: string }
   VENDOR_EN_ROUTE: { label: 'I Have Arrived', next: 'IN_PROGRESS', color: '#f6ad55' },
 };
 
-const INSPECTION_TASKS = [
-  { id: 't1', label: 'AC filter checked / replaced' },
-  { id: 't2', label: 'AC drainage pan inspected' },
-  { id: 't3', label: 'Smoke detectors tested' },
-  { id: 't4', label: 'Carbon monoxide detectors tested' },
-  { id: 't5', label: 'Water heater inspected' },
-  { id: 't6', label: 'Toilet connections checked for leaks' },
-  { id: 't7', label: 'Under-sink plumbing inspected' },
-  { id: 't8', label: 'Washer drain pan inspected' },
-  { id: 't9', label: 'HVAC system visually inspected' },
-  { id: 't10', label: 'Light bulbs checked / replaced' },
-  { id: 't11', label: 'Electrical panel checked' },
-  { id: 't12', label: 'Exterior doors / windows sealed' },
+// catalogLinks: service_prices names linked to each task (vendor picks one on Issue)
+const INSPECTION_TASKS: { id: string; label: string; catalogLinks: string[] }[] = [
+  { id: 't1',  label: 'AC filter checked / replaced',       catalogLinks: ['AC Filter Replacement'] },
+  { id: 't2',  label: 'AC drainage pan inspected',          catalogLinks: ['AC Drainage Pan Inspection'] },
+  { id: 't3',  label: 'Smoke detectors tested',             catalogLinks: [] },
+  { id: 't4',  label: 'Carbon monoxide detectors tested',   catalogLinks: [] },
+  { id: 't5',  label: 'Water heater inspected',             catalogLinks: [] },
+  { id: 't6',  label: 'Toilet connections checked for leaks', catalogLinks: ['Toilet Leak Check'] },
+  { id: 't7',  label: 'Under-sink plumbing inspected',      catalogLinks: ['Toilet Leak Check'] },
+  { id: 't8',  label: 'Washer drain pan inspected',         catalogLinks: ['Washer Pan Inspection'] },
+  { id: 't9',  label: 'HVAC system visually inspected',     catalogLinks: ['HVAC Full Inspection'] },
+  { id: 't10', label: 'Light bulbs checked / replaced',     catalogLinks: ['Light Bulb Replacement', 'Additional Light Bulbs (per 5)'] },
+  { id: 't11', label: 'Electrical panel checked',           catalogLinks: [] },
+  { id: 't12', label: 'Exterior doors / windows sealed',    catalogLinks: [] },
 ];
 
 // Shared photo picker strip component
@@ -121,11 +122,14 @@ export default function ActiveJobScreen() {
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Checklist
-  const [checkedTasks, setCheckedTasks] = useState<Set<string>>(new Set());
+  // Checklist — pass/issue per task
+  const [taskStatus, setTaskStatus] = useState<Record<string, 'PASS' | 'ISSUE'>>({});
+  // Per-task issue state: selected catalog item id OR 'other', plus custom fields
+  const [taskIssue, setTaskIssue] = useState<Record<string, { selectedId: string; customName: string; customPrice: string }>>({});
   const [checklistPhotos, setChecklistPhotos] = useState<{ uri: string; key?: string }[]>([]);
   const [savingChecklist, setSavingChecklist] = useState(false);
   const [uploadingChecklist, setUploadingChecklist] = useState(false);
+  const [sendingTaskRec, setSendingTaskRec] = useState<string | null>(null); // task id being sent
 
   // Additional notes
   const [noteTitle, setNoteTitle] = useState('');
@@ -140,10 +144,13 @@ export default function ActiveJobScreen() {
   const [completingJob, setCompletingJob] = useState(false);
   const [uploadingCompletion, setUploadingCompletion] = useState(false);
 
-  // Catalog / recommendation
+  // Catalog / standalone recommendation
   const [catalogItems, setCatalogItems] = useState<any[]>([]);
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<any>(null);
   const [sendingRec, setSendingRec] = useState(false);
+
+  // Saved inspection notes (loaded from API)
+  const [inspectionNotes, setInspectionNotes] = useState<any[]>([]);
 
   // Reschedule
   const [rescheduleModal, setRescheduleModal] = useState(false);
@@ -153,12 +160,16 @@ export default function ActiveJobScreen() {
     const data: any = await requestsApi.getOne(id);
     setJob(data);
     setLoading(false);
+    inspectionsApi.getNotes(id).then((notes: any) => setInspectionNotes(notes || [])).catch(() => {});
   }, [id]);
 
   useEffect(() => {
     load();
     pricingApi.getAll().then((items: any) => setCatalogItems(items || [])).catch(() => {});
   }, [load]);
+
+  // Reload job when vendor returns to this screen (e.g. after customer approves)
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // ─── Photo helpers ───────────────────────────────────────────────
   const pickAndUpload = async (
@@ -188,8 +199,9 @@ export default function ActiveJobScreen() {
       setCurrent((prev: any[]) =>
         prev.map((p) => (p.uri === uri && !p.key ? { uri, key: res.key } : p)),
       );
-    } catch {
-      Alert.alert('Upload failed', 'Could not upload photo. Please try again.');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || 'Unknown error';
+      Alert.alert('Upload failed', msg);
       setCurrent((prev: any[]) => prev.filter((p) => p.uri !== uri || p.key));
     } finally {
       setUploading(false);
@@ -239,7 +251,23 @@ export default function ActiveJobScreen() {
           onPress: async () => {
             setCompletingJob(true);
             try {
+              // Auto-save any unsaved checklist ratings
+              if (Object.keys(taskStatus).length > 0) {
+                const lines = INSPECTION_TASKS
+                  .filter((t) => taskStatus[t.id])
+                  .map((t) => `${taskStatus[t.id] === 'PASS' ? '✓' : '⚠'} ${t.label}`);
+                const unrated = INSPECTION_TASKS.filter((t) => !taskStatus[t.id]).map((t) => `- ${t.label}`);
+                const photoKeys = readyKeys(checklistPhotos);
+                await inspectionsApi.addNote(id, {
+                  title: 'Inspection Checklist',
+                  content: [...lines, ...(unrated.length ? ['\nNot assessed:', ...unrated] : [])].join('\n'),
+                  type: 'OBSERVATION',
+                  photoUrls: photoKeys,
+                }).catch(() => {});
+              }
               await requestsApi.updateStatus(id, 'COMPLETED', keys);
+              setTaskStatus({});
+              setChecklistPhotos([]);
               load();
             } catch (e: any) {
               Alert.alert('Error', e.message);
@@ -252,40 +280,87 @@ export default function ActiveJobScreen() {
     );
   };
 
-  const toggleTask = (taskId: string) => {
-    setCheckedTasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
-      return next;
-    });
+  const customerPrice = (item: any): number => {
+    const base = parseFloat(item.basePrice);
+    const markup = item.markupPercent != null ? parseFloat(item.markupPercent) : 20;
+    return Math.round(base * (1 + markup / 100) * 100) / 100;
+  };
+
+  const setTaskPass = (taskId: string) => {
+    setTaskStatus((prev) => ({ ...prev, [taskId]: 'PASS' }));
+    setTaskIssue((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+  };
+
+  const setTaskIssueStatus = (taskId: string) => {
+    setTaskStatus((prev) => ({ ...prev, [taskId]: 'ISSUE' }));
+    setTaskIssue((prev) => ({ ...prev, [taskId]: prev[taskId] ?? { selectedId: '', customName: '', customPrice: '' } }));
+  };
+
+  const sendTaskRecommendation = async (taskId: string) => {
+    const issue = taskIssue[taskId];
+    if (!issue?.selectedId) {
+      Alert.alert('Select a recommendation', 'Pick a service or choose Other.');
+      return;
+    }
+    let name: string, description: string, price: number;
+    if (issue.selectedId === 'other') {
+      if (!issue.customName.trim() || !issue.customPrice.trim()) {
+        Alert.alert('Required', 'Enter a name and price for the custom recommendation.');
+        return;
+      }
+      name = issue.customName.trim();
+      description = 'Recommended during inspection';
+      price = parseFloat(issue.customPrice);
+      if (isNaN(price) || price <= 0) { Alert.alert('Invalid price', 'Enter a valid amount.'); return; }
+    } else {
+      const item = catalogItems.find((c) => c.id === issue.selectedId);
+      if (!item) return;
+      name = item.name;
+      description = item.description;
+      price = customerPrice(item);
+    }
+    setSendingTaskRec(taskId);
+    try {
+      await requestsApi.recommendService(id, { name, description, price });
+      Alert.alert('Sent!', `"${name}" sent to customer for approval.`);
+      setTaskIssue((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSendingTaskRec(null);
+    }
   };
 
   const saveChecklist = async () => {
-    if (checkedTasks.size === 0) {
-      Alert.alert('No tasks selected', 'Please check at least one completed task.');
+    const rated = Object.keys(taskStatus);
+    if (rated.length === 0) {
+      Alert.alert('No tasks rated', 'Mark at least one task as Pass or Issue.');
       return;
     }
     const keys = readyKeys(checklistPhotos);
     if (keys.length === 0) {
-      Alert.alert('Photo required', 'Please attach at least 1 photo as proof of the services performed.');
+      Alert.alert('Photo required', 'Attach at least 1 photo as proof.');
       return;
     }
     if (checklistPhotos.some((p) => !p.key)) {
       Alert.alert('Please wait', 'Photos are still uploading.');
       return;
     }
-    const done = INSPECTION_TASKS.filter((t) => checkedTasks.has(t.id)).map((t) => `✓ ${t.label}`);
-    const missed = INSPECTION_TASKS.filter((t) => !checkedTasks.has(t.id)).map((t) => `- ${t.label}`);
+    const lines = INSPECTION_TASKS
+      .filter((t) => taskStatus[t.id])
+      .map((t) => `${taskStatus[t.id] === 'PASS' ? '✓' : '⚠'} ${t.label}`);
+    const unrated = INSPECTION_TASKS.filter((t) => !taskStatus[t.id]).map((t) => `- ${t.label}`);
     setSavingChecklist(true);
     try {
       await inspectionsApi.addNote(id, {
         title: 'Inspection Checklist',
-        content: [...done, ...(missed.length ? ['\nNot completed:', ...missed] : [])].join('\n'),
+        content: [...lines, ...(unrated.length ? ['\nNot assessed:', ...unrated] : [])].join('\n'),
         type: 'OBSERVATION',
         photoUrls: keys,
       });
-      Alert.alert('Saved', 'Inspection checklist saved with photo proof.');
-      setCheckedTasks(new Set());
+      Alert.alert('Saved', 'Inspection checklist saved.');
+      setTaskStatus({});
       setChecklistPhotos([]);
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -363,13 +438,17 @@ export default function ActiveJobScreen() {
   const canReschedule = !['COMPLETED', 'CANCELLED'].includes(job.status);
   const showInProgress = ['IN_PROGRESS', 'COMPLETED'].includes(job.status);
   const isCompleted = job.status === 'COMPLETED';
+  const isService = job.type === 'ADDITIONAL_SERVICE';
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {/* Customer Header */}
       <View style={styles.customerBox}>
-        <Text style={styles.customerLabel}>Customer</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.customerLabel}>{isService ? 'Service Request' : 'Inspection'}</Text>
+          {job.ticketNumber && <Text style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{job.ticketNumber}</Text>}
+        </View>
         {job.customer && <Text style={styles.customerName}>{job.customer.firstName} {job.customer.lastName}</Text>}
         <Text style={styles.customerAddress}>{job.address}</Text>
         <Text style={styles.customerCity}>{job.city}, {job.state} {job.zipCode}</Text>
@@ -398,21 +477,112 @@ export default function ActiveJobScreen() {
         </View>
       )}
 
+      {/* Saved inspection notes (visible after completion) */}
+      {isCompleted && inspectionNotes.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Inspection Results</Text>
+          {inspectionNotes.map((note: any, i: number) => (
+            <View key={note.id ?? i} style={[styles.savedNoteCard, note.type === 'FINDING' && styles.savedNoteCardFinding]}>
+              <View style={styles.savedNoteHeader}>
+                <Ionicons name={note.type === 'FINDING' ? 'warning' : 'document-text'} size={16}
+                  color={note.type === 'FINDING' ? '#c05621' : '#0B4A45'} />
+                <Text style={[styles.savedNoteTitle, note.type === 'FINDING' && { color: '#c05621' }]}>{note.title}</Text>
+              </View>
+              <Text style={styles.savedNoteContent}>{note.content}</Text>
+              {note.photoUrls?.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+                  {note.photoUrls.map((url: string, i: number) => (
+                    <Image key={i} source={{ uri: url }} style={{ width: 90, height: 90, borderRadius: 8, marginRight: 8 }} />
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          ))}
+        </>
+      )}
+
       {/* ── IN-PROGRESS CONTENT ── */}
       {showInProgress && (
         <>
-          {/* Inspection Checklist */}
+          {/* Inspection Checklist — only for inspection jobs */}
+          {!isService && <>
           <Text style={styles.sectionTitle}>Inspection Checklist</Text>
-          <Text style={styles.sectionHint}>Check off completed tasks. Attach at least 1 photo as proof.</Text>
-          <View style={styles.checklistCard}>
-            {INSPECTION_TASKS.map((task) => (
-              <TouchableOpacity key={task.id} style={styles.checkRow} onPress={() => toggleTask(task.id)} activeOpacity={0.7}>
-                <Ionicons name={checkedTasks.has(task.id) ? 'checkbox' : 'square-outline'} size={22}
-                  color={checkedTasks.has(task.id) ? '#0B4A45' : '#94a3b8'} />
-                <Text style={[styles.checkLabel, checkedTasks.has(task.id) && styles.checkLabelDone]}>{task.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={styles.sectionHint}>Mark each item Pass or Issue. If there's an issue, select the recommended action to send to the customer.</Text>
+
+          {INSPECTION_TASKS.map((task) => {
+            const status = taskStatus[task.id];
+            const issue = taskIssue[task.id];
+            const linkedItems = catalogItems.filter((c) => task.catalogLinks.includes(c.name));
+            const alreadySent = job.additionalServices?.some((s: any) =>
+              linkedItems.some((li) => li.name === s.name) || (issue?.selectedId === 'other' && s.name === issue?.customName)
+            );
+            return (
+              <View key={task.id} style={[styles.taskCard, status === 'ISSUE' && styles.taskCardIssue, status === 'PASS' && styles.taskCardPass]}>
+                <Text style={styles.taskLabel}>{task.label}</Text>
+                <View style={styles.taskBtns}>
+                  <TouchableOpacity style={[styles.taskBtn, status === 'PASS' && styles.taskBtnPass]} onPress={() => setTaskPass(task.id)}>
+                    <Ionicons name="checkmark-circle" size={15} color={status === 'PASS' ? '#fff' : '#64748b'} />
+                    <Text style={[styles.taskBtnText, status === 'PASS' && { color: '#fff' }]}>Pass</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.taskBtn, status === 'ISSUE' && styles.taskBtnIssue]} onPress={() => setTaskIssueStatus(task.id)}>
+                    <Ionicons name="warning" size={15} color={status === 'ISSUE' ? '#fff' : '#c05621'} />
+                    <Text style={[styles.taskBtnText, status === 'ISSUE' && { color: '#fff' }]}>Issue</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {status === 'ISSUE' && !alreadySent && (
+                  <View style={styles.issuePanel}>
+                    <Text style={styles.issuePanelTitle}>Recommend a service:</Text>
+                    {linkedItems.map((item) => (
+                      <TouchableOpacity key={item.id}
+                        style={[styles.recOption, issue?.selectedId === item.id && styles.recOptionSelected]}
+                        onPress={() => setTaskIssue((prev) => ({ ...prev, [task.id]: { ...prev[task.id], selectedId: item.id, customName: '', customPrice: '' } }))}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.recOptionName}>{item.name}</Text>
+                          <Text style={styles.recOptionPrices}>
+                            Your rate: <Text style={{ fontWeight: '700' }}>${parseFloat(item.basePrice).toFixed(2)}</Text>
+                          </Text>
+                        </View>
+                        {issue?.selectedId === item.id && <Ionicons name="checkmark-circle" size={20} color="#0B4A45" />}
+                      </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity
+                      style={[styles.recOption, issue?.selectedId === 'other' && styles.recOptionSelected]}
+                      onPress={() => setTaskIssue((prev) => ({ ...prev, [task.id]: { ...prev[task.id], selectedId: 'other' } }))}
+                    >
+                      <Text style={styles.recOptionName}>Other recommendation</Text>
+                      {issue?.selectedId === 'other' && <Ionicons name="checkmark-circle" size={20} color="#0B4A45" />}
+                    </TouchableOpacity>
+                    {issue?.selectedId === 'other' && (
+                      <View style={{ marginTop: 8 }}>
+                        <TextInput style={styles.input} placeholder="Service name" placeholderTextColor="#94a3b8"
+                          value={issue.customName}
+                          onChangeText={(v) => setTaskIssue((prev) => ({ ...prev, [task.id]: { ...prev[task.id], customName: v } }))} />
+                        <TextInput style={styles.input} placeholder="Customer price ($)" placeholderTextColor="#94a3b8"
+                          keyboardType="decimal-pad" value={issue.customPrice}
+                          onChangeText={(v) => setTaskIssue((prev) => ({ ...prev, [task.id]: { ...prev[task.id], customPrice: v } }))} />
+                      </View>
+                    )}
+                    {issue?.selectedId && (
+                      <TouchableOpacity style={styles.sendRecBtn} onPress={() => sendTaskRecommendation(task.id)} disabled={sendingTaskRec === task.id}>
+                        {sendingTaskRec === task.id
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={styles.sendRecBtnText}>Send to Customer for Approval</Text>}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+                {status === 'ISSUE' && alreadySent && (
+                  <View style={styles.recSentBadge}>
+                    <Ionicons name="paper-plane" size={14} color="#7c3aed" />
+                    <Text style={styles.recSentText}>Recommendation sent</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
           <Text style={styles.photoLabel}>Proof photos <Text style={styles.required}>*</Text></Text>
           <PhotoStrip
             photos={checklistPhotos}
@@ -421,18 +591,19 @@ export default function ActiveJobScreen() {
             uploading={uploadingChecklist}
           />
           <TouchableOpacity
-            style={[styles.saveBtn, (checkedTasks.size === 0 || readyKeys(checklistPhotos).length === 0) && styles.saveBtnDisabled]}
+            style={[styles.saveBtn, (Object.keys(taskStatus).length === 0 || readyKeys(checklistPhotos).length === 0) && styles.saveBtnDisabled]}
             onPress={saveChecklist}
-            disabled={savingChecklist || checkedTasks.size === 0 || readyKeys(checklistPhotos).length === 0}
+            disabled={savingChecklist || Object.keys(taskStatus).length === 0 || readyKeys(checklistPhotos).length === 0}
           >
             {savingChecklist
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.saveBtnText}>Save Checklist ({checkedTasks.size} items)</Text>}
+              : <Text style={styles.saveBtnText}>Save Checklist ({Object.keys(taskStatus).length} tasks rated)</Text>}
           </TouchableOpacity>
+          </>}
 
           {/* Additional Notes */}
-          <Text style={styles.sectionTitle}>Inspection Notes</Text>
-          <Text style={styles.sectionHint}>Add specific findings or observations. Photo required.</Text>
+          <Text style={styles.sectionTitle}>{isService ? 'Service Notes' : 'Inspection Notes'}</Text>
+          <Text style={styles.sectionHint}>Add an observation or finding with a photo.</Text>
 
           <View style={styles.typeRow}>
             <TouchableOpacity
@@ -468,6 +639,26 @@ export default function ActiveJobScreen() {
           >
             {savingNote ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Note</Text>}
           </TouchableOpacity>
+
+          {/* Sent recommendations status */}
+          {job.additionalServices?.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Sent Recommendations</Text>
+              {job.additionalServices.map((svc: any) => (
+                <View key={svc.id} style={[styles.sentSvcCard, svc.approved ? styles.sentSvcApproved : styles.sentSvcPending]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sentSvcName}>{svc.name}</Text>
+                    <Text style={styles.sentSvcPrice}>${Number(svc.price).toFixed(2)}</Text>
+                  </View>
+                  <View style={[styles.sentSvcBadge, svc.approved ? styles.badgeGreen : styles.badgeOrange]}>
+                    <Text style={[styles.sentSvcBadgeText, { color: svc.approved ? '#059669' : '#d97706' }]}>
+                      {svc.approved ? '✓ Approved' : 'Pending'}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
 
           {/* Service recommendations */}
           <Text style={styles.sectionTitle}>Recommend Additional Service</Text>
@@ -609,6 +800,40 @@ const styles = StyleSheet.create({
   catalogName: { fontSize: 14, fontWeight: '700', color: '#0B4A45', flex: 1, marginRight: 8 },
   catalogPrice: { fontSize: 14, fontWeight: '700', color: '#17897D' },
   catalogDesc: { fontSize: 12, color: '#64748b', lineHeight: 18 },
+  // Task pass/issue cards
+  savedNoteCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5, borderColor: '#e2e8f0' },
+  savedNoteCardFinding: { borderColor: '#fca5a5', backgroundColor: '#fff5f5' },
+  savedNoteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  savedNoteTitle: { fontSize: 14, fontWeight: '700', color: '#0B4A45', flex: 1 },
+  savedNoteContent: { fontSize: 13, color: '#475569', lineHeight: 20 },
+  taskCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5, borderColor: '#e2e8f0' },
+  taskCardPass: { borderColor: '#86efac', backgroundColor: '#f0fdf4' },
+  taskCardIssue: { borderColor: '#fca5a5', backgroundColor: '#fff5f5' },
+  taskLabel: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10, lineHeight: 20 },
+  taskBtns: { flexDirection: 'row', gap: 8 },
+  taskBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 8, paddingVertical: 8, borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  taskBtnPass: { backgroundColor: '#059669', borderColor: '#059669' },
+  taskBtnIssue: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
+  taskBtnText: { fontSize: 13, fontWeight: '700', color: '#64748b' },
+  issuePanel: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#fecaca' },
+  issuePanelTitle: { fontSize: 13, fontWeight: '700', color: '#dc2626', marginBottom: 8 },
+  recOption: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  recOptionSelected: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
+  recOptionName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  recOptionPrices: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  sendRecBtn: { backgroundColor: '#7c3aed', borderRadius: 10, padding: 13, alignItems: 'center', marginTop: 8 },
+  sendRecBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  recSentBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#f3e8ff', borderRadius: 8, padding: 8 },
+  recSentText: { fontSize: 13, color: '#7c3aed', fontWeight: '600' },
+  sentSvcCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1.5 },
+  sentSvcApproved: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
+  sentSvcPending: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+  sentSvcName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  sentSvcPrice: { fontSize: 13, color: '#475569', marginTop: 2 },
+  sentSvcBadge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeGreen: { backgroundColor: '#dcfce7' },
+  badgeOrange: { backgroundColor: '#fef3c7' },
+  sentSvcBadgeText: { fontSize: 12, fontWeight: '700' },
   rescheduleBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 10, borderWidth: 1.5, borderColor: '#0B4A45' },
   rescheduleBtnText: { color: '#0B4A45', fontWeight: '700', fontSize: 15 },
   chatBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 32 },

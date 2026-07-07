@@ -30,6 +30,13 @@ export class ServiceRequestsService {
     private pricingService: PricingService,
   ) {}
 
+  private async generateTicketNumber(): Promise<string> {
+    const date = new Date();
+    const prefix = `HSV-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+    const count = await this.requestsRepo.count();
+    return `${prefix}-${String(count + 1).padStart(4, '0')}`;
+  }
+
   async create(customerId: string, dto: {
     preferredDate: string;
     customerNotes?: string;
@@ -64,6 +71,7 @@ export class ServiceRequestsService {
       subscriptionId: subscription.id,
       type: ServiceType.SCHEDULED_INSPECTION,
       status: ServiceRequestStatus.PENDING,
+      ticketNumber: await this.generateTicketNumber(),
       preferredDate: new Date(dto.preferredDate),
       customerNotes: dto.customerNotes,
       address: dto.address,
@@ -115,6 +123,7 @@ export class ServiceRequestsService {
       subscriptionId: subscription.id,
       type: ServiceType.ADDITIONAL_SERVICE,
       status: ServiceRequestStatus.PENDING,
+      ticketNumber: await this.generateTicketNumber(),
       preferredDate: new Date(dto.preferredDate),
       customerNotes: dto.customerNotes,
       address: dto.address,
@@ -307,6 +316,7 @@ export class ServiceRequestsService {
   async getVendorRequests(vendorId: string): Promise<ServiceRequest[]> {
     return this.requestsRepo.find({
       where: { vendorId },
+      relations: ['customer', 'customer.customerProfile'],
       order: { scheduledDate: 'ASC' },
     });
   }
@@ -314,7 +324,7 @@ export class ServiceRequestsService {
   async getPendingRequests(): Promise<ServiceRequest[]> {
     return this.requestsRepo.find({
       where: { status: ServiceRequestStatus.PENDING },
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'DESC' },
     });
   }
 

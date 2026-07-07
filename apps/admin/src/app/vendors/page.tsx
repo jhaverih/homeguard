@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 
 export default function VendorsPage() {
@@ -62,7 +63,9 @@ export default function VendorsPage() {
             <tbody className="divide-y divide-gray-50">
               {vendors.map((v) => (
                 <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-gray-800">{v.name}</td>
+                  <td className="px-6 py-4 font-medium text-gray-800">
+                    <Link href={`/vendors/${v.id}`} className="text-brand hover:underline">{v.name}</Link>
+                  </td>
                   <td className="px-6 py-4 text-gray-600">{v.companyName ?? <span className="text-gray-300 text-xs">—</span>}</td>
                   <td className="px-6 py-4 text-gray-500">{v.email}</td>
                   <td className="px-6 py-4">

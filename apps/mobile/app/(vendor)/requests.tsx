@@ -131,6 +131,14 @@ export default function OpenRequestsScreen() {
       ) : (
         requests.map((req: any) => (
           <View key={req.id} style={styles.card}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }, req.type === 'ADDITIONAL_SERVICE' ? { backgroundColor: '#f0effe' } : { backgroundColor: '#EBF1EF' }]}>
+                <Text style={[{ fontSize: 11, fontWeight: '700' }, req.type === 'ADDITIONAL_SERVICE' ? { color: '#635bff' } : { color: '#0B4A45' }]}>
+                  {req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection'}
+                </Text>
+              </View>
+              {req.ticketNumber && <Text style={{ fontSize: 11, color: '#94a3b8' }}>{req.ticketNumber}</Text>}
+            </View>
             <Text style={styles.cardDate}>Preferred: {new Date(req.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
             <Text style={styles.cardAddress}>{req.address}, {req.city}, {req.state} {req.zipCode}</Text>
             {req.customerNotes && <Text style={styles.cardNotes}>Notes: {req.customerNotes}</Text>}

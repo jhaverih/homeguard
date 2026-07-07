@@ -63,6 +63,9 @@ export class ServiceRequest {
   @Column({ nullable: true, type: 'text' })
   vendorNotes: string;
 
+  @Column({ nullable: true, unique: true })
+  ticketNumber: string;
+
   @Column({ default: false })
   isPaidAddon: boolean;
 

@@ -6,7 +6,8 @@ import {
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { requestsApi, inspectionsApi, userApi } from '../../src/services/api';
+import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
+import { TextInput } from 'react-native';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
   PENDING:         { color: '#6b7280', bg: '#f9fafb', label: 'Pending' },
@@ -95,6 +96,10 @@ export default function RequestDetailScreen() {
   const [rescheduleModal, setRescheduleModal] = useState(false);
   const [newDate, setNewDate] = useState(new Date());
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [existingReview, setExistingReview] = useState<any>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -109,6 +114,12 @@ export default function RequestDetailScreen() {
         setNotes(n || []);
       } catch {
         setNotes([]);
+      }
+      try {
+        const rv: any = await reviewsApi.getMyReview(id);
+        setExistingReview(rv);
+      } catch {
+        setExistingReview(null);
       }
     } catch (e: any) {
       Alert.alert('Error', 'Could not load this request.');
@@ -179,8 +190,11 @@ export default function RequestDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
-        <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <View style={[styles.statusBadge, { backgroundColor: cfg.bg, marginBottom: 0 }]}>
+          <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
+        </View>
+        {request.ticketNumber && <Text style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'monospace' }}>{request.ticketNumber}</Text>}
       </View>
 
       {request.isPaidAddon && (
@@ -300,6 +314,56 @@ export default function RequestDetailScreen() {
         </>
       )}
 
+      {request.status === 'COMPLETED' && (
+        <>
+          <Text style={styles.sectionTitle}>Rate Your Experience</Text>
+          {existingReview ? (
+            <View style={styles.reviewSubmitted}>
+              <Text style={styles.reviewStars}>{'★'.repeat(existingReview.rating)}{'☆'.repeat(5 - existingReview.rating)}</Text>
+              <Text style={styles.reviewSubmittedText}>Thank you for your review!</Text>
+              {existingReview.comment ? <Text style={styles.reviewComment}>{existingReview.comment}</Text> : null}
+            </View>
+          ) : (
+            <View style={styles.reviewCard}>
+              <Text style={styles.reviewHint}>How was your experience with this vendor?</Text>
+              <View style={styles.starsRow}>
+                {[1,2,3,4,5].map((star) => (
+                  <TouchableOpacity key={star} onPress={() => setReviewRating(star)}>
+                    <Text style={[styles.star, star <= reviewRating && styles.starFilled]}>★</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={styles.reviewInput}
+                placeholder="Leave a comment (optional)..."
+                placeholderTextColor="#94a3b8"
+                value={reviewComment}
+                onChangeText={setReviewComment}
+                multiline
+                numberOfLines={3}
+              />
+              <TouchableOpacity
+                style={[styles.reviewBtn, (reviewRating === 0 || submittingReview) && styles.reviewBtnDisabled]}
+                disabled={reviewRating === 0 || submittingReview}
+                onPress={async () => {
+                  setSubmittingReview(true);
+                  try {
+                    const rv: any = await reviewsApi.submit({ serviceRequestId: id, rating: reviewRating, comment: reviewComment || undefined });
+                    setExistingReview(rv);
+                  } catch (e: any) {
+                    Alert.alert('Error', e.message);
+                  } finally {
+                    setSubmittingReview(false);
+                  }
+                }}
+              >
+                <Text style={styles.reviewBtnText}>{submittingReview ? 'Submitting…' : 'Submit Review'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      )}
+
       {canReschedule && (
         <TouchableOpacity style={styles.rescheduleBtn} onPress={openReschedule}>
           <Text style={styles.rescheduleBtnText}>Reschedule</Text>
@@ -390,4 +454,17 @@ const styles = StyleSheet.create({
   vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: '#e2e8f0' },
   vendorName: { fontSize: 15, fontWeight: '700', color: '#0B4A45' },
   vendorCompany: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  reviewCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+  reviewHint: { fontSize: 14, color: '#555', marginBottom: 12 },
+  starsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  star: { fontSize: 36, color: '#d1d5db' },
+  starFilled: { color: '#f59e0b' },
+  reviewInput: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 12, fontSize: 14, color: '#333', height: 80, textAlignVertical: 'top', marginBottom: 12 },
+  reviewBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
+  reviewBtnDisabled: { backgroundColor: '#94a3b8' },
+  reviewBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  reviewSubmitted: { backgroundColor: '#f0fdf4', borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#6ee7b7', alignItems: 'center' },
+  reviewStars: { fontSize: 28, color: '#f59e0b', letterSpacing: 2, marginBottom: 4 },
+  reviewSubmittedText: { fontSize: 14, color: '#059669', fontWeight: '600', marginBottom: 4 },
+  reviewComment: { fontSize: 13, color: '#555', textAlign: 'center', fontStyle: 'italic' },
 });

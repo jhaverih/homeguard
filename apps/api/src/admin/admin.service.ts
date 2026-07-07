@@ -6,6 +6,7 @@ import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { CustomerSubscription, SubscriptionStatus } from '../subscriptions/entities/customer-subscription.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { Review } from '../reviews/entities/review.entity';
 import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../common/enums/role.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
@@ -17,6 +18,7 @@ export class AdminService {
     @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     @InjectRepository(ServiceRequest) private requestsRepo: Repository<ServiceRequest>,
+    @InjectRepository(Review) private reviewsRepo: Repository<Review>,
     private notificationsService: NotificationsService,
   ) {}
 
@@ -208,5 +210,99 @@ export class AdminService {
         ? { id: r.vendor.id, name: `${r.vendor.firstName} ${r.vendor.lastName}`, email: r.vendor.email, phone: r.vendor.phone }
         : null,
     }));
+  }
+
+  async getVendorKpi(vendorId: string): Promise<any> {
+    const vendor = await this.usersRepo.findOne({
+      where: { id: vendorId },
+      relations: ['vendorProfile'],
+    });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    const allJobs = await this.requestsRepo.find({ where: { vendorId } });
+    const completed = allJobs.filter((j) => j.status === ServiceRequestStatus.COMPLETED);
+    const cancelled = allJobs.filter((j) => j.status === ServiceRequestStatus.CANCELLED);
+
+    // Response time: createdAt → scheduledDate (proxy for acceptance time, since we don't store acceptedAt)
+    const responseTimes = allJobs
+      .filter((j) => j.scheduledDate)
+      .map((j) => (new Date(j.scheduledDate).getTime() - new Date(j.createdAt).getTime()) / 3600000);
+    const avgResponseHours = responseTimes.length
+      ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
+      : null;
+
+    // Completion time: scheduledDate → completedAt
+    const completionTimes = completed
+      .filter((j) => j.scheduledDate && j.completedAt)
+      .map((j) => (new Date(j.completedAt).getTime() - new Date(j.scheduledDate).getTime()) / 3600000);
+    const avgCompletionHours = completionTimes.length
+      ? Math.round(completionTimes.reduce((a, b) => a + b, 0) / completionTimes.length * 10) / 10
+      : null;
+
+    // Revenue from payments
+    const payments = await this.paymentsRepo.find({ where: { vendorId, status: PaymentStatus.CAPTURED } });
+    const totalRevenue = payments.reduce((sum, p) => sum + Number(p.vendorAmount ?? 0), 0);
+
+    // Monthly job counts (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const monthlyMap: Record<string, { completed: number; total: number }> = {};
+    for (const job of allJobs.filter((j) => new Date(j.createdAt) >= sixMonthsAgo)) {
+      const key = new Date(job.createdAt).toISOString().slice(0, 7);
+      if (!monthlyMap[key]) monthlyMap[key] = { completed: 0, total: 0 };
+      monthlyMap[key].total++;
+      if (job.status === ServiceRequestStatus.COMPLETED) monthlyMap[key].completed++;
+    }
+
+    // Reviews
+    const reviews = await this.reviewsRepo.find({
+      where: { vendorId },
+      order: { createdAt: 'DESC' },
+    });
+    const avgRating = reviews.length
+      ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length * 10) / 10
+      : null;
+    const ratingBreakdown = [1,2,3,4,5].map((star) => ({
+      star,
+      count: reviews.filter((r) => r.rating === star).length,
+    }));
+
+    return {
+      vendor: {
+        id: vendor.id,
+        name: `${vendor.firstName} ${vendor.lastName}`,
+        email: vendor.email,
+        companyName: vendor.vendorProfile?.companyName,
+        joinedAt: vendor.createdAt,
+      },
+      jobs: {
+        total: allJobs.length,
+        completed: completed.length,
+        cancelled: cancelled.length,
+        completionRate: allJobs.length ? Math.round(completed.length / allJobs.length * 100) : 0,
+      },
+      responsiveness: {
+        avgResponseHours,
+        avgCompletionHours,
+      },
+      revenue: {
+        total: Math.round(totalRevenue * 100) / 100,
+        jobCount: payments.length,
+      },
+      monthlyTrend: Object.entries(monthlyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, counts]) => ({ month, ...counts })),
+      reviews: {
+        averageRating: avgRating,
+        totalCount: reviews.length,
+        ratingBreakdown,
+        recent: reviews.slice(0, 10).map((r) => ({
+          id: r.id,
+          rating: r.rating,
+          comment: r.comment,
+          createdAt: r.createdAt,
+        })),
+      },
+    };
   }
 }

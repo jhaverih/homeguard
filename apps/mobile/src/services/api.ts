@@ -94,6 +94,11 @@ export const standaloneServiceApi = {
   create: (body: any) => api.post('/service-requests/standalone', body),
 };
 
+export const reviewsApi = {
+  submit: (body: { serviceRequestId: string; rating: number; comment?: string }) => api.post('/reviews', body),
+  getMyReview: (serviceRequestId: string) => api.get(`/reviews/my/${serviceRequestId}`),
+};
+
 export const notificationsApi = {
   getAll: () => api.get('/notifications'),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),

@@ -12,6 +12,7 @@ import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PricingModule } from './pricing/pricing.module';
+import { ReviewsModule } from './reviews/reviews.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { HealthModule } from './health/health.module';
 import { AdminModule } from './admin/admin.module';
@@ -65,6 +66,7 @@ import { MaintenanceBotModule } from './maintenance-bot/maintenance-bot.module';
     NotificationsModule,
     PaymentsModule,
     PricingModule,
+    ReviewsModule,
     UploadsModule,
     MaintenanceBotModule,
   ],

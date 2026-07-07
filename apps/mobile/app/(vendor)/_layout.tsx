@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { HoumiIcon, HoumiLogo } from '../../src/components/HoumiLogo';
 import {
   TouchableOpacity, Text, StyleSheet, View, AppState,
-  ActivityIndicator, Linking,
+  ActivityIndicator, Linking, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
@@ -37,8 +37,8 @@ function StripeSetupGate({ onRefresh }: { onRefresh: () => void }) {
     try {
       const res: any = await paymentsApi.getOnboardingLink();
       await Linking.openURL(res.url);
-    } catch {
-      // error handled silently — button stays available
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message || e?.message || 'Could not get Stripe link');
     } finally {
       setLoading(false);
     }

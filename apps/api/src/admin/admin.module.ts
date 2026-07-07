@@ -5,6 +5,7 @@ import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { CustomerSubscription } from '../subscriptions/entities/customer-subscription.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { Review } from '../reviews/entities/review.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
@@ -12,7 +13,7 @@ import { VendorSchedulerService } from './vendor-scheduler.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, VendorProfile, CustomerSubscription, Payment, ServiceRequest]),
+    TypeOrmModule.forFeature([User, VendorProfile, CustomerSubscription, Payment, ServiceRequest, Review]),
     NotificationsModule,
   ],
   providers: [AdminService, VendorSchedulerService],

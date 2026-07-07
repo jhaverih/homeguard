@@ -32,6 +32,12 @@ export class AdminController {
     return this.service.getVendors();
   }
 
+  @Get('vendors/:id/kpi')
+  @ApiOperation({ summary: 'Get vendor performance KPIs' })
+  getVendorKpi(@Param('id') id: string) {
+    return this.service.getVendorKpi(id);
+  }
+
   @Patch('vendors/:id/approve')
   @ApiOperation({ summary: 'Approve a vendor' })
   approveVendor(@Param('id') id: string) {
