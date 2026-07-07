@@ -79,16 +79,34 @@ function StripeSetupGate({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
+function OfflineBanner({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={styles.offlineBanner}>
+      <Ionicons name="cloud-offline-outline" size={16} color="#fff" />
+      <Text style={styles.offlineText}>Can't reach server — some features may be unavailable</Text>
+      <TouchableOpacity onPress={onRetry}>
+        <Text style={styles.offlineRetry}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function VendorLayout() {
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; onboardingComplete: boolean } | null>(null);
   const [checking, setChecking] = useState(true);
+  const [offline, setOffline] = useState(false);
 
   const checkStripe = useCallback(async () => {
+    setOffline(false);
     try {
       const status = await paymentsApi.getVendorStripeStatus();
       setStripeStatus(status);
-    } catch {
-      setStripeStatus({ connected: false, onboardingComplete: false });
+    } catch (err: any) {
+      if (err?.message === 'NETWORK_ERROR') {
+        // Server unreachable — show a banner but don't gate on Stripe
+        setOffline(true);
+      }
+      // Any other error: treat as unknown, don't block with the Stripe gate
     } finally {
       setChecking(false);
     }
@@ -111,50 +129,9 @@ export default function VendorLayout() {
     );
   }
 
-  if (stripeStatus && !stripeStatus.onboardingComplete) {
-    return (
-      <>
-        <Tabs
-          screenOptions={{
-            headerRight: () => <RoleSwitcher />,
-            headerStyle: { backgroundColor: '#0B4A45' },
-            headerTintColor: '#fff',
-            headerTitleStyle: { fontWeight: '700' },
-            tabBarActiveTintColor: '#0B4A45',
-            tabBarInactiveTintColor: '#94a3b8',
-            tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
-            tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-          }}
-        >
-          <Tabs.Screen name="index" options={{ title: 'Dashboard', headerTitle: () => <HoumiLogo size="sm" onDark />, tabBarIcon: ({ color, focused }) => <HoumiIcon size="sm" onDark={false} /> }} />
-          <Tabs.Screen name="requests" options={{ title: 'Open Jobs', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }} />
-          <Tabs.Screen name="my-jobs" options={{ title: 'My Jobs', tabBarIcon: ({ color }) => <Ionicons name="briefcase" size={22} color={color} /> }} />
-          <Tabs.Screen name="schedule" options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={22} color={color} /> }} />
-          <Tabs.Screen name="earnings" options={{ title: 'Earnings', tabBarIcon: ({ color }) => <Ionicons name="cash" size={22} color={color} /> }} />
-          <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }} />
-          <Tabs.Screen name="active-job" options={{ href: null }} />
-          <Tabs.Screen name="notifications" options={{ href: null }} />
-        </Tabs>
-        {/* Full-screen gate overlay */}
-        <StripeSetupGate onRefresh={() => { setChecking(true); checkStripe(); }} />
-      </>
-    );
-  }
-
-  return (
-    <Tabs
-      screenOptions={{
-        headerRight: () => <RoleSwitcher />,
-        headerStyle: { backgroundColor: '#0B4A45' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: '#0B4A45',
-        tabBarInactiveTintColor: '#94a3b8',
-        tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Ionicons name="grid" size={22} color={color} /> }} />
+  const tabScreens = (
+    <>
+      <Tabs.Screen name="index" options={{ title: 'Dashboard', headerTitle: () => <HoumiLogo size="sm" onDark />, tabBarIcon: ({ color }) => <HoumiIcon size="sm" onDark={false} /> }} />
       <Tabs.Screen name="requests" options={{ title: 'Open Jobs', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }} />
       <Tabs.Screen name="my-jobs" options={{ title: 'My Jobs', tabBarIcon: ({ color }) => <Ionicons name="briefcase" size={22} color={color} /> }} />
       <Tabs.Screen name="schedule" options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={22} color={color} /> }} />
@@ -162,13 +139,46 @@ export default function VendorLayout() {
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }} />
       <Tabs.Screen name="active-job" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
-    </Tabs>
+    </>
+  );
+
+  const tabsProps = {
+    screenOptions: {
+      headerRight: () => <RoleSwitcher />,
+      headerStyle: { backgroundColor: '#0B4A45' },
+      headerTintColor: '#fff',
+      headerTitleStyle: { fontWeight: '700' },
+      tabBarActiveTintColor: '#0B4A45',
+      tabBarInactiveTintColor: '#94a3b8',
+      tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
+      tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+    },
+  };
+
+  // Only show Stripe gate when server explicitly confirmed onboarding is incomplete
+  if (stripeStatus && !stripeStatus.onboardingComplete) {
+    return (
+      <>
+        <Tabs {...tabsProps}>{tabScreens}</Tabs>
+        <StripeSetupGate onRefresh={() => { setChecking(true); checkStripe(); }} />
+      </>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      {offline && <OfflineBanner onRetry={() => { setChecking(true); checkStripe(); }} />}
+      <Tabs {...tabsProps}>{tabScreens}</Tabs>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   switchBtn: { marginRight: 16, backgroundColor: '#0B4A45', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   switchText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  offlineBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#b45309', paddingHorizontal: 16, paddingVertical: 10 },
+  offlineText: { flex: 1, color: '#fff', fontSize: 12, fontWeight: '500' },
+  offlineRetry: { color: '#fde68a', fontSize: 12, fontWeight: '700' },
   // Gate overlay
   gate: {
     ...StyleSheet.absoluteFillObject,
