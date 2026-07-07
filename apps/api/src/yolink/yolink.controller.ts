@@ -76,22 +76,14 @@ export class YolinkController {
     return this.service.unlinkHome(id);
   }
 
-  // Webhook management (admin only) ──────────────────────────────────────────
+  // Test / debug (admin only) ────────────────────────────────────────────────
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @Post('register-webhook')
-  @ApiOperation({ summary: 'Register Houmi webhook URL with Yolink (admin)' })
-  registerWebhook(@Body() body: { webhookUrl: string }) {
-    return this.service.registerWebhook(body.webhookUrl);
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Get('webhook-status')
-  getWebhookStatus() {
-    return this.service.getWebhookStatus();
+  @Post('simulate')
+  @ApiOperation({ summary: 'Simulate a sensor alert for a customer (admin, for testing)' })
+  simulate(@Body() body: { customerId: string; eventType?: string }) {
+    return this.service.simulateAlert(body.customerId, body.eventType ?? 'LeakSensor.Alert');
   }
 }
