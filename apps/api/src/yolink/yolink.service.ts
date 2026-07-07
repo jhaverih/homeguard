@@ -93,7 +93,8 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
         password: '',
         clientId: `houmi-${Date.now()}`,
         clean: true,
-        reconnectPeriod: 30000,
+        keepalive: 30,
+        reconnectPeriod: 5000,
       });
 
       this.mqttClient.on('connect', () => {
@@ -117,6 +118,8 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
 
       this.mqttClient.on('error', (err) => this.logger.error('Yolink MQTT error', err.message));
       this.mqttClient.on('reconnect', () => this.logger.log('Yolink MQTT reconnecting…'));
+      this.mqttClient.on('disconnect', (packet) => this.logger.warn(`Yolink MQTT disconnected by broker — reason code: ${packet?.reasonCode ?? 'unknown'}`));
+      this.mqttClient.on('close', () => this.logger.warn('Yolink MQTT connection closed'));
     } catch (err) {
       this.logger.error('Failed to start Yolink MQTT connection', err.message);
     }
