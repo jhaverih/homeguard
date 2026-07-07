@@ -240,7 +240,7 @@ export class AdminService {
       : null;
 
     // Revenue from payments
-    const payments = await this.paymentsRepo.find({ where: { vendorId, status: PaymentStatus.CAPTURED } });
+    const payments = await this.paymentsRepo.find({ where: { vendorId, status: PaymentStatus.SUCCEEDED } });
     const totalRevenue = payments.reduce((sum, p) => sum + Number(p.vendorAmount ?? 0), 0);
 
     // Monthly job counts (last 6 months)
