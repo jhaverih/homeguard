@@ -67,6 +67,10 @@ export default function CustomerLayout() {
         name="profile"
         options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }}
       />
+      <Tabs.Screen
+        name="alerts"
+        options={{ title: 'Alerts', tabBarIcon: ({ color }) => <Ionicons name="warning" size={22} color={color} /> }}
+      />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="assistant" options={{ href: null, title: 'Houmi Assistant' }} />

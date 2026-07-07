@@ -99,6 +99,20 @@ export const reviewsApi = {
   getMyReview: (serviceRequestId: string) => api.get(`/reviews/my/${serviceRequestId}`),
 };
 
+export const alertsApi = {
+  getMyAlerts: (page = 1, limit = 20) => api.get(`/alerts?page=${page}&limit=${limit}`),
+  markRead: (id: string) => api.patch(`/alerts/${id}/read`),
+  markAllRead: () => api.patch('/alerts/read-all'),
+  requestDispatch: (id: string) => api.post(`/alerts/${id}/dispatch`),
+};
+
+export const yolinkApi = {
+  getMyHomes: () => api.get('/yolink/my-homes'),
+  getAvailableHomes: () => api.get('/yolink/available-homes'),
+  linkHome: (body: { customerId: string; yolinkUAID: string; homeName: string; address?: string }) =>
+    api.post('/yolink/link', body),
+};
+
 export const notificationsApi = {
   getAll: () => api.get('/notifications'),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),

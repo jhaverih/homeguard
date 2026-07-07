@@ -17,6 +17,8 @@ import { UploadsModule } from './uploads/uploads.module';
 import { HealthModule } from './health/health.module';
 import { AdminModule } from './admin/admin.module';
 import { MaintenanceBotModule } from './maintenance-bot/maintenance-bot.module';
+import { AlertsModule } from './alerts/alerts.module';
+import { YolinkModule } from './yolink/yolink.module';
 
 @Module({
   imports: [
@@ -69,6 +71,8 @@ import { MaintenanceBotModule } from './maintenance-bot/maintenance-bot.module';
     ReviewsModule,
     UploadsModule,
     MaintenanceBotModule,
+    AlertsModule,
+    YolinkModule,
   ],
 })
 export class AppModule {}
