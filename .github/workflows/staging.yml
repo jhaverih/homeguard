@@ -30,14 +30,17 @@ jobs:
           docker compose -f infrastructure/docker-compose.staging.yml up --build --force-recreate -d postgres redis minio
           until docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres pg_isready -U homeguard -q; do sleep 2; done
 
-          # Align postgres password with .env — temporarily use trust auth since we may not know the current password
+          # Align postgres password with .env — use SIGHUP to reload config (no psql auth needed for reload)
           DB_PASSWORD=$(grep '^DB_PASSWORD=' infrastructure/.env 2>/dev/null | cut -d= -f2 || echo 'changeme')
           docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres sh -c \
             "sed -i 's/scram-sha-256/trust/g' /var/lib/postgresql/data/pg_hba.conf \
-             && psql -U homeguard -c 'SELECT pg_reload_conf();' \
-             && psql -U homeguard -c \"ALTER USER homeguard WITH PASSWORD '${DB_PASSWORD}';\" \
-             && sed -i 's/trust/scram-sha-256/g' /var/lib/postgresql/data/pg_hba.conf \
-             && PGPASSWORD='${DB_PASSWORD}' psql -U homeguard -c 'SELECT pg_reload_conf();'" 2>/dev/null || true
+             && kill -HUP \$(head -1 /var/lib/postgresql/data/postmaster.pid)" || true
+          sleep 1
+          docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres \
+            psql -U homeguard -c "ALTER USER homeguard WITH PASSWORD '${DB_PASSWORD}';" || true
+          docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres sh -c \
+            "sed -i 's/trust/scram-sha-256/g' /var/lib/postgresql/data/pg_hba.conf \
+             && kill -HUP \$(head -1 /var/lib/postgresql/data/postmaster.pid)" || true
 
           # Build admin with no-cache so Next.js standalone output is never served from a stale layer
           docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin
