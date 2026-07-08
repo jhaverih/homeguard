@@ -32,7 +32,7 @@ export class AlertsService {
       [AlertSeverity.LOW]: 'ℹ️',
     }[data.severity] ?? '🔔';
 
-    await this.notificationsService.notifyUser(
+    await this.notificationsService.notifyUserWithEmail(
       data.customerId,
       NotificationType.NEW_REQUEST,
       `${emoji} Home Alert`,

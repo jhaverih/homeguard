@@ -4,7 +4,11 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { useAuthStore } from '../src/store/auth.store';
-import { registerForPushNotificationsAsync } from '../src/services/notifications';
+import { useAlertsStore } from '../src/store/alerts.store';
+import {
+  registerForPushNotificationsAsync,
+  setupNotificationListeners,
+} from '../src/services/notifications';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PK || '';
 
@@ -38,11 +42,32 @@ function AuthRedirect() {
 
 export default function RootLayout() {
   const { user } = useAuthStore();
+  const { increment, setUnreadCount } = useAlertsStore();
+  const router = useRouter();
 
+  // Register push token when user logs in
   useEffect(() => {
     if (user) {
       registerForPushNotificationsAsync().catch(() => {});
+    } else {
+      setUnreadCount(0);
     }
+  }, [user?.id]);
+
+  // Set up notification listeners when authenticated
+  useEffect(() => {
+    if (!user) return;
+
+    const cleanup = setupNotificationListeners(
+      () => increment(),
+      (screen) => {
+        if (screen === 'alerts') {
+          router.push('/(customer)/alerts');
+        }
+      },
+    );
+
+    return cleanup;
   }, [user?.id]);
 
   return (

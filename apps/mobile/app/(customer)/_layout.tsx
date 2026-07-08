@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
+import { useAlertsStore } from '../../src/store/alerts.store';
 import { userApi } from '../../src/services/api';
 import { HoumiIcon, HoumiLogo } from '../../src/components/HoumiLogo';
 
@@ -26,6 +27,8 @@ function RoleSwitcher() {
 }
 
 export default function CustomerLayout() {
+  const { unreadCount } = useAlertsStore();
+
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -69,7 +72,12 @@ export default function CustomerLayout() {
       />
       <Tabs.Screen
         name="alerts"
-        options={{ title: 'Alerts', tabBarIcon: ({ color }) => <Ionicons name="warning" size={22} color={color} /> }}
+        options={{
+          title: 'Alerts',
+          tabBarIcon: ({ color }) => <Ionicons name="warning" size={22} color={color} />,
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#dc2626', color: '#fff', fontSize: 10 },
+        }}
       />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />

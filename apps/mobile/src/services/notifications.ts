@@ -27,9 +27,11 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
+      name: 'Houmi Alerts',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#0B4A45',
+      sound: 'default',
     });
   }
 
@@ -43,4 +45,32 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   return token;
+}
+
+/**
+ * Set up listeners for the app session.
+ * - Foreground alerts are shown automatically by setNotificationHandler above.
+ * - onIncrement: called when a notification arrives in foreground (bumps badge count).
+ * - onNavigate: called when the user taps a notification; receives the target screen name.
+ *
+ * Call once from the root layout after authentication.
+ * Returns a cleanup function.
+ */
+export function setupNotificationListeners(
+  onIncrement: () => void,
+  onNavigate: (screen: string) => void,
+): () => void {
+  const receivedSub = Notifications.addNotificationReceivedListener(() => {
+    onIncrement();
+  });
+
+  const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const screen = response.notification.request.content.data?.screen as string | undefined;
+    onNavigate(screen ?? 'alerts');
+  });
+
+  return () => {
+    receivedSub.remove();
+    responseSub.remove();
+  };
 }

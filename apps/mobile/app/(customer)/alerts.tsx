@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { alertsApi } from '../../src/services/api';
+import { useAlertsStore } from '../../src/store/alerts.store';
 
 const SEVERITY_CONFIG = {
   CRITICAL: { color: '#dc2626', bg: '#fef2f2', icon: 'warning' as const, label: 'Critical' },
@@ -60,12 +61,14 @@ export default function AlertsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dispatchModal, setDispatchModal] = useState<any>(null);
+  const { setUnreadCount, decrement: decrementBadge } = useAlertsStore();
 
   const load = async () => {
     try {
       const res: any = await alertsApi.getMyAlerts();
       setAlerts(res.alerts ?? []);
       setUnread(res.unread ?? 0);
+      setUnreadCount(res.unread ?? 0);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -75,15 +78,20 @@ export default function AlertsScreen() {
   useFocusEffect(useCallback(() => { load(); }, []));
 
   const handleRead = async (id: string) => {
+    const wasNew = alerts.find((a) => a.id === id)?.status === 'NEW';
     await alertsApi.markRead(id).catch(() => {});
     setAlerts((prev) => prev.map((a) => a.id === id ? { ...a, status: 'READ' } : a));
-    setUnread((n) => Math.max(0, n - 1));
+    if (wasNew) {
+      setUnread((n) => Math.max(0, n - 1));
+      decrementBadge();
+    }
   };
 
   const handleMarkAllRead = async () => {
     await alertsApi.markAllRead().catch(() => {});
     setAlerts((prev) => prev.map((a) => ({ ...a, status: 'READ' })));
     setUnread(0);
+    setUnreadCount(0);
   };
 
   const handleDispatch = (item: any) => {

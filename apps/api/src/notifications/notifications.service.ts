@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import Expo, { ExpoPushMessage } from 'expo-server-sdk';
+import * as nodemailer from 'nodemailer';
 import { AppNotification } from './entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
@@ -13,12 +15,33 @@ export { NotificationType };
 export class NotificationsService {
   private expo = new Expo();
   private readonly logger = new Logger(NotificationsService.name);
+  private mailer: nodemailer.Transporter | null = null;
 
   constructor(
     @InjectRepository(AppNotification)
     private notificationsRepo: Repository<AppNotification>,
     private usersService: UsersService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.initMailer();
+  }
+
+  private initMailer() {
+    const host = this.configService.get<string>('SMTP_HOST');
+    if (!host) {
+      this.logger.warn('SMTP_HOST not configured — email notifications disabled');
+      return;
+    }
+    this.mailer = nodemailer.createTransport({
+      host,
+      port: parseInt(this.configService.get<string>('SMTP_PORT') ?? '587', 10),
+      secure: this.configService.get<string>('SMTP_SECURE') === 'true',
+      auth: {
+        user: this.configService.get<string>('SMTP_USER'),
+        pass: this.configService.get<string>('SMTP_PASS'),
+      },
+    });
+  }
 
   async notifyUser(
     userId: string,
@@ -37,6 +60,25 @@ export class NotificationsService {
       }
     } catch (err) {
       this.logger.warn(`Could not send push notification to user ${userId}: ${err.message}`);
+    }
+  }
+
+  async notifyUserWithEmail(
+    userId: string,
+    type: NotificationType,
+    title: string,
+    body: string,
+    data?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.notifyUser(userId, type, title, body, data);
+
+    try {
+      const user = await this.usersService.findById(userId);
+      if (user?.email) {
+        await this.sendEmail(user.email, user.firstName, title, body);
+      }
+    } catch (err) {
+      this.logger.warn(`Could not send email to user ${userId}: ${err.message}`);
     }
   }
 
@@ -79,6 +121,35 @@ export class NotificationsService {
       } catch (err) {
         this.logger.error('Push notification error', err);
       }
+    }
+  }
+
+  async sendEmail(to: string, firstName: string, subject: string, text: string): Promise<void> {
+    if (!this.mailer) return;
+
+    const fromName = this.configService.get<string>('SMTP_FROM_NAME') ?? 'Houmi';
+    const fromAddr = this.configService.get<string>('SMTP_USER') ?? '';
+
+    const html = `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">
+        <div style="background:#0B4A45;border-radius:12px 12px 0 0;padding:20px 24px">
+          <h1 style="color:#fff;margin:0;font-size:22px">Houmi</h1>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px">
+          <p style="margin-top:0">Hi ${firstName},</p>
+          <p style="font-size:16px;font-weight:600;color:#1e293b">${subject}</p>
+          <p style="color:#475569">${text}</p>
+          <p style="color:#94a3b8;font-size:12px;margin-top:32px">
+            You received this because you're a Houmi subscriber. Open the Houmi app to view and manage your alerts.
+          </p>
+        </div>
+      </div>`;
+
+    try {
+      await this.mailer.sendMail({ from: `"${fromName}" <${fromAddr}>`, to, subject, text, html });
+      this.logger.log(`Email sent to ${to}: ${subject}`);
+    } catch (err) {
+      this.logger.error(`Failed to send email to ${to}: ${err.message}`);
     }
   }
 
