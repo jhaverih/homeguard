@@ -18,6 +18,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Backup database before deploy
+        run: |
+          # Always snapshot the DB before touching any containers — even if postgres is down
+          # this succeeds silently so it never blocks a deploy.
+          /share/Container/homeguard/backup.sh && \
+            echo "Pre-deploy backup complete" || \
+            echo "Pre-deploy backup skipped (postgres may not be running yet)"
+
       - name: Deploy with Docker Compose
         run: |
           cp /share/Container/homeguard/.env infrastructure/.env 2>/dev/null || true
@@ -33,8 +41,9 @@ jobs:
           docker compose -f infrastructure/docker-compose.staging.yml stop || true
           docker compose -f infrastructure/docker-compose.staging.yml pull --ignore-pull-failures || true
 
-          # Start data services so we can align the postgres password before the API starts
-          docker compose -f infrastructure/docker-compose.staging.yml up --force-recreate -d postgres redis minio
+          # Start data services WITHOUT --force-recreate so the postgres data volume is never
+          # blown away. Only bring them up if stopped; don't touch running ones.
+          docker compose -f infrastructure/docker-compose.staging.yml up -d postgres redis minio
           until docker compose -f infrastructure/docker-compose.staging.yml exec -T postgres pg_isready -U homeguard -q; do sleep 2; done
 
           # Align postgres password with .env — use SIGHUP to reload config (no psql auth needed for reload)
@@ -49,8 +58,10 @@ jobs:
             "sed -i 's/trust/scram-sha-256/g' /var/lib/postgresql/data/pg_hba.conf \
              && kill -HUP \$(head -1 /var/lib/postgresql/data/postmaster.pid)" || true
 
-          # Start everything using pre-built images (no --build — already built above)
-          docker compose -f infrastructure/docker-compose.staging.yml up --force-recreate --remove-orphans -d
+          # Force-recreate only app containers (api, admin, nginx) — never data containers.
+          # postgres/redis/minio stay running with their volumes untouched.
+          docker compose -f infrastructure/docker-compose.staging.yml up --force-recreate --remove-orphans -d \
+            api admin nginx
           docker compose -f infrastructure/docker-compose.staging.yml ps
 
       - name: Wait for API health check
