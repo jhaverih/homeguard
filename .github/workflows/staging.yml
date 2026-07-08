@@ -21,6 +21,8 @@ jobs:
       - name: Deploy with Docker Compose
         run: |
           cp /share/Container/homeguard/.env infrastructure/.env 2>/dev/null || true
+          # Export all vars so docker-compose substitution works regardless of .env file location
+          set -a; source /share/Container/homeguard/.env 2>/dev/null || true; set +a
 
           # Stop containers (not down — down removes the network which causes QNAP dnsmasq NAT errors)
           docker compose -f infrastructure/docker-compose.staging.yml stop || true
