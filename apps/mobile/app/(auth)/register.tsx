@@ -89,12 +89,22 @@ export default function RegisterScreen() {
         <HoumiLogo size="md" />
       </View>
       <Text style={styles.title}>Create Account</Text>
-
-      <View style={[styles.roleBadge, { backgroundColor: isVendor ? '#e8f5e9' : '#EBF1EF' }]}>
-        <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={16} color={accent} />
-        <Text style={[styles.roleBadgeText, { color: accent }]}>
-          {isVendor ? 'Service Provider Account' : 'Homeowner Account'}
-        </Text>
+      <Text style={styles.roleLabel}>I am a...</Text>
+      <View style={styles.roleRow}>
+        <TouchableOpacity
+          style={[styles.roleChip, !isVendor && styles.roleChipActive]}
+          onPress={() => setSelectedRole('CUSTOMER')}
+        >
+          <Ionicons name="home-outline" size={22} color={!isVendor ? '#0B4A45' : '#999'} />
+          <Text style={[styles.roleChipText, !isVendor && styles.roleChipTextActive]}>Homeowner</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.roleChip, isVendor && styles.roleChipActive]}
+          onPress={() => setSelectedRole('VENDOR')}
+        >
+          <Ionicons name="construct-outline" size={22} color={isVendor ? '#0B4A45' : '#999'} />
+          <Text style={[styles.roleChipText, isVendor && styles.roleChipTextActive]}>Service Provider</Text>
+        </TouchableOpacity>
       </View>
 
       {step === 'account' && (
@@ -255,8 +265,7 @@ const styles = StyleSheet.create({
   backBtn: { marginBottom: 8 },
   logoRow: { alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 24, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 12 },
-  roleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, gap: 6, marginBottom: 20 },
-  roleBadgeText: { fontSize: 13, fontWeight: '600' },
+  roleLabel: { fontSize: 14, fontWeight: '600', color: '#64748b', textAlign: 'center', marginBottom: 10 },
   sectionLabel: { fontSize: 16, fontWeight: '600', color: '#0B4A45', marginBottom: 12, marginTop: 8 },
   input: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
@@ -264,13 +273,13 @@ const styles = StyleSheet.create({
   },
   inputError: { borderColor: '#e53e3e' },
   errorText: { color: '#e53e3e', fontSize: 12, marginBottom: 8, marginLeft: 4 },
-  roleRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  roleRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   roleChip: {
-    flex: 1, padding: 16, borderRadius: 12, borderWidth: 2,
-    borderColor: '#ddd', backgroundColor: '#fff', alignItems: 'center',
+    flex: 1, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 14, borderWidth: 2,
+    borderColor: '#e2e8f0', backgroundColor: '#fff', alignItems: 'center', gap: 6,
   },
   roleChipActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
-  roleChipText: { fontSize: 14, fontWeight: '600', color: '#666' },
+  roleChipText: { fontSize: 13, fontWeight: '600', color: '#94a3b8' },
   roleChipTextActive: { color: '#0B4A45' },
   planCard: {
     backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12,
