@@ -48,7 +48,7 @@ function StripeSetupGate({ onRefresh, onSkip }: { onRefresh: () => void; onSkip:
     <View style={styles.gate}>
       <View style={styles.gateCard}>
         <View style={styles.gateIcon}>
-          <Ionicons name="card-outline" size={40} color="#635bff" />
+          <Text style={{ fontSize: 40 }}>💳</Text>
         </View>
         <Text style={styles.gateTitle}>Set Up Payouts to Get Started</Text>
         <Text style={styles.gateBody}>
@@ -59,16 +59,12 @@ function StripeSetupGate({ onRefresh, onSkip }: { onRefresh: () => void; onSkip:
         <TouchableOpacity style={styles.stripeBtn} onPress={openStripe} disabled={loading}>
           {loading
             ? <ActivityIndicator color="#fff" />
-            : <>
-                <Ionicons name="card" size={18} color="#fff" />
-                <Text style={styles.stripeBtnText}>Connect Stripe Account</Text>
-              </>
+            : <Text style={styles.stripeBtnText}>Connect Stripe Account</Text>
           }
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.refreshBtn} onPress={onRefresh}>
-          <Ionicons name="refresh-outline" size={16} color="#635bff" />
-          <Text style={styles.refreshText}>I've completed setup — check again</Text>
+          <Text style={styles.refreshText}>↺  I've completed setup — check again</Text>
         </TouchableOpacity>
 
         <Text style={styles.gateHint}>
