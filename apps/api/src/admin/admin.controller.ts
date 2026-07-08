@@ -76,4 +76,13 @@ export class AdminController {
   runDowngradeCheck() {
     return this.service.runVendorDowngradeCheck();
   }
+
+  @Get('alerts')
+  @ApiOperation({ summary: 'Get all monitoring events with customer info' })
+  getAlerts(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.getAlerts(Number(page) || 1, Number(limit) || 50);
+  }
 }

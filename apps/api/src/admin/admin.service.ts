@@ -7,6 +7,8 @@ import { CustomerSubscription, SubscriptionStatus } from '../subscriptions/entit
 import { Payment } from '../payments/entities/payment.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { Review } from '../reviews/entities/review.entity';
+import { Alert } from '../alerts/entities/alert.entity';
+import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../common/enums/role.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
@@ -19,6 +21,8 @@ export class AdminService {
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     @InjectRepository(ServiceRequest) private requestsRepo: Repository<ServiceRequest>,
     @InjectRepository(Review) private reviewsRepo: Repository<Review>,
+    @InjectRepository(Alert) private alertsRepo: Repository<Alert>,
+    @InjectRepository(CustomerProfile) private customerProfileRepo: Repository<CustomerProfile>,
     private notificationsService: NotificationsService,
   ) {}
 
@@ -303,6 +307,45 @@ export class AdminService {
           createdAt: r.createdAt,
         })),
       },
+    };
+  }
+
+  async getAlerts(page = 1, limit = 50): Promise<{ alerts: any[]; total: number }> {
+    const [alerts, total] = await this.alertsRepo.findAndCount({
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const customerIds = [...new Set(alerts.map((a) => a.customerId))];
+    const [users, profiles] = await Promise.all([
+      customerIds.length
+        ? this.usersRepo.createQueryBuilder('u').where('u.id IN (:...ids)', { ids: customerIds }).getMany()
+        : Promise.resolve([]),
+      customerIds.length
+        ? this.customerProfileRepo.createQueryBuilder('cp').where('cp.userId IN (:...ids)', { ids: customerIds }).getMany()
+        : Promise.resolve([]),
+    ]);
+
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+    const profileMap = Object.fromEntries(profiles.map((p) => [p.userId, p]));
+
+    return {
+      total,
+      alerts: alerts.map((alert) => {
+        const user = userMap[alert.customerId];
+        const profile = profileMap[alert.customerId];
+        return {
+          ...alert,
+          customer: user
+            ? {
+                name: `${user.firstName} ${user.lastName}`,
+                email: user.email,
+                address: profile ? `${profile.address}, ${profile.city}, ${profile.state} ${profile.zipCode}` : null,
+              }
+            : null,
+        };
+      }),
     };
   }
 }

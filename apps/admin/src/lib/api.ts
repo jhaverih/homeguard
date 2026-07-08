@@ -49,4 +49,6 @@ export const adminApi = {
   getVendorKpi: (id: string) => api.get(`/admin/vendors/${id}/kpi`).then((r) => r.data),
   getSchedule: (year: number, month: number) =>
     api.get(`/admin/schedule?year=${year}&month=${month}`).then((r) => r.data),
+  getAlerts: (page = 1, limit = 50) =>
+    api.get(`/admin/alerts?page=${page}&limit=${limit}`).then((r) => r.data),
 };
