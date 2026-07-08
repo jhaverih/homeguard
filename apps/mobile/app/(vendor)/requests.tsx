@@ -4,8 +4,9 @@ import {
   Alert, ActivityIndicator, RefreshControl, Modal, Platform,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
-import { useFocusEffect } from 'expo-router';
-import { requestsApi } from '../../src/services/api';
+import { useFocusEffect, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { requestsApi, paymentsApi } from '../../src/services/api';
 
 function DateTimeField({
   label, value, onChange, accentColor = '#0B4A45',
@@ -87,6 +88,7 @@ export default function OpenRequestsScreen() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [stripeReady, setStripeReady] = useState(true);
   const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string }>({ visible: false, requestId: '' });
 
   const tomorrow = new Date();
@@ -96,8 +98,14 @@ export default function OpenRequestsScreen() {
 
   const load = async () => {
     try {
-      const data: any = await requestsApi.getPending();
-      setRequests(data || []);
+      const [stripeStatus, data]: any = await Promise.all([
+        paymentsApi.getVendorStripeStatus(),
+        requestsApi.getPending(),
+      ]);
+      setStripeReady(!!stripeStatus?.onboardingComplete);
+      setRequests(stripeStatus?.onboardingComplete ? (data || []) : []);
+    } catch {
+      setRequests([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -117,6 +125,30 @@ export default function OpenRequestsScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, []));
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+
+  if (!stripeReady) {
+    return (
+      <View style={styles.lockedContainer}>
+        <View style={styles.lockedCard}>
+          <View style={styles.lockedIcon}>
+            <Ionicons name="lock-closed" size={36} color="#635bff" />
+          </View>
+          <Text style={styles.lockedTitle}>Stripe Setup Required</Text>
+          <Text style={styles.lockedBody}>
+            You need to connect your Stripe account before you can receive leads and accept jobs.
+            This protects both you and your customers.
+          </Text>
+          <TouchableOpacity
+            style={styles.lockedBtn}
+            onPress={() => router.push('/(vendor)/profile')}
+          >
+            <Ionicons name="card-outline" size={18} color="#fff" />
+            <Text style={styles.lockedBtnText}>Set Up Stripe in Profile</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -185,6 +217,13 @@ export default function OpenRequestsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
+  lockedContainer: { flex: 1, backgroundColor: '#f8f9fa', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  lockedCard: { backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
+  lockedIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#f0effe', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  lockedTitle: { fontSize: 20, fontWeight: '800', color: '#1e293b', textAlign: 'center', marginBottom: 12 },
+  lockedBody: { fontSize: 14, color: '#64748b', lineHeight: 22, textAlign: 'center', marginBottom: 24 },
+  lockedBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#635bff', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 20 },
+  lockedBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#666', marginHorizontal: 16, marginBottom: 16 },
   empty: { padding: 32, alignItems: 'center' },
