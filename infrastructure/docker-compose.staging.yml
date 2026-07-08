@@ -25,7 +25,7 @@ services:
       - OLLAMA_URL=http://192.168.86.37:11434
       - OLLAMA_MODEL=llama3.2:1b
     env_file:
-      - path: /share/Container/homeguard/.env
+      - path: .env
         required: false
     depends_on:
       postgres:
@@ -50,7 +50,7 @@ services:
       - NODE_ENV=staging
       - NEXT_PUBLIC_API_URL=http://localhost/api
     env_file:
-      - path: /share/Container/homeguard/.env
+      - path: .env
         required: false
     depends_on:
       - api
