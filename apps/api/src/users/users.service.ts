@@ -242,6 +242,13 @@ export class UsersService implements OnModuleInit {
     return this.findById(userId);
   }
 
+  async saveVendorStripeAccountId(userId: string, stripeAccountId: string): Promise<void> {
+    const profile = await this.vendorProfileRepo.findOne({ where: { userId } });
+    if (profile) {
+      await this.vendorProfileRepo.update(profile.id, { stripeConnectAccountId: stripeAccountId });
+    }
+  }
+
   async markVendorStripeComplete(stripeAccountId: string): Promise<void> {
     const profile = await this.vendorProfileRepo.findOne({
       where: { stripeConnectAccountId: stripeAccountId },

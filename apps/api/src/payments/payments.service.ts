@@ -42,9 +42,7 @@ export class PaymentsService {
           metadata: { vendorId },
         });
         accountId = account.id;
-        await this.usersService.updateProfile(vendorId, {
-          vendorProfile: { ...vendor.vendorProfile, stripeConnectAccountId: accountId } as any,
-        });
+        await this.usersService.saveVendorStripeAccountId(vendorId, accountId);
       } catch (err: any) {
         const detail = err?.raw?.message || err?.message || 'Stripe Connect not enabled';
         this.logger.warn(`Stripe Connect unavailable for vendor ${vendorId}: ${detail}`);
