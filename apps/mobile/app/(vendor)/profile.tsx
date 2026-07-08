@@ -57,7 +57,16 @@ export default function VendorProfileScreen() {
       const res: any = await paymentsApi.getOnboardingLink();
       await Linking.openURL(res.url);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      const msg: string = e.message || '';
+      if (msg.includes('STRIPE_CONNECT_UNAVAILABLE') || msg.toLowerCase().includes('connect')) {
+        Alert.alert(
+          'Stripe Payouts Coming Soon',
+          'Payout setup is not yet available. You can continue using the app — we will notify you when this feature is ready.',
+          [{ text: 'OK' }],
+        );
+      } else {
+        Alert.alert('Error', msg || 'Unable to start Stripe setup. Please try again later.', [{ text: 'OK' }]);
+      }
     } finally {
       setOnboardingLoading(false);
     }

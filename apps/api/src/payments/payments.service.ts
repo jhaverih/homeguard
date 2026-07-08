@@ -35,15 +35,21 @@ export class PaymentsService {
     let accountId = vendor.vendorProfile?.stripeConnectAccountId;
 
     if (!accountId) {
-      const account = await this.stripe.accounts.create({
-        type: 'express',
-        email: vendor.email,
-        metadata: { vendorId },
-      });
-      accountId = account.id;
-      await this.usersService.updateProfile(vendorId, {
-        vendorProfile: { ...vendor.vendorProfile, stripeConnectAccountId: accountId } as any,
-      });
+      try {
+        const account = await this.stripe.accounts.create({
+          type: 'express',
+          email: vendor.email,
+          metadata: { vendorId },
+        });
+        accountId = account.id;
+        await this.usersService.updateProfile(vendorId, {
+          vendorProfile: { ...vendor.vendorProfile, stripeConnectAccountId: accountId } as any,
+        });
+      } catch (err: any) {
+        const detail = err?.raw?.message || err?.message || 'Stripe Connect not enabled';
+        this.logger.warn(`Stripe Connect unavailable for vendor ${vendorId}: ${detail}`);
+        throw new BadRequestException('STRIPE_CONNECT_UNAVAILABLE');
+      }
     }
 
     const link = await this.stripe.accountLinks.create({
