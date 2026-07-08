@@ -253,10 +253,28 @@ export class PaymentsService {
 
   async getVendorStripeStatus(vendorId: string): Promise<{ connected: boolean; onboardingComplete: boolean }> {
     const vendor = await this.usersService.findById(vendorId);
-    return {
-      connected: !!vendor.vendorProfile?.stripeConnectAccountId,
-      onboardingComplete: vendor.vendorProfile?.stripeOnboardingComplete ?? false,
-    };
+    const accountId = vendor.vendorProfile?.stripeConnectAccountId;
+
+    if (!accountId) {
+      return { connected: false, onboardingComplete: false };
+    }
+
+    // Already confirmed complete — skip the Stripe call
+    if (vendor.vendorProfile?.stripeOnboardingComplete) {
+      return { connected: true, onboardingComplete: true };
+    }
+
+    // Poll Stripe directly — webhooks can't reach a local/staging server
+    try {
+      const account = await this.stripe.accounts.retrieve(accountId);
+      const complete = !!(account.charges_enabled && account.details_submitted);
+      if (complete) {
+        await this.usersService.markVendorStripeComplete(accountId);
+      }
+      return { connected: true, onboardingComplete: complete };
+    } catch {
+      return { connected: true, onboardingComplete: false };
+    }
   }
 
   async recordDisputedPayment(stripePaymentIntentId: string): Promise<void> {

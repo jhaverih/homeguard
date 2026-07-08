@@ -29,7 +29,7 @@ function RoleSwitcher() {
   );
 }
 
-function StripeSetupGate({ onRefresh }: { onRefresh: () => void }) {
+function StripeSetupGate({ onRefresh, onSkip }: { onRefresh: () => void; onSkip: () => void }) {
   const [loading, setLoading] = useState(false);
 
   const openStripe = async () => {
@@ -74,6 +74,10 @@ function StripeSetupGate({ onRefresh }: { onRefresh: () => void }) {
         <Text style={styles.gateHint}>
           Already set up? Tap "check again" after finishing in your browser.
         </Text>
+
+        <TouchableOpacity style={styles.skipBtn} onPress={onSkip}>
+          <Text style={styles.skipText}>Skip for now</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -95,6 +99,7 @@ export default function VendorLayout() {
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; onboardingComplete: boolean } | null>(null);
   const [checking, setChecking] = useState(true);
   const [offline, setOffline] = useState(false);
+  const [skipped, setSkipped] = useState(false);
 
   const checkStripe = useCallback(async () => {
     setOffline(false);
@@ -155,12 +160,15 @@ export default function VendorLayout() {
     },
   };
 
-  // Only show Stripe gate when server explicitly confirmed onboarding is incomplete
-  if (stripeStatus && !stripeStatus.onboardingComplete) {
+  // Only show Stripe gate when server explicitly confirmed onboarding is incomplete and user hasn't skipped
+  if (stripeStatus && !stripeStatus.onboardingComplete && !skipped) {
     return (
       <>
         <Tabs {...tabsProps}>{tabScreens}</Tabs>
-        <StripeSetupGate onRefresh={() => { setChecking(true); checkStripe(); }} />
+        <StripeSetupGate
+          onRefresh={() => { setChecking(true); checkStripe(); }}
+          onSkip={() => setSkipped(true)}
+        />
       </>
     );
   }
@@ -197,4 +205,6 @@ const styles = StyleSheet.create({
   refreshBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12 },
   refreshText: { color: '#635bff', fontSize: 14, fontWeight: '600' },
   gateHint: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginTop: 4 },
+  skipBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
+  skipText: { fontSize: 13, color: '#94a3b8', textDecorationLine: 'underline' },
 });
