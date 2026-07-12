@@ -24,6 +24,7 @@ import { PricingService } from '../pricing/pricing.service';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
+import { emailEquals } from '../common/utils/email.util';
 
 @Injectable()
 export class AdminService {
@@ -561,7 +562,7 @@ export class AdminService {
   }
 
   async createTeamUser(data: { email: string; firstName: string; lastName: string; adminLevel: AdminLevel }) {
-    const existing = await this.usersRepo.findOne({ where: { email: data.email } });
+    const existing = await this.usersRepo.findOne({ where: { email: emailEquals(data.email) } });
     if (existing) throw new ConflictException('Email already in use');
 
     // Throwaway password — the invitee sets their own via the forgot-password flow below.
@@ -615,6 +616,41 @@ export class AdminService {
     }
 
     await this.usersRepo.update(userId, { status: UserStatus.SUSPENDED });
+    return { success: true };
+  }
+
+  async reinstateTeamUser(userId: string) {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
+
+    await this.usersRepo.update(userId, { status: UserStatus.ACTIVE });
+    return this.usersRepo.findOne({ where: { id: userId } });
+  }
+
+  async deleteTeamUser(userId: string) {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
+
+    if (user.status !== UserStatus.SUSPENDED) {
+      throw new BadRequestException('Suspend this user first (Remove) before deleting permanently.');
+    }
+
+    if (user.adminLevel === AdminLevel.SUPER_USER) {
+      const superUserCount = await this.usersRepo
+        .createQueryBuilder('u')
+        .where('u.adminLevel = :level', { level: AdminLevel.SUPER_USER })
+        .andWhere('u.status = :status', { status: UserStatus.ACTIVE })
+        .getCount();
+      if (superUserCount === 0) {
+        throw new BadRequestException('Cannot delete the last Super User — reinstate another Super User first.');
+      }
+    }
+
+    try {
+      await this.usersRepo.delete(userId);
+    } catch (err: any) {
+      throw new BadRequestException('Could not delete this user — it may still have related records.');
+    }
     return { success: true };
   }
 
@@ -761,7 +797,10 @@ export class AdminService {
 
   // ── Home Monitoring Setup dispatch ────────────────────────────────────────
 
-  private async getEligibleMonitoringCustomerIds(): Promise<string[]> {
+  // Annotates every active Standard/Premium customer with their connection
+  // state, rather than filtering connected ones out — the admin UI needs to
+  // show "Connected" + Edit for them, not just silently drop them from the list.
+  private async getMonitoringCandidates(): Promise<{ customerId: string; isConnected: boolean; hasPendingRequest: boolean }[]> {
     const activeSubs = await this.subscriptionsRepo.find({ where: { status: SubscriptionStatus.ACTIVE } });
     const candidateIds = activeSubs
       .filter((s) => s.plan?.tier === PlanTier.STANDARD || s.plan?.tier === PlanTier.PREMIUM)
@@ -780,14 +819,30 @@ export class AdminService {
       requestedIds = new Set(existingRequests.map((r) => r.customerId));
     }
 
-    return candidateIds.filter((id) => !connectedIds.has(id) && !requestedIds.has(id));
+    return candidateIds.map((id) => ({
+      customerId: id,
+      isConnected: connectedIds.has(id),
+      hasPendingRequest: requestedIds.has(id),
+    }));
   }
 
   async getMonitoringSetupRequests() {
-    const eligibleIds = await this.getEligibleMonitoringCustomerIds();
-    if (eligibleIds.length === 0) return [];
-    const customers = await this.usersRepo.find({ where: { id: In(eligibleIds) } });
-    return customers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, email: c.email }));
+    const candidates = await this.getMonitoringCandidates();
+    if (candidates.length === 0) return [];
+    const customers = await this.usersRepo.find({ where: { id: In(candidates.map((c) => c.customerId)) } });
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    return candidates
+      .filter((c) => customerMap.has(c.customerId))
+      .map((c) => {
+        const u = customerMap.get(c.customerId)!;
+        return {
+          id: u.id,
+          name: `${u.firstName} ${u.lastName}`,
+          email: u.email,
+          isConnected: c.isConnected,
+          hasPendingRequest: c.hasPendingRequest,
+        };
+      });
   }
 
   async requestMonitoringConnection(customerId: string) {

@@ -10,6 +10,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { EmailService } from '../common/email/email.service';
 import { UserStatus } from '../common/enums/role.enum';
+import { emailEquals } from '../common/utils/email.util';
 
 function randomCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -53,7 +54,7 @@ export class AuthService {
   }
 
   async verifyEmail(email: string, code: string): Promise<{ message: string }> {
-    const user = await this.usersRepo.findOne({ where: { email } });
+    const user = await this.usersRepo.findOne({ where: { email: emailEquals(email) } });
     if (!user) throw new NotFoundException('User not found');
     if (user.isEmailVerified) return { message: 'Already verified' };
 
@@ -76,7 +77,7 @@ export class AuthService {
   }
 
   async resendVerification(email: string): Promise<{ message: string }> {
-    const user = await this.usersRepo.findOne({ where: { email } });
+    const user = await this.usersRepo.findOne({ where: { email: emailEquals(email) } });
     if (!user) throw new NotFoundException('User not found');
     if (user.isEmailVerified) return { message: 'Already verified' };
 
@@ -86,7 +87,7 @@ export class AuthService {
 
   async forgotPassword(email: string): Promise<{ message: string }> {
     // Always return success to prevent email enumeration
-    const user = await this.usersRepo.findOne({ where: { email } });
+    const user = await this.usersRepo.findOne({ where: { email: emailEquals(email) } });
     if (user) {
       const token = await this.issuePasswordResetToken(user.id);
       await this.emailService.sendPasswordReset(email, token);

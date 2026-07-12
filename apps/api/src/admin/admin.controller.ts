@@ -143,6 +143,20 @@ export class AdminController {
     return this.service.removeTeamUser(id);
   }
 
+  @Patch('team-users/:id/reinstate')
+  @MinAdminLevel(AdminLevel.SUPER_USER)
+  @ApiOperation({ summary: 'Super User: reactivate a suspended admin-portal user' })
+  reinstateTeamUser(@Param('id') id: string) {
+    return this.service.reinstateTeamUser(id);
+  }
+
+  @Delete('team-users/:id/permanent')
+  @MinAdminLevel(AdminLevel.SUPER_USER)
+  @ApiOperation({ summary: 'Super User: permanently delete a suspended admin-portal user' })
+  deleteTeamUser(@Param('id') id: string) {
+    return this.service.deleteTeamUser(id);
+  }
+
   @Get('vendor-applications')
   @MinAdminLevel(AdminLevel.ADMIN)
   @ApiOperation({ summary: 'Admin/Super User: review queue for vendor company applications' })

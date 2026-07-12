@@ -18,6 +18,7 @@ import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../co
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { emailEquals } from '../common/utils/email.util';
 
 const CAPABILITY_SEED: {
   name: string;
@@ -314,7 +315,7 @@ export class VendorService implements OnModuleInit {
 
   async createTechnician(userId: string, data: { email: string; firstName: string; lastName: string; avatarUrl?: string }) {
     const company = await this.requireCompany(userId);
-    const existing = await this.usersRepo.findOne({ where: { email: data.email } });
+    const existing = await this.usersRepo.findOne({ where: { email: emailEquals(data.email) } });
     if (existing) throw new ConflictException('Email already in use');
 
     const throwawayPassword = crypto.randomBytes(24).toString('hex');

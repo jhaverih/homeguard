@@ -63,6 +63,31 @@ export default function TeamPage() {
     }
   };
 
+  const reinstate = async (id: string, name: string) => {
+    setBusyId(id);
+    try {
+      await adminApi.reinstateTeamUser(id);
+      await load();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Could not reinstate user.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const deletePermanently = async (id: string, name: string) => {
+    if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    setBusyId(id);
+    try {
+      await adminApi.deleteTeamUserPermanently(id);
+      await load();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Could not delete user.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (loading) return <div className="text-gray-500 p-8">Loading...</div>;
 
   return (
@@ -160,13 +185,32 @@ export default function TeamPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <button
-                    onClick={() => remove(u.id, u.name)}
-                    disabled={busyId === u.id}
-                    className="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
-                  >
-                    Remove
-                  </button>
+                  {u.status === 'SUSPENDED' ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => reinstate(u.id, u.name)}
+                        disabled={busyId === u.id}
+                        className="bg-green-50 text-green-700 border border-green-200 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-green-100 disabled:opacity-50 transition-colors"
+                      >
+                        Reinstate
+                      </button>
+                      <button
+                        onClick={() => deletePermanently(u.id, u.name)}
+                        disabled={busyId === u.id}
+                        className="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+                      >
+                        Delete Permanently
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => remove(u.id, u.name)}
+                      disabled={busyId === u.id}
+                      className="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

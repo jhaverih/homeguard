@@ -61,10 +61,14 @@ export const adminApi = {
   updateTeamUserLevel: (id: string, adminLevel: string) =>
     api.patch(`/admin/team-users/${id}/level`, { adminLevel }).then((r) => r.data),
   removeTeamUser: (id: string) => api.delete(`/admin/team-users/${id}`).then((r) => r.data),
+  reinstateTeamUser: (id: string) => api.patch(`/admin/team-users/${id}/reinstate`).then((r) => r.data),
+  deleteTeamUserPermanently: (id: string) => api.delete(`/admin/team-users/${id}/permanent`).then((r) => r.data),
   getCapabilities: () => api.get('/admin/capabilities').then((r) => r.data),
   getMonitoringSetupRequests: () => api.get('/admin/monitoring-setup-requests').then((r) => r.data),
   requestMonitoringConnection: (customerId: string) =>
     api.post(`/admin/monitoring-setup-requests/${customerId}/request`).then((r) => r.data),
+  linkYolinkHome: (data: { customerId: string; yolinkUAID: string; yolinkSecretKey: string; homeName: string; address?: string }) =>
+    api.post('/yolink/link', data).then((r) => r.data),
 };
 
 export const userApi = {

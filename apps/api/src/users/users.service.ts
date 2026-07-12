@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
+import { emailEquals, normalizeEmail } from '../common/utils/email.util';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
 import { VendorProfile } from './entities/vendor-profile.entity';
@@ -129,8 +130,13 @@ export class UsersService implements OnModuleInit {
   }
 
   async create(dto: CreateUserDto): Promise<User> {
+    // Emails are case-insensitive — normalize so "Foo@x.com" and "foo@x.com"
+    // are always treated as the same account (merges roles below instead of
+    // silently forking a duplicate), and match against any pre-existing
+    // mixed-case row too.
+    dto = { ...dto, email: normalizeEmail(dto.email) };
     const existing = await this.usersRepo.findOne({
-      where: { email: dto.email },
+      where: { email: emailEquals(dto.email) },
       relations: ['vendorProfile', 'customerProfile'],
     });
 
@@ -219,7 +225,7 @@ export class UsersService implements OnModuleInit {
 
   async findByEmail(email: string): Promise<User | null> {
     return this.usersRepo.findOne({
-      where: { email },
+      where: { email: emailEquals(email) },
       select: ['id', 'email', 'password', 'firstName', 'lastName', 'roles', 'status', 'activeRole'],
     });
   }
@@ -267,7 +273,7 @@ export class UsersService implements OnModuleInit {
 
   async addTeamMember(ownerId: string, email: string): Promise<User> {
     const owner = await this.findById(ownerId);
-    const member = await this.usersRepo.findOne({ where: { email } });
+    const member = await this.usersRepo.findOne({ where: { email: emailEquals(email) } });
     if (!member) throw new NotFoundException('No user found with that email address');
     if (member.id === ownerId) throw new BadRequestException('Cannot add yourself as a team member');
     if (member.parentUserId) throw new BadRequestException('This user already belongs to another account');
