@@ -94,6 +94,12 @@ export class ServiceRequest {
   @OneToMany(() => AdditionalService, (s) => s.serviceRequest)
   additionalServices: AdditionalService[];
 
+  // True only for the dispatched "Home Monitoring Setup" job itself — used to
+  // scope the vendor app's Yolink connect card to that one job, not every ticket.
+  get isMonitoringSetupJob(): boolean {
+    return (this.additionalServices ?? []).some((s) => s.name === 'Home Monitoring Setup');
+  }
+
   // MinIO object keys uploaded by vendor as proof of completion (min 1 required)
   @Column({ type: 'simple-array', nullable: true })
   completionPhotoKeys: string[];

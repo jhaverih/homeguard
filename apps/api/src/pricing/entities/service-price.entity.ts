@@ -41,6 +41,11 @@ export class ServicePrice {
   @Column({ nullable: true })
   requiredCapabilityId: string | null;
 
+  // false for services only Houmi triggers on a customer's behalf (e.g. Home
+  // Monitoring Setup) — hidden from the customer's own "request a service" list.
+  @Column({ default: true })
+  customerRequestable: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

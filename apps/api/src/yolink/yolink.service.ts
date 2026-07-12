@@ -36,6 +36,11 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
   // instance fields.
   private tokenCache = new Map<string, TokenEntry>();
   private mqttClients = new Map<string, mqtt.MqttClient>();
+  // The MQTT client authenticates with a snapshot of the OAuth token at connect
+  // time and never re-authenticates on its own — once that token expires
+  // (~2h), a stale-token reconnect fails silently. This timer proactively
+  // reconnects with a fresh token before that happens, per home.
+  private refreshTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     @InjectRepository(YolinkHome) private homesRepo: Repository<YolinkHome>,
@@ -59,6 +64,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() {
     for (const client of this.mqttClients.values()) client.end();
+    for (const timer of this.refreshTimers.values()) clearTimeout(timer);
   }
 
   // ── Token management (per home) ──────────────────────────────────────────────
@@ -96,12 +102,16 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
   // ── MQTT connection (one per linked home) ────────────────────────────────────
 
   private async connectMqtt(home: YolinkHome) {
-    // Re-linking an existing home (new credentials) — tear down the old session first.
+    // Re-linking an existing home (new credentials) or refreshing an expiring
+    // token — tear down the old session and any pending refresh first.
     this.mqttClients.get(home.id)?.end(true);
     this.mqttClients.delete(home.id);
+    clearTimeout(this.refreshTimers.get(home.id));
+    this.refreshTimers.delete(home.id);
 
     try {
       const token = await this.getAccessToken(home);
+      this.scheduleTokenRefresh(home);
 
       const homeData = await this.yolinkRequest(home, 'Home.getGeneralInfo');
       const yolinkHomeId: string = homeData?.id ?? homeData?.homeId ?? home.yolinkUAID;
@@ -148,6 +158,23 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`Failed to start Yolink MQTT connection for "${home.homeName}"`, err.message);
       throw err;
     }
+  }
+
+  private scheduleTokenRefresh(home: YolinkHome) {
+    const entry = this.tokenCache.get(home.id);
+    if (!entry) return;
+    // Reconnect ~5 minutes before the cached token expires, using a fresh
+    // token — connectMqtt() already tears down the old client first, so this
+    // is the same re-link mechanism, just self-triggered on a timer.
+    const delay = Math.max(entry.expiry - Date.now() - 5 * 60 * 1000, 60 * 1000);
+    this.logger.log(`Yolink token refresh scheduled for "${home.homeName}" in ${Math.round(delay / 60000)} min`);
+    const timer = setTimeout(() => {
+      this.logger.log(`Refreshing Yolink token and reconnecting MQTT for "${home.homeName}"`);
+      this.connectMqtt(home).catch((e) =>
+        this.logger.error(`Scheduled Yolink token refresh failed for "${home.homeName}"`, e.message),
+      );
+    }, delay);
+    this.refreshTimers.set(home.id, timer);
   }
 
   // ── Webhook fallback (Yolink cloud can also push via HTTP) ──────────────────
@@ -269,6 +296,8 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     this.mqttClients.get(homeId)?.end(true);
     this.mqttClients.delete(homeId);
     this.tokenCache.delete(homeId);
+    clearTimeout(this.refreshTimers.get(homeId));
+    this.refreshTimers.delete(homeId);
   }
 
   // ── Manual test trigger ───────────────────────────────────────────────────────

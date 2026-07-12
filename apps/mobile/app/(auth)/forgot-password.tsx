@@ -48,17 +48,20 @@ export default function ForgotPasswordScreen() {
               <Ionicons name="mail-outline" size={48} color="#0B4A45" style={{ marginBottom: 16 }} />
               <Text style={styles.title}>Check your email</Text>
               <Text style={styles.subtitle}>
-                If that email address is registered, we've sent a password reset link. Check your inbox (and spam folder).
+                If that email address is registered, we've sent a 6-digit reset code. Check your inbox (and spam folder).
               </Text>
-              <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
-                <Text style={styles.buttonText}>Back to Sign In</Text>
+              <TouchableOpacity style={styles.button} onPress={() => router.push('/(auth)/reset-password')}>
+                <Text style={styles.buttonText}>Enter Code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelRow} onPress={() => router.replace('/(auth)/login')}>
+                <Text style={styles.cancelText}>Back to Sign In</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <>
               <Text style={styles.title}>Reset Password</Text>
               <Text style={styles.subtitle}>
-                Enter your email address and we'll send you a link to reset your password.
+                Enter your email address and we'll send you a 6-digit code to reset your password.
               </Text>
 
               <TextInput
@@ -78,7 +81,7 @@ export default function ForgotPasswordScreen() {
                 onPress={handleSend}
                 disabled={loading || !email.trim()}
               >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send Reset Link</Text>}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send Reset Code</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.cancelRow} onPress={() => router.back()}>

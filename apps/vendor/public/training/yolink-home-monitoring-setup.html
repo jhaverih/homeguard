@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Home Monitoring Setup — Installer Guide | Houmi</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; line-height: 1.6; color: #1a1a1a; background: #fff; }
+  h1 { color: #0B4A45; font-size: 26px; margin-bottom: 4px; }
+  h2 { color: #0B4A45; font-size: 19px; margin-top: 36px; border-bottom: 2px solid #EBF1EF; padding-bottom: 6px; }
+  h3 { font-size: 15px; margin-top: 20px; margin-bottom: 6px; }
+  .subtitle { color: #64748b; margin-bottom: 28px; }
+  .box { background: #EBF1EF; border-radius: 12px; padding: 16px 20px; margin: 16px 0; }
+  .warn { background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 16px 20px; margin: 16px 0; }
+  a { color: #0B4A45; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+  th { color: #64748b; font-weight: 600; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  ol, ul { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0f172a; color: #e2e8f0; }
+    .box { background: #16302d; }
+    .warn { background: #3a2f10; border-color: #78350f; }
+    th, td { border-color: #334155; }
+    code { background: #1e293b; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Home Monitoring Setup — Installer Guide</h1>
+<p class="subtitle">Read this before selecting the "Yolink Home Monitoring Setup" capability. It covers how to pair the customer's Yolink hub and sensors, and where Houmi expects each sensor type to be placed.</p>
+
+<div class="box">
+  <strong>Before you go on-site:</strong> the customer has already generated their own Yolink credentials (UAID + Secret Key) from their own Yolink app under <em>Account → Advanced Settings → User Access Credentials</em>. You'll enter those in the Houmi vendor app on the job screen once the hub is online — Houmi never asks for the customer's Yolink login.
+</div>
+
+<h2>1. Yolink hardware setup (on-site)</h2>
+<ol>
+  <li>Unbox the Yolink Hub and connect it to power and the customer's Wi-Fi/Ethernet per the included quick-start card.</li>
+  <li>Confirm the hub shows a solid connection light before pairing any sensors — see YoSmart's official hub setup guide: <a href="https://www.yosmart.com/support" target="_blank" rel="noopener">yosmart.com/support</a>.</li>
+  <li>Pair each sensor to the hub using the Yolink app (the customer's own account, on their phone or yours if they've shared temporary access) — hold the sensor's pairing button per the model's included instructions until the hub confirms.</li>
+  <li>Label each sensor in the Yolink app with a clear name (e.g. "Water Heater Leak Sensor") — this name is what shows up in Houmi alerts later.</li>
+</ol>
+
+<h2>2. Where sensors go</h2>
+<p>What gets installed depends on the customer's Houmi plan:</p>
+
+<h3>Standard plan</h3>
+<table>
+  <tr><th>Sensor</th><th>Placement</th></tr>
+  <tr><td>Leak sensor</td><td>AC drainage pan (condensate pan under the air handler)</td></tr>
+  <tr><td>Leak sensor</td><td>Washer pan, directly under the washing machine drain</td></tr>
+</table>
+
+<h3>Premium plan (includes everything in Standard, plus)</h3>
+<table>
+  <tr><th>Sensor</th><th>Placement</th></tr>
+  <tr><td>Leak sensor</td><td>Water heater base</td></tr>
+  <tr><td>Leak sensor</td><td>Under kitchen sink, dishwasher supply line</td></tr>
+  <tr><td>Temp/Humidity sensor</td><td>Near the HVAC return, for full system monitoring</td></tr>
+  <tr><td>Vibration/door sensor</td><td>Electrical panel or utility closet, if requested on the ticket</td></tr>
+</table>
+
+<div class="warn">
+  Always check the specific job ticket in the Houmi vendor app for any customer-specific notes before finalizing placement — the tables above are the default, not a substitute for reading the ticket.
+</div>
+
+<h2>3. Confirming and connecting in Houmi</h2>
+<ol>
+  <li>Once all sensors are paired and reporting in the Yolink app, open the job in the Houmi vendor app.</li>
+  <li>Tap <strong>Connect Home Monitoring</strong> and enter the customer's UAID and Secret Key exactly as shown in their Yolink app.</li>
+  <li>Houmi verifies the credentials live against Yolink and shows you the device count found — confirm it matches what you installed before marking the job complete.</li>
+</ol>
+
+<h2>4. Troubleshooting</h2>
+<ul>
+  <li><strong>Hub won't connect to Wi-Fi:</strong> confirm 2.4GHz network (Yolink hubs don't support 5GHz-only networks).</li>
+  <li><strong>Sensor won't pair:</strong> replace the battery — a low sensor battery is the most common pairing failure.</li>
+  <li><strong>Credentials rejected in the Houmi app:</strong> double-check for extra spaces when copying the UAID/Secret Key from the Yolink app; both are case-sensitive.</li>
+</ul>
+
+<p class="subtitle" style="margin-top:40px">Once you've read this guide, go back to <strong>My Capabilities &amp; Certifications</strong> in the Vendor Portal and confirm you understand the installation process to unlock this capability.</p>
+
+</body>
+</html>

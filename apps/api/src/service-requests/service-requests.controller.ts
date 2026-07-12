@@ -50,8 +50,11 @@ export class ServiceRequestsController {
   }
 
   @Get(':id')
-  findOne(@Request() req, @Param('id') id: string) {
-    return this.service.findByIdForUser(id, req.user.id);
+  async findOne(@Request() req, @Param('id') id: string) {
+    const request = await this.service.findByIdForUser(id, req.user.id);
+    // Getters on the TypeORM entity don't survive JSON serialization —
+    // attach explicitly so the vendor app can scope the Yolink connect card.
+    return { ...request, isMonitoringSetupJob: request.isMonitoringSetupJob };
   }
 
   @Get(':id/with-photos')

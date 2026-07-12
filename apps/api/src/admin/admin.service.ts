@@ -11,12 +11,16 @@ import { Dispute } from '../service-requests/entities/dispute.entity';
 import { Review } from '../reviews/entities/review.entity';
 import { Alert } from '../alerts/entities/alert.entity';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
-import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../common/enums/role.enum';
+import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus, PlanTier } from '../common/enums/role.enum';
+import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { EmailService } from '../common/email/email.service';
+import { ServiceRequestsService } from '../service-requests/service-requests.service';
+import { PricingService } from '../pricing/pricing.service';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
@@ -36,10 +40,14 @@ export class AdminService {
     @InjectRepository(VendorCompany) private vendorCompanyRepo: Repository<VendorCompany>,
     @InjectRepository(VendorCertification) private vendorCertificationRepo: Repository<VendorCertification>,
     @InjectRepository(VendorCapability) private vendorCapabilityRepo: Repository<VendorCapability>,
+    @InjectRepository(YolinkHome) private yolinkHomesRepo: Repository<YolinkHome>,
     private notificationsService: NotificationsService,
     private usersService: UsersService,
     private authService: AuthService,
     private uploadsService: UploadsService,
+    private emailService: EmailService,
+    private serviceRequestsService: ServiceRequestsService,
+    private pricingService: PricingService,
   ) {}
 
   async getStats() {
@@ -566,7 +574,8 @@ export class AdminService {
       roles: [UserRole.ADMIN],
     });
     await this.usersRepo.update(created.id, { adminLevel: data.adminLevel });
-    await this.authService.forgotPassword(data.email);
+    const code = await this.authService.issuePasswordResetToken(created.id);
+    await this.emailService.sendTeamInvite(data.email, code, data.firstName);
 
     return this.usersRepo.findOne({ where: { id: created.id } });
   }
@@ -744,5 +753,60 @@ export class AdminService {
     if (!capability) throw new NotFoundException('Capability not found');
     Object.assign(capability, data);
     return this.vendorCapabilityRepo.save(capability);
+  }
+
+  async getCapabilities() {
+    return this.vendorCapabilityRepo.find({ where: { isActive: true }, order: { name: 'ASC' } });
+  }
+
+  // ── Home Monitoring Setup dispatch ────────────────────────────────────────
+
+  private async getEligibleMonitoringCustomerIds(): Promise<string[]> {
+    const activeSubs = await this.subscriptionsRepo.find({ where: { status: SubscriptionStatus.ACTIVE } });
+    const candidateIds = activeSubs
+      .filter((s) => s.plan?.tier === PlanTier.STANDARD || s.plan?.tier === PlanTier.PREMIUM)
+      .map((s) => s.customerId);
+    if (candidateIds.length === 0) return [];
+
+    const connectedHomes = await this.yolinkHomesRepo.find({ where: { customerId: In(candidateIds), isActive: true } });
+    const connectedIds = new Set(connectedHomes.map((h) => h.customerId));
+
+    let requestedIds = new Set<string>();
+    const monitoringPrice = await this.pricingService.findByName('Home Monitoring Setup');
+    if (monitoringPrice) {
+      const existingRequests = await this.requestsRepo.find({
+        where: { customerId: In(candidateIds), servicePriceId: monitoringPrice.id },
+      });
+      requestedIds = new Set(existingRequests.map((r) => r.customerId));
+    }
+
+    return candidateIds.filter((id) => !connectedIds.has(id) && !requestedIds.has(id));
+  }
+
+  async getMonitoringSetupRequests() {
+    const eligibleIds = await this.getEligibleMonitoringCustomerIds();
+    if (eligibleIds.length === 0) return [];
+    const customers = await this.usersRepo.find({ where: { id: In(eligibleIds) } });
+    return customers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, email: c.email }));
+  }
+
+  async requestMonitoringConnection(customerId: string) {
+    const monitoringPrice = await this.pricingService.findByName('Home Monitoring Setup');
+    if (!monitoringPrice) {
+      throw new BadRequestException('Add a "Home Monitoring Setup" service in Pricing first.');
+    }
+    const profile = await this.customerProfileRepo.findOne({ where: { userId: customerId } });
+    if (!profile) throw new BadRequestException('This customer has no address on file.');
+
+    const preferredDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    return this.serviceRequestsService.createStandaloneService(customerId, {
+      servicePriceId: monitoringPrice.id,
+      preferredDate: preferredDate.toISOString(),
+      address: profile.address,
+      city: profile.city,
+      state: profile.state,
+      zipCode: profile.zipCode,
+      customerNotes: 'Home monitoring setup — requested by Houmi',
+    });
   }
 }

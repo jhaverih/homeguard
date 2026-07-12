@@ -13,25 +13,31 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { AuthModule } from '../auth/auth.module';
 import { UploadsModule } from '../uploads/uploads.module';
+import { ServiceRequestsModule } from '../service-requests/service-requests.module';
+import { PricingModule } from '../pricing/pricing.module';
 import { VendorCompany } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification } from '../vendor/entities/vendor-certification.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
+import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { VendorSchedulerService } from './vendor-scheduler.service';
+import { EmailService } from '../common/email/email.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       User, VendorProfile, CustomerSubscription, Payment, ServiceRequest, Dispute, Review, Alert, CustomerProfile,
-      VendorCompany, VendorCertification, VendorCapability,
+      VendorCompany, VendorCertification, VendorCapability, YolinkHome,
     ]),
     NotificationsModule,
     UsersModule,
     AuthModule,
     UploadsModule,
+    ServiceRequestsModule,
+    PricingModule,
   ],
-  providers: [AdminService, VendorSchedulerService],
+  providers: [AdminService, VendorSchedulerService, EmailService],
   controllers: [AdminController],
 })
 export class AdminModule {}

@@ -20,12 +20,20 @@ const links = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isSuperUser, setIsSuperUser] = useState(false);
+  const [isAtLeastAdmin, setIsAtLeastAdmin] = useState(false);
 
   useEffect(() => {
-    userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
+    userApi.getMe().then((me: any) => {
+      setIsSuperUser(me.adminLevel === 'SUPER_USER');
+      setIsAtLeastAdmin(me.adminLevel === 'SUPER_USER' || me.adminLevel === 'ADMIN');
+    }).catch(() => {});
   }, []);
 
-  const visibleLinks = isSuperUser ? [...links, { href: '/team', label: 'Team', icon: '👥' }] : links;
+  const visibleLinks = [
+    ...links,
+    ...(isAtLeastAdmin ? [{ href: '/monitoring-setup', label: 'Monitoring Setup', icon: '📡' }] : []),
+    ...(isSuperUser ? [{ href: '/team', label: 'Team', icon: '👥' }] : []),
+  ];
 
   return (
     <aside className="w-64 bg-brand text-white flex flex-col min-h-screen">

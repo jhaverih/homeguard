@@ -23,6 +23,14 @@ export class VendorCapability {
   @Column({ default: true })
   isActive: boolean;
 
+  // Link to internal training material a vendor must read before selecting
+  // this capability — not a trade license (see VendorCertification for that).
+  @Column({ nullable: true })
+  trainingDocumentUrl: string | null;
+
+  @Column({ default: false })
+  requiresAcknowledgment: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

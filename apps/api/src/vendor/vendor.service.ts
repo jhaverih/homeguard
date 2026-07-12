@@ -7,6 +7,7 @@ import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { VendorCompany } from './entities/vendor-company.entity';
 import { VendorCapability, CertificationType } from './entities/vendor-capability.entity';
 import { VendorCapabilitySelection } from './entities/vendor-capability-selection.entity';
+import { VendorCapabilityAcknowledgment } from './entities/vendor-capability-acknowledgment.entity';
 import { VendorCertification, CertificationReviewStatus } from './entities/vendor-certification.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { Payment } from '../payments/entities/payment.entity';
@@ -18,7 +19,18 @@ import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 import { UploadsService } from '../uploads/uploads.service';
 
-const CAPABILITY_SEED: { name: string; requiredCertificationType: CertificationType }[] = [
+const CAPABILITY_SEED: {
+  name: string;
+  requiredCertificationType: CertificationType;
+  trainingDocumentUrl?: string;
+  requiresAcknowledgment?: boolean;
+}[] = [
+  {
+    name: 'Yolink Home Monitoring Setup',
+    requiredCertificationType: CertificationType.NONE,
+    trainingDocumentUrl: '/training/yolink-home-monitoring-setup.html',
+    requiresAcknowledgment: true,
+  },
   { name: 'HVAC Contractor', requiredCertificationType: CertificationType.HVAC },
   { name: 'Electrical Contractor', requiredCertificationType: CertificationType.ELECTRICAL },
   { name: 'Plumbing Contractor', requiredCertificationType: CertificationType.PLUMBING },
@@ -44,6 +56,7 @@ export class VendorService implements OnModuleInit {
     @InjectRepository(VendorCompany) private companyRepo: Repository<VendorCompany>,
     @InjectRepository(VendorCapability) private capabilityRepo: Repository<VendorCapability>,
     @InjectRepository(VendorCapabilitySelection) private selectionRepo: Repository<VendorCapabilitySelection>,
+    @InjectRepository(VendorCapabilityAcknowledgment) private acknowledgmentRepo: Repository<VendorCapabilityAcknowledgment>,
     @InjectRepository(VendorCertification) private certificationRepo: Repository<VendorCertification>,
     @InjectRepository(ServiceRequest) private requestsRepo: Repository<ServiceRequest>,
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
@@ -72,7 +85,12 @@ export class VendorService implements OnModuleInit {
   // capability. Idempotent: only touches users with zero capability selections, so a
   // vendor who has since customized their list is left alone.
   private async grandfatherExistingVendors() {
-    const nonCertCapabilities = await this.capabilityRepo.find({ where: { requiredCertificationType: CertificationType.NONE } });
+    // Never auto-grant a capability that requires reading a training doc first
+    // (e.g. Yolink Home Monitoring Setup) — grandfathering only covers
+    // capabilities that were open-checkbox before this system existed.
+    const nonCertCapabilities = await this.capabilityRepo.find({
+      where: { requiredCertificationType: CertificationType.NONE, requiresAcknowledgment: false },
+    });
     if (!nonCertCapabilities.length) return;
 
     const vendorUsers = await this.usersRepo
@@ -367,8 +385,13 @@ export class VendorService implements OnModuleInit {
     }));
   }
 
-  async getCapabilities() {
-    return this.capabilityRepo.find({ where: { isActive: true }, order: { name: 'ASC' } });
+  async getCapabilities(userId?: string) {
+    const capabilities = await this.capabilityRepo.find({ where: { isActive: true }, order: { name: 'ASC' } });
+    if (!userId) return capabilities;
+
+    const acks = await this.acknowledgmentRepo.find({ where: { userId } });
+    const ackedIds = new Set(acks.map((a) => a.capabilityId));
+    return capabilities.map((c) => ({ ...c, acknowledged: ackedIds.has(c.id) }));
   }
 
   async getMyCapabilities(userId: string) {
@@ -377,11 +400,36 @@ export class VendorService implements OnModuleInit {
   }
 
   async setMyCapabilities(userId: string, capabilityIds: string[]) {
+    if (capabilityIds.length) {
+      const capabilities = await this.capabilityRepo.find({ where: { id: In(capabilityIds) } });
+      const needingAck = capabilities.filter((c) => c.requiresAcknowledgment);
+      if (needingAck.length) {
+        const acks = await this.acknowledgmentRepo.find({
+          where: { userId, capabilityId: In(needingAck.map((c) => c.id)) },
+        });
+        const ackedIds = new Set(acks.map((a) => a.capabilityId));
+        const missing = needingAck.find((c) => !ackedIds.has(c.id));
+        if (missing) {
+          throw new BadRequestException(`Read and confirm the training material for "${missing.name}" before selecting it.`);
+        }
+      }
+    }
+
     await this.selectionRepo.delete({ userId });
     if (capabilityIds.length) {
       await this.selectionRepo.save(capabilityIds.map((capabilityId) => this.selectionRepo.create({ userId, capabilityId })));
     }
     return this.getMyCapabilities(userId);
+  }
+
+  async acknowledgeCapability(userId: string, capabilityId: string) {
+    const capability = await this.capabilityRepo.findOne({ where: { id: capabilityId } });
+    if (!capability) throw new NotFoundException('Capability not found');
+
+    const existing = await this.acknowledgmentRepo.findOne({ where: { userId, capabilityId } });
+    if (existing) return existing;
+
+    return this.acknowledgmentRepo.save(this.acknowledgmentRepo.create({ userId, capabilityId }));
   }
 
   async getMyCertifications(userId: string) {

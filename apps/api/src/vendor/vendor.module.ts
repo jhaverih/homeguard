@@ -13,6 +13,7 @@ import { UploadsModule } from '../uploads/uploads.module';
 import { VendorCompany } from './entities/vendor-company.entity';
 import { VendorCapability } from './entities/vendor-capability.entity';
 import { VendorCapabilitySelection } from './entities/vendor-capability-selection.entity';
+import { VendorCapabilityAcknowledgment } from './entities/vendor-capability-acknowledgment.entity';
 import { VendorCertification } from './entities/vendor-certification.entity';
 import { VendorService } from './vendor.service';
 import { VendorController } from './vendor.controller';
@@ -20,7 +21,7 @@ import { VendorController } from './vendor.controller';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      User, VendorProfile, VendorCompany, VendorCapability, VendorCapabilitySelection, VendorCertification,
+      User, VendorProfile, VendorCompany, VendorCapability, VendorCapabilitySelection, VendorCapabilityAcknowledgment, VendorCertification,
       ServiceRequest, Payment, Dispute, InspectionNote, InspectionTaskResult,
     ]),
     UsersModule,

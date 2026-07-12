@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ServicePrice } from './entities/service-price.entity';
+import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 
 const NEW_CATALOG = [
   {
@@ -70,13 +71,18 @@ const NEW_CATALOG = [
 
 @Injectable()
 export class PricingService implements OnModuleInit {
+  private readonly logger = new Logger(PricingService.name);
+
   constructor(
     @InjectRepository(ServicePrice)
     private pricesRepo: Repository<ServicePrice>,
+    @InjectRepository(VendorCapability)
+    private capabilityRepo: Repository<VendorCapability>,
   ) {}
 
   async onModuleInit() {
     await this.seedPrices();
+    await this.seedMonitoringService();
   }
 
   private async seedPrices() {
@@ -91,8 +97,37 @@ export class PricingService implements OnModuleInit {
     }
   }
 
+  // Separate from seedPrices() (which only ever runs once, on an empty
+  // catalog) so this safely upserts on every boot — matches how
+  // VendorService.seedCapabilities() handles new capability rows.
+  private async seedMonitoringService() {
+    const existing = await this.pricesRepo.findOne({ where: { name: 'Home Monitoring Setup' } });
+    if (existing) return;
+
+    const capability = await this.capabilityRepo.findOne({ where: { name: 'Yolink Home Monitoring Setup' } });
+    if (!capability) {
+      this.logger.warn('"Yolink Home Monitoring Setup" capability not found yet — will retry seeding "Home Monitoring Setup" price on next restart.');
+      return;
+    }
+
+    await this.pricesRepo.save(this.pricesRepo.create({
+      name: 'Home Monitoring Setup',
+      description: 'On-site installation and connection of Yolink home monitoring sensors (leak, temperature/humidity) per the customer\'s plan.',
+      basePrice: 149,
+      markupPercent: 0,
+      priceNote: '$149 one-time',
+      customerRequestable: false,
+      requiredCapabilityId: capability.id,
+    }));
+    this.logger.log('Seeded "Home Monitoring Setup" service ($149, Yolink-capability-gated, Houmi-triggered only).');
+  }
+
   async getAll(includeInactive = false): Promise<ServicePrice[]> {
     return this.pricesRepo.find(includeInactive ? {} : { where: { isActive: true } });
+  }
+
+  async findByName(name: string): Promise<ServicePrice | null> {
+    return this.pricesRepo.findOne({ where: { name } });
   }
 
   async update(id: string, data: Partial<ServicePrice>): Promise<ServicePrice> {

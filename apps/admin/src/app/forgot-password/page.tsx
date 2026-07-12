@@ -29,9 +29,12 @@ export default function ForgotPasswordPage() {
             <p className="text-4xl mb-4">📧</p>
             <h1 className="text-lg font-semibold text-gray-900 mb-2">Check your email</h1>
             <p className="text-sm text-gray-500 mb-6">
-              If that email address is registered, we&apos;ve sent a password reset link. Check your inbox (and spam folder).
+              If that email address is registered, we&apos;ve sent a 6-digit reset code. Check your inbox (and spam folder).
             </p>
-            <Link href="/login" className="text-sm font-semibold text-brand hover:underline">
+            <Link href="/reset-password" className="block text-sm font-semibold text-brand hover:underline mb-3">
+              Enter code &rarr;
+            </Link>
+            <Link href="/login" className="text-sm text-gray-400 hover:underline">
               Back to Sign In
             </Link>
           </div>
@@ -39,7 +42,7 @@ export default function ForgotPasswordPage() {
           <>
             <h1 className="text-lg font-semibold text-gray-900 mb-1">Reset Password</h1>
             <p className="text-sm text-gray-500 mb-6">
-              Enter your email address and we&apos;ll send you a link to reset your password.
+              Enter your email address and we&apos;ll send you a 6-digit code to reset your password.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -58,7 +61,7 @@ export default function ForgotPasswordPage() {
                 disabled={loading || !email.trim()}
                 className="w-full bg-brand text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-light transition-colors disabled:opacity-50"
               >
-                {loading ? 'Sending...' : 'Send Reset Link'}
+                {loading ? 'Sending...' : 'Send Reset Code'}
               </button>
             </form>
             <p className="text-center text-xs text-gray-400 mt-6">

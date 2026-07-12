@@ -48,16 +48,18 @@ export default function ResetPasswordPage() {
         ) : (
           <>
             <h1 className="text-lg font-semibold text-gray-900 mb-1">New Password</h1>
-            <p className="text-sm text-gray-500 mb-6">Enter the token from your reset email, then choose a new password.</p>
+            <p className="text-sm text-gray-500 mb-6">Check your email for a 6-digit code, enter it below, then choose a new password.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reset Token</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">6-digit code</label>
                 <input
                   value={token}
-                  onChange={(e) => setToken(e.target.value)}
+                  onChange={(e) => setToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   required
-                  placeholder="Paste token from email"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                  inputMode="numeric"
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-2xl font-bold tracking-[0.5em] text-center focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
                 />
               </div>
               <div>
@@ -95,7 +97,7 @@ export default function ResetPasswordPage() {
               </button>
             </form>
             <p className="text-center text-xs text-gray-400 mt-6">
-              <Link href="/forgot-password" className="hover:underline">Need a new reset link?</Link>
+              <Link href="/forgot-password" className="hover:underline">Need a new code?</Link>
             </p>
           </>
         )}

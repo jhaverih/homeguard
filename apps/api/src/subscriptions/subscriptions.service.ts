@@ -5,9 +5,13 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SubscriptionPlan } from './entities/subscription-plan.entity';
 import { CustomerSubscription, SubscriptionStatus } from './entities/customer-subscription.entity';
+import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { PlanTier } from '../common/enums/role.enum';
 import { addYears } from './utils/date.util';
 import { UsersService } from '../users/users.service';
+import { YolinkService } from '../yolink/yolink.service';
+import { PricingService } from '../pricing/pricing.service';
+import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
 @Injectable()
 export class SubscriptionsService implements OnModuleInit {
@@ -19,8 +23,13 @@ export class SubscriptionsService implements OnModuleInit {
     private plansRepo: Repository<SubscriptionPlan>,
     @InjectRepository(CustomerSubscription)
     private subscriptionsRepo: Repository<CustomerSubscription>,
+    @InjectRepository(ServiceRequest)
+    private requestsRepo: Repository<ServiceRequest>,
     private configService: ConfigService,
     private usersService: UsersService,
+    private yolinkService: YolinkService,
+    private pricingService: PricingService,
+    private notificationsService: NotificationsService,
   ) {
     this.stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY', ''), {
       apiVersion: '2024-04-10',
@@ -272,7 +281,42 @@ export class SubscriptionsService implements OnModuleInit {
     sub.planId = newPlanId;
     sub.plan = plan;
     await this.subscriptionsRepo.save(sub);
+
+    await this.checkMonitoringEligibility(sub.customerId).catch((e) =>
+      this.logger.warn(`checkMonitoringEligibility failed after plan change: ${e.message}`),
+    );
     return {};
+  }
+
+  // Notifies Houmi admins once a customer is confirmed on a paid Standard/Premium
+  // plan and doesn't yet have home monitoring — admins review and dispatch a
+  // vendor via the "Request Connection" action (admin.service.ts). Safe to call
+  // repeatedly: the existing-request check prevents duplicate notifications.
+  async checkMonitoringEligibility(customerId: string): Promise<void> {
+    const sub = await this.getActiveSubscription(customerId);
+    if (!sub || (sub.plan?.tier !== PlanTier.STANDARD && sub.plan?.tier !== PlanTier.PREMIUM)) return;
+
+    const linkedHomes = await this.yolinkService.getLinkedHomes(sub.customerId);
+    if (linkedHomes.length > 0) return;
+
+    const monitoringPrice = await this.pricingService.findByName('Home Monitoring Setup');
+    if (!monitoringPrice) return;
+
+    const existingRequest = await this.requestsRepo.findOne({
+      where: { customerId: sub.customerId, servicePriceId: monitoringPrice.id },
+    });
+    if (existingRequest) return;
+
+    const admins = await this.usersService.findAdminTeamUsers();
+    for (const admin of admins) {
+      await this.notificationsService.notifyUserWithEmail(
+        admin.id,
+        NotificationType.MONITORING_SETUP_ELIGIBLE,
+        'Home Monitoring Setup Needed',
+        `A customer on the ${sub.plan.name} plan needs Yolink home monitoring dispatched — review in Monitoring Setup.`,
+        { customerId: sub.customerId },
+      );
+    }
   }
 
   async updatePlan(planId: string, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
@@ -295,6 +339,10 @@ export class SubscriptionsService implements OnModuleInit {
         sub.startDate = now;
         sub.endDate = addYears(now, 1);
         await this.subscriptionsRepo.save(sub);
+
+        await this.checkMonitoringEligibility(sub.customerId).catch((e) =>
+          this.logger.warn(`checkMonitoringEligibility failed after subscription activation: ${e.message}`),
+        );
       }
     }
 

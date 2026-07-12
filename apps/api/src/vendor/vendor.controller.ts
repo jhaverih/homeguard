@@ -141,9 +141,9 @@ export class VendorController {
   }
 
   @Get('capabilities')
-  @ApiOperation({ summary: 'Full capability catalog' })
-  getCapabilities() {
-    return this.service.getCapabilities();
+  @ApiOperation({ summary: 'Full capability catalog, with my acknowledgment status per capability' })
+  getCapabilities(@Request() req) {
+    return this.service.getCapabilities(req.user.id);
   }
 
   @Get('me/capabilities')
@@ -156,6 +156,12 @@ export class VendorController {
   @ApiOperation({ summary: 'Set my own selected capabilities' })
   setMyCapabilities(@Request() req, @Body() body: { capabilityIds: string[] }) {
     return this.service.setMyCapabilities(req.user.id, body.capabilityIds);
+  }
+
+  @Post('me/capabilities/:capabilityId/acknowledge')
+  @ApiOperation({ summary: 'Confirm I have read a capability\'s training material' })
+  acknowledgeCapability(@Request() req, @Param('capabilityId') capabilityId: string) {
+    return this.service.acknowledgeCapability(req.user.id, capabilityId);
   }
 
   @Get('me/certifications')

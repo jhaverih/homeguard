@@ -257,6 +257,14 @@ export class UsersService implements OnModuleInit {
       .getMany();
   }
 
+  async findAdminTeamUsers(): Promise<User[]> {
+    return this.usersRepo
+      .createQueryBuilder('user')
+      .where('user.status = :status', { status: UserStatus.ACTIVE })
+      .andWhere('user.roles LIKE :role', { role: `%${UserRole.ADMIN}%` })
+      .getMany();
+  }
+
   async addTeamMember(ownerId: string, email: string): Promise<User> {
     const owner = await this.findById(ownerId);
     const member = await this.usersRepo.findOne({ where: { email } });

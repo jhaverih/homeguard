@@ -36,7 +36,7 @@ export class EmailService {
     await this.send(to, subject, html);
   }
 
-  async sendPasswordReset(to: string, token: string, frontendUrl: string): Promise<void> {
+  async sendPasswordReset(to: string, token: string): Promise<void> {
     const subject = 'Reset your Houmi password';
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
@@ -47,6 +47,24 @@ export class EmailService {
           ${token}
         </div>
         <p style="color:#64748b;font-size:14px">This code expires in 1 hour. If you didn't request a reset, ignore this email.</p>
+      </div>`;
+    await this.send(to, subject, html);
+  }
+
+  async sendTeamInvite(to: string, code: string, firstName: string): Promise<void> {
+    const subject = "You've been added to the Houmi Admin Portal";
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#0B4A45">Welcome to Houmi, ${firstName}</h2>
+        <p>You've been added as a Houmi Admin Portal user. Use this code to set your password and get started:</p>
+        <div style="font-size:28px;font-weight:bold;letter-spacing:4px;color:#0B4A45;
+                    background:#EBF1EF;border-radius:12px;padding:20px;text-align:center;margin:20px 0">
+          ${code}
+        </div>
+        <p style="color:#64748b;font-size:14px">
+          Go to the Admin Portal login page, click "Forgot password?", and enter this code along with your new password.
+          This code expires in 1 hour.
+        </p>
       </div>`;
     await this.send(to, subject, html);
   }

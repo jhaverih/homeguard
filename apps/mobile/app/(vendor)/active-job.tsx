@@ -848,7 +848,7 @@ export default function ActiveJobScreen() {
           ) : null}
         </View>
 
-        {job.customerId && (
+        {job.isMonitoringSetupJob && (
           <View style={styles.sectionCard}>
             <TouchableOpacity
               style={styles.sectionHeader}

@@ -10,6 +10,7 @@ import { AdminLevelGuard } from '../common/guards/admin-level.guard';
 import { MinAdminLevel } from '../common/decorators/min-admin-level.decorator';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { AdminService } from './admin.service';
+import { CreateTeamUserDto } from './dto/create-team-user.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -124,9 +125,7 @@ export class AdminController {
   @Post('team-users')
   @MinAdminLevel(AdminLevel.SUPER_USER)
   @ApiOperation({ summary: 'Super User: invite a new admin-portal user' })
-  createTeamUser(
-    @Body() body: { email: string; firstName: string; lastName: string; adminLevel: AdminLevel },
-  ) {
+  createTeamUser(@Body() body: CreateTeamUserDto) {
     return this.service.createTeamUser(body);
   }
 
@@ -190,5 +189,26 @@ export class AdminController {
   @ApiOperation({ summary: 'Admin: edit or deactivate a vendor capability' })
   updateCapability(@Param('id') id: string, @Body() body: any) {
     return this.service.updateCapability(id, body);
+  }
+
+  @Get('capabilities')
+  @MinAdminLevel(AdminLevel.VIEW_ONLY)
+  @ApiOperation({ summary: 'List the vendor capability catalog' })
+  getCapabilities() {
+    return this.service.getCapabilities();
+  }
+
+  @Get('monitoring-setup-requests')
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Customers on Standard/Premium who need Yolink home monitoring dispatched' })
+  getMonitoringSetupRequests() {
+    return this.service.getMonitoringSetupRequests();
+  }
+
+  @Post('monitoring-setup-requests/:customerId/request')
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Dispatch a Home Monitoring Setup job to Yolink-capable vendors for this customer' })
+  requestMonitoringConnection(@Param('customerId') customerId: string) {
+    return this.service.requestMonitoringConnection(customerId);
   }
 }

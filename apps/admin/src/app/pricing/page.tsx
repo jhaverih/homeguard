@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { pricingApi, subscriptionsApi } from '@/lib/api';
+import { pricingApi, subscriptionsApi, adminApi } from '@/lib/api';
 
 const STRIPE_RATE = 0.029;
 const STRIPE_FIXED = 0.30;
@@ -43,6 +43,8 @@ type PriceRow = {
   quantityLabel: string | null;
   minimumQuantity: number | null;
   isActive: boolean;
+  requiredCapabilityId: string | null;
+  customerRequestable: boolean;
 };
 
 type EditState = {
@@ -54,11 +56,14 @@ type EditState = {
   markupPercent: string;
   quantityLabel: string;
   minimumQuantity: string;
+  requiredCapabilityId: string;
+  customerRequestable: boolean;
 };
 
 export default function PricingPage() {
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [capabilities, setCapabilities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalMarkup, setGlobalMarkup] = useState('15');
   const [editStates, setEditStates] = useState<Record<string, EditState>>({});
@@ -67,16 +72,18 @@ export default function PricingPage() {
   const [addingRow, setAddingRow] = useState(false);
   const [newRow, setNewRow] = useState<EditState>({
     name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '',
+    requiredCapabilityId: '', customerRequestable: true,
   });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans()])
-      .then(([p, s]) => {
+    Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
+      .then(([p, s, caps]) => {
         setPrices(p);
         setPlans(s);
+        setCapabilities(caps);
         const states: Record<string, EditState> = {};
         for (const price of p) states[price.id] = rowToEdit(price);
         setEditStates(states);
@@ -94,6 +101,8 @@ export default function PricingPage() {
       markupPercent: price.markupPercent != null ? String(price.markupPercent) : '',
       quantityLabel: price.quantityLabel ?? '',
       minimumQuantity: price.minimumQuantity != null ? String(price.minimumQuantity) : '',
+      requiredCapabilityId: price.requiredCapabilityId ?? '',
+      customerRequestable: price.customerRequestable ?? true,
     };
   }
 
@@ -119,6 +128,8 @@ export default function PricingPage() {
         markupPercent: state.markupPercent !== '' ? parseFloat(state.markupPercent) : null,
         quantityLabel: state.quantityLabel || null,
         minimumQuantity: state.minimumQuantity !== '' ? parseFloat(state.minimumQuantity) : null,
+        requiredCapabilityId: state.requiredCapabilityId || null,
+        customerRequestable: state.customerRequestable,
       });
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
     } finally {
@@ -161,10 +172,15 @@ export default function PricingPage() {
         markupPercent: newRow.markupPercent !== '' ? parseFloat(newRow.markupPercent) : null,
         quantityLabel: newRow.quantityLabel || null,
         minimumQuantity: newRow.minimumQuantity !== '' ? parseFloat(newRow.minimumQuantity) : null,
+        requiredCapabilityId: newRow.requiredCapabilityId || null,
+        customerRequestable: newRow.customerRequestable,
       });
       setPrices((prev) => [...prev, created]);
       setEditStates((prev) => ({ ...prev, [created.id]: rowToEdit(created) }));
-      setNewRow({ name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '' });
+      setNewRow({
+        name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '',
+        requiredCapabilityId: '', customerRequestable: true,
+      });
       setAddingRow(false);
     } finally {
       setSaving((s) => { const n = new Set(s); n.delete('new'); return n; });
@@ -176,7 +192,7 @@ export default function PricingPage() {
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   const exportCsv = () => {
-    const headers = ['name', 'description', 'priceNote', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'isActive'];
+    const headers = ['name', 'description', 'priceNote', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'isActive', 'customerRequestable'];
     const rows = prices.map((p) => {
       const s = editStates[p.id];
       const esc = (v: string) => `"${(v || '').replace(/"/g, '""')}"`;
@@ -190,6 +206,7 @@ export default function PricingPage() {
         esc(s?.quantityLabel || p.quantityLabel || ''),
         s?.minimumQuantity || (p.minimumQuantity != null ? String(p.minimumQuantity) : ''),
         p.isActive ? 'true' : 'false',
+        (s?.customerRequestable ?? p.customerRequestable) ? 'true' : 'false',
       ].join(',');
     });
     const csv = [headers.join(','), ...rows].join('\r\n');
@@ -231,6 +248,7 @@ export default function PricingPage() {
           quantityLabel: row.quantityLabel || null,
           minimumQuantity: row.minimumQuantity !== '' && row.minimumQuantity != null ? parseFloat(row.minimumQuantity) : null,
           isActive: row.isActive !== 'false',
+          customerRequestable: row.customerRequestable !== 'false',
         };
 
         const existing = prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
@@ -345,6 +363,8 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[200px]">Description</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[130px]">Price Note</th>
                 <th className="px-4 py-3 text-center font-semibold text-gray-600 w-24">Quote Only</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 w-24">Customer Requestable</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 w-40">Required Capability</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 w-28">Qty Label</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600 w-24">Min. Qty</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600 w-28">Base Price</th>
@@ -421,6 +441,35 @@ export default function PricingPage() {
                         }}
                         className="w-4 h-4 rounded cursor-pointer accent-teal-700"
                       />
+                    </td>
+                    {/* Customer Requestable */}
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={state.customerRequestable}
+                        onChange={(e) => {
+                          updateField(price.id, 'customerRequestable', e.target.checked);
+                          setTimeout(() => savePrice(price.id), 0);
+                        }}
+                        title="Uncheck for services only Houmi triggers (e.g. Home Monitoring Setup) — hidden from the customer's own request list"
+                        className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                      />
+                    </td>
+                    {/* Required Capability */}
+                    <td className="px-4 py-3">
+                      <select
+                        value={state.requiredCapabilityId}
+                        onChange={(e) => {
+                          updateField(price.id, 'requiredCapabilityId', e.target.value);
+                          setTimeout(() => savePrice(price.id), 0);
+                        }}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 focus:border-brand outline-none"
+                      >
+                        <option value="">Any vendor</option>
+                        {capabilities.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
                     </td>
                     {/* Quantity Label */}
                     <td className="px-4 py-3">
@@ -554,6 +603,26 @@ export default function PricingPage() {
                       className="w-4 h-4 rounded cursor-pointer accent-teal-700"
                     />
                   </td>
+                  <td className="px-4 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={newRow.customerRequestable}
+                      onChange={(e) => setNewRow((p) => ({ ...p, customerRequestable: e.target.checked }))}
+                      className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={newRow.requiredCapabilityId}
+                      onChange={(e) => setNewRow((p) => ({ ...p, requiredCapabilityId: e.target.value }))}
+                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand outline-none"
+                    >
+                      <option value="">Any vendor</option>
+                      {capabilities.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-4 py-3">
                     <input
                       type="text"
@@ -602,7 +671,7 @@ export default function PricingPage() {
                   <td className="pr-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '' }); }}
+                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '', requiredCapabilityId: '', customerRequestable: true }); }}
                         className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1"
                       >
                         Cancel
@@ -631,7 +700,7 @@ export default function PricingPage() {
         {/* CSV format hint */}
         <div className="p-4 border-t border-gray-100">
           <p className="text-xs text-gray-400">
-            <strong>CSV format:</strong> name, description, priceNote, requiresQuote (true/false), basePrice, markupPercent, quantityLabel, minimumQuantity, isActive (true/false) — existing rows matched by name, new names are created.
+            <strong>CSV format:</strong> name, description, priceNote, requiresQuote (true/false), basePrice, markupPercent, quantityLabel, minimumQuantity, isActive (true/false), customerRequestable (true/false) — existing rows matched by name, new names are created. Required Capability isn&apos;t part of CSV — set it per-row in the table above.
           </p>
         </div>
       </div>

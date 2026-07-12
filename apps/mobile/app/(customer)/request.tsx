@@ -113,7 +113,7 @@ export default function RequestScreen() {
     if (tab === 'service' && catalog.length === 0) {
       setCatalogLoading(true);
       pricingApi.getAll()
-        .then((items: any) => setCatalog(items || []))
+        .then((items: any) => setCatalog((items || []).filter((i: any) => i.customerRequestable !== false)))
         .catch(() => {})
         .finally(() => setCatalogLoading(false));
     }

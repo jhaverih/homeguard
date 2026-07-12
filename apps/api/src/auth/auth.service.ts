@@ -88,15 +88,20 @@ export class AuthService {
     // Always return success to prevent email enumeration
     const user = await this.usersRepo.findOne({ where: { email } });
     if (user) {
-      const token = randomCode();
-      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-      await this.usersRepo.update(user.id, {
-        passwordResetToken: token,
-        passwordResetExpiry: expiry,
-      });
-      await this.emailService.sendPasswordReset(email, token, '');
+      const token = await this.issuePasswordResetToken(user.id);
+      await this.emailService.sendPasswordReset(email, token);
     }
     return { message: 'If that email is registered, a reset code was sent.' };
+  }
+
+  async issuePasswordResetToken(userId: string): Promise<string> {
+    const token = randomCode();
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await this.usersRepo.update(userId, {
+      passwordResetToken: token,
+      passwordResetExpiry: expiry,
+    });
+    return token;
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {

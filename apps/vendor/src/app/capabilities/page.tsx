@@ -8,6 +8,8 @@ export default function MyCapabilitiesPage() {
   const [certifications, setCertifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [ackFor, setAckFor] = useState<string | null>(null);
+  const [acknowledging, setAcknowledging] = useState(false);
   const [certForm, setCertForm] = useState<{ type: string; licenseNumber: string; issuingState: string; expirationDate: string; file: File | null }>({
     type: 'HVAC', licenseNumber: '', issuingState: '', expirationDate: '', file: null,
   });
@@ -20,7 +22,7 @@ export default function MyCapabilitiesPage() {
 
   const mineIds = new Set(mine.map((m: any) => m.id));
 
-  const toggle = async (capabilityId: string) => {
+  const applyToggle = async (capabilityId: string) => {
     setSaving(true);
     try {
       const next = mineIds.has(capabilityId)
@@ -30,6 +32,29 @@ export default function MyCapabilitiesPage() {
       setMine(updated);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggle = async (capability: any) => {
+    // Unchecking never needs re-confirmation; only newly selecting a
+    // training-gated, not-yet-acknowledged capability opens the confirm panel.
+    const isSelecting = !mineIds.has(capability.id);
+    if (isSelecting && capability.requiresAcknowledgment && !capability.acknowledged) {
+      setAckFor(capability.id);
+      return;
+    }
+    await applyToggle(capability.id);
+  };
+
+  const confirmAcknowledge = async (capabilityId: string) => {
+    setAcknowledging(true);
+    try {
+      await vendorApi.acknowledgeCapability(capabilityId);
+      setCatalog((prev) => prev.map((c) => (c.id === capabilityId ? { ...c, acknowledged: true } : c)));
+      setAckFor(null);
+      await applyToggle(capabilityId);
+    } finally {
+      setAcknowledging(false);
     }
   };
 
@@ -63,19 +88,54 @@ export default function MyCapabilitiesPage() {
         <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-4">Capabilities</h2>
         <div className="grid grid-cols-2 gap-3">
           {catalog.map((c) => (
-            <label key={c.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={mineIds.has(c.id)}
-                disabled={saving}
-                onChange={() => toggle(c.id)}
-                className="w-4 h-4 rounded cursor-pointer accent-teal-700"
-              />
-              {c.name}
-              {c.requiredCertificationType !== 'NONE' && (
-                <span className="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{c.requiredCertificationType}</span>
+            <div key={c.id}>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={mineIds.has(c.id)}
+                  disabled={saving}
+                  onChange={() => toggle(c)}
+                  className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                />
+                {c.name}
+                {c.requiredCertificationType !== 'NONE' && (
+                  <span className="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{c.requiredCertificationType}</span>
+                )}
+                {c.requiresAcknowledgment && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${c.acknowledged ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'}`}>
+                    {c.acknowledged ? 'Training confirmed' : 'Training required'}
+                  </span>
+                )}
+              </label>
+
+              {ackFor === c.id && (
+                <div className="mt-2 ml-6 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
+                  <p className="text-gray-700">
+                    Read Houmi&apos;s installer guide before selecting this capability — it covers hub/sensor pairing and where sensors go.
+                  </p>
+                  <a
+                    href={c.trainingDocumentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block font-semibold text-brand hover:underline"
+                  >
+                    Open training guide &rarr;
+                  </a>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={() => confirmAcknowledge(c.id)}
+                      disabled={acknowledging}
+                      className="bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand-dark disabled:opacity-50 transition-colors"
+                    >
+                      {acknowledging ? 'Confirming…' : 'I have read and understand the installation process'}
+                    </button>
+                    <button onClick={() => setAckFor(null)} className="text-gray-400 hover:text-gray-600 px-2 py-1.5">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               )}
-            </label>
+            </div>
           ))}
         </div>
       </div>
