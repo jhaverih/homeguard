@@ -3,6 +3,7 @@ import {
   UpdateDateColumn, OneToOne, JoinColumn, OneToMany,
 } from 'typeorm';
 import { UserRole, UserStatus } from '../../common/enums/role.enum';
+import { AdminLevel } from '../../common/enums/admin-level.enum';
 import { VendorProfile } from './vendor-profile.entity';
 import { CustomerProfile } from './customer-profile.entity';
 
@@ -35,6 +36,10 @@ export class User {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.CUSTOMER })
   activeRole: UserRole;
 
+  // Only meaningful when `roles` includes ADMIN — governs mutation access within the admin portal.
+  @Column({ type: 'enum', enum: AdminLevel, nullable: true })
+  adminLevel: AdminLevel | null;
+
   @Column({ nullable: true })
   avatarUrl: string;
 
@@ -46,6 +51,21 @@ export class User {
 
   @Column({ nullable: true })
   stripeCustomerId: string;
+
+  @Column({ default: false })
+  isEmailVerified: boolean;
+
+  @Column({ nullable: true })
+  emailVerificationCode: string;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  emailVerificationExpiry: Date;
+
+  @Column({ nullable: true })
+  passwordResetToken: string;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  passwordResetExpiry: Date;
 
   @OneToOne(() => VendorProfile, (profile) => profile.user, { cascade: true, eager: false })
   vendorProfile: VendorProfile;

@@ -6,6 +6,8 @@ import { User } from './entities/user.entity';
 import { VendorProfile } from './entities/vendor-profile.entity';
 import { CustomerProfile } from './entities/customer-profile.entity';
 import { UserRole, UserStatus } from '../common/enums/role.enum';
+import { AdminLevel } from '../common/enums/admin-level.enum';
+import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 
 export interface CreateUserDto {
   email: string;
@@ -19,6 +21,9 @@ export interface CreateUserDto {
   state?: string;
   zipCode?: string;
   companyName?: string;
+  // Set by VendorService.createTechnician — the caller assigns companyId/isCompanyAdmin
+  // itself afterward, so create() should not also spin up a brand new company.
+  skipCompanyCreation?: boolean;
 }
 
 @Injectable()
@@ -30,10 +35,14 @@ export class UsersService implements OnModuleInit {
     private vendorProfileRepo: Repository<VendorProfile>,
     @InjectRepository(CustomerProfile)
     private customerProfileRepo: Repository<CustomerProfile>,
+    @InjectRepository(VendorCompany)
+    private vendorCompanyRepo: Repository<VendorCompany>,
   ) {}
 
   async onModuleInit() {
     await this.seedAdmin();
+    await this.backfillAdminLevels();
+    await this.backfillVendorCompanies();
   }
 
   private async seedAdmin() {
@@ -49,8 +58,74 @@ export class UsersService implements OnModuleInit {
         roles: [UserRole.ADMIN],
         activeRole: UserRole.ADMIN,
         status: UserStatus.ACTIVE,
+        adminLevel: AdminLevel.SUPER_USER,
       }),
     );
+  }
+
+  // Existing ADMIN-role accounts predate the adminLevel column — default them to
+  // SUPER_USER so nobody loses access once level-gated endpoints ship.
+  private async backfillAdminLevels() {
+    await this.usersRepo
+      .createQueryBuilder()
+      .update(User)
+      .set({ adminLevel: AdminLevel.SUPER_USER })
+      .where('"adminLevel" IS NULL')
+      .andWhere('roles LIKE :role', { role: `%${UserRole.ADMIN}%` })
+      .execute();
+  }
+
+  // Pre-existing vendor accounts predate the VendorCompany entity — each team "owner"
+  // (parentUserId IS NULL) gets a backfilled, pre-approved company; technicians
+  // (parentUserId set) join their former owner's new company. Idempotent: skips
+  // any VendorProfile that already has a companyId.
+  private async backfillVendorCompanies() {
+    const owners = await this.usersRepo
+      .createQueryBuilder('u')
+      .innerJoinAndSelect('u.vendorProfile', 'vp')
+      .where('u.roles LIKE :role', { role: `%${UserRole.VENDOR}%` })
+      .andWhere('u.parentUserId IS NULL')
+      .andWhere('vp.companyId IS NULL')
+      .getMany();
+
+    for (const owner of owners) {
+      const profile = owner.vendorProfile;
+      const company = await this.vendorCompanyRepo.save(
+        this.vendorCompanyRepo.create({
+          name: profile.companyName || `${owner.firstName} ${owner.lastName}`.trim(),
+          planTier: profile.planTier,
+          elitePlanExpiresAt: profile.elitePlanExpiresAt,
+          stripeConnectAccountId: profile.stripeConnectAccountId,
+          stripeOnboardingComplete: profile.stripeOnboardingComplete,
+          applicationStatus: VendorApplicationStatus.APPROVED,
+        }),
+      );
+      await this.vendorProfileRepo.update(profile.id, { companyId: company.id, isCompanyAdmin: true });
+    }
+
+    const technicians = await this.usersRepo
+      .createQueryBuilder('u')
+      .innerJoinAndSelect('u.vendorProfile', 'vp')
+      .where('u.roles LIKE :role', { role: `%${UserRole.VENDOR}%` })
+      .andWhere('u.parentUserId IS NOT NULL')
+      .andWhere('vp.companyId IS NULL')
+      .getMany();
+
+    for (const tech of technicians) {
+      const parentProfile = await this.vendorProfileRepo.findOne({ where: { userId: tech.parentUserId } });
+      if (!parentProfile?.companyId) continue;
+      await this.vendorProfileRepo.update(tech.vendorProfile.id, {
+        companyId: parentProfile.companyId,
+        isCompanyAdmin: false,
+      });
+    }
+  }
+
+  async getVendorTeamIds(userId: string): Promise<string[]> {
+    const profile = await this.vendorProfileRepo.findOne({ where: { userId } });
+    if (!profile?.companyId) return [userId];
+    const teamProfiles = await this.vendorProfileRepo.find({ where: { companyId: profile.companyId } });
+    return teamProfiles.map((p) => p.userId);
   }
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -82,20 +157,22 @@ export class UsersService implements OnModuleInit {
       }
 
       if (newRoles.includes(UserRole.VENDOR) && !existing.vendorProfile) {
-        await this.vendorProfileRepo.save(
+        const profile = await this.vendorProfileRepo.save(
           this.vendorProfileRepo.create({
             userId: saved.id,
             ...(dto.companyName ? { companyName: dto.companyName } : {}),
           }),
         );
+        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName);
       }
 
       return saved;
     }
 
+    const { skipCompanyCreation, ...userFields } = dto;
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = this.usersRepo.create({
-      ...dto,
+      ...userFields,
       password: hashed,
       activeRole: dto.roles[0],
       status: dto.roles.includes(UserRole.VENDOR) ? UserStatus.PENDING_APPROVAL : UserStatus.ACTIVE,
@@ -114,14 +191,30 @@ export class UsersService implements OnModuleInit {
     }
 
     if (dto.roles.includes(UserRole.VENDOR)) {
-      const profile = this.vendorProfileRepo.create({
-        userId: saved.id,
-        ...(dto.companyName ? { companyName: dto.companyName } : {}),
-      });
-      await this.vendorProfileRepo.save(profile);
+      const profile = await this.vendorProfileRepo.save(
+        this.vendorProfileRepo.create({
+          userId: saved.id,
+          ...(dto.companyName ? { companyName: dto.companyName } : {}),
+        }),
+      );
+      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName);
     }
 
     return saved;
+  }
+
+  // A brand-new Vendor Admin registering (not a technician being invited onto an
+  // existing team) gets their own company, starting in PENDING_REVIEW — unlike the
+  // one-time backfill for pre-existing accounts, new registrations are not
+  // grandfathered and must go through the document review queue.
+  private async createCompanyForNewVendor(profile: VendorProfile, user: User, companyName?: string) {
+    const company = await this.vendorCompanyRepo.save(
+      this.vendorCompanyRepo.create({
+        name: companyName || `${user.firstName} ${user.lastName}`.trim(),
+        applicationStatus: VendorApplicationStatus.PENDING_REVIEW,
+      }),
+    );
+    await this.vendorProfileRepo.update(profile.id, { companyId: company.id, isCompanyAdmin: true });
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -151,7 +244,7 @@ export class UsersService implements OnModuleInit {
     await this.usersRepo.update(userId, { expoPushToken: token });
   }
 
-  async updateStripeCustomerId(userId: string, stripeCustomerId: string): Promise<void> {
+  async updateStripeCustomerId(userId: string, stripeCustomerId: string | null): Promise<void> {
     await this.usersRepo.update(userId, { stripeCustomerId });
   }
 
@@ -233,7 +326,7 @@ export class UsersService implements OnModuleInit {
   }
 
   async updateProfile(userId: string, data: Partial<User>): Promise<User> {
-    const allowed = ['email', 'firstName', 'lastName', 'phone'];
+    const allowed = ['email', 'firstName', 'lastName', 'phone', 'avatarUrl'];
     const update: any = {};
     for (const key of allowed) {
       if (data[key] !== undefined) update[key] = data[key];
@@ -242,20 +335,45 @@ export class UsersService implements OnModuleInit {
     return this.findById(userId);
   }
 
+  // Stripe Connect is company-level: whichever team member's onboarding flow triggers
+  // this, the account id is stored once on the company and mirrored onto every team
+  // member's VendorProfile so existing single-profile read sites keep working.
   async saveVendorStripeAccountId(userId: string, stripeAccountId: string): Promise<void> {
     const profile = await this.vendorProfileRepo.findOne({ where: { userId } });
-    if (profile) {
+    if (!profile) return;
+    if (profile.companyId) {
+      await this.vendorCompanyRepo.update(profile.companyId, { stripeConnectAccountId: stripeAccountId });
+      await this.vendorProfileRepo.update({ companyId: profile.companyId }, { stripeConnectAccountId: stripeAccountId });
+    } else {
       await this.vendorProfileRepo.update(profile.id, { stripeConnectAccountId: stripeAccountId });
     }
   }
 
   async markVendorStripeComplete(stripeAccountId: string): Promise<void> {
-    const profile = await this.vendorProfileRepo.findOne({
-      where: { stripeConnectAccountId: stripeAccountId },
-    });
+    const company = await this.vendorCompanyRepo.findOne({ where: { stripeConnectAccountId: stripeAccountId } });
+    if (company) {
+      await this.vendorCompanyRepo.update(company.id, { stripeOnboardingComplete: true });
+      await this.vendorProfileRepo.update({ companyId: company.id }, { stripeOnboardingComplete: true });
+      return;
+    }
+    // Fallback for pre-company/legacy profiles (shouldn't occur post-backfill, kept defensive).
+    const profile = await this.vendorProfileRepo.findOne({ where: { stripeConnectAccountId: stripeAccountId } });
     if (profile) {
       await this.vendorProfileRepo.update(profile.id, { stripeOnboardingComplete: true });
     }
+  }
+
+  // Resolves the acting user's company's Stripe account, regardless of whether the
+  // caller is the Vendor Admin or a technician on the team.
+  async getCompanyStripeAccount(userId: string): Promise<{ companyId: string | null; accountId: string | null; onboardingComplete: boolean }> {
+    const profile = await this.vendorProfileRepo.findOne({ where: { userId } });
+    if (!profile?.companyId) return { companyId: null, accountId: null, onboardingComplete: false };
+    const company = await this.vendorCompanyRepo.findOne({ where: { id: profile.companyId } });
+    return {
+      companyId: profile.companyId,
+      accountId: company?.stripeConnectAccountId ?? null,
+      onboardingComplete: company?.stripeOnboardingComplete ?? false,
+    };
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {

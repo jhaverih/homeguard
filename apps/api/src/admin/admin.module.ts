@@ -5,18 +5,31 @@ import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { CustomerSubscription } from '../subscriptions/entities/customer-subscription.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { Dispute } from '../service-requests/entities/dispute.entity';
 import { Review } from '../reviews/entities/review.entity';
 import { Alert } from '../alerts/entities/alert.entity';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { UsersModule } from '../users/users.module';
+import { AuthModule } from '../auth/auth.module';
+import { UploadsModule } from '../uploads/uploads.module';
+import { VendorCompany } from '../vendor/entities/vendor-company.entity';
+import { VendorCertification } from '../vendor/entities/vendor-certification.entity';
+import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { VendorSchedulerService } from './vendor-scheduler.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, VendorProfile, CustomerSubscription, Payment, ServiceRequest, Review, Alert, CustomerProfile]),
+    TypeOrmModule.forFeature([
+      User, VendorProfile, CustomerSubscription, Payment, ServiceRequest, Dispute, Review, Alert, CustomerProfile,
+      VendorCompany, VendorCertification, VendorCapability,
+    ]),
     NotificationsModule,
+    UsersModule,
+    AuthModule,
+    UploadsModule,
   ],
   providers: [AdminService, VendorSchedulerService],
   controllers: [AdminController],

@@ -1,5 +1,5 @@
 import {
-  Controller, Post, Get, Patch, Param, Body, Headers, RawBodyRequest,
+  Controller, Post, Get, Patch, Delete, Param, Body, Headers, RawBodyRequest,
   UseGuards, Request, Req, HttpCode, HttpStatus, Header,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -91,6 +91,46 @@ export class PaymentsController {
   getHistory(@Request() req) {
     const role = req.user.activeRole === 'VENDOR' ? 'vendor' : 'customer';
     return this.service.getPaymentHistory(req.user.id, role);
+  }
+
+  @Post('setup-intent')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: create a SetupIntent to save a new card' })
+  createSetupIntent(@Request() req) {
+    return this.service.createSetupIntent(req.user.id);
+  }
+
+  @Get('methods')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: list saved payment methods' })
+  listPaymentMethods(@Request() req) {
+    return this.service.listPaymentMethods(req.user.id);
+  }
+
+  @Patch('methods/:id/default')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: set the default payment method' })
+  setDefaultPaymentMethod(@Request() req, @Param('id') id: string) {
+    return this.service.setDefaultPaymentMethod(req.user.id, id);
+  }
+
+  @Delete('methods/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: remove a saved payment method' })
+  removePaymentMethod(@Request() req, @Param('id') id: string) {
+    return this.service.removePaymentMethod(req.user.id, id);
+  }
+
+  @Post('service/:serviceId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: create a payment intent for an approved additional service' })
+  createServicePayment(@Param('serviceId') serviceId: string, @Request() req) {
+    return this.service.createServicePayment(serviceId, req.user.id);
   }
 
   @Post('webhook')

@@ -24,9 +24,10 @@ api.interceptors.response.use(
 );
 
 export const pricingApi = {
-  getAll: () => api.get('/pricing').then((r) => r.data),
+  getAll: () => api.get('/pricing?all=true').then((r) => r.data),
   update: (id: string, data: any) => api.patch(`/pricing/${id}`, data).then((r) => r.data),
   create: (data: any) => api.post('/pricing', data).then((r) => r.data),
+  remove: (id: string) => api.delete(`/pricing/${id}`),
 };
 
 export const subscriptionsApi = {
@@ -47,6 +48,9 @@ export const adminApi = {
   approveVendor: (id: string) => api.patch(`/admin/vendors/${id}/approve`).then((r) => r.data),
   removeVendor: (id: string) => api.delete(`/admin/vendors/${id}`).then((r) => r.data),
   getVendorKpi: (id: string) => api.get(`/admin/vendors/${id}/kpi`).then((r) => r.data),
+  getVendorReviews: (id: string) => api.get(`/reviews/vendor/${id}`).then((r) => r.data),
+  getCustomerActivity: (id: string) => api.get(`/admin/customers/${id}/activity`).then((r) => r.data),
+  getVendorActivity: (id: string) => api.get(`/admin/vendors/${id}/activity`).then((r) => r.data),
   getSchedule: (year: number, month: number) =>
     api.get(`/admin/schedule?year=${year}&month=${month}`).then((r) => r.data),
   getAlerts: (page = 1, limit = 50) =>

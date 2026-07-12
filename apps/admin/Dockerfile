@@ -19,14 +19,16 @@ WORKDIR /app
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-RUN mkdir -p ./public
-COPY --from=builder /app/public/ ./public/
+RUN mkdir -p ./public ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
 EXPOSE 3002
 ENV PORT=3002
+# Next.js standalone binds to $HOSTNAME when set; Docker auto-sets it to the
+# container ID, which the healthcheck below (127.0.0.1) can't reach otherwise.
+ENV HOSTNAME=0.0.0.0
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:3002',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))"

@@ -1,7 +1,7 @@
 ﻿import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, RefreshControl, Modal, Platform,
+  Alert, ActivityIndicator, RefreshControl, Modal, Platform, TextInput,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect, router } from 'expo-router';
@@ -89,7 +89,8 @@ export default function OpenRequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stripeReady, setStripeReady] = useState(true);
-  const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string }>({ visible: false, requestId: '' });
+  const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string; preferredDate: Date | null }>({ visible: false, requestId: '', preferredDate: null });
+  const [vendorNotes, setVendorNotes] = useState('');
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -103,7 +104,10 @@ export default function OpenRequestsScreen() {
         requestsApi.getPending(),
       ]);
       setStripeReady(!!stripeStatus?.onboardingComplete);
-      setRequests(stripeStatus?.onboardingComplete ? (data || []) : []);
+      const sorted = (data || []).sort(
+        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setRequests(stripeStatus?.onboardingComplete ? sorted : []);
     } catch {
       setRequests([]);
     } finally {
@@ -114,9 +118,18 @@ export default function OpenRequestsScreen() {
 
   const acceptJob = async () => {
     try {
-      await requestsApi.accept(acceptModal.requestId, scheduledDate.toISOString());
-      setAcceptModal({ visible: false, requestId: '' });
-      Alert.alert('Job Accepted!', 'The customer has been notified of your scheduled date.');
+      await requestsApi.accept(acceptModal.requestId, scheduledDate.toISOString(), vendorNotes.trim() || undefined);
+      const preferred = acceptModal.preferredDate;
+      const diffMs = preferred ? Math.abs(scheduledDate.getTime() - preferred.getTime()) : Infinity;
+      const sameTime = diffMs < 5 * 60 * 1000;
+      setAcceptModal({ visible: false, requestId: '', preferredDate: null });
+      setVendorNotes('');
+      Alert.alert(
+        sameTime ? 'Job Confirmed!' : 'Time Proposed!',
+        sameTime
+          ? 'The job is locked in. Get ready for your inspection!'
+          : 'Your proposed time has been sent to the customer. The job will be confirmed once they accept.',
+      );
       load();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -171,18 +184,39 @@ export default function OpenRequestsScreen() {
               </View>
               {req.ticketNumber && <Text style={{ fontSize: 11, color: '#94a3b8' }}>{req.ticketNumber}</Text>}
             </View>
+
+            {/* Service details for service requests */}
+            {req.type === 'ADDITIONAL_SERVICE' && req.additionalServices?.length > 0 && (
+              <View style={styles.serviceDetailBox}>
+                {req.additionalServices.map((svc: any) => (
+                  <View key={svc.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.serviceDetailName}>{svc.name}</Text>
+                    <Text style={styles.serviceDetailPrice}>${parseFloat(svc.price).toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Inspection scope summary */}
+            {req.type === 'SCHEDULED_INSPECTION' && (
+              <View style={styles.serviceDetailBox}>
+                <Text style={styles.serviceDetailName}>Full home inspection — HVAC, plumbing, water leak check &amp; bulb replacement</Text>
+              </View>
+            )}
+
             <Text style={styles.cardDate}>Preferred: {new Date(req.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
-            <Text style={styles.cardAddress}>{req.address}, {req.city}, {req.state} {req.zipCode}</Text>
-            {req.customerNotes && <Text style={styles.cardNotes}>Notes: {req.customerNotes}</Text>}
+            <Text style={styles.cardAddress}>{req.city}, {req.state} {req.zipCode}</Text>
+            {req.customerNotes && <Text style={styles.cardNotes}>"{req.customerNotes}"</Text>}
             <Text style={styles.cardPosted}>Posted: {new Date(req.createdAt).toLocaleDateString()}</Text>
             <TouchableOpacity
               style={styles.acceptBtn}
               onPress={() => {
-                const d = new Date();
-                d.setDate(d.getDate() + 1);
-                d.setHours(9, 0, 0, 0);
-                setScheduledDate(d);
-                setAcceptModal({ visible: true, requestId: req.id });
+                const preferred = req.preferredDate ? new Date(req.preferredDate) : null;
+                const fallback = new Date();
+                fallback.setDate(fallback.getDate() + 1);
+                fallback.setHours(9, 0, 0, 0);
+                setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
+                setAcceptModal({ visible: true, requestId: req.id, preferredDate: preferred });
               }}
             >
               <Text style={styles.acceptBtnText}>Accept This Job</Text>
@@ -194,18 +228,28 @@ export default function OpenRequestsScreen() {
       <Modal visible={acceptModal.visible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Set Scheduled Date</Text>
-            <Text style={styles.modalSubtitle}>When will you perform this inspection?</Text>
+            <Text style={styles.modalTitle}>Confirm Scheduled Date</Text>
+            <Text style={styles.modalSubtitle}>Pre-filled with the customer's requested date. Change it if needed.</Text>
             <DateTimeField
               label="Inspection Date & Time"
               value={scheduledDate}
               onChange={setScheduledDate}
               accentColor="#0B4A45"
             />
+            <Text style={styles.modalSubtitle}>Notes for this job (optional)</Text>
+            <TextInput
+              style={styles.notesInput}
+              placeholder="Any notes about this job..."
+              placeholderTextColor="#94a3b8"
+              value={vendorNotes}
+              onChangeText={setVendorNotes}
+              multiline
+              numberOfLines={3}
+            />
             <TouchableOpacity style={styles.confirmBtn} onPress={acceptJob}>
               <Text style={styles.confirmText}>Confirm & Accept</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setAcceptModal({ visible: false, requestId: '' })} style={styles.cancelBtn}>
+            <TouchableOpacity onPress={() => { setAcceptModal({ visible: false, requestId: '', preferredDate: null }); setVendorNotes(''); }} style={styles.cancelBtn}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -230,8 +274,11 @@ const styles = StyleSheet.create({
   emptyText: { color: '#888', textAlign: 'center' },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, marginBottom: 12 },
   cardDate: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
-  cardAddress: { fontSize: 15, color: '#333', marginBottom: 4 },
+  cardAddress: { fontSize: 14, color: '#555', marginBottom: 4 },
   cardNotes: { fontSize: 13, color: '#666', marginBottom: 4, fontStyle: 'italic' },
+  serviceDetailBox: { backgroundColor: '#f8fafc', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+  serviceDetailName: { fontSize: 13, color: '#0B4A45', fontWeight: '600', flex: 1 },
+  serviceDetailPrice: { fontSize: 13, color: '#059669', fontWeight: '700' },
   cardPosted: { fontSize: 12, color: '#aaa', marginBottom: 12 },
   acceptBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
   acceptBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
@@ -243,6 +290,10 @@ const styles = StyleSheet.create({
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888' },
+  notesInput: {
+    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
+    padding: 12, fontSize: 14, color: '#0f172a', minHeight: 72, textAlignVertical: 'top', marginBottom: 12,
+  },
   fieldWrap: { marginBottom: 16 },
   pickerLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   dateBtn: {

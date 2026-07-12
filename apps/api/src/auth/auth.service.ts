@@ -1,21 +1,38 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
+import { User } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { EmailService } from '../common/email/email.service';
+import { UserStatus } from '../common/enums/role.enum';
+
+function randomCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private emailService: EmailService,
+    @InjectRepository(User)
+    private usersRepo: Repository<User>,
   ) {}
 
   async register(dto: RegisterDto) {
     const created = await this.usersService.create(dto);
     const user = await this.usersService.findById(created.id);
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
+
+    // Send verification code
+    await this.sendVerificationCode(user);
+
     return { accessToken: token, user };
   }
 
@@ -26,8 +43,85 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new UnauthorizedException('This account has been suspended');
+    }
+
     const fullUser = await this.usersService.findById(user.id);
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
     return { accessToken: token, user: fullUser };
+  }
+
+  async verifyEmail(email: string, code: string): Promise<{ message: string }> {
+    const user = await this.usersRepo.findOne({ where: { email } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.isEmailVerified) return { message: 'Already verified' };
+
+    if (
+      !user.emailVerificationCode ||
+      user.emailVerificationCode !== code ||
+      !user.emailVerificationExpiry ||
+      new Date() > user.emailVerificationExpiry
+    ) {
+      throw new BadRequestException('Invalid or expired verification code');
+    }
+
+    await this.usersRepo.update(user.id, {
+      isEmailVerified: true,
+      emailVerificationCode: null,
+      emailVerificationExpiry: null,
+    });
+
+    return { message: 'Email verified successfully' };
+  }
+
+  async resendVerification(email: string): Promise<{ message: string }> {
+    const user = await this.usersRepo.findOne({ where: { email } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.isEmailVerified) return { message: 'Already verified' };
+
+    await this.sendVerificationCode(user);
+    return { message: 'Verification code sent' };
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    // Always return success to prevent email enumeration
+    const user = await this.usersRepo.findOne({ where: { email } });
+    if (user) {
+      const token = randomCode();
+      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await this.usersRepo.update(user.id, {
+        passwordResetToken: token,
+        passwordResetExpiry: expiry,
+      });
+      await this.emailService.sendPasswordReset(email, token, '');
+    }
+    return { message: 'If that email is registered, a reset code was sent.' };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const user = await this.usersRepo.findOne({ where: { passwordResetToken: token } });
+    if (!user || !user.passwordResetExpiry || new Date() > user.passwordResetExpiry) {
+      throw new BadRequestException('Invalid or expired reset code');
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+    await this.usersRepo.update(user.id, {
+      password: hashed,
+      passwordResetToken: null,
+      passwordResetExpiry: null,
+    });
+
+    return { message: 'Password updated successfully' };
+  }
+
+  private async sendVerificationCode(user: User): Promise<void> {
+    const code = randomCode();
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    await this.usersRepo.update(user.id, {
+      emailVerificationCode: code,
+      emailVerificationExpiry: expiry,
+    });
+    await this.emailService.sendVerificationCode(user.email, code);
   }
 }

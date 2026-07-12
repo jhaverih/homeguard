@@ -184,6 +184,12 @@ export default function CustomerProfileScreen() {
         {subscription?.plan && <Row label="Current Plan" value={subscription.plan.name} />}
       </View>
 
+      <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(customer)/notifications')}>
+        <Ionicons name="notifications-outline" size={20} color="#0B4A45" />
+        <Text style={styles.linkRowText}>Notifications</Text>
+        <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+      </TouchableOpacity>
+
       <Text style={styles.sectionTitle}>Family Members</Text>
       <View style={styles.card}>
         {familyMembers.length === 0 && !showFamilyForm && (
@@ -336,6 +342,11 @@ function Row({ label, value }: { label: string; value?: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   content: { padding: 24, paddingTop: 32 },
+  linkRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 14,
+    padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  linkRowText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#0B4A45' },
   avatarWrap: { alignItems: 'center', marginBottom: 28 },
   avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: '700' },

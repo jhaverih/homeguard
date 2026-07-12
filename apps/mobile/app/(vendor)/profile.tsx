@@ -1,14 +1,15 @@
 ﻿import { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, ScrollView, TextInput, KeyboardAvoidingView,
+  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, ScrollView, TextInput, KeyboardAvoidingView, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../src/store/auth.store';
-import { paymentsApi, userApi, teamApi } from '../../src/services/api';
+import { paymentsApi, userApi, teamApi, uploadsApi, api } from '../../src/services/api';
 
 type StripeStatus = { connected: boolean; onboardingComplete: boolean };
 
@@ -17,10 +18,12 @@ const SAVED_EMAIL_KEY = 'hg_saved_email';
 const SAVED_PASSWORD_KEY = 'hg_saved_password';
 
 export default function VendorProfileScreen() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [companyName, setCompanyName] = useState<string>('');
+  const [isCompanyAdmin, setIsCompanyAdmin] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -33,6 +36,8 @@ export default function VendorProfileScreen() {
       userApi.getMe().then((res: any) => {
         const vp = res?.vendorProfile;
         if (vp?.companyName) setCompanyName(vp.companyName);
+        setIsCompanyAdmin(!!vp?.isCompanyAdmin);
+        if (res && (res.avatarUrl !== user?.avatarUrl)) setUser(res);
       }).catch(() => {});
       paymentsApi.getVendorStripeStatus().then((s) => setStripeStatus(s)).catch(() => {});
       teamApi.getMembers().then((res: any) => {
@@ -50,6 +55,28 @@ export default function VendorProfileScreen() {
       }).catch(() => {});
     }, [])
   );
+
+  const changePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    setUploadingAvatar(true);
+    try {
+      const uploaded: any = await uploadsApi.uploadPhoto(result.assets[0].uri, 'avatars');
+      const updated: any = await api.patch('/users/me/profile', { avatarUrl: uploaded.key });
+      setUser(updated);
+      Alert.alert('Photo Updated', 'Your profile photo has been saved.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not update your photo.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const startOnboarding = async () => {
     setOnboardingLoading(true);
@@ -142,12 +169,31 @@ export default function VendorProfileScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{user?.firstName?.[0]}{user?.lastName?.[0]}</Text>
-      </View>
+      <TouchableOpacity onPress={changePhoto} disabled={uploadingAvatar} style={styles.avatarWrap}>
+        <View style={styles.avatar}>
+          {uploadingAvatar
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.avatarText}>{user?.firstName?.[0]}{user?.lastName?.[0]}</Text>
+          }
+        </View>
+        <View style={styles.avatarBadge}>
+          <Ionicons name="camera" size={14} color="#fff" />
+        </View>
+      </TouchableOpacity>
       <Text style={styles.name}>{user?.firstName} {user?.lastName}</Text>
       {companyName ? <Text style={styles.companyName}>{companyName}</Text> : null}
       <Text style={styles.email}>{user?.email}</Text>
+
+      {!user?.avatarUrl && (
+        <View style={[styles.photoNotice, isCompanyAdmin ? styles.photoNoticeOptional : styles.photoNoticeRequired]}>
+          <Ionicons name={isCompanyAdmin ? 'information-circle-outline' : 'alert-circle'} size={16} color={isCompanyAdmin ? '#0B4A45' : '#d97706'} />
+          <Text style={[styles.photoNoticeText, { color: isCompanyAdmin ? '#0B4A45' : '#d97706' }]}>
+            {isCompanyAdmin
+              ? 'Add a profile photo if you plan to accept jobs yourself.'
+              : 'A profile photo is required before jobs will appear in your Open Requests queue.'}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
@@ -272,8 +318,17 @@ export default function VendorProfileScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: '#f8f9fa' },
   container: { padding: 24, alignItems: 'center', paddingTop: 48, paddingBottom: 40 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatarWrap: { marginBottom: 12 },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: '700' },
+  avatarBadge: {
+    position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13,
+    backgroundColor: '#17897D', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#f8f9fa',
+  },
+  photoNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginBottom: 16, width: '100%' },
+  photoNoticeRequired: { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a' },
+  photoNoticeOptional: { backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#99e6dc' },
+  photoNoticeText: { flex: 1, fontSize: 12.5, fontWeight: '500' },
   name: { fontSize: 22, fontWeight: '700', color: '#0B4A45', marginBottom: 2 },
   companyName: { fontSize: 16, fontWeight: '600', color: '#2EA89B', marginBottom: 2 },
   email: { fontSize: 14, color: '#888', marginBottom: 20 },

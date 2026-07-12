@@ -1,16 +1,25 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull, LessThanOrEqual } from 'typeorm';
+import { Repository, Not, IsNull, LessThanOrEqual, In } from 'typeorm';
+import * as crypto from 'crypto';
 import { User } from '../users/entities/user.entity';
 import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { CustomerSubscription, SubscriptionStatus } from '../subscriptions/entities/customer-subscription.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { Dispute } from '../service-requests/entities/dispute.entity';
 import { Review } from '../reviews/entities/review.entity';
 import { Alert } from '../alerts/entities/alert.entity';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../common/enums/role.enum';
+import { AdminLevel } from '../common/enums/admin-level.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
+import { AuthService } from '../auth/auth.service';
+import { UploadsService } from '../uploads/uploads.service';
+import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
+import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
+import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 
 @Injectable()
 export class AdminService {
@@ -21,9 +30,16 @@ export class AdminService {
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     @InjectRepository(ServiceRequest) private requestsRepo: Repository<ServiceRequest>,
     @InjectRepository(Review) private reviewsRepo: Repository<Review>,
+    @InjectRepository(Dispute) private disputesRepo: Repository<Dispute>,
     @InjectRepository(Alert) private alertsRepo: Repository<Alert>,
     @InjectRepository(CustomerProfile) private customerProfileRepo: Repository<CustomerProfile>,
+    @InjectRepository(VendorCompany) private vendorCompanyRepo: Repository<VendorCompany>,
+    @InjectRepository(VendorCertification) private vendorCertificationRepo: Repository<VendorCertification>,
+    @InjectRepository(VendorCapability) private vendorCapabilityRepo: Repository<VendorCapability>,
     private notificationsService: NotificationsService,
+    private usersService: UsersService,
+    private authService: AuthService,
+    private uploadsService: UploadsService,
   ) {}
 
   async getStats() {
@@ -113,18 +129,30 @@ export class AdminService {
       .orderBy('u.createdAt', 'DESC')
       .getMany();
 
-    return users.map((u) => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName}`,
-      email: u.email,
-      phone: u.phone,
-      status: u.status,
-      companyName: u.vendorProfile?.companyName ?? null,
-      createdAt: u.createdAt,
-      stripeConnected: !!u.vendorProfile?.stripeConnectAccountId,
-      planTier: u.vendorProfile?.planTier ?? 'STANDARD',
-      elitePlanExpiresAt: u.vendorProfile?.elitePlanExpiresAt ?? null,
-    }));
+    const companyIds = [...new Set(users.map((u) => u.vendorProfile?.companyId).filter(Boolean))] as string[];
+    const companies = companyIds.length
+      ? await this.vendorCompanyRepo.find({ where: { id: In(companyIds) } })
+      : [];
+    const companyMap = new Map(companies.map((c) => [c.id, c]));
+
+    return users.map((u) => {
+      const company = u.vendorProfile?.companyId ? companyMap.get(u.vendorProfile.companyId) : undefined;
+      return {
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`,
+        email: u.email,
+        phone: u.phone,
+        status: u.status,
+        companyName: company?.name ?? u.vendorProfile?.companyName ?? null,
+        logoKey: company?.logoKey ?? null,
+        createdAt: u.createdAt,
+        stripeConnected: !!(company?.stripeConnectAccountId ?? u.vendorProfile?.stripeConnectAccountId),
+        planTier: company?.planTier ?? u.vendorProfile?.planTier ?? 'STANDARD',
+        elitePlanExpiresAt: company?.elitePlanExpiresAt ?? u.vendorProfile?.elitePlanExpiresAt ?? null,
+        eliteRequestedAt: company?.eliteRequestedAt ?? null,
+        isCompanyAdmin: u.vendorProfile?.isCompanyAdmin ?? false,
+      };
+    });
   }
 
   async approveVendor(vendorId: string) {
@@ -137,13 +165,33 @@ export class AdminService {
     return { success: true };
   }
 
+  async removeCustomer(customerId: string) {
+    const customer = await this.usersRepo.findOne({ where: { id: customerId } });
+    if (!customer || !customer.roles.includes(UserRole.CUSTOMER)) {
+      throw new NotFoundException('Customer not found');
+    }
+    await this.usersRepo.update(customerId, { status: UserStatus.SUSPENDED });
+    return { success: true };
+  }
+
   async setVendorPlan(vendorId: string, tier: 'STANDARD' | 'ELITE', expiresAt?: string) {
     const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
     if (!profile) throw new NotFoundException('Vendor profile not found');
 
-    profile.planTier = tier;
-    profile.elitePlanExpiresAt = tier === 'ELITE' && expiresAt ? new Date(expiresAt) : null;
-    await this.vendorProfileRepo.save(profile);
+    const elitePlanExpiresAt = tier === 'ELITE' && expiresAt ? new Date(expiresAt) : null;
+
+    if (profile.companyId) {
+      await this.vendorCompanyRepo.update(profile.companyId, {
+        planTier: tier,
+        elitePlanExpiresAt,
+        eliteRequestedAt: null,
+      });
+      await this.vendorProfileRepo.update({ companyId: profile.companyId }, { planTier: tier, elitePlanExpiresAt });
+    } else {
+      profile.planTier = tier;
+      profile.elitePlanExpiresAt = elitePlanExpiresAt;
+      await this.vendorProfileRepo.save(profile);
+    }
 
     await this.notificationsService.notifyUser(
       vendorId,
@@ -310,6 +358,144 @@ export class AdminService {
     };
   }
 
+  async getCustomerActivity(customerId: string) {
+    const user = await this.usersRepo.findOne({
+      where: { id: customerId },
+      relations: ['customerProfile'],
+    });
+    if (!user) throw new NotFoundException('Customer not found');
+
+    const [serviceRequests, payments, disputes, alerts] = await Promise.all([
+      this.requestsRepo.find({
+        where: { customerId },
+        relations: ['vendor'],
+        order: { createdAt: 'DESC' },
+      }),
+      this.paymentsRepo.find({
+        where: { customerId },
+        order: { createdAt: 'DESC' },
+      }),
+      this.disputesRepo.find({
+        where: { customerId },
+        order: { createdAt: 'DESC' },
+      }),
+      this.alertsRepo.find({
+        where: { customerId },
+        order: { createdAt: 'DESC' },
+      }),
+    ]);
+
+    const vendorIds = [...new Set(disputes.map((d) => d.vendorId).filter(Boolean))];
+    const vendors = vendorIds.length
+      ? await this.usersRepo.createQueryBuilder('u').where('u.id IN (:...ids)', { ids: vendorIds }).getMany()
+      : [];
+    const vendorMap = new Map(vendors.map((v) => [v.id, v]));
+
+    return {
+      customer: {
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        phone: user.phone,
+        address: user.customerProfile?.address
+          ? `${user.customerProfile.address}, ${user.customerProfile.city}, ${user.customerProfile.state}`
+          : null,
+        createdAt: user.createdAt,
+      },
+      serviceRequests: serviceRequests.map((r) => ({
+        id: r.id,
+        ticketNumber: r.ticketNumber,
+        type: r.type,
+        address: r.address,
+        city: r.city,
+        state: r.state,
+        status: r.status,
+        scheduledDate: r.scheduledDate,
+        createdAt: r.createdAt,
+        vendor: r.vendor ? { id: r.vendor.id, firstName: r.vendor.firstName, lastName: r.vendor.lastName, email: r.vendor.email } : null,
+      })),
+      payments: payments.map((p) => ({
+        id: p.id,
+        description: p.description,
+        amount: p.amount,
+        status: p.status,
+        paidAt: p.capturedAt,
+        createdAt: p.createdAt,
+      })),
+      disputes: disputes.map((d) => {
+        const v = vendorMap.get(d.vendorId);
+        return {
+          id: d.id,
+          status: d.status,
+          category: d.category,
+          description: d.description,
+          createdAt: d.createdAt,
+          vendor: v ? { id: v.id, firstName: v.firstName, lastName: v.lastName, email: v.email } : null,
+        };
+      }),
+      alerts: alerts.map((a) => ({
+        id: a.id,
+        severity: a.severity,
+        deviceType: a.deviceType,
+        deviceName: a.deviceName,
+        message: a.message,
+        createdAt: a.createdAt,
+      })),
+    };
+  }
+
+  async getVendorActivity(vendorId: string) {
+    const user = await this.usersRepo.findOne({
+      where: { id: vendorId },
+      relations: ['vendorProfile'],
+    });
+    if (!user) throw new NotFoundException('Vendor not found');
+
+    const [jobs, payments] = await Promise.all([
+      this.requestsRepo.find({
+        where: { vendorId },
+        order: { createdAt: 'DESC' },
+        take: 50,
+      }),
+      this.paymentsRepo.find({
+        where: { vendorId },
+        order: { createdAt: 'DESC' },
+        take: 50,
+      }),
+    ]);
+
+    return {
+      vendor: {
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        companyName: user.vendorProfile?.companyName ?? null,
+        createdAt: user.createdAt,
+      },
+      jobs: jobs.map((j) => ({
+        id: j.id,
+        ticketNumber: j.ticketNumber,
+        type: j.type,
+        address: j.address,
+        city: j.city,
+        state: j.state,
+        status: j.status,
+        scheduledDate: j.scheduledDate,
+        completedAt: j.completedAt,
+        createdAt: j.createdAt,
+      })),
+      payments: payments.map((p) => ({
+        id: p.id,
+        description: p.description,
+        amount: p.amount,
+        vendorAmount: p.vendorAmount,
+        status: p.status,
+        capturedAt: p.capturedAt,
+        createdAt: p.createdAt,
+      })),
+    };
+  }
+
   async getAlerts(page = 1, limit = 50): Promise<{ alerts: any[]; total: number }> {
     const [alerts, total] = await this.alertsRepo.findAndCount({
       order: { createdAt: 'DESC' },
@@ -347,5 +533,216 @@ export class AdminService {
         };
       }),
     };
+  }
+
+  async getTeamUsers() {
+    const users = await this.usersRepo
+      .createQueryBuilder('u')
+      .where('u.roles LIKE :role', { role: `%${UserRole.ADMIN}%` })
+      .orderBy('u.createdAt', 'ASC')
+      .getMany();
+
+    return users.map((u) => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`,
+      email: u.email,
+      adminLevel: u.adminLevel,
+      status: u.status,
+      createdAt: u.createdAt,
+    }));
+  }
+
+  async createTeamUser(data: { email: string; firstName: string; lastName: string; adminLevel: AdminLevel }) {
+    const existing = await this.usersRepo.findOne({ where: { email: data.email } });
+    if (existing) throw new ConflictException('Email already in use');
+
+    // Throwaway password — the invitee sets their own via the forgot-password flow below.
+    const throwawayPassword = crypto.randomBytes(24).toString('hex');
+    const created = await this.usersService.create({
+      email: data.email,
+      password: throwawayPassword,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      roles: [UserRole.ADMIN],
+    });
+    await this.usersRepo.update(created.id, { adminLevel: data.adminLevel });
+    await this.authService.forgotPassword(data.email);
+
+    return this.usersRepo.findOne({ where: { id: created.id } });
+  }
+
+  async updateTeamUserLevel(userId: string, adminLevel: AdminLevel) {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
+
+    if (user.adminLevel === AdminLevel.SUPER_USER && adminLevel !== AdminLevel.SUPER_USER) {
+      const superUserCount = await this.usersRepo
+        .createQueryBuilder('u')
+        .where('u.adminLevel = :level', { level: AdminLevel.SUPER_USER })
+        .andWhere('u.status = :status', { status: UserStatus.ACTIVE })
+        .getCount();
+      if (superUserCount <= 1) {
+        throw new BadRequestException('Cannot demote the last remaining Super User');
+      }
+    }
+
+    await this.usersRepo.update(userId, { adminLevel });
+    return this.usersRepo.findOne({ where: { id: userId } });
+  }
+
+  async removeTeamUser(userId: string) {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
+
+    if (user.adminLevel === AdminLevel.SUPER_USER) {
+      const superUserCount = await this.usersRepo
+        .createQueryBuilder('u')
+        .where('u.adminLevel = :level', { level: AdminLevel.SUPER_USER })
+        .andWhere('u.status = :status', { status: UserStatus.ACTIVE })
+        .getCount();
+      if (superUserCount <= 1) {
+        throw new BadRequestException('Cannot remove the last remaining Super User');
+      }
+    }
+
+    await this.usersRepo.update(userId, { status: UserStatus.SUSPENDED });
+    return { success: true };
+  }
+
+  async getVendorApplications(status?: VendorApplicationStatus) {
+    const companies = await this.vendorCompanyRepo.find({
+      where: status ? { applicationStatus: status } : {},
+      order: { createdAt: 'DESC' },
+    });
+
+    const admins = await this.usersRepo
+      .createQueryBuilder('u')
+      .innerJoinAndSelect('u.vendorProfile', 'vp')
+      .where('vp.isCompanyAdmin = true')
+      .andWhere('vp.companyId IN (:...ids)', { ids: companies.map((c) => c.id).length ? companies.map((c) => c.id) : [''] })
+      .getMany();
+    const adminByCompany = new Map(admins.map((a) => [a.vendorProfile.companyId, a]));
+
+    return Promise.all(companies.map(async (c) => {
+      const admin = adminByCompany.get(c.id);
+      const coiValid = !!c.coiDocumentKey && !!c.coiExpirationDate && new Date(c.coiExpirationDate) > new Date();
+      const [stateRegistrationUrl, businessTaxLicenseUrl, coiUrl, adminAvatarUrl] = await Promise.all([
+        c.stateRegistrationDocKey ? this.uploadsService.getSignedUrl(c.stateRegistrationDocKey) : Promise.resolve(null),
+        c.businessTaxLicenseDocKey ? this.uploadsService.getSignedUrl(c.businessTaxLicenseDocKey) : Promise.resolve(null),
+        c.coiDocumentKey ? this.uploadsService.getSignedUrl(c.coiDocumentKey) : Promise.resolve(null),
+        admin?.avatarUrl ? this.uploadsService.getSignedUrl(admin.avatarUrl) : Promise.resolve(null),
+      ]);
+      return {
+        ...c,
+        stateRegistrationUrl,
+        businessTaxLicenseUrl,
+        coiUrl,
+        vendorAdmin: admin ? { id: admin.id, name: `${admin.firstName} ${admin.lastName}`, email: admin.email, avatarUrl: adminAvatarUrl } : null,
+        completeness: {
+          stateRegistration: !!c.stateRegistrationDocKey,
+          ein: !!c.ein,
+          businessTaxLicense: !!c.businessTaxLicenseDocKey,
+          coi: coiValid,
+          vendorAdminPhoto: !!admin?.avatarUrl,
+        },
+      };
+    }));
+  }
+
+  async reviewVendorApplication(companyId: string, status: VendorApplicationStatus, reviewNotes?: string) {
+    const company = await this.vendorCompanyRepo.findOne({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Vendor company not found');
+
+    company.applicationStatus = status;
+    company.reviewedAt = new Date();
+    company.reviewNotes = reviewNotes ?? null;
+    await this.vendorCompanyRepo.save(company);
+
+    const admin = await this.usersRepo
+      .createQueryBuilder('u')
+      .innerJoin('u.vendorProfile', 'vp')
+      .where('vp.companyId = :companyId', { companyId })
+      .andWhere('vp.isCompanyAdmin = true')
+      .getOne();
+
+    if (admin) {
+      if (status === VendorApplicationStatus.APPROVED) {
+        await this.usersRepo.update(admin.id, { status: UserStatus.ACTIVE });
+      }
+      const titles: Record<string, string> = {
+        [VendorApplicationStatus.APPROVED]: 'Application Approved',
+        [VendorApplicationStatus.REJECTED]: 'Application Rejected',
+        [VendorApplicationStatus.NEEDS_INFO]: 'More Information Needed',
+      };
+      await this.notificationsService.notifyUser(
+        admin.id,
+        NotificationType.SERVICE_UPDATE,
+        titles[status] ?? 'Application Updated',
+        reviewNotes || `Your company application status is now ${status}.`,
+        {},
+      );
+    }
+
+    return company;
+  }
+
+  async getVendorCertifications(status?: CertificationReviewStatus) {
+    const certs = await this.vendorCertificationRepo.find({
+      where: status ? { status } : {},
+      order: { createdAt: 'DESC' },
+    });
+    const userIds = [...new Set(certs.map((c) => c.userId))];
+    const users = userIds.length ? await this.usersRepo.find({ where: { id: In(userIds) } }) : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    return Promise.all(certs.map(async (c) => {
+      const user = userMap.get(c.userId);
+      const documentUrl = c.documentKey ? await this.uploadsService.getSignedUrl(c.documentKey) : null;
+      return {
+        ...c,
+        documentUrl,
+        user: user ? { id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email } : null,
+        completeness: {
+          licenseNumber: !!c.licenseNumber,
+          notExpired: new Date(c.expirationDate) > new Date(),
+          document: !!c.documentKey,
+        },
+      };
+    }));
+  }
+
+  async reviewVendorCertification(certId: string, status: CertificationReviewStatus, reviewNotes?: string) {
+    const cert = await this.vendorCertificationRepo.findOne({ where: { id: certId } });
+    if (!cert) throw new NotFoundException('Certification not found');
+
+    cert.status = status;
+    cert.reviewedAt = new Date();
+    cert.reviewNotes = reviewNotes ?? null;
+    await this.vendorCertificationRepo.save(cert);
+
+    const titles: Record<string, string> = {
+      [CertificationReviewStatus.APPROVED]: 'Certification Approved',
+      [CertificationReviewStatus.REJECTED]: 'Certification Rejected',
+    };
+    await this.notificationsService.notifyUser(
+      cert.userId,
+      NotificationType.SERVICE_UPDATE,
+      titles[status] ?? 'Certification Updated',
+      reviewNotes || `Your ${cert.certificationType} certification status is now ${status}.`,
+      {},
+    );
+
+    return cert;
+  }
+
+  async createCapability(data: { name: string; requiredCertificationType: string }) {
+    return this.vendorCapabilityRepo.save(this.vendorCapabilityRepo.create(data as any));
+  }
+
+  async updateCapability(id: string, data: Partial<{ name: string; requiredCertificationType: string; isActive: boolean }>) {
+    const capability = await this.vendorCapabilityRepo.findOne({ where: { id } });
+    if (!capability) throw new NotFoundException('Capability not found');
+    Object.assign(capability, data);
+    return this.vendorCapabilityRepo.save(capability);
   }
 }

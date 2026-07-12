@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi } from '../../src/services/api';
+import { fmtUSD } from '../../src/utils/currency';
 
 export default function ApprovalsScreen() {
   const [services, setServices] = useState<any[]>([]);
@@ -27,7 +28,7 @@ export default function ApprovalsScreen() {
   const handleApprove = (svc: any) => {
     Alert.alert(
       'Approve Service?',
-      `Approve "${svc.name}" for $${Number(svc.price).toFixed(2)}? Your vendor will be notified.`,
+      `Approve "${svc.name}" for ${fmtUSD(svc.price)}? Your vendor will be notified.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -110,7 +111,7 @@ export default function ApprovalsScreen() {
 
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Quoted price</Text>
-                <Text style={styles.price}>${Number(svc.price).toFixed(2)}</Text>
+                <Text style={styles.price}>{fmtUSD(svc.price)}</Text>
               </View>
 
               <View style={styles.actions}>

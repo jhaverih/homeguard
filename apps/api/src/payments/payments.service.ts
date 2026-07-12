@@ -7,9 +7,12 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import Stripe from 'stripe';
 import { Payment } from './entities/payment.entity';
+import { AdditionalService } from '../service-requests/entities/additional-service.entity';
+import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { PaymentStatus, PaymentType } from '../common/enums/role.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 const DISPUTE_WINDOW_HOURS = 48;
 
@@ -21,9 +24,14 @@ export class PaymentsService {
   constructor(
     @InjectRepository(Payment)
     private paymentsRepo: Repository<Payment>,
+    @InjectRepository(AdditionalService)
+    private additionalRepo: Repository<AdditionalService>,
+    @InjectRepository(ServiceRequest)
+    private requestsRepo: Repository<ServiceRequest>,
     private configService: ConfigService,
     private notificationsService: NotificationsService,
     private usersService: UsersService,
+    private subscriptionsService: SubscriptionsService,
   ) {
     this.stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY', ''), {
       apiVersion: '2024-04-10',
@@ -32,7 +40,8 @@ export class PaymentsService {
 
   async createVendorOnboardingLink(vendorId: string): Promise<{ url: string }> {
     const vendor = await this.usersService.findById(vendorId);
-    let accountId = vendor.vendorProfile?.stripeConnectAccountId;
+    const companyStripe = await this.usersService.getCompanyStripeAccount(vendorId);
+    let accountId = companyStripe.accountId;
 
     if (!accountId) {
       try {
@@ -68,8 +77,9 @@ export class PaymentsService {
     description: string,
     type: PaymentType = PaymentType.ADDITIONAL_SERVICE,
   ): Promise<{ clientSecret: string; paymentId: string }> {
-    const vendor = await this.usersService.findById(vendorId);
-    const vendorAccountId = vendor.vendorProfile?.stripeConnectAccountId;
+    // Payouts always go to the assigned technician's company account, never an
+    // individual technician's own (unused) Stripe Connect account.
+    const { accountId: vendorAccountId } = await this.usersService.getCompanyStripeAccount(vendorId);
 
     const platformFeePercent = Number(this.configService.get('PLATFORM_FEE_PERCENT', '15'));
     const amountInCents = Math.round(amount * 100);
@@ -81,9 +91,20 @@ export class PaymentsService {
       amount: amountInCents,
       currency: 'usd',
       capture_method: 'manual',
+      // The app is card-only today with no deep-link/return-URL handling built,
+      // so redirect-based payment methods are explicitly disabled — otherwise
+      // Stripe requires a return_url at confirmation that we can't satisfy.
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
       metadata: { serviceRequestId, customerId, vendorId, paymentType: type },
       description,
     };
+
+    // Attach the customer's saved default card (if any) so a "change payment method"
+    // update actually affects one-off charges too, not just subscription renewals.
+    const customer = await this.usersService.findById(customerId);
+    if (customer.stripeCustomerId) {
+      intentParams.customer = customer.stripeCustomerId;
+    }
 
     if (vendorAccountId) {
       intentParams.application_fee_amount = platformFeeInCents;
@@ -115,7 +136,9 @@ export class PaymentsService {
   async authorizePayment(paymentId: string, customerId: string): Promise<Payment> {
     const payment = await this.paymentsRepo.findOne({ where: { id: paymentId } });
     if (!payment) throw new NotFoundException('Payment not found');
-    if (payment.customerId !== customerId) throw new ForbiddenException();
+    // Any family member can authorize a shared household payment — "same rights".
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    if (!relatedIds.includes(payment.customerId)) throw new ForbiddenException();
     if (payment.status !== PaymentStatus.PENDING) {
       throw new BadRequestException('Payment is not in a pending state');
     }
@@ -144,8 +167,9 @@ export class PaymentsService {
   }
 
   async getPendingPayments(customerId: string): Promise<Payment[]> {
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     return this.paymentsRepo.find({
-      where: { customerId, status: In([PaymentStatus.PENDING, PaymentStatus.AUTHORIZED]) },
+      where: { customerId: In(relatedIds), status: In([PaymentStatus.PENDING, PaymentStatus.AUTHORIZED]) },
       order: { createdAt: 'DESC' },
     });
   }
@@ -157,9 +181,46 @@ export class PaymentsService {
     });
   }
 
+  async createServicePayment(
+    serviceId: string,
+    customerId: string,
+  ): Promise<{ clientSecret: string; paymentId: string }> {
+    const service = await this.additionalRepo.findOne({ where: { id: serviceId } });
+    if (!service) throw new NotFoundException('Additional service not found');
+    if (!service.approved) throw new BadRequestException('Service has not been approved by the customer');
+
+    const request = await this.requestsRepo.findOne({ where: { id: service.serviceRequestId } });
+    if (!request) throw new NotFoundException('Service request not found');
+    // Any family member can pay for a shared household service — "same rights".
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    if (!relatedIds.includes(request.customerId)) throw new ForbiddenException();
+
+    const existing = await this.paymentsRepo.findOne({
+      where: { serviceRequestId: request.id, description: service.name, customerId: request.customerId },
+    });
+    if (existing) {
+      return { clientSecret: existing.stripeClientSecret, paymentId: existing.id };
+    }
+
+    // Record the payment under the request's own owner, not whichever family member
+    // triggered it, so the existing-payment lookup above stays consistent regardless
+    // of which household member pays.
+    return this.createAuthHold(
+      request.id,
+      request.customerId,
+      request.vendorId,
+      Number(service.price),
+      service.name,
+      PaymentType.ADDITIONAL_SERVICE,
+    );
+  }
+
   async getPaymentHistory(userId: string, role: 'customer' | 'vendor'): Promise<Payment[]> {
-    const where = role === 'customer' ? { customerId: userId } : { vendorId: userId };
-    return this.paymentsRepo.find({ where, order: { createdAt: 'DESC' } });
+    if (role === 'customer') {
+      const relatedIds = await this.usersService.getRelatedCustomerIds(userId);
+      return this.paymentsRepo.find({ where: { customerId: In(relatedIds) }, order: { createdAt: 'DESC' } });
+    }
+    return this.paymentsRepo.find({ where: { vendorId: userId }, order: { createdAt: 'DESC' } });
   }
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -250,15 +311,14 @@ export class PaymentsService {
   }
 
   async getVendorStripeStatus(vendorId: string): Promise<{ connected: boolean; onboardingComplete: boolean }> {
-    const vendor = await this.usersService.findById(vendorId);
-    const accountId = vendor.vendorProfile?.stripeConnectAccountId;
+    const { accountId, onboardingComplete } = await this.usersService.getCompanyStripeAccount(vendorId);
 
     if (!accountId) {
       return { connected: false, onboardingComplete: false };
     }
 
     // Already confirmed complete — skip the Stripe call
-    if (vendor.vendorProfile?.stripeOnboardingComplete) {
+    if (onboardingComplete) {
       return { connected: true, onboardingComplete: true };
     }
 
@@ -281,5 +341,83 @@ export class PaymentsService {
       { stripePaymentIntentId },
       { status: PaymentStatus.DISPUTED },
     );
+  }
+
+  async createSetupIntent(userId: string): Promise<{ setupIntentClientSecret: string; ephemeralKeySecret: string; customerId: string }> {
+    const customerId = await this.subscriptionsService.getOrCreateStripeCustomer(userId);
+
+    const ephemeralKey = await this.stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: '2024-04-10' },
+    );
+    // Redirect-based payment methods are disabled — the app is card-only today
+    // with no deep-link/return-URL handling built, and Stripe requires a
+    // return_url at confirmation for any redirect-capable method otherwise.
+    const setupIntent = await this.stripe.setupIntents.create({
+      customer: customerId,
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+    });
+
+    return {
+      setupIntentClientSecret: setupIntent.client_secret,
+      ephemeralKeySecret: ephemeralKey.secret,
+      customerId,
+    };
+  }
+
+  async listPaymentMethods(userId: string): Promise<{ id: string; brand: string; last4: string; isDefault: boolean }[]> {
+    const user = await this.usersService.findById(userId);
+    if (!user.stripeCustomerId) return [];
+
+    const [methods, customer] = await Promise.all([
+      this.stripe.paymentMethods.list({ customer: user.stripeCustomerId, type: 'card' }),
+      this.stripe.customers.retrieve(user.stripeCustomerId),
+    ]);
+    const defaultId = !('deleted' in customer)
+      ? (customer.invoice_settings?.default_payment_method as string | null)
+      : null;
+
+    return methods.data.map((pm) => ({
+      id: pm.id,
+      brand: pm.card?.brand ?? 'card',
+      last4: pm.card?.last4 ?? '',
+      isDefault: pm.id === defaultId,
+    }));
+  }
+
+  async setDefaultPaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
+    const user = await this.usersService.findById(userId);
+    if (!user.stripeCustomerId) throw new BadRequestException('No saved payment methods for this account');
+
+    const methods = await this.listPaymentMethods(userId);
+    if (!methods.some((m) => m.id === paymentMethodId)) {
+      throw new ForbiddenException('That payment method does not belong to your account');
+    }
+
+    await this.stripe.customers.update(user.stripeCustomerId, {
+      invoice_settings: { default_payment_method: paymentMethodId },
+    });
+
+    // Keep the household's active subscription (if any) on the same default card.
+    const ownerId = await this.usersService.getEffectiveSubscriptionOwnerId(userId);
+    const sub = await this.subscriptionsService.getActiveSubscription(ownerId);
+    if (sub?.stripeSubscriptionId) {
+      try {
+        await this.stripe.subscriptions.update(sub.stripeSubscriptionId, { default_payment_method: paymentMethodId });
+      } catch (err) {
+        this.logger.warn(`Could not update subscription default payment method: ${err.message}`);
+      }
+    }
+
+    return { success: true };
+  }
+
+  async removePaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
+    const methods = await this.listPaymentMethods(userId);
+    if (!methods.some((m) => m.id === paymentMethodId)) {
+      throw new ForbiddenException('That payment method does not belong to your account');
+    }
+    await this.stripe.paymentMethods.detach(paymentMethodId);
+    return { success: true };
   }
 }

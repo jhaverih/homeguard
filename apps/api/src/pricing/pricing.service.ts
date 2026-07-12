@@ -3,6 +3,71 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ServicePrice } from './entities/service-price.entity';
 
+const NEW_CATALOG = [
+  {
+    name: 'Additional Inspection',
+    description: 'Add-on inspection visit outside subscription plan',
+    basePrice: 40,
+    priceNote: '$40',
+  },
+  {
+    name: 'Gutters Inspection & Cleaning',
+    description: 'Full gutter inspection and debris removal',
+    basePrice: 100,
+    priceNote: '$100',
+  },
+  {
+    name: 'Replace Bulbs (included in inspection)',
+    description: 'Bulb replacement during a scheduled inspection visit',
+    basePrice: 5.75,
+    priceNote: '$5.75/bulb',
+  },
+  {
+    name: 'Replace Bulbs (not included)',
+    description: 'Standalone bulb replacement — includes trip fee',
+    basePrice: 125,
+    priceNote: '$125 trip fee + $5.75/bulb',
+  },
+  {
+    name: 'HVAC Full Inspection',
+    description: 'Comprehensive HVAC system inspection by certified technician',
+    basePrice: 175,
+    priceNote: '$175',
+  },
+  {
+    name: 'Solar System',
+    description: 'Solar panel inspection and performance review',
+    basePrice: 0,
+    priceNote: 'Request Quote',
+    requiresQuote: true,
+  },
+  {
+    name: 'Replace AC Unit',
+    description: 'Full AC unit replacement — sizing and installation',
+    basePrice: 0,
+    priceNote: 'Request Quote',
+    requiresQuote: true,
+  },
+  {
+    name: 'Drywall Repair, Patching & Painting',
+    description: 'Drywall repair and touch-up painting',
+    basePrice: 150,
+    priceNote: '$150 trip fee + $/sqft',
+  },
+  {
+    name: 'Move Furniture',
+    description: 'Furniture moving assistance',
+    basePrice: 75,
+    priceNote: '$75/hr',
+  },
+  {
+    name: 'Driveway & Patio Power Wash',
+    description: 'High-pressure cleaning of driveway and patio surfaces',
+    basePrice: 75,
+    priceNote: '$75/hr',
+  },
+];
+
 @Injectable()
 export class PricingService implements OnModuleInit {
   constructor(
@@ -15,26 +80,19 @@ export class PricingService implements OnModuleInit {
   }
 
   private async seedPrices() {
-    const count = await this.pricesRepo.count();
-    if (count > 0) return;
+    const existing = await this.pricesRepo.findOne({ where: { name: 'Additional Inspection' } });
+    if (existing) return;
 
-    const defaultPrices = [
-      { name: 'AC Filter Replacement', description: 'Replace standard AC air filter', basePrice: 45 },
-      { name: 'Toilet Leak Check', description: 'Inspect and verify toilet water connections', basePrice: 35 },
-      { name: 'Light Bulb Replacement', description: 'Replace up to 5 light bulbs', basePrice: 30 },
-      { name: 'AC Drainage Pan Inspection', description: 'Inspect and clean AC drainage pan', basePrice: 65 },
-      { name: 'Washer Pan Inspection', description: 'Inspect washer machine drain pan', basePrice: 55 },
-      { name: 'HVAC Full Inspection', description: 'Comprehensive HVAC system inspection', basePrice: 150 },
-      { name: 'Additional Light Bulbs (per 5)', description: 'Beyond the initial 5 bulbs', basePrice: 25 },
-    ];
+    // Remove old catalog
+    await this.pricesRepo.createQueryBuilder().delete().execute();
 
-    for (const price of defaultPrices) {
-      await this.pricesRepo.save(this.pricesRepo.create(price));
+    for (const item of NEW_CATALOG) {
+      await this.pricesRepo.save(this.pricesRepo.create(item));
     }
   }
 
-  async getAll(): Promise<ServicePrice[]> {
-    return this.pricesRepo.find({ where: { isActive: true } });
+  async getAll(includeInactive = false): Promise<ServicePrice[]> {
+    return this.pricesRepo.find(includeInactive ? {} : { where: { isActive: true } });
   }
 
   async update(id: string, data: Partial<ServicePrice>): Promise<ServicePrice> {
@@ -44,5 +102,9 @@ export class PricingService implements OnModuleInit {
 
   async create(data: Partial<ServicePrice>): Promise<ServicePrice> {
     return this.pricesRepo.save(this.pricesRepo.create(data));
+  }
+
+  async remove(id: string): Promise<void> {
+    await this.pricesRepo.delete(id);
   }
 }

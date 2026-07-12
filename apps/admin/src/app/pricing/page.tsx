@@ -13,17 +13,48 @@ function calcPricing(providerCost: number, markupPct: number) {
   return { markupDollar, stripeFee, customerPrice };
 }
 
+function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (c === ',' && !inQuotes) {
+      values.push(current); current = '';
+    } else {
+      current += c;
+    }
+  }
+  values.push(current);
+  return values;
+}
+
 type PriceRow = {
   id: string;
   name: string;
   description: string;
-  unitDescription: string | null;
+  priceNote: string | null;
+  requiresQuote: boolean;
   basePrice: number;
   markupPercent: number | null;
+  quantityLabel: string | null;
+  minimumQuantity: number | null;
   isActive: boolean;
 };
 
-type EditState = { basePrice: string; markupPercent: string; unitDescription: string };
+type EditState = {
+  name: string;
+  description: string;
+  priceNote: string;
+  requiresQuote: boolean;
+  basePrice: string;
+  markupPercent: string;
+  quantityLabel: string;
+  minimumQuantity: string;
+};
 
 export default function PricingPage() {
   const [prices, setPrices] = useState<PriceRow[]>([]);
@@ -31,10 +62,15 @@ export default function PricingPage() {
   const [loading, setLoading] = useState(true);
   const [globalMarkup, setGlobalMarkup] = useState('15');
   const [editStates, setEditStates] = useState<Record<string, EditState>>({});
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkMarkup, setBulkMarkup] = useState('');
   const [saving, setSaving] = useState<Set<string>>(new Set());
-  const selectAllRef = useRef<HTMLInputElement>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [addingRow, setAddingRow] = useState(false);
+  const [newRow, setNewRow] = useState<EditState>({
+    name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '',
+  });
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans()])
@@ -42,75 +78,183 @@ export default function PricingPage() {
         setPrices(p);
         setPlans(s);
         const states: Record<string, EditState> = {};
-        for (const price of p) {
-          states[price.id] = {
-            basePrice: String(price.basePrice),
-            markupPercent: price.markupPercent != null ? String(price.markupPercent) : '',
-            unitDescription: price.unitDescription ?? '',
-          };
-        }
+        for (const price of p) states[price.id] = rowToEdit(price);
         setEditStates(states);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const allSelected = prices.length > 0 && selectedIds.size === prices.length;
-  const someSelected = selectedIds.size > 0 && !allSelected;
+  function rowToEdit(price: PriceRow): EditState {
+    return {
+      name: price.name,
+      description: price.description ?? '',
+      priceNote: price.priceNote ?? '',
+      requiresQuote: price.requiresQuote ?? false,
+      basePrice: String(price.basePrice),
+      markupPercent: price.markupPercent != null ? String(price.markupPercent) : '',
+      quantityLabel: price.quantityLabel ?? '',
+      minimumQuantity: price.minimumQuantity != null ? String(price.minimumQuantity) : '',
+    };
+  }
 
-  useEffect(() => {
-    if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected;
-  }, [someSelected]);
+  const reload = async () => {
+    const p = await pricingApi.getAll();
+    setPrices(p);
+    const states: Record<string, EditState> = {};
+    for (const price of p) states[price.id] = rowToEdit(price);
+    setEditStates(states);
+  };
 
-  const savePrice = async (id: string, overrides?: Partial<EditState>) => {
-    const state = { ...editStates[id], ...overrides };
+  const savePrice = async (id: string) => {
+    const state = editStates[id];
+    if (!state) return;
     setSaving((s) => new Set(s).add(id));
     try {
-      await pricingApi.update(id, {
+      const updated = await pricingApi.update(id, {
+        name: state.name,
+        description: state.description,
+        priceNote: state.priceNote || null,
+        requiresQuote: state.requiresQuote,
         basePrice: parseFloat(state.basePrice) || 0,
         markupPercent: state.markupPercent !== '' ? parseFloat(state.markupPercent) : null,
-        unitDescription: state.unitDescription || null,
+        quantityLabel: state.quantityLabel || null,
+        minimumQuantity: state.minimumQuantity !== '' ? parseFloat(state.minimumQuantity) : null,
       });
-      setPrices((prev) => prev.map((p) => p.id === id ? {
-        ...p,
-        basePrice: parseFloat(state.basePrice) || 0,
-        markupPercent: state.markupPercent !== '' ? parseFloat(state.markupPercent) : null,
-        unitDescription: state.unitDescription || null,
-      } : p));
+      setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
     } finally {
       setSaving((s) => { const n = new Set(s); n.delete(id); return n; });
     }
   };
 
-  const updateField = (id: string, field: keyof EditState, value: string) =>
+  const toggleActive = async (id: string, current: boolean) => {
+    setSaving((s) => new Set(s).add(id));
+    try {
+      await pricingApi.update(id, { isActive: !current });
+      setPrices((prev) => prev.map((p) => p.id === id ? { ...p, isActive: !current } : p));
+    } finally {
+      setSaving((s) => { const n = new Set(s); n.delete(id); return n; });
+    }
+  };
+
+  const deletePrice = async (id: string, name: string) => {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    setDeletingId(id);
+    try {
+      await pricingApi.remove(id);
+      setPrices((prev) => prev.filter((p) => p.id !== id));
+      setEditStates((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const addRow = async () => {
+    if (!newRow.name.trim()) return;
+    setSaving((s) => new Set(s).add('new'));
+    try {
+      const created = await pricingApi.create({
+        name: newRow.name,
+        description: newRow.description,
+        priceNote: newRow.priceNote || null,
+        requiresQuote: newRow.requiresQuote,
+        basePrice: parseFloat(newRow.basePrice) || 0,
+        markupPercent: newRow.markupPercent !== '' ? parseFloat(newRow.markupPercent) : null,
+        quantityLabel: newRow.quantityLabel || null,
+        minimumQuantity: newRow.minimumQuantity !== '' ? parseFloat(newRow.minimumQuantity) : null,
+      });
+      setPrices((prev) => [...prev, created]);
+      setEditStates((prev) => ({ ...prev, [created.id]: rowToEdit(created) }));
+      setNewRow({ name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '' });
+      setAddingRow(false);
+    } finally {
+      setSaving((s) => { const n = new Set(s); n.delete('new'); return n; });
+    }
+  };
+
+  const updateField = (id: string, field: keyof EditState, value: any) =>
     setEditStates((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
 
-  const toggleSelect = (id: string) =>
-    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-
-  const selectAll = () =>
-    setSelectedIds(allSelected ? new Set() : new Set(prices.map((p) => p.id)));
-
-  const applyBulkMarkup = async () => {
-    const pct = parseFloat(bulkMarkup);
-    if (isNaN(pct) || pct < 0) return;
-    const ids = Array.from(selectedIds);
-    setEditStates((prev) => {
-      const updated = { ...prev };
-      for (const id of ids) updated[id] = { ...updated[id], markupPercent: String(pct) };
-      return updated;
+  // ── CSV Export ──────────────────────────────────────────────────────────────
+  const exportCsv = () => {
+    const headers = ['name', 'description', 'priceNote', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'isActive'];
+    const rows = prices.map((p) => {
+      const s = editStates[p.id];
+      const esc = (v: string) => `"${(v || '').replace(/"/g, '""')}"`;
+      return [
+        esc(s?.name || p.name),
+        esc(s?.description || p.description || ''),
+        esc(s?.priceNote || p.priceNote || ''),
+        s?.requiresQuote ? 'true' : 'false',
+        s?.basePrice || String(p.basePrice),
+        s?.markupPercent || (p.markupPercent != null ? String(p.markupPercent) : ''),
+        esc(s?.quantityLabel || p.quantityLabel || ''),
+        s?.minimumQuantity || (p.minimumQuantity != null ? String(p.minimumQuantity) : ''),
+        p.isActive ? 'true' : 'false',
+      ].join(',');
     });
-    setSaving(new Set(ids));
-    await Promise.all(ids.map(async (id) => {
-      const state = editStates[id];
-      await pricingApi.update(id, {
-        basePrice: parseFloat(state.basePrice) || 0,
-        markupPercent: pct,
-        unitDescription: state.unitDescription || null,
-      });
-    }));
-    setPrices((prev) => prev.map((p) => selectedIds.has(p.id) ? { ...p, markupPercent: pct } : p));
-    setSaving(new Set());
-    setBulkMarkup('');
+    const csv = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `houmi-services-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── CSV Import ──────────────────────────────────────────────────────────────
+  const importCsv = async (file: File) => {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) { setImportResult('File appears empty.'); return; }
+      const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
+      const results: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]);
+        const row: any = {};
+        headers.forEach((h, idx) => {
+          const v = (values[idx] || '').trim();
+          row[h] = v;
+        });
+        if (!row.name) continue;
+
+        const payload = {
+          description: row.description || '',
+          priceNote: row.priceNote || null,
+          requiresQuote: row.requiresQuote === 'true',
+          basePrice: parseFloat(row.basePrice) || 0,
+          markupPercent: row.markupPercent !== '' && row.markupPercent != null ? parseFloat(row.markupPercent) : null,
+          quantityLabel: row.quantityLabel || null,
+          minimumQuantity: row.minimumQuantity !== '' && row.minimumQuantity != null ? parseFloat(row.minimumQuantity) : null,
+          isActive: row.isActive !== 'false',
+        };
+
+        const existing = prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
+        try {
+          if (existing) {
+            await pricingApi.update(existing.id, payload);
+            results.push(`✓ Updated: ${row.name}`);
+          } else {
+            await pricingApi.create({ name: row.name, ...payload });
+            results.push(`+ Created: ${row.name}`);
+          }
+        } catch {
+          results.push(`✗ Error: ${row.name}`);
+        }
+      }
+
+      await reload();
+      setImportResult(results.join('\n') || 'No rows processed.');
+    } catch (e: any) {
+      setImportResult(`Import failed: ${e.message}`);
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   if (loading) return <div className="text-gray-500 p-8">Loading...</div>;
@@ -118,27 +262,7 @@ export default function PricingPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-brand mb-2">Pricing Management</h1>
-      <p className="text-gray-500 mb-8">Configure service pricing, markups, and view customer-facing totals.</p>
-
-      {/* Global Platform Markup */}
-      <div className="bg-white rounded-2xl border border-gray-100 mb-8">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-brand">Global Platform Markup</h2>
-          <p className="text-sm text-gray-500 mt-1">Default markup applied to all services. Override per-service in the table below.</p>
-        </div>
-        <div className="p-6 flex items-center gap-4">
-          <input
-            type="number"
-            value={globalMarkup}
-            onChange={(e) => setGlobalMarkup(e.target.value)}
-            className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-center text-lg font-bold focus:border-brand outline-none"
-            min="0"
-            max="100"
-          />
-          <span className="text-lg text-gray-600">%</span>
-          <span className="text-sm text-gray-400">Set PLATFORM_FEE_PERCENT in .env to persist across restarts</span>
-        </div>
-      </div>
+      <p className="text-gray-500 mb-8">Edit service names, descriptions, pricing notes, and rates. Changes save on blur.</p>
 
       {/* Subscription Plans */}
       <div className="bg-white rounded-2xl border border-gray-100 mb-8">
@@ -169,106 +293,160 @@ export default function PricingPage() {
 
       {/* Service Prices */}
       <div className="bg-white rounded-2xl border border-gray-100">
-        <div className="p-6 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-lg font-bold text-brand">Service Prices</h2>
+            <h2 className="text-lg font-bold text-brand">Additional Services Catalog</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Stripe fee: 2.9% + $0.30 per transaction. Changes save on blur.
+              All fields editable. Stripe fee: 2.9% + $0.30. Toggle the switch to disable without deleting.
             </p>
           </div>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-4 py-3">
-              <span className="text-sm font-semibold text-brand">{selectedIds.size} selected</span>
-              <span className="text-gray-300">|</span>
-              <span className="text-sm text-gray-500">Set markup</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={exportCsv}
+              className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors flex items-center gap-2"
+            >
+              ↓ Export CSV
+            </button>
+            <label className={`border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer flex items-center gap-2 ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
+              {importing ? '⏳ Importing…' : '↑ Import CSV'}
               <input
-                type="number"
-                value={bulkMarkup}
-                onChange={(e) => setBulkMarkup(e.target.value)}
-                placeholder="e.g. 20"
-                className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right focus:border-brand outline-none"
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) importCsv(e.target.files[0]); }}
               />
-              <span className="text-sm text-gray-400">%</span>
-              <button
-                onClick={applyBulkMarkup}
-                disabled={bulkMarkup === ''}
-                className="bg-brand text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-brand-dark disabled:opacity-40 transition-colors"
-              >
-                Apply to all
-              </button>
-              <button
-                onClick={() => setSelectedIds(new Set())}
-                className="text-gray-400 hover:text-gray-600 px-2 py-1 text-sm"
-              >
-                Clear
-              </button>
-            </div>
-          )}
+            </label>
+            <button
+              onClick={() => setAddingRow(true)}
+              className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition-colors"
+            >
+              + Add Service
+            </button>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Import result */}
+        {importResult && (
+          <div className="mx-6 mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <div className="flex justify-between items-start">
+              <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">{importResult}</pre>
+              <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600 ml-4 text-lg leading-none">×</button>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto mt-2">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/70">
-                <th className="pl-6 pr-2 py-3 w-10">
-                  <input
-                    ref={selectAllRef}
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={selectAll}
-                    className="rounded cursor-pointer"
-                  />
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[180px]">Service</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[130px]">Unit</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Provider Cost</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Markup %</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Markup $</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Stripe Fee</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 pr-6">Customer Price</th>
-                <th className="w-8 pr-4"></th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 w-16">Active</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[160px]">Name</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[200px]">Description</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[130px]">Price Note</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 w-24">Quote Only</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 w-28">Qty Label</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-24">Min. Qty</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-28">Base Price</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-24">Markup %</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-28">Customer Price</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-28">Global Markup</th>
+                <th className="w-16 pr-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {prices.map((price) => {
-                const state = editStates[price.id] ?? {
-                  basePrice: String(price.basePrice),
-                  markupPercent: '',
-                  unitDescription: '',
-                };
+                const state = editStates[price.id];
+                if (!state) return null;
                 const providerCost = parseFloat(state.basePrice) || 0;
                 const effectivePct = state.markupPercent !== ''
                   ? (parseFloat(state.markupPercent) || 0)
                   : (parseFloat(globalMarkup) || 0);
-                const { markupDollar, stripeFee, customerPrice } = calcPricing(providerCost, effectivePct);
-                const isSelected = selectedIds.has(price.id);
+                const { customerPrice } = calcPricing(providerCost, effectivePct);
                 const isSaving = saving.has(price.id);
+                const isDeleting = deletingId === price.id;
+                const inactive = !price.isActive;
 
                 return (
-                  <tr key={price.id} className={`transition-colors ${isSelected ? 'bg-teal-50/40' : 'hover:bg-gray-50/50'}`}>
-                    <td className="pl-6 pr-2 py-4">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(price.id)}
-                        className="rounded cursor-pointer"
-                      />
+                  <tr key={price.id} className={`hover:bg-gray-50/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
+                    {/* Active toggle */}
+                    <td className="px-3 py-3 text-center">
+                      <button
+                        onClick={() => toggleActive(price.id, price.isActive)}
+                        title={price.isActive ? 'Disable service' : 'Enable service'}
+                        className={`w-10 h-6 rounded-full transition-colors ${price.isActive ? 'bg-teal-600' : 'bg-gray-300'} relative`}
+                      >
+                        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${price.isActive ? 'left-[18px]' : 'left-0.5'}`} />
+                      </button>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="font-semibold text-gray-800">{price.name}</div>
-                      <div className="text-xs text-gray-400 mt-0.5 leading-snug">{price.description}</div>
-                    </td>
-                    <td className="px-4 py-4">
+                    {/* Name */}
+                    <td className="px-4 py-3">
                       <input
                         type="text"
-                        value={state.unitDescription}
-                        onChange={(e) => updateField(price.id, 'unitDescription', e.target.value)}
+                        value={state.name}
+                        onChange={(e) => updateField(price.id, 'name', e.target.value)}
                         onBlur={() => savePrice(price.id)}
-                        placeholder="e.g. per filter"
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-700 focus:border-brand focus:ring-1 focus:ring-brand/20 outline-none"
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-semibold text-gray-800 focus:border-brand outline-none"
                       />
                     </td>
-                    <td className="px-4 py-4">
+                    {/* Description */}
+                    <td className="px-4 py-3">
+                      <textarea
+                        value={state.description}
+                        onChange={(e) => updateField(price.id, 'description', e.target.value)}
+                        onBlur={() => savePrice(price.id)}
+                        rows={2}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:border-brand outline-none resize-none"
+                      />
+                    </td>
+                    {/* Price Note */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={state.priceNote}
+                        onChange={(e) => updateField(price.id, 'priceNote', e.target.value)}
+                        onBlur={() => savePrice(price.id)}
+                        placeholder="e.g. $75/hr"
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 focus:border-brand outline-none"
+                      />
+                    </td>
+                    {/* Requires Quote */}
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={state.requiresQuote}
+                        onChange={(e) => {
+                          updateField(price.id, 'requiresQuote', e.target.checked);
+                          setTimeout(() => savePrice(price.id), 0);
+                        }}
+                        className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                      />
+                    </td>
+                    {/* Quantity Label */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={state.quantityLabel}
+                        onChange={(e) => updateField(price.id, 'quantityLabel', e.target.value)}
+                        onBlur={() => savePrice(price.id)}
+                        placeholder="e.g. sq ft"
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 focus:border-brand outline-none"
+                      />
+                    </td>
+                    {/* Minimum Quantity */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        value={state.minimumQuantity}
+                        onChange={(e) => updateField(price.id, 'minimumQuantity', e.target.value)}
+                        onBlur={() => savePrice(price.id)}
+                        placeholder="0"
+                        className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                        min="0"
+                      />
+                    </td>
+                    {/* Base Price */}
+                    <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <span className="text-gray-400 text-xs">$</span>
                         <input
@@ -276,13 +454,13 @@ export default function PricingPage() {
                           value={state.basePrice}
                           onChange={(e) => updateField(price.id, 'basePrice', e.target.value)}
                           onBlur={() => savePrice(price.id)}
-                          className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand focus:ring-1 focus:ring-brand/20 outline-none"
-                          min="0"
-                          step="0.01"
+                          className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                          min="0" step="0.01"
                         />
                       </div>
                     </td>
-                    <td className="px-4 py-4">
+                    {/* Markup % */}
+                    <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <input
                           type="number"
@@ -290,36 +468,171 @@ export default function PricingPage() {
                           onChange={(e) => updateField(price.id, 'markupPercent', e.target.value)}
                           onBlur={() => savePrice(price.id)}
                           placeholder={globalMarkup}
-                          className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand focus:ring-1 focus:ring-brand/20 outline-none placeholder-gray-300"
-                          min="0"
-                          max="100"
-                          step="0.1"
+                          className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none placeholder-gray-300"
+                          min="0" max="200" step="0.1"
                         />
                         <span className="text-gray-400 text-xs">%</span>
                       </div>
-                      {state.markupPercent === '' && (
-                        <div className="text-xs text-gray-300 text-right mt-0.5">global</div>
+                    </td>
+                    {/* Customer Price */}
+                    <td className="px-4 py-3 text-right">
+                      {state.requiresQuote ? (
+                        <span className="text-xs font-semibold text-purple-600 bg-purple-50 rounded-full px-2 py-1">Request a Quote</span>
+                      ) : (
+                        <span className="font-bold text-brand tabular-nums">${Math.ceil(customerPrice)}</span>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-right text-gray-600 tabular-nums">
-                      ${markupDollar.toFixed(2)}
+                    {/* Global markup field */}
+                    <td className="px-4 py-3 text-right">
+                      {state.markupPercent === '' && !state.requiresQuote && (
+                        <div className="flex items-center justify-end gap-1">
+                          <input
+                            type="number"
+                            value={globalMarkup}
+                            onChange={(e) => setGlobalMarkup(e.target.value)}
+                            className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs text-right focus:border-brand outline-none"
+                          />
+                          <span className="text-xs text-gray-300">%</span>
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-4 text-right text-orange-500 tabular-nums">
-                      ${stripeFee.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-4 text-right pr-6 tabular-nums">
-                      <span className="font-bold text-brand text-base">${customerPrice.toFixed(2)}</span>
-                    </td>
+                    {/* Delete */}
                     <td className="pr-4 text-center">
-                      {isSaving && (
+                      {isSaving || isDeleting ? (
                         <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin inline-block" />
+                      ) : (
+                        <button
+                          onClick={() => deletePrice(price.id, state.name)}
+                          className="text-gray-300 hover:text-red-500 transition-colors px-1"
+                          title="Delete service"
+                        >
+                          ✕
+                        </button>
                       )}
                     </td>
                   </tr>
                 );
               })}
+
+              {/* Add new row */}
+              {addingRow && (
+                <tr className="bg-teal-50/30 border-t-2 border-teal-200">
+                  <td className="px-3 py-3" />
+                  <td className="px-4 py-3">
+                    <input
+                      type="text"
+                      value={newRow.name}
+                      onChange={(e) => setNewRow((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="Service name"
+                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm font-semibold focus:border-brand outline-none"
+                      autoFocus
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <textarea
+                      value={newRow.description}
+                      onChange={(e) => setNewRow((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="Description"
+                      rows={2}
+                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-xs focus:border-brand outline-none resize-none"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="text"
+                      value={newRow.priceNote}
+                      onChange={(e) => setNewRow((p) => ({ ...p, priceNote: e.target.value }))}
+                      placeholder="e.g. $75/hr"
+                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand outline-none"
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={newRow.requiresQuote}
+                      onChange={(e) => setNewRow((p) => ({ ...p, requiresQuote: e.target.checked }))}
+                      className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="text"
+                      value={newRow.quantityLabel}
+                      onChange={(e) => setNewRow((p) => ({ ...p, quantityLabel: e.target.value }))}
+                      placeholder="e.g. sq ft"
+                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand outline-none"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      value={newRow.minimumQuantity}
+                      onChange={(e) => setNewRow((p) => ({ ...p, minimumQuantity: e.target.value }))}
+                      placeholder="0"
+                      className="w-20 border border-teal-300 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                      min="0"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <span className="text-gray-400 text-xs">$</span>
+                      <input
+                        type="number"
+                        value={newRow.basePrice}
+                        onChange={(e) => setNewRow((p) => ({ ...p, basePrice: e.target.value }))}
+                        className="w-20 border border-teal-300 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                        min="0" step="0.01"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <input
+                        type="number"
+                        value={newRow.markupPercent}
+                        onChange={(e) => setNewRow((p) => ({ ...p, markupPercent: e.target.value }))}
+                        placeholder={globalMarkup}
+                        className="w-16 border border-teal-300 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none placeholder-gray-300"
+                        min="0" max="200" step="0.1"
+                      />
+                      <span className="text-gray-400 text-xs">%</span>
+                    </div>
+                  </td>
+                  <td colSpan={2} />
+                  <td className="pr-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '' }); }}
+                        className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={addRow}
+                        disabled={!newRow.name.trim() || saving.has('new')}
+                        className="bg-brand text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-brand-dark disabled:opacity-40 transition-colors"
+                      >
+                        {saving.has('new') ? 'Saving…' : 'Add'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
+
+          {prices.length === 0 && !addingRow && (
+            <div className="p-12 text-center text-gray-400">
+              No services yet. Click <strong>+ Add Service</strong> to add one.
+            </div>
+          )}
+        </div>
+
+        {/* CSV format hint */}
+        <div className="p-4 border-t border-gray-100">
+          <p className="text-xs text-gray-400">
+            <strong>CSV format:</strong> name, description, priceNote, requiresQuote (true/false), basePrice, markupPercent, quantityLabel, minimumQuantity, isActive (true/false) — existing rows matched by name, new names are created.
+          </p>
         </div>
       </div>
     </div>

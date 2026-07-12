@@ -1,32 +1,40 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable, ForbiddenException, BadRequestException, NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InspectionNote } from './entities/inspection.entity';
+import { InspectionTaskResult } from './entities/inspection-task-result.entity';
 import { UploadsService } from '../uploads/uploads.service';
-import { NoteType } from '../common/enums/role.enum';
+import { NoteType, TaskStatus } from '../common/enums/role.enum';
+import {
+  INSPECTION_CHECKLIST, ALL_TASK_KEYS, TASK_TOTAL, getTaskDef, getSectionKey,
+} from './checklists';
 
 @Injectable()
 export class InspectionsService {
   constructor(
     @InjectRepository(InspectionNote)
     private notesRepo: Repository<InspectionNote>,
+    @InjectRepository(InspectionTaskResult)
+    private taskResultsRepo: Repository<InspectionTaskResult>,
     private uploadsService: UploadsService,
   ) {}
+
+  // ── Legacy notes ─────────────────────────────────────────────────────────
 
   async addNote(
     serviceRequestId: string,
     vendorId: string,
     dto: { title: string; content: string; type?: NoteType; photoUrls?: string[] },
   ): Promise<InspectionNote> {
-    const photoKeys = dto.photoUrls || [];
-
     const note = this.notesRepo.create({
       serviceRequestId,
       vendorId,
       type: dto.type ?? NoteType.OBSERVATION,
       title: dto.title,
       content: dto.content,
-      photoUrls: photoKeys,
+      photoUrls: dto.photoUrls || [],
     });
     return this.notesRepo.save(note);
   }
@@ -48,6 +56,117 @@ export class InspectionsService {
     return this.resolveNotePhotos(notes);
   }
 
+  // ── Task results ──────────────────────────────────────────────────────────
+
+  getChecklist() {
+    return INSPECTION_CHECKLIST;
+  }
+
+  async upsertTaskResult(
+    serviceRequestId: string,
+    vendorId: string,
+    taskKey: string,
+    dto: {
+      status: TaskStatus;
+      findings?: string;
+      recommendation?: string;
+      structuredData?: Record<string, any>;
+      photoKeys?: string[];
+      linkedAdditionalServiceId?: string;
+    },
+  ): Promise<InspectionTaskResult> {
+    const taskDef = getTaskDef(taskKey);
+    const isSpecialKey = taskKey === 'hvac_report' || taskKey.startsWith('gutter_');
+    if (!taskDef && !isSpecialKey) throw new NotFoundException(`Unknown task key: ${taskKey}`);
+
+    if (taskDef && dto.status !== TaskStatus.OK && (!dto.photoKeys || dto.photoKeys.length === 0)) {
+      throw new BadRequestException(
+        'At least one photo is required when status is Needs Attention, Urgent, or Not Accessible.',
+      );
+    }
+
+    const sectionKey = getSectionKey(taskKey);
+    const existing = await this.taskResultsRepo.findOne({
+      where: { serviceRequestId, taskKey },
+    });
+
+    if (existing) {
+      existing.vendorId = vendorId;
+      existing.sectionKey = sectionKey;
+      existing.status = dto.status;
+      existing.findings = dto.findings ?? existing.findings;
+      existing.recommendation = dto.recommendation ?? existing.recommendation;
+      existing.structuredData = dto.structuredData ?? existing.structuredData;
+      existing.photoKeys = dto.photoKeys ?? existing.photoKeys;
+      if (dto.linkedAdditionalServiceId !== undefined) {
+        existing.linkedAdditionalServiceId = dto.linkedAdditionalServiceId;
+      }
+      return this.taskResultsRepo.save(existing);
+    }
+
+    const result = this.taskResultsRepo.create({
+      serviceRequestId,
+      vendorId,
+      sectionKey,
+      taskKey,
+      status: dto.status,
+      findings: dto.findings,
+      recommendation: dto.recommendation,
+      structuredData: dto.structuredData,
+      photoKeys: dto.photoKeys || [],
+      linkedAdditionalServiceId: dto.linkedAdditionalServiceId,
+    });
+    return this.taskResultsRepo.save(result);
+  }
+
+  async getTaskResults(serviceRequestId: string): Promise<any[]> {
+    const results = await this.taskResultsRepo.find({
+      where: { serviceRequestId },
+      order: { createdAt: 'ASC' },
+    });
+    return this.resolveTaskPhotos(results);
+  }
+
+  async getProgress(serviceRequestId: string): Promise<{
+    total: number;
+    completed: number;
+    sections: { key: string; label: string; total: number; completed: number }[];
+  }> {
+    const results = await this.taskResultsRepo.find({ where: { serviceRequestId } });
+    const doneKeys = new Set(results.map((r) => r.taskKey));
+
+    const sections = INSPECTION_CHECKLIST.map((section) => ({
+      key: section.key,
+      label: section.label,
+      total: section.tasks.length,
+      completed: section.tasks.filter((t) => doneKeys.has(t.key)).length,
+    }));
+
+    return {
+      total: TASK_TOTAL,
+      completed: doneKeys.size,
+      sections,
+    };
+  }
+
+  async isChecklistComplete(serviceRequestId: string): Promise<boolean> {
+    const count = await this.taskResultsRepo.count({ where: { serviceRequestId } });
+    // If no tasks at all, allow completion (legacy job)
+    if (count === 0) return true;
+    return count >= TASK_TOTAL;
+  }
+
+  async getTaskHistoryForCustomer(customerId: string): Promise<any[]> {
+    const results = await this.taskResultsRepo
+      .createQueryBuilder('r')
+      .innerJoin('service_requests', 'sr', 'sr.id = r.serviceRequestId AND sr.customerId = :customerId', { customerId })
+      .orderBy('r.updatedAt', 'DESC')
+      .getMany();
+    return this.resolveTaskPhotos(results);
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────────────
+
   private async resolveNotePhotos(notes: InspectionNote[]): Promise<any[]> {
     return Promise.all(
       notes.map(async (note) => {
@@ -55,6 +174,17 @@ export class InspectionsService {
           (note.photoUrls || []).map((key) => this.uploadsService.getSignedUrl(key).catch(() => null)),
         );
         return { ...note, photoUrls: photoUrls.filter(Boolean) };
+      }),
+    );
+  }
+
+  private async resolveTaskPhotos(results: InspectionTaskResult[]): Promise<any[]> {
+    return Promise.all(
+      results.map(async (r) => {
+        const photoUrls = await Promise.all(
+          (r.photoKeys || []).map((key) => this.uploadsService.getSignedUrl(key).catch(() => null)),
+        );
+        return { ...r, photoUrls: photoUrls.filter(Boolean) };
       }),
     );
   }

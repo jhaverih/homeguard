@@ -46,6 +46,15 @@ export class VendorProfile {
   @Column({ type: 'timestamp', nullable: true })
   elitePlanExpiresAt: Date | null;
 
+  // Every vendor user (Vendor Admin or Technician) belongs to a VendorCompany.
+  // companyName/planTier/stripe* above are kept in sync with the company record
+  // so existing read sites keep working; new code should read via companyId.
+  @Column({ nullable: true })
+  companyId: string;
+
+  @Column({ default: false })
+  isCompanyAdmin: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl }
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { paymentsApi } from '../../src/services/api';
+import { fmtUSD } from '../../src/utils/currency';
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: '#f6ad55',
@@ -53,12 +54,12 @@ export default function EarningsScreen() {
     >
       <View style={styles.summary}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryAmount}>${totalReleased.toFixed(2)}</Text>
+          <Text style={styles.summaryAmount}>{fmtUSD(totalReleased)}</Text>
           <Text style={styles.summaryLabel}>Total Released</Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <Text style={[styles.summaryAmount, { color: '#4299e1' }]}>${totalPending.toFixed(2)}</Text>
+          <Text style={[styles.summaryAmount, { color: '#4299e1' }]}>{fmtUSD(totalPending)}</Text>
           <Text style={styles.summaryLabel}>Pending</Text>
         </View>
       </View>
@@ -102,15 +103,15 @@ export default function EarningsScreen() {
               <View style={styles.breakdown}>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Billed to Houmi</Text>
-                  <Text style={styles.breakdownValue}>${amount.toFixed(2)}</Text>
+                  <Text style={styles.breakdownValue}>{fmtUSD(amount)}</Text>
                 </View>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Stripe processing fee</Text>
-                  <Text style={[styles.breakdownValue, { color: '#c53030' }]}>−${stripeFee.toFixed(2)}</Text>
+                  <Text style={[styles.breakdownValue, { color: '#c53030' }]}>−{fmtUSD(stripeFee)}</Text>
                 </View>
                 <View style={[styles.breakdownRow, styles.breakdownNetRow]}>
                   <Text style={styles.breakdownNetLabel}>Your net payout</Text>
-                  <Text style={styles.breakdownNetValue}>${vendorAmount.toFixed(2)}</Text>
+                  <Text style={styles.breakdownNetValue}>{fmtUSD(vendorAmount)}</Text>
                 </View>
               </View>
             </View>

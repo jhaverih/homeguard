@@ -22,8 +22,24 @@ export class ServicePrice {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   markupPercent: number | null;
 
+  @Column({ type: 'text', nullable: true })
+  priceNote: string | null;
+
+  @Column({ default: false })
+  requiresQuote: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  quantityLabel: string | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  minimumQuantity: number | null;
+
   @Column({ default: true })
   isActive: boolean;
+
+  // Nullable — services with no capability requirement are open to any vendor.
+  @Column({ nullable: true })
+  requiredCapabilityId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

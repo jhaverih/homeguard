@@ -7,6 +7,7 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, userApi, subscriptionsApi, pricingApi, standaloneServiceApi } from '../../src/services/api';
+import { fmtUSD } from '../../src/utils/currency';
 
 function DateTimeField({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
   const [showDate, setShowDate] = useState(false);
@@ -66,28 +67,6 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
   );
 }
 
-function AddressFields({ address, city, state, zipCode, setAddress, setCity, setState, setZipCode }: any) {
-  return (
-    <>
-      <Text style={styles.label}>Property Address</Text>
-      <TextInput style={styles.input} placeholder="Street address" placeholderTextColor="#94a3b8" value={address} onChangeText={setAddress} />
-      <View style={styles.row}>
-        <TextInput style={[styles.input, styles.flex2]} placeholder="City" placeholderTextColor="#94a3b8" value={city} onChangeText={setCity} />
-        <TextInput
-          style={[styles.input, styles.flex1, styles.ml8]}
-          placeholder="State" placeholderTextColor="#94a3b8" value={state} onChangeText={setState}
-          autoCapitalize="characters" maxLength={2}
-        />
-        <TextInput
-          style={[styles.input, styles.flex1, styles.ml8]}
-          placeholder="ZIP" placeholderTextColor="#94a3b8" value={zipCode} onChangeText={setZipCode}
-          keyboardType="number-pad" maxLength={5}
-        />
-      </View>
-    </>
-  );
-}
-
 export default function RequestScreen() {
   const [tab, setTab] = useState<'inspection' | 'service'>('inspection');
   const [loading, setLoading] = useState(false);
@@ -97,7 +76,8 @@ export default function RequestScreen() {
   // Catalog for service tab
   const [catalog, setCatalog] = useState<any[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
-  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedServices, setSelectedServices] = useState<any[]>([]);
+  const [serviceQuantities, setServiceQuantities] = useState<Record<string, string>>({});
   const [serviceConfirmModal, setServiceConfirmModal] = useState(false);
 
   const tomorrow = new Date();
@@ -108,10 +88,12 @@ export default function RequestScreen() {
   const { prefilledNotes } = useLocalSearchParams<{ prefilledNotes?: string }>();
   const [notes, setNotes] = useState('');
   const [serviceNotes, setServiceNotes] = useState('');
-  const [address, setAddress] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [zipCode, setZipCode] = useState('');
+  const [solarMonthlyBill, setSolarMonthlyBill] = useState('');
+  const [solarInterest, setSolarInterest] = useState<'solar_only' | 'solar_battery'>('solar_only');
+  const [solarCoverage, setSolarCoverage] = useState<'whole_home' | 'partial'>('whole_home');
+
+  // Profile address — loaded silently, not shown to customer
+  const [profileAddress, setProfileAddress] = useState<{ address: string; city: string; state: string; zipCode: string } | null>(null);
 
   useEffect(() => {
     if (prefilledNotes) setNotes(prefilledNotes);
@@ -120,11 +102,8 @@ export default function RequestScreen() {
   useEffect(() => {
     userApi.getMe().then((res: any) => {
       const p = res?.customerProfile;
-      if (p) {
-        if (p.address) setAddress(p.address);
-        if (p.city) setCity(p.city);
-        if (p.state) setState(p.state);
-        if (p.zipCode) setZipCode(p.zipCode);
+      if (p?.address) {
+        setProfileAddress({ address: p.address, city: p.city, state: p.state, zipCode: p.zipCode });
       }
     }).catch(() => {});
     subscriptionsApi.getMySubscription().then((s: any) => setSubscription(s)).catch(() => {});
@@ -148,23 +127,33 @@ export default function RequestScreen() {
     ? parseFloat(subscription.plan.addonInspectionPrice)
     : 79;
 
-  const customerPrice = (item: any) => {
+  const customerPrice = (item: any, qty = 1) => {
     const base = parseFloat(item.basePrice);
     const markup = item.markupPercent != null ? parseFloat(item.markupPercent) : 15;
-    return Math.round(base * (1 + markup / 100) * 100) / 100;
+    return Math.ceil(base * qty * (1 + markup / 100) * 1.029 + 0.30);
   };
 
-  const validateAddress = () => {
-    if (!address || !city || !state || !zipCode) {
-      Alert.alert('Missing Info', 'Please fill in the property address.');
-      return false;
-    }
-    return true;
+  const totalServicePrice = selectedServices.reduce((sum, item) => {
+    if (item.requiresQuote) return sum;
+    const qty = item.quantityLabel ? (parseFloat(serviceQuantities[item.id] || '1') || 1) : 1;
+    return sum + customerPrice(item, qty);
+  }, 0);
+
+  const toggleService = (item: any) => {
+    setSelectedServices((prev) => {
+      if (prev.some((s) => s.id === item.id)) return prev.filter((s) => s.id !== item.id);
+      if (item.quantityLabel) {
+        const minQty = item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '';
+        setServiceQuantities((q) => ({ ...q, [item.id]: q[item.id] || minQty }));
+      }
+      return [...prev, item];
+    });
   };
+
+  const getAddress = () => profileAddress || { address: '', city: '', state: '', zipCode: '' };
 
   // --- Inspection tab ---
   const handleInspectionSubmit = () => {
-    if (!validateAddress()) return;
     if (limitReached) {
       setAddonConfirmModal(true);
     } else {
@@ -175,17 +164,18 @@ export default function RequestScreen() {
   const doSubmitInspection = async (isPaidAddon: boolean) => {
     setAddonConfirmModal(false);
     setLoading(true);
+    const addr = getAddress();
     try {
       await requestsApi.create({
         preferredDate: preferredDate.toISOString(),
         customerNotes: notes,
-        address, city, state, zipCode,
+        ...addr,
         isPaidAddon,
       });
       Alert.alert(
         'Request Sent!',
         isPaidAddon
-          ? `Your additional inspection has been requested. You will be billed $${addonPrice.toFixed(2)} upon completion.`
+          ? `Your additional inspection has been requested. You will be billed ${fmtUSD(addonPrice)} upon completion.`
           : 'We are finding available vendors. You will be notified when one accepts.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
@@ -198,27 +188,52 @@ export default function RequestScreen() {
 
   // --- Service tab ---
   const handleServiceSubmit = () => {
-    if (!selectedService) {
-      Alert.alert('Select a Service', 'Please choose a service from the list.');
+    if (selectedServices.length === 0) {
+      Alert.alert('Select a Service', 'Please choose at least one service from the list.');
       return;
     }
-    if (!validateAddress()) return;
     setServiceConfirmModal(true);
   };
 
-  const doSubmitService = async () => {
+  const doSubmitServices = async () => {
+    // Validate quantity minimums
+    for (const svc of selectedServices) {
+      if (svc.quantityLabel) {
+        const qty = parseFloat(serviceQuantities[svc.id] || '0');
+        const minQty = svc.minimumQuantity ? parseFloat(svc.minimumQuantity) : 0;
+        if (!qty || qty <= 0) {
+          Alert.alert('Quantity Required', `Please enter the number of ${svc.quantityLabel} for ${svc.name}.`);
+          return;
+        }
+        if (minQty > 0 && qty < minQty) {
+          Alert.alert('Minimum Quantity', `The minimum for ${svc.name} is ${minQty} ${svc.quantityLabel}.`);
+          return;
+        }
+      }
+    }
     setServiceConfirmModal(false);
     setLoading(true);
+    const addr = getAddress();
     try {
-      await standaloneServiceApi.create({
-        servicePriceId: selectedService.id,
-        preferredDate: serviceDate.toISOString(),
-        customerNotes: serviceNotes,
-        address, city, state, zipCode,
-      });
+      for (const svc of selectedServices) {
+        const qty = svc.quantityLabel ? parseFloat(serviceQuantities[svc.id] || '0') : undefined;
+        let notes = qty ? `${qty} ${svc.quantityLabel}${serviceNotes ? ` — ${serviceNotes}` : ''}` : serviceNotes;
+        if (svc.name?.toLowerCase().includes('solar') && solarMonthlyBill) {
+          const interestLabel = solarInterest === 'solar_battery' ? `Solar + Battery (${solarCoverage === 'whole_home' ? 'Whole Home' : 'Partial Backup'})` : 'Solar Only';
+          notes = `Monthly Bill: $${solarMonthlyBill}\nInterest: ${interestLabel}${notes ? `\n${notes}` : ''}`;
+        }
+        await standaloneServiceApi.create({
+          servicePriceId: svc.id,
+          preferredDate: serviceDate.toISOString(),
+          customerNotes: notes,
+          ...addr,
+        });
+      }
       Alert.alert(
         'Service Requested!',
-        `Your request for ${selectedService.name} has been sent. You will be notified when a vendor accepts.`,
+        selectedServices.length === 1
+          ? `Your request for ${selectedServices[0].name} has been sent.`
+          : `${selectedServices.length} service requests have been sent. You will be notified when vendors accept.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e: any) {
@@ -269,7 +284,7 @@ export default function RequestScreen() {
             onPress={() => setTab('service')}
           >
             <Ionicons name="construct-outline" size={16} color={tab === 'service' ? '#fff' : '#0B4A45'} />
-            <Text style={[styles.tabBtnText, tab === 'service' && styles.tabBtnTextActive]}>Service</Text>
+            <Text style={[styles.tabBtnText, tab === 'service' && styles.tabBtnTextActive]}>Additional Services</Text>
           </TouchableOpacity>
         </View>
 
@@ -289,7 +304,7 @@ export default function RequestScreen() {
                 />
                 <Text style={[styles.quotaText, limitReached ? styles.quotaTextWarn : styles.quotaTextOk]}>
                   {limitReached
-                    ? `All ${subscription.plan?.inspectionsPerYear} plan inspections used. Additional inspections available for $${addonPrice.toFixed(2)} each.`
+                    ? `All ${subscription.plan?.inspectionsPerYear} plan inspections used. Additional inspections available for ${fmtUSD(addonPrice)} each.`
                     : `${inspectionsRemaining} inspection${inspectionsRemaining === 1 ? '' : 's'} remaining on your plan.`
                   }
                 </Text>
@@ -297,7 +312,6 @@ export default function RequestScreen() {
             )}
 
             <DateTimeField label="Preferred Date & Time" value={preferredDate} onChange={setPreferredDate} />
-            <AddressFields {...{ address, city, state, zipCode, setAddress, setCity, setState, setZipCode }} />
 
             <Text style={styles.label}>Notes for the Vendor (optional)</Text>
             <TextInput
@@ -314,15 +328,23 @@ export default function RequestScreen() {
               <Text style={styles.infoTitle}>What's included in your inspection:</Text>
               <Text style={styles.infoItem}>✓ AC visual inspection & filter replacement</Text>
               <Text style={styles.infoItem}>✓ Toilet water leakage check</Text>
+              <Text style={styles.infoItem}>✓ Sink & washer pan leak check</Text>
               <Text style={styles.infoItem}>✓ Light bulb replacement</Text>
               <Text style={styles.infoItem}>✓ Full checklist report after inspection</Text>
+            </View>
+
+            <View style={styles.noShowNotice}>
+              <Ionicons name="information-circle-outline" size={16} color="#92400e" />
+              <Text style={styles.noShowText}>
+                You must be home when the vendor arrives. A missed appointment forfeits the inspection visit. Service calls may incur a truck roll fee.
+              </Text>
             </View>
 
             <TouchableOpacity style={styles.button} onPress={handleInspectionSubmit} disabled={loading}>
               {loading
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.buttonText}>
-                    {limitReached ? `Book Additional Inspection ($${addonPrice.toFixed(2)})` : 'Send Request'}
+                    {limitReached ? `Book Additional Inspection (${fmtUSD(addonPrice)})` : 'Send Request'}
                   </Text>
               }
             </TouchableOpacity>
@@ -333,7 +355,7 @@ export default function RequestScreen() {
         {tab === 'service' && (
           <>
             <Text style={styles.subtitle}>
-              Choose a service from the catalog. A vendor will come to your home on the requested date.
+              Select one or more services. A vendor will come to your home on the requested date.
             </Text>
 
             {catalogLoading ? (
@@ -341,12 +363,12 @@ export default function RequestScreen() {
             ) : (
               catalog.map((item) => {
                 const price = customerPrice(item);
-                const isSelected = selectedService?.id === item.id;
+                const isSelected = selectedServices.some((s) => s.id === item.id);
                 return (
                   <TouchableOpacity
                     key={item.id}
                     style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
-                    onPress={() => setSelectedService(isSelected ? null : item)}
+                    onPress={() => toggleService(item)}
                     activeOpacity={0.85}
                   >
                     <View style={styles.serviceCardRow}>
@@ -354,13 +376,89 @@ export default function RequestScreen() {
                         <Text style={[styles.serviceName, isSelected && styles.serviceNameSelected]}>{item.name}</Text>
                         <Text style={styles.serviceDesc}>{item.description}</Text>
                       </View>
-                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                        <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>${price.toFixed(2)}</Text>
+                      <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 12 }}>
+                        <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>
+                          {item.requiresQuote ? 'Request a Quote' : `$${Number(price).toLocaleString('en-US')}`}
+                        </Text>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={20} color="#0B4A45" />
+                          <Ionicons name="checkmark-circle" size={22} color="#0B4A45" />
                         )}
                       </View>
                     </View>
+                    {item.priceNote && !item.requiresQuote && (
+                      <Text style={styles.priceNote}>{item.priceNote}</Text>
+                    )}
+                    {isSelected && item.quantityLabel && (
+                      <View style={styles.qtyRow}>
+                        <Text style={styles.qtyLabel}>
+                          {item.quantityLabel.charAt(0).toUpperCase() + item.quantityLabel.slice(1)}
+                          {item.minimumQuantity ? ` (min ${item.minimumQuantity})` : ''}
+                        </Text>
+                        <TextInput
+                          style={styles.qtyInput}
+                          placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
+                          placeholderTextColor="#94a3b8"
+                          keyboardType="number-pad"
+                          value={serviceQuantities[item.id] || ''}
+                          onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
+                          onPress={(e) => e.stopPropagation?.()}
+                        />
+                      </View>
+                    )}
+                    {isSelected && item.name?.toLowerCase().includes('solar') && (
+                      <View style={styles.solarFields}>
+                        <Text style={styles.solarFieldsTitle}>Tell us about your energy needs</Text>
+
+                        <Text style={styles.label}>Average Monthly Electric Bill</Text>
+                        <View style={styles.billInputRow}>
+                          <Text style={styles.billDollar}>$</Text>
+                          <TextInput
+                            style={styles.billInput}
+                            keyboardType="number-pad"
+                            placeholder="e.g. 250"
+                            placeholderTextColor="#94a3b8"
+                            value={solarMonthlyBill}
+                            onChangeText={setSolarMonthlyBill}
+                          />
+                        </View>
+
+                        <Text style={styles.label}>What are you interested in?</Text>
+                        <View style={styles.choiceRow}>
+                          <TouchableOpacity
+                            style={[styles.choiceBtn, solarInterest === 'solar_only' && styles.choiceBtnActive]}
+                            onPress={() => setSolarInterest('solar_only')}
+                          >
+                            <Text style={[styles.choiceBtnText, solarInterest === 'solar_only' && styles.choiceBtnTextActive]}>Solar Only</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.choiceBtn, solarInterest === 'solar_battery' && styles.choiceBtnActive]}
+                            onPress={() => setSolarInterest('solar_battery')}
+                          >
+                            <Text style={[styles.choiceBtnText, solarInterest === 'solar_battery' && styles.choiceBtnTextActive]}>Solar + Battery</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {solarInterest === 'solar_battery' && (
+                          <>
+                            <Text style={styles.label}>Backup Coverage</Text>
+                            <View style={styles.choiceRow}>
+                              <TouchableOpacity
+                                style={[styles.choiceBtn, solarCoverage === 'whole_home' && styles.choiceBtnActive]}
+                                onPress={() => setSolarCoverage('whole_home')}
+                              >
+                                <Text style={[styles.choiceBtnText, solarCoverage === 'whole_home' && styles.choiceBtnTextActive]}>Whole Home</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.choiceBtn, solarCoverage === 'partial' && styles.choiceBtnActive]}
+                                onPress={() => setSolarCoverage('partial')}
+                              >
+                                <Text style={[styles.choiceBtnText, solarCoverage === 'partial' && styles.choiceBtnTextActive]}>Partial Backup</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                    )}
                   </TouchableOpacity>
                 );
               })
@@ -369,7 +467,6 @@ export default function RequestScreen() {
             {catalog.length > 0 && (
               <>
                 <DateTimeField label="Preferred Date & Time" value={serviceDate} onChange={setServiceDate} />
-                <AddressFields {...{ address, city, state, zipCode, setAddress, setCity, setState, setZipCode }} />
 
                 <Text style={styles.label}>Notes for the Vendor (optional)</Text>
                 <TextInput
@@ -382,17 +479,50 @@ export default function RequestScreen() {
                   numberOfLines={4}
                 />
 
+                <View style={styles.noShowNotice}>
+                  <Ionicons name="information-circle-outline" size={16} color="#92400e" />
+                  <Text style={styles.noShowText}>
+                    You must be home when the vendor arrives. No-shows for service calls incur a truck roll fee.
+                  </Text>
+                </View>
+
+                {/* Total bar */}
+                {selectedServices.length > 0 && (
+                  <View style={styles.totalBar}>
+                    <View>
+                      <Text style={styles.totalLabel}>{selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} selected</Text>
+                      <Text style={styles.totalSub}>
+                        {selectedServices.map((s) => s.name).join(', ')}
+                      </Text>
+                    </View>
+                    <Text style={styles.totalAmount}>
+                      {selectedServices.every((s) => s.requiresQuote)
+                        ? 'Request Quote'
+                        : selectedServices.some((s) => s.requiresQuote)
+                        ? `$${Number(totalServicePrice).toLocaleString('en-US')}+`
+                        : `$${Number(totalServicePrice).toLocaleString('en-US')}`
+                      }
+                    </Text>
+                  </View>
+                )}
+
                 <TouchableOpacity
-                  style={[styles.button, !selectedService && styles.buttonDisabled]}
+                  style={[styles.button, selectedServices.length === 0 && styles.buttonDisabled]}
                   onPress={handleServiceSubmit}
-                  disabled={loading || !selectedService}
+                  disabled={loading || selectedServices.length === 0}
                 >
                   {loading
                     ? <ActivityIndicator color="#fff" />
                     : <Text style={styles.buttonText}>
-                        {selectedService
-                          ? `Request ${selectedService.name} — $${customerPrice(selectedService).toFixed(2)}`
-                          : 'Select a Service Above'
+                        {selectedServices.length === 0
+                          ? 'Select Services Above'
+                          : selectedServices.length === 1 && selectedServices[0].requiresQuote
+                            ? `Request ${selectedServices[0].name} Quote`
+                            : selectedServices.length === 1
+                            ? `Request ${selectedServices[0].name}`
+                            : selectedServices.every((s) => s.requiresQuote)
+                            ? `Request ${selectedServices.length} Quotes`
+                            : `Request ${selectedServices.length} Services`
                         }
                       </Text>
                   }
@@ -418,11 +548,11 @@ export default function RequestScreen() {
               </Text>
               <View style={styles.addonPriceRow}>
                 <Text style={styles.addonPriceLabel}>Additional Inspection Fee</Text>
-                <Text style={styles.addonPrice}>${addonPrice.toFixed(2)}</Text>
+                <Text style={styles.addonPrice}>{fmtUSD(addonPrice)}</Text>
               </View>
               <Text style={styles.addonNote}>Payment will be processed upon completion of the inspection.</Text>
               <TouchableOpacity style={styles.addonConfirmBtn} onPress={() => doSubmitInspection(true)}>
-                <Text style={styles.addonConfirmText}>Confirm & Book — ${addonPrice.toFixed(2)}</Text>
+                <Text style={styles.addonConfirmText}>Confirm & Book — {fmtUSD(addonPrice)}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.addonCancelBtn} onPress={() => setAddonConfirmModal(false)}>
                 <Text style={styles.addonCancelText}>Cancel</Text>
@@ -431,26 +561,33 @@ export default function RequestScreen() {
           </View>
         </Modal>
 
-        {/* Standalone service confirmation modal */}
+        {/* Service confirmation modal */}
         <Modal visible={serviceConfirmModal} transparent animationType="fade">
           <View style={styles.addonOverlay}>
             <View style={styles.addonCard}>
               <Ionicons name="construct-outline" size={40} color="#0B4A45" style={{ alignSelf: 'center', marginBottom: 12 }} />
               <Text style={styles.addonTitle}>Confirm Service Request</Text>
               <Text style={styles.addonBody}>
-                A vendor will come to your home on your requested date to perform this service.
+                A vendor will come to your home on your requested date to perform {selectedServices.length === 1 ? 'this service' : 'these services'}.
               </Text>
-              {selectedService && (
-                <>
-                  <View style={styles.addonPriceRow}>
-                    <Text style={styles.addonPriceLabel}>{selectedService.name}</Text>
-                    <Text style={styles.addonPrice}>${customerPrice(selectedService).toFixed(2)}</Text>
-                  </View>
-                  <Text style={styles.addonNote}>{selectedService.description}</Text>
-                </>
+              {selectedServices.map((svc) => (
+                <View key={svc.id} style={styles.addonPriceRow}>
+                  <Text style={styles.addonPriceLabel}>
+                    {svc.name}{svc.quantityLabel && serviceQuantities[svc.id] ? ` (${serviceQuantities[svc.id]} ${svc.quantityLabel})` : ''}
+                  </Text>
+                  <Text style={styles.addonPrice}>
+                    {svc.requiresQuote ? 'Quote' : `$${Number(customerPrice(svc)).toLocaleString('en-US')}`}
+                  </Text>
+                </View>
+              ))}
+              {selectedServices.length > 1 && (
+                <View style={[styles.addonPriceRow, { borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 4, paddingTop: 12 }]}>
+                  <Text style={[styles.addonPriceLabel, { fontWeight: '800' }]}>Total</Text>
+                  <Text style={[styles.addonPrice, { fontSize: 20 }]}>${totalServicePrice}</Text>
+                </View>
               )}
-              <Text style={[styles.addonNote, { marginTop: 8 }]}>Payment will be processed upon completion.</Text>
-              <TouchableOpacity style={styles.addonConfirmBtn} onPress={doSubmitService}>
+              <Text style={[styles.addonNote, { marginTop: 12 }]}>Payment will be processed upon completion.</Text>
+              <TouchableOpacity style={styles.addonConfirmBtn} onPress={doSubmitServices}>
                 <Text style={styles.addonConfirmText}>Confirm Request</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.addonCancelBtn} onPress={() => setServiceConfirmModal(false)}>
@@ -472,7 +609,7 @@ const styles = StyleSheet.create({
   tabRow: { flexDirection: 'row', backgroundColor: '#EBF1EF', borderRadius: 12, padding: 4, marginBottom: 20, gap: 4 },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
   tabBtnActive: { backgroundColor: '#0B4A45' },
-  tabBtnText: { fontSize: 14, fontWeight: '600', color: '#0B4A45' },
+  tabBtnText: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
   tabBtnTextActive: { color: '#fff' },
   quotaBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1 },
   quotaBannerOk: { backgroundColor: '#ecfdf5', borderColor: '#6ee7b7' },
@@ -487,18 +624,16 @@ const styles = StyleSheet.create({
   dateIcon: { fontSize: 20 },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16, color: '#0f172a' },
   textArea: { height: 100, textAlignVertical: 'top' },
-  infoBox: { backgroundColor: '#EBF1EF', borderRadius: 12, padding: 16, marginBottom: 24 },
+  infoBox: { backgroundColor: '#EBF1EF', borderRadius: 12, padding: 16, marginBottom: 16 },
   infoTitle: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
   infoItem: { fontSize: 14, color: '#17897D', lineHeight: 24 },
+  noShowNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#fffbeb', borderRadius: 10, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: '#fde68a' },
+  noShowText: { fontSize: 12, color: '#92400e', lineHeight: 18, flex: 1 },
   button: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
   buttonDisabled: { backgroundColor: '#94a3b8' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   cancelBtn: { alignItems: 'center', padding: 12 },
   cancelText: { color: '#888', fontSize: 14 },
-  row: { flexDirection: 'row', marginBottom: 0 },
-  flex1: { flex: 1 },
-  flex2: { flex: 2 },
-  ml8: { marginLeft: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   doneBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
@@ -509,18 +644,36 @@ const styles = StyleSheet.create({
   serviceName: { fontSize: 15, fontWeight: '700', color: '#1e293b', marginBottom: 4 },
   serviceNameSelected: { color: '#0B4A45' },
   serviceDesc: { fontSize: 13, color: '#64748b', lineHeight: 18 },
-  servicePrice: { fontSize: 16, fontWeight: '700', color: '#64748b' },
+  servicePrice: { fontSize: 15, fontWeight: '700', color: '#64748b' },
   servicePriceSelected: { color: '#0B4A45' },
+  priceNote: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, backgroundColor: '#EBF1EF', borderRadius: 8, padding: 10 },
+  qtyLabel: { fontSize: 13, color: '#0B4A45', fontWeight: '600', flex: 1 },
+  qtyInput: { width: 80, backgroundColor: '#fff', borderWidth: 1, borderColor: '#b7d5ce', borderRadius: 8, padding: 8, fontSize: 14, color: '#0f172a', textAlign: 'right' },
+  totalBar: { backgroundColor: '#0B4A45', borderRadius: 14, padding: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 2 },
+  totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', maxWidth: 220 },
+  totalAmount: { fontSize: 22, fontWeight: '800', color: '#fff' },
   addonOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
-  addonCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24 },
+  addonCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, maxHeight: '85%' },
   addonTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', textAlign: 'center', marginBottom: 12 },
   addonBody: { fontSize: 14, color: '#64748b', lineHeight: 22, textAlign: 'center', marginBottom: 20 },
-  addonPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EBF1EF', borderRadius: 12, padding: 16, marginBottom: 12 },
+  addonPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EBF1EF', borderRadius: 12, padding: 14, marginBottom: 8 },
   addonPriceLabel: { fontSize: 14, fontWeight: '600', color: '#374151', flex: 1, marginRight: 8 },
-  addonPrice: { fontSize: 22, fontWeight: '800', color: '#0B4A45' },
-  addonNote: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 8 },
+  addonPrice: { fontSize: 18, fontWeight: '800', color: '#0B4A45' },
+  addonNote: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 4 },
   addonConfirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 10, marginTop: 12 },
   addonConfirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   addonCancelBtn: { alignItems: 'center', padding: 12 },
   addonCancelText: { color: '#888', fontSize: 14 },
+  solarFields: { marginTop: 12, backgroundColor: '#f0fdf4', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#86efac' },
+  solarFieldsTitle: { fontSize: 13, fontWeight: '700', color: '#065f46', marginBottom: 8 },
+  billInputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, backgroundColor: '#fff', paddingHorizontal: 12, marginBottom: 12 },
+  billDollar: { fontSize: 16, color: '#374151', marginRight: 4 },
+  billInput: { flex: 1, fontSize: 16, padding: 10, color: '#0f172a' },
+  choiceRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  choiceBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', backgroundColor: '#fff' },
+  choiceBtnActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
+  choiceBtnText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  choiceBtnTextActive: { color: '#0B4A45' },
 });

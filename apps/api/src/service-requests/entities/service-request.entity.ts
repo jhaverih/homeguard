@@ -72,6 +72,13 @@ export class ServiceRequest {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   addonPrice: number;
 
+  // Nullable — set for standalone/additional-service requests created from the pricing
+  // catalog; used to determine whether the job requires a vendor capability. Base
+  // subscription inspections (created via create(), not createStandaloneService) leave
+  // this null and stay open to any vendor.
+  @Column({ nullable: true })
+  servicePriceId: string | null;
+
   @Column()
   address: string;
 
@@ -90,6 +97,19 @@ export class ServiceRequest {
   // MinIO object keys uploaded by vendor as proof of completion (min 1 required)
   @Column({ type: 'simple-array', nullable: true })
   completionPhotoKeys: string[];
+
+  // Vendor GPS location shared with customer when en route
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  vendorLatitude: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  vendorLongitude: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  vendorLocationAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  vendorEnRouteAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

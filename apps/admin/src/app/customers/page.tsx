@@ -36,8 +36,8 @@ export default function CustomersPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {customers.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-gray-800">{c.name}</td>
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/customers/${c.id}`}>
+                  <td className="px-6 py-4 font-medium text-brand hover:underline">{c.name}</td>
                   <td className="px-6 py-4 text-gray-500">{c.email}</td>
                   <td className="px-6 py-4">
                     {c.subscription ? (

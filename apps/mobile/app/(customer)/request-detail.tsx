@@ -1,21 +1,26 @@
-﻿import { useState, useCallback } from 'react';
+﻿import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Modal, Platform, Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
+import { fmtUSD } from '../../src/utils/currency';
+
 import { TextInput } from 'react-native';
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
-  PENDING:         { color: '#6b7280', bg: '#f9fafb', label: 'Pending' },
-  ACCEPTED:        { color: '#2563eb', bg: '#eff6ff', label: 'Scheduled' },
-  VENDOR_EN_ROUTE: { color: '#d97706', bg: '#fffbeb', label: 'Vendor en route' },
-  IN_PROGRESS:     { color: '#7c3aed', bg: '#f5f3ff', label: 'In progress' },
-  COMPLETED:       { color: '#059669', bg: '#ecfdf5', label: 'Completed' },
-  CANCELLED:       { color: '#dc2626', bg: '#fef2f2', label: 'Cancelled' },
+  PENDING:                  { color: '#6b7280', bg: '#f9fafb', label: 'Pending' },
+  PENDING_CUSTOMER_REVIEW:  { color: '#b45309', bg: '#fffbeb', label: 'Action Required' },
+  ACCEPTED:                 { color: '#2563eb', bg: '#eff6ff', label: 'Scheduled' },
+  VENDOR_EN_ROUTE:          { color: '#d97706', bg: '#fffbeb', label: 'Vendor en route' },
+  IN_PROGRESS:              { color: '#7c3aed', bg: '#f5f3ff', label: 'In progress' },
+  COMPLETED:                { color: '#059669', bg: '#ecfdf5', label: 'Completed' },
+  CANCELLED:                { color: '#dc2626', bg: '#fef2f2', label: 'Cancelled' },
 };
 
 function DateTimeField({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
@@ -96,9 +101,15 @@ export default function RequestDetailScreen() {
   const [rescheduleModal, setRescheduleModal] = useState(false);
   const [newDate, setNewDate] = useState(new Date());
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
   const [existingReview, setExistingReview] = useState<any>(null);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
+  const [solarQuote, setSolarQuote] = useState<any>(null);
+  const [solarConsultation, setSolarConsultation] = useState<any>(null);
+  const [showConsultationPicker, setShowConsultationPicker] = useState(false);
+  const [consultationDate, setConsultationDate] = useState(new Date());
+  const [consultationBusy, setConsultationBusy] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
 
   const load = useCallback(async () => {
@@ -121,6 +132,21 @@ export default function RequestDetailScreen() {
       } catch {
         setExistingReview(null);
       }
+      if (req?.type === 'ADDITIONAL_SERVICE') {
+        const svcName = (req.additionalServices?.[0]?.name || '').toLowerCase();
+        if (svcName.includes('solar')) {
+          try {
+            const [sq, sc]: any[] = await Promise.all([
+              requestsApi.getSolarQuote(id).catch(() => null),
+              requestsApi.getSolarConsultation(id).catch(() => null),
+            ]);
+            setSolarQuote(sq);
+            setSolarConsultation(sc);
+          } catch {
+            setSolarQuote(null);
+          }
+        }
+      }
     } catch (e: any) {
       Alert.alert('Error', 'Could not load this request.');
     } finally {
@@ -130,6 +156,73 @@ export default function RequestDetailScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Compute vendor ETA when en route
+  useEffect(() => {
+    if (!request || request.status !== 'VENDOR_EN_ROUTE') return;
+    if (!request.vendorLatitude || !request.vendorLongitude) return;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const lat1 = loc.coords.latitude;
+        const lon1 = loc.coords.longitude;
+        const lat2 = parseFloat(request.vendorLatitude);
+        const lon2 = parseFloat(request.vendorLongitude);
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const speedKmh = 40; // ~25 mph average
+        const mins = Math.round((distKm / speedKmh) * 60);
+        setEtaMinutes(mins);
+      } catch {}
+    })();
+  }, [request?.status, request?.vendorLatitude, request?.vendorLongitude]);
+
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+
+  const confirmSchedule = async () => {
+    setScheduleBusy(true);
+    try {
+      await requestsApi.confirmSchedule(id);
+      Alert.alert('Confirmed', 'The inspection time has been confirmed.');
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+
+  const declineSchedule = async () => {
+    Alert.alert(
+      'Decline Proposed Time',
+      'The request will go back to the vendor pool and another vendor can accept it at a different time.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Decline', style: 'destructive',
+          onPress: async () => {
+            setScheduleBusy(true);
+            try {
+              await requestsApi.declineSchedule(id);
+              Alert.alert('Declined', 'The proposed time has been declined. Your request is back in the queue.');
+              load();
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            } finally {
+              setScheduleBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const openReschedule = () => {
     setNewDate(request.scheduledDate ? new Date(request.scheduledDate) : new Date());
     setRescheduleModal(true);
@@ -137,8 +230,8 @@ export default function RequestDetailScreen() {
 
   const cancelRequest = () => {
     Alert.alert(
-      'Cancel Inspection',
-      'Are you sure you want to cancel this inspection request?',
+      'Cancel Service Request',
+      'Are you sure you want to cancel this service request?',
       [
         { text: 'Keep It', style: 'cancel' },
         {
@@ -146,7 +239,7 @@ export default function RequestDetailScreen() {
           onPress: async () => {
             try {
               await requestsApi.cancel(id);
-              Alert.alert('Cancelled', 'Your inspection request has been cancelled.');
+              Alert.alert('Cancelled', 'Your service request has been cancelled.');
               load();
             } catch (e: any) {
               Alert.alert('Error', e.message);
@@ -170,6 +263,30 @@ export default function RequestDetailScreen() {
     }
   };
 
+  const declineService = (serviceId: string) => {
+    Alert.alert(
+      'Decline Recommendation',
+      'Are you sure you want to decline this recommended service?',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Decline', style: 'destructive',
+          onPress: async () => {
+            setDecliningId(serviceId);
+            try {
+              await requestsApi.declineService(serviceId);
+              load();
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            } finally {
+              setDecliningId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const submitReschedule = async () => {
     try {
       await requestsApi.reschedule(id, newDate.toISOString());
@@ -184,11 +301,14 @@ export default function RequestDetailScreen() {
   if (loading || !request) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.PENDING;
-  const canReschedule = !['COMPLETED', 'CANCELLED'].includes(request.status);
-  const canCancel = !['COMPLETED', 'CANCELLED'].includes(request.status);
+  const canReschedule = !['COMPLETED', 'CANCELLED', 'PENDING_CUSTOMER_REVIEW', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(request.status);
+  const canCancel = request.type === 'ADDITIONAL_SERVICE'
+    ? !['COMPLETED', 'CANCELLED'].includes(request.status)
+    : !['COMPLETED', 'CANCELLED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(request.status);
   const canChat = !!request.vendorId;
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8f9fa' }} edges={['top']}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <View style={[styles.statusBadge, { backgroundColor: cfg.bg, marginBottom: 0 }]}>
@@ -200,7 +320,7 @@ export default function RequestDetailScreen() {
       {request.isPaidAddon && (
         <View style={styles.addonBanner}>
           <Text style={styles.addonBannerText}>
-            Additional Inspection — ${parseFloat(request.addonPrice).toFixed(2)} billed upon completion
+            Additional Inspection — {fmtUSD(request.addonPrice)} billed upon completion
           </Text>
         </View>
       )}
@@ -218,9 +338,54 @@ export default function RequestDetailScreen() {
 
       {request.scheduledDate && (
         <>
-          <Text style={styles.sectionTitle}>Scheduled Date</Text>
+          <Text style={styles.sectionTitle}>
+            {request.status === 'PENDING_CUSTOMER_REVIEW' ? 'Vendor Proposed Time' : 'Scheduled Date'}
+          </Text>
           <Text style={styles.value}>{new Date(request.scheduledDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
         </>
+      )}
+
+      {request.status === 'PENDING_CUSTOMER_REVIEW' && (
+        <View style={styles.reviewBanner}>
+          <Ionicons name="time-outline" size={20} color="#b45309" />
+          <Text style={styles.reviewBannerText}>
+            Your vendor proposed a different time than your preferred date. Do you accept this time?
+          </Text>
+          <View style={styles.reviewActions}>
+            <TouchableOpacity
+              style={[styles.reviewAcceptBtn, scheduleBusy && { opacity: 0.6 }]}
+              onPress={confirmSchedule}
+              disabled={scheduleBusy}
+            >
+              {scheduleBusy
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.reviewAcceptText}>Accept Time</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.reviewDeclineBtn, scheduleBusy && { opacity: 0.6 }]}
+              onPress={declineSchedule}
+              disabled={scheduleBusy}
+            >
+              <Text style={styles.reviewDeclineText}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Vendor en-route ETA banner */}
+      {request.status === 'VENDOR_EN_ROUTE' && (
+        <View style={styles.enRouteBanner}>
+          <Ionicons name="car-outline" size={22} color="#92400e" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.enRouteTitle}>Your vendor is on the way!</Text>
+            <Text style={styles.enRouteBody}>
+              {etaMinutes != null
+                ? `Estimated arrival: ~${etaMinutes} min`
+                : 'Please make sure to be home when they arrive.'}
+            </Text>
+          </View>
+        </View>
       )}
 
       {request.customerNotes && (
@@ -285,33 +450,226 @@ export default function RequestDetailScreen() {
         </>
       )}
 
-      {request.additionalServices?.length > 0 && (
+      {solarQuote && request.type === 'ADDITIONAL_SERVICE' && (request.additionalServices?.[0]?.name || '').toLowerCase().includes('solar') && (
+        <>
+          <Text style={styles.sectionTitle}>Solar Quote</Text>
+          <View style={[styles.svcCard, { borderColor: '#0B4A45' }]}>
+            {/* Status badge */}
+            <View style={[styles.svcHeader, { marginBottom: 8 }]}>
+              <Text style={[styles.svcName, { flex: 1 }]}>Contractor Proposal</Text>
+              <View style={{
+                backgroundColor: solarConsultation?.status === 'CONFIRMED' ? '#dcfce7' : solarConsultation?.status === 'DECLINED' ? '#fee2e2' : '#fef9c3',
+                borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3,
+              }}>
+                <Text style={{
+                  fontSize: 12, fontWeight: '700',
+                  color: solarConsultation?.status === 'CONFIRMED' ? '#059669' : solarConsultation?.status === 'DECLINED' ? '#dc2626' : '#92400e',
+                }}>
+                  {solarConsultation?.status === 'CONFIRMED' ? 'Site Visit Confirmed'
+                    : solarConsultation?.status === 'COMPLETED' ? 'Visit Complete'
+                    : solarConsultation?.status === 'DECLINED' ? 'Declined'
+                    : solarConsultation ? 'Consultation Requested'
+                    : 'Pending Consultation'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Quote details */}
+            <View style={{ gap: 5, marginBottom: 10 }}>
+              <Text style={styles.svcDesc}>System: <Text style={{ fontWeight: '700', color: '#0f172a' }}>{Number(solarQuote.systemSizeKw).toFixed(1)} kW • {solarQuote.numInverters}x {solarQuote.inverterManufacturer} {solarQuote.inverterModel}</Text></Text>
+              <Text style={styles.svcDesc}>PV System: <Text style={{ fontWeight: '700', color: '#059669' }}>${Number(solarQuote.pvSystemPrice).toLocaleString()}</Text></Text>
+              {solarQuote.storageManufacturer && (
+                <>
+                  <Text style={styles.svcDesc}>Storage: <Text style={{ fontWeight: '700', color: '#0f172a' }}>{solarQuote.storageSizeKwh} kWh • {solarQuote.storageManufacturer} {solarQuote.storageModel}</Text></Text>
+                  {solarQuote.storagePrice && (
+                    <Text style={styles.svcDesc}>Storage: <Text style={{ fontWeight: '700', color: '#059669' }}>${Number(solarQuote.storagePrice).toLocaleString()}</Text></Text>
+                  )}
+                </>
+              )}
+              <View style={{ height: 1, backgroundColor: '#e2e8f0', marginVertical: 4 }} />
+              <Text style={[styles.svcDesc, { fontWeight: '800', fontSize: 15, color: '#0B4A45' }]}>
+                Total: ${(Number(solarQuote.pvSystemPrice) + Number(solarQuote.storagePrice || 0)).toLocaleString()}
+              </Text>
+            </View>
+
+            {/* Consultation flow */}
+            {!solarConsultation && (
+              <View style={{ marginTop: 4, gap: 10 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 2 }}>Preferred Site Visit Date</Text>
+                <DateTimeField value={consultationDate} onChange={setConsultationDate} />
+                <TouchableOpacity
+                  style={{ backgroundColor: '#0B4A45', borderRadius: 12, padding: 14, alignItems: 'center' }}
+                  disabled={consultationBusy}
+                  onPress={async () => {
+                    setConsultationBusy(true);
+                    try {
+                      const c: any = await requestsApi.requestConsultation(id, consultationDate.toISOString());
+                      setSolarConsultation(c);
+                    } catch (e: any) { Alert.alert('Error', e.message); }
+                    finally { setConsultationBusy(false); }
+                  }}
+                >
+                  {consultationBusy
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Request Site Visit</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {solarConsultation?.status === 'REQUESTED' && (
+              <View style={{ backgroundColor: '#eff6ff', borderRadius: 10, padding: 12, marginTop: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1d4ed8' }}>Site Visit Requested</Text>
+                <Text style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>
+                  Proposed: {new Date(solarConsultation.customerProposedDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </Text>
+                <Text style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>Waiting for contractor to confirm the date.</Text>
+                <TouchableOpacity
+                  style={{ marginTop: 8, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#dc2626', alignItems: 'center' }}
+                  disabled={consultationBusy}
+                  onPress={async () => {
+                    Alert.alert('Decline', 'This will close the solar quote request.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Decline', style: 'destructive', onPress: async () => {
+                        setConsultationBusy(true);
+                        try {
+                          const c: any = await requestsApi.updateConsultation(id, 'DECLINE');
+                          setSolarConsultation(c);
+                          load();
+                        } catch (e: any) { Alert.alert('Error', e.message); }
+                        finally { setConsultationBusy(false); }
+                      }},
+                    ]);
+                  }}
+                >
+                  <Text style={{ color: '#dc2626', fontWeight: '600', fontSize: 13 }}>Decline Quote</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {solarConsultation?.status === 'VENDOR_COUNTER' && (
+              <View style={{ backgroundColor: '#fffbeb', borderRadius: 10, padding: 12, marginTop: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400e' }}>Contractor Proposed a New Date</Text>
+                <Text style={{ fontSize: 13, color: '#78350f', marginTop: 4 }}>
+                  {new Date(solarConsultation.vendorProposedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#0B4A45', borderRadius: 10, padding: 12, alignItems: 'center' }}
+                    disabled={consultationBusy}
+                    onPress={async () => {
+                      setConsultationBusy(true);
+                      try {
+                        const c: any = await requestsApi.updateConsultation(id, 'ACCEPT');
+                        setSolarConsultation(c);
+                      } catch (e: any) { Alert.alert('Error', e.message); }
+                      finally { setConsultationBusy(false); }
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>Accept Date</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, borderWidth: 1, borderColor: '#dc2626', borderRadius: 10, padding: 12, alignItems: 'center' }}
+                    disabled={consultationBusy}
+                    onPress={async () => {
+                      Alert.alert('Decline', 'This will close the solar quote request.', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Decline', style: 'destructive', onPress: async () => {
+                          setConsultationBusy(true);
+                          try {
+                            const c: any = await requestsApi.updateConsultation(id, 'DECLINE');
+                            setSolarConsultation(c);
+                            load();
+                          } catch (e: any) { Alert.alert('Error', e.message); }
+                          finally { setConsultationBusy(false); }
+                        }},
+                      ]);
+                    }}
+                  >
+                    <Text style={{ color: '#dc2626', fontWeight: '700' }}>Decline</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {solarConsultation?.status === 'CONFIRMED' && (
+              <View style={{ backgroundColor: '#f0fdf4', borderRadius: 10, padding: 12, marginTop: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#059669' }}>✓ Site Visit Scheduled</Text>
+                <Text style={{ fontSize: 13, color: '#065f46', marginTop: 4 }}>
+                  {new Date(solarConsultation.confirmedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </Text>
+                <Text style={{ fontSize: 13, color: '#065f46', marginTop: 8 }}>Your contractor will visit to assess your home. After the site visit, they will provide a final installation proposal.</Text>
+              </View>
+            )}
+
+            {solarConsultation?.status === 'DECLINED' && (
+              <View style={{ backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, marginTop: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#dc2626' }}>Quote Declined</Text>
+                <Text style={{ fontSize: 13, color: '#7f1d1d', marginTop: 4 }}>You have declined this solar quote. The request has been closed.</Text>
+              </View>
+            )}
+          </View>
+
+        </>
+      )}
+
+      {(() => {
+        const isSolarReq = request.type === 'ADDITIONAL_SERVICE' &&
+          (request.additionalServices?.[0]?.name || '').toLowerCase().includes('solar');
+        const recServices = (request.additionalServices || [])
+          .filter((s: any) => !(isSolarReq && s.name?.toLowerCase().includes('solar')));
+        if (recServices.length === 0) return null;
+        return (
         <>
           <Text style={styles.sectionTitle}>Recommended Services</Text>
-          {request.additionalServices.map((svc: any) => (
+          {recServices.map((svc: any) => (
             <View key={svc.id} style={[styles.svcCard, svc.approved && styles.svcCardApproved]}>
               <View style={styles.svcHeader}>
                 <Text style={styles.svcName}>{svc.name}</Text>
-                <Text style={styles.svcPrice}>${parseFloat(svc.price).toFixed(2)}</Text>
+                <Text style={styles.svcPrice}>{fmtUSD(svc.price)}</Text>
               </View>
               <Text style={styles.svcDesc}>{svc.description}</Text>
               {svc.approved ? (
                 <Text style={styles.svcApprovedLabel}>Approved</Text>
               ) : (
-                <TouchableOpacity
-                  style={styles.approveBtn}
-                  onPress={() => approveService(svc.id)}
-                  disabled={approvingId === svc.id}
-                >
-                  {approvingId === svc.id
-                    ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={styles.approveBtnText}>Approve</Text>
-                  }
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.approveBtn, { flex: 1 }]}
+                    onPress={() => approveService(svc.id)}
+                    disabled={approvingId === svc.id || decliningId === svc.id}
+                  >
+                    {approvingId === svc.id
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={styles.approveBtnText}>Approve</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.approveBtn, { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dc2626' }]}
+                    onPress={() => declineService(svc.id)}
+                    disabled={approvingId === svc.id || decliningId === svc.id}
+                  >
+                    {decliningId === svc.id
+                      ? <ActivityIndicator color="#dc2626" size="small" />
+                      : <Text style={[styles.approveBtnText, { color: '#dc2626' }]}>Decline</Text>}
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           ))}
         </>
+        );
+      })()}
+
+      {request.status === 'COMPLETED' && (
+        <TouchableOpacity
+          style={styles.reportBtn}
+          onPress={() => router.push(`/(customer)/inspection-report?id=${id}`)}
+        >
+          <Ionicons name="document-text-outline" size={18} color="#fff" />
+          <Text style={styles.reportBtnText}>
+            {(request.additionalServices?.[0]?.name || '').toLowerCase().includes('hvac')
+              ? 'View HVAC Inspection Report'
+              : 'View Inspection Report'}
+          </Text>
+        </TouchableOpacity>
       )}
 
       {request.status === 'COMPLETED' && (
@@ -381,7 +739,7 @@ export default function RequestDetailScreen() {
 
       {canCancel && (
         <TouchableOpacity style={styles.cancelRequestBtn} onPress={cancelRequest}>
-          <Text style={styles.cancelRequestText}>Cancel Inspection</Text>
+          <Text style={styles.cancelRequestText}>Cancel Service Request</Text>
         </TouchableOpacity>
       )}
 
@@ -400,6 +758,7 @@ export default function RequestDetailScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -448,8 +807,21 @@ const styles = StyleSheet.create({
   svcDesc: { fontSize: 13, color: '#555', lineHeight: 18, marginBottom: 10 },
   approveBtn: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  reviewBanner: {
+    backgroundColor: '#fffbeb', borderRadius: 14, padding: 16, marginTop: 16,
+    borderWidth: 1.5, borderColor: '#fde68a', gap: 10,
+  },
+  reviewBannerText: { fontSize: 14, color: '#78350f', lineHeight: 20 },
+  reviewActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  reviewAcceptBtn: { flex: 1, backgroundColor: '#0B4A45', borderRadius: 10, padding: 13, alignItems: 'center' },
+  reviewAcceptText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  reviewDeclineBtn: { flex: 1, backgroundColor: '#fff5f5', borderRadius: 10, padding: 13, alignItems: 'center', borderWidth: 1.5, borderColor: '#fed7d7' },
+  reviewDeclineText: { color: '#c53030', fontWeight: '700', fontSize: 14 },
   addonBanner: { backgroundColor: '#fef3c7', borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#fde68a' },
   addonBannerText: { fontSize: 13, color: '#92400e', fontWeight: '600' },
+  enRouteBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#fffbeb', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 2, borderColor: '#f59e0b' },
+  enRouteTitle: { fontSize: 15, fontWeight: '800', color: '#92400e', marginBottom: 2 },
+  enRouteBody: { fontSize: 13, color: '#78350f', lineHeight: 20 },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
   vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: '#e2e8f0' },
   vendorName: { fontSize: 15, fontWeight: '700', color: '#0B4A45' },
@@ -467,4 +839,9 @@ const styles = StyleSheet.create({
   reviewStars: { fontSize: 28, color: '#f59e0b', letterSpacing: 2, marginBottom: 4 },
   reviewSubmittedText: { fontSize: 14, color: '#059669', fontWeight: '600', marginBottom: 4 },
   reviewComment: { fontSize: 13, color: '#555', textAlign: 'center', fontStyle: 'italic' },
+  reportBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 4,
+  },
+  reportBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

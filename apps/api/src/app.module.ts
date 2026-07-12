@@ -19,6 +19,7 @@ import { AdminModule } from './admin/admin.module';
 import { MaintenanceBotModule } from './maintenance-bot/maintenance-bot.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { YolinkModule } from './yolink/yolink.module';
+import { VendorModule } from './vendor/vendor.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { YolinkModule } from './yolink/yolink.module';
     MaintenanceBotModule,
     AlertsModule,
     YolinkModule,
+    VendorModule,
   ],
 })
 export class AppModule {}

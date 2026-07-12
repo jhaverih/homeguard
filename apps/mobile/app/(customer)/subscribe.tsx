@@ -84,7 +84,11 @@ export default function SubscribeScreen() {
     }
     setLoading(true);
     try {
-      await subscriptionsApi.changePlan(selectedPlanId);
+      const res: any = await subscriptionsApi.changePlan(selectedPlanId);
+      if (res?.clientSecret) {
+        const paymentOk = await presentStripeSheet(res.clientSecret);
+        if (!paymentOk) return;
+      }
       Alert.alert('Plan Updated', 'Your subscription plan has been changed.');
       setShowChangePlan(false);
       setSelectedPlanId('');
@@ -165,6 +169,12 @@ export default function SubscribeScreen() {
             </View>
           ))}
         </View>
+
+        <TouchableOpacity style={styles.paymentsBtn} onPress={() => router.push('/(customer)/payments')}>
+          <Ionicons name="card-outline" size={18} color="#0B4A45" />
+          <Text style={styles.paymentsBtnText}>View Payments & History</Text>
+          <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+        </TouchableOpacity>
 
         {isCancelled ? (
           <View style={styles.cancelledNote}>
@@ -284,6 +294,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#fed7d7',
   },
   cancelBtnText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
+  paymentsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#f8f9fa', borderRadius: 14, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  paymentsBtnText: { flex: 1, color: '#0B4A45', fontWeight: '600', fontSize: 15 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
   backText: { color: '#0B4A45', fontWeight: '600', fontSize: 14 },
   title: { fontSize: 24, fontWeight: '800', color: '#0f172a', marginBottom: 6 },

@@ -8,9 +8,22 @@ export default function VendorsPage() {
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [reviewStats, setReviewStats] = useState<Record<string, { avg: number; count: number }>>({});
 
   useEffect(() => {
-    adminApi.getVendors().then(setVendors).finally(() => setLoading(false));
+    adminApi.getVendors().then((v) => {
+      setVendors(v);
+      // Load reviews for all vendors in parallel
+      Promise.allSettled(
+        v.map((vendor: any) =>
+          adminApi.getVendorReviews(vendor.id).then((reviews: any[]) => {
+            if (!reviews?.length) return;
+            const avg = reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length;
+            setReviewStats((prev) => ({ ...prev, [vendor.id]: { avg, count: reviews.length } }));
+          })
+        )
+      );
+    }).finally(() => setLoading(false));
   }, []);
 
   const approve = async (id: string) => {
@@ -56,6 +69,7 @@ export default function VendorsPage() {
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Email</th>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Status</th>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Stripe</th>
+                <th className="text-left px-6 py-4 font-semibold text-gray-600">Reviews</th>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Joined</th>
                 <th className="text-left px-6 py-4 font-semibold text-gray-600">Action</th>
               </tr>
@@ -84,6 +98,16 @@ export default function VendorsPage() {
                       <span className="text-green-600 text-xs font-semibold">✓ Connected</span>
                     ) : (
                       <span className="text-gray-400 text-xs">Not set up</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {reviewStats[v.id] ? (
+                      <span className="text-sm font-semibold text-amber-600">
+                        ★ {reviewStats[v.id].avg.toFixed(1)}
+                        <span className="text-gray-400 font-normal ml-1">({reviewStats[v.id].count})</span>
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-gray-400">

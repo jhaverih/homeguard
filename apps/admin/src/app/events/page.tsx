@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { adminApi } from '@/lib/api';
 
 const SEVERITY_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
@@ -10,6 +10,8 @@ const SEVERITY_CONFIG: Record<string, { label: string; color: string; bg: string
 };
 
 type FilterKey = 'ALL' | 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'DISPATCHED';
+type SortKey = 'time' | 'customer';
+type SortDir = 'asc' | 'desc';
 
 function formatTs(ts: string) {
   return new Date(ts).toLocaleString('en-US', {
@@ -18,10 +20,31 @@ function formatTs(ts: string) {
   });
 }
 
+function SortHeader({ label, sortKey, current, dir, onClick }: {
+  label: string; sortKey: SortKey; current: SortKey; dir: SortDir; onClick: (k: SortKey) => void;
+}) {
+  const active = current === sortKey;
+  return (
+    <button
+      onClick={() => onClick(sortKey)}
+      className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-brand transition-colors"
+    >
+      {label}
+      <span className={`ml-0.5 ${active ? 'text-brand' : 'text-gray-300'}`}>
+        {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+      </span>
+    </button>
+  );
+}
+
 export default function EventsPage() {
   const [allAlerts, setAllAlerts] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterKey>('ALL');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('time');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -30,9 +53,13 @@ export default function EventsPage() {
   const load = async (p = 1) => {
     setLoading(true);
     try {
-      const data = await adminApi.getAlerts(p, PAGE_SIZE);
+      const [data, cust] = await Promise.all([
+        adminApi.getAlerts(p, PAGE_SIZE),
+        adminApi.getCustomers().catch(() => []),
+      ]);
       setAllAlerts(data.alerts ?? []);
       setTotal(data.total ?? 0);
+      setCustomers(cust ?? []);
     } finally {
       setLoading(false);
     }
@@ -40,11 +67,31 @@ export default function EventsPage() {
 
   useEffect(() => { load(page); }, [page]);
 
-  const filtered = allAlerts.filter((a) => {
-    if (filter === 'ALL') return true;
-    if (filter === 'DISPATCHED') return !!a.emergencyDispatchRequestedAt;
-    return a.severity === filter;
-  });
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const filtered = useMemo(() => {
+    let list = allAlerts.filter((a) => {
+      if (filter === 'DISPATCHED') return !!a.emergencyDispatchRequestedAt;
+      if (filter !== 'ALL' && a.severity !== filter) return false;
+      if (customerFilter && a.customer?.id !== customerFilter) return false;
+      return true;
+    });
+
+    list = [...list].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'time') {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortKey === 'customer') {
+        cmp = (a.customer?.name ?? '').localeCompare(b.customer?.name ?? '');
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    return list;
+  }, [allAlerts, filter, customerFilter, sortKey, sortDir]);
 
   const counts = {
     all: allAlerts.length,
@@ -89,26 +136,49 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex flex-wrap gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
-        {tabs.map((t) => (
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setFilter(t.key)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                filter === t.key ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                  filter === t.key ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Customer dropdown */}
+        <select
+          value={customerFilter}
+          onChange={(e) => setCustomerFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand/30"
+        >
+          <option value="">All Customers</option>
+          {customers.map((c: any) => (
+            <option key={c.id} value={c.id}>{c.name || c.email}</option>
+          ))}
+        </select>
+
+        {customerFilter && (
           <button
-            key={t.key}
-            onClick={() => setFilter(t.key)}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              filter === t.key ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
+            onClick={() => setCustomerFilter('')}
+            className="text-xs text-gray-400 hover:text-gray-600 underline"
           >
-            {t.label}
-            {t.count > 0 && (
-              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                filter === t.key ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'
-              }`}>
-                {t.count}
-              </span>
-            )}
+            Clear filter
           </button>
-        ))}
+        )}
       </div>
 
       {loading ? (
@@ -116,16 +186,16 @@ export default function EventsPage() {
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <div className="text-4xl mb-4">🔕</div>
-          <p className="text-gray-400 text-sm">No events in this category.</p>
+          <p className="text-gray-400 text-sm">No events match the current filters.</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          {/* Header */}
-          <div className="grid grid-cols-[1fr_220px_180px_130px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            <span>Event / Description</span>
-            <span>Customer</span>
-            <span>Address</span>
-            <span>Time</span>
+          {/* Header with sort */}
+          <div className="grid grid-cols-[1fr_220px_180px_130px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Event / Description</span>
+            <SortHeader label="Customer" sortKey="customer" current={sortKey} dir={sortDir} onClick={handleSort} />
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Address</span>
+            <SortHeader label="Time" sortKey="time" current={sortKey} dir={sortDir} onClick={handleSort} />
           </div>
 
           {filtered.map((alert, idx) => {
@@ -135,12 +205,10 @@ export default function EventsPage() {
 
             return (
               <div key={alert.id} className={idx !== 0 ? 'border-t border-gray-100' : ''}>
-                {/* Main row */}
                 <button
                   onClick={() => setExpanded((p) => (p === alert.id ? null : alert.id))}
                   className="w-full text-left grid grid-cols-[1fr_220px_180px_130px] gap-4 px-6 py-4 hover:bg-gray-50 transition-colors items-start"
                 >
-                  {/* Event + severity */}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-semibold ${sev.bg} ${sev.color} border ${sev.border}`}>
@@ -159,16 +227,19 @@ export default function EventsPage() {
                       )}
                     </div>
                     <p className="text-sm font-medium text-gray-800 truncate">{alert.message}</p>
-                    {alert.deviceName && (
-                      <p className="text-xs text-gray-400 mt-0.5">Device: {alert.deviceName}</p>
-                    )}
+                    {alert.deviceName && <p className="text-xs text-gray-400 mt-0.5">Device: {alert.deviceName}</p>}
                   </div>
 
-                  {/* Customer */}
                   <div className="min-w-0">
                     {alert.customer ? (
                       <>
-                        <p className="text-sm font-medium text-gray-700 truncate">{alert.customer.name}</p>
+                        <a
+                          href={`/customers/${alert.customer.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm font-medium text-brand hover:underline truncate block"
+                        >
+                          {alert.customer.name}
+                        </a>
                         <p className="text-xs text-gray-400 truncate">{alert.customer.email}</p>
                       </>
                     ) : (
@@ -176,84 +247,56 @@ export default function EventsPage() {
                     )}
                   </div>
 
-                  {/* Address */}
                   <div className="min-w-0">
                     <p className="text-xs text-gray-500 leading-relaxed">
                       {alert.customer?.address ?? <span className="text-gray-300">—</span>}
                     </p>
                   </div>
 
-                  {/* Timestamp */}
-                  <div className="text-xs text-gray-400 whitespace-nowrap">
-                    {formatTs(alert.createdAt)}
-                  </div>
+                  <div className="text-xs text-gray-400 whitespace-nowrap">{formatTs(alert.createdAt)}</div>
                 </button>
 
-                {/* Expanded panel */}
                 {isOpen && (
                   <div className="px-6 pb-5 pt-1 bg-gray-50 border-t border-gray-100">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                      {/* Event details */}
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Event Details</p>
                         <dl className="space-y-1.5 text-sm">
-                          <div className="flex gap-2">
-                            <dt className="text-gray-400 w-24 shrink-0">Event</dt>
-                            <dd className="text-gray-700 font-medium">{alert.event ?? '—'}</dd>
-                          </div>
-                          <div className="flex gap-2">
-                            <dt className="text-gray-400 w-24 shrink-0">Device</dt>
-                            <dd className="text-gray-700">{alert.deviceName ?? '—'}</dd>
-                          </div>
-                          <div className="flex gap-2">
-                            <dt className="text-gray-400 w-24 shrink-0">Type</dt>
-                            <dd className="text-gray-700">{alert.deviceType ?? '—'}</dd>
-                          </div>
-                          <div className="flex gap-2">
-                            <dt className="text-gray-400 w-24 shrink-0">Status</dt>
-                            <dd className="text-gray-700">{alert.status}</dd>
-                          </div>
+                          {[['Event', alert.event], ['Device', alert.deviceName], ['Type', alert.deviceType], ['Status', alert.status]].map(([k, v]) => v ? (
+                            <div key={k} className="flex gap-2">
+                              <dt className="text-gray-400 w-24 shrink-0">{k}</dt>
+                              <dd className="text-gray-700 font-medium">{v}</dd>
+                            </div>
+                          ) : null)}
                         </dl>
                       </div>
-
-                      {/* Customer + address */}
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Homeowner</p>
                         {alert.customer ? (
                           <dl className="space-y-1.5 text-sm">
-                            <div className="flex gap-2">
-                              <dt className="text-gray-400 w-16 shrink-0">Name</dt>
-                              <dd className="text-gray-700 font-medium">{alert.customer.name}</dd>
-                            </div>
-                            <div className="flex gap-2">
-                              <dt className="text-gray-400 w-16 shrink-0">Email</dt>
-                              <dd className="text-gray-700">{alert.customer.email}</dd>
-                            </div>
-                            <div className="flex gap-2">
-                              <dt className="text-gray-400 w-16 shrink-0">Address</dt>
-                              <dd className="text-gray-700">{alert.customer.address ?? '—'}</dd>
+                            <div className="flex gap-2"><dt className="text-gray-400 w-16 shrink-0">Name</dt><dd className="text-gray-700 font-medium">{alert.customer.name}</dd></div>
+                            <div className="flex gap-2"><dt className="text-gray-400 w-16 shrink-0">Email</dt><dd className="text-gray-700">{alert.customer.email}</dd></div>
+                            <div className="flex gap-2"><dt className="text-gray-400 w-16 shrink-0">Address</dt><dd className="text-gray-700">{alert.customer.address ?? '—'}</dd></div>
+                            <div className="flex gap-2 mt-2">
+                              <a href={`/customers/${alert.customer.id}`} className="text-xs text-brand font-semibold hover:underline">
+                                → View full activity
+                              </a>
                             </div>
                           </dl>
                         ) : (
-                          <p className="text-sm text-gray-400">No customer record found</p>
+                          <p className="text-sm text-gray-400">No customer record</p>
                         )}
                       </div>
-
-                      {/* Dispatch status */}
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Response</p>
                         {dispatched ? (
                           <div className="bg-green-50 border border-green-200 rounded-xl p-3">
                             <p className="text-sm font-semibold text-green-700">Emergency Dispatch Requested</p>
-                            <p className="text-xs text-green-600 mt-1">
-                              {formatTs(alert.emergencyDispatchRequestedAt)}
-                            </p>
+                            <p className="text-xs text-green-600 mt-1">{formatTs(alert.emergencyDispatchRequestedAt)}</p>
                           </div>
                         ) : (
                           <div className="bg-gray-100 rounded-xl p-3">
                             <p className="text-sm text-gray-500">No action taken yet</p>
-                            <p className="text-xs text-gray-400 mt-1">Dispatch can be requested from the Houmi app</p>
                           </div>
                         )}
                       </div>
@@ -266,25 +309,14 @@ export default function EventsPage() {
         </div>
       )}
 
-      {/* Pagination */}
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
           <span>Showing {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of {total}</span>
           <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page * PAGE_SIZE >= total}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Next
-            </button>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+            <button onClick={() => setPage((p) => p + 1)} disabled={page * PAGE_SIZE >= total}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
           </div>
         </div>
       )}

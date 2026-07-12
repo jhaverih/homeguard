@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { disputesApi } from '@/lib/api';
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -24,16 +24,24 @@ const STATUS_LABEL: Record<string, string> = {
   RESOLVED_VENDOR: 'Resolved (Vendor)',
 };
 
-type Filter = 'ALL' | 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED';
+type StatusFilter = 'ALL' | 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED';
 
 function isResolved(status: string) {
   return status === 'RESOLVED_CUSTOMER' || status === 'RESOLVED_VENDOR';
 }
 
+function getName(entity: any, idField: string, dispute: any): string {
+  if (entity) {
+    return entity.name || `${entity.firstName ?? ''} ${entity.lastName ?? ''}`.trim() || entity.email || '—';
+  }
+  return dispute[idField]?.slice(0, 8) ? `ID: ${dispute[idField].slice(0, 8)}…` : '—';
+}
+
 export default function DisputesPage() {
   const [disputes, setDisputes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [partySearch, setPartySearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [resolving, setResolving] = useState<string | null>(null);
   const [form, setForm] = useState<{ resolution: string; note: string }>({ resolution: '', note: '' });
@@ -43,13 +51,20 @@ export default function DisputesPage() {
     disputesApi.getAll().then(setDisputes).finally(() => setLoading(false));
   }, []);
 
-  const filtered = disputes.filter((d) => {
-    if (filter === 'ALL') return true;
-    if (filter === 'OPEN') return d.status === 'OPEN';
-    if (filter === 'UNDER_REVIEW') return d.status === 'UNDER_REVIEW';
-    if (filter === 'RESOLVED') return isResolved(d.status);
-    return true;
-  });
+  const filtered = useMemo(() => {
+    const search = partySearch.toLowerCase();
+    return disputes.filter((d) => {
+      if (statusFilter === 'OPEN' && d.status !== 'OPEN') return false;
+      if (statusFilter === 'UNDER_REVIEW' && d.status !== 'UNDER_REVIEW') return false;
+      if (statusFilter === 'RESOLVED' && !isResolved(d.status)) return false;
+      if (search) {
+        const customerName = getName(d.customer, 'customerId', d).toLowerCase();
+        const vendorName = getName(d.vendor, 'vendorId', d).toLowerCase();
+        return customerName.includes(search) || vendorName.includes(search);
+      }
+      return true;
+    });
+  }, [disputes, statusFilter, partySearch]);
 
   const counts = {
     all: disputes.length,
@@ -80,7 +95,7 @@ export default function DisputesPage() {
     }
   };
 
-  const tabs: { key: Filter; label: string; count: number }[] = [
+  const tabs: { key: StatusFilter; label: string; count: number }[] = [
     { key: 'ALL', label: 'All', count: counts.all },
     { key: 'OPEN', label: 'Open', count: counts.open },
     { key: 'UNDER_REVIEW', label: 'Under Review', count: counts.underReview },
@@ -92,7 +107,6 @@ export default function DisputesPage() {
       <h1 className="text-2xl font-bold text-brand mb-1">Disputes</h1>
       <p className="text-gray-500 mb-6">Review and resolve customer payment disputes.</p>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-2xl font-bold text-gray-800">{counts.all}</p>
@@ -112,26 +126,37 @@ export default function DisputesPage() {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setFilter(t.key)}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              filter === t.key ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {t.label}
-            {t.count > 0 && (
-              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                filter === t.key ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'
-              }`}>
-                {t.count}
-              </span>
-            )}
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {tabs.map((t) => (
+            <button key={t.key} onClick={() => setStatusFilter(t.key)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                statusFilter === t.key ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                  statusFilter === t.key ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'
+                }`}>{t.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <input
+          type="text"
+          placeholder="Filter by customer or vendor name…"
+          value={partySearch}
+          onChange={(e) => setPartySearch(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 w-64"
+        />
+        {partySearch && (
+          <button onClick={() => setPartySearch('')} className="text-xs text-gray-400 hover:text-gray-600 underline">
+            Clear
           </button>
-        ))}
+        )}
       </div>
 
       {loading ? (
@@ -139,19 +164,29 @@ export default function DisputesPage() {
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <div className="text-4xl mb-4">⚖️</div>
-          <p className="text-gray-400 text-sm">No disputes in this category.</p>
+          <p className="text-gray-400 text-sm">No disputes match the current filters.</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_180px_180px_120px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <span>Dispute</span>
+            <span>Customer</span>
+            <span>Vendor</span>
+            <span>Actions</span>
+          </div>
+
           {filtered.map((dispute, idx) => {
-            const isOpen = dispute.status === 'OPEN' || dispute.status === 'UNDER_REVIEW';
             const isExpandedRow = expanded === dispute.id;
+            const isActive = dispute.status === 'OPEN' || dispute.status === 'UNDER_REVIEW';
+            const customerName = getName(dispute.customer, 'customerId', dispute);
+            const vendorName = getName(dispute.vendor, 'vendorId', dispute);
+
             return (
               <div key={dispute.id} className={idx !== 0 ? 'border-t border-gray-100' : ''}>
-                {/* Main row */}
-                <div className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                <div className="grid grid-cols-[1fr_180px_180px_120px] gap-4 px-6 py-4 hover:bg-gray-50 transition-colors items-start">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_STYLE[dispute.status] || 'bg-gray-100 text-gray-600'}`}>
                         {STATUS_LABEL[dispute.status] || dispute.status}
                       </span>
@@ -162,19 +197,35 @@ export default function DisputesPage() {
                     <p className="text-sm text-gray-700 truncate">{dispute.description}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {new Date(dispute.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      {dispute.resolvedAt && (
-                        <> &mdash; resolved {new Date(dispute.resolvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
-                      )}
                     </p>
                   </div>
 
-                  <div className="text-xs text-gray-400 hidden lg:block w-32 shrink-0">
-                    <p className="font-medium text-gray-600 truncate">Customer</p>
-                    <p className="truncate">{dispute.customerId?.slice(0, 8)}…</p>
+                  {/* Customer */}
+                  <div className="min-w-0">
+                    {dispute.customer ? (
+                      <a href={`/customers/${dispute.customer.id}`} className="text-sm font-medium text-brand hover:underline truncate block">
+                        {customerName}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-gray-500 truncate">{customerName}</p>
+                    )}
+                    {dispute.customer?.email && (
+                      <p className="text-xs text-gray-400 truncate">{dispute.customer.email}</p>
+                    )}
                   </div>
-                  <div className="text-xs text-gray-400 hidden lg:block w-32 shrink-0">
-                    <p className="font-medium text-gray-600 truncate">Vendor</p>
-                    <p className="truncate">{dispute.vendorId?.slice(0, 8)}…</p>
+
+                  {/* Vendor */}
+                  <div className="min-w-0">
+                    {dispute.vendor ? (
+                      <a href={`/vendors/${dispute.vendor.id}`} className="text-sm font-medium text-green-700 hover:underline truncate block">
+                        {vendorName}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-gray-500 truncate">{vendorName}</p>
+                    )}
+                    {dispute.vendor?.email && (
+                      <p className="text-xs text-gray-400 truncate">{dispute.vendor.email}</p>
+                    )}
                   </div>
 
                   <button
@@ -185,19 +236,16 @@ export default function DisputesPage() {
                         : 'bg-white text-brand border-brand hover:bg-brand hover:text-white'
                     }`}
                   >
-                    {isExpandedRow ? 'Collapse' : 'View Details'}
+                    {isExpandedRow ? 'Collapse' : 'Details'}
                   </button>
                 </div>
 
-                {/* Expanded panel */}
                 {isExpandedRow && (
                   <div className="px-6 pb-6 bg-gray-50 border-t border-gray-100">
                     <div className="grid grid-cols-2 gap-6 mt-4">
-                      {/* Left: dispute details */}
                       <div>
                         <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
                         <p className="text-sm text-gray-600 whitespace-pre-wrap">{dispute.description}</p>
-
                         {dispute.stripePaymentIntentId && (
                           <div className="mt-4">
                             <h3 className="text-sm font-semibold text-gray-700 mb-1">Stripe Payment Intent</h3>
@@ -206,95 +254,61 @@ export default function DisputesPage() {
                             </code>
                           </div>
                         )}
-
                         {dispute.photoUrls?.length > 0 && (
                           <div className="mt-4">
                             <h3 className="text-sm font-semibold text-gray-700 mb-2">Evidence Photos</h3>
                             <div className="flex flex-wrap gap-2">
                               {dispute.photoUrls.map((url: string, i: number) => (
                                 <a key={i} href={url} target="_blank" rel="noreferrer">
-                                  <img
-                                    src={url}
-                                    alt={`Evidence ${i + 1}`}
-                                    className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity"
-                                  />
+                                  <img src={url} alt={`Evidence ${i + 1}`}
+                                    className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
                                 </a>
                               ))}
                             </div>
                           </div>
                         )}
-
-                        {dispute.resolution && (
-                          <div className="mt-4">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-1">Resolution Note</h3>
-                            <p className="text-sm text-gray-600 whitespace-pre-wrap">{dispute.resolution}</p>
-                          </div>
-                        )}
+                        {/* Quick links */}
+                        <div className="mt-4 flex gap-4">
+                          {dispute.customer?.id && (
+                            <a href={`/customers/${dispute.customer.id}`} className="text-xs text-brand font-semibold hover:underline">
+                              → Customer activity
+                            </a>
+                          )}
+                          {dispute.vendor?.id && (
+                            <a href={`/vendors/${dispute.vendor.id}`} className="text-xs text-green-700 font-semibold hover:underline">
+                              → Vendor activity
+                            </a>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Right: resolve form (only for open disputes) */}
-                      {isOpen ? (
+                      {isActive ? (
                         <div>
                           <h3 className="text-sm font-semibold text-gray-700 mb-3">Resolve Dispute</h3>
                           <div className="space-y-2 mb-4">
-                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                              form.resolution === 'RESOLVED_CUSTOMER'
-                                ? 'border-blue-400 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300'
-                            }`}>
-                              <input
-                                type="radio"
-                                name={`res-${dispute.id}`}
-                                value="RESOLVED_CUSTOMER"
-                                checked={form.resolution === 'RESOLVED_CUSTOMER'}
-                                onChange={(e) => setForm((f) => ({ ...f, resolution: e.target.value }))}
-                                className="mt-0.5"
-                              />
-                              <div>
-                                <p className="text-sm font-semibold text-blue-700">Resolve for Customer</p>
-                                <p className="text-xs text-gray-500 mt-0.5">Void the charge — customer is not billed.</p>
-                              </div>
-                            </label>
-                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                              form.resolution === 'RESOLVED_VENDOR'
-                                ? 'border-green-400 bg-green-50'
-                                : 'border-gray-200 hover:border-gray-300'
-                            }`}>
-                              <input
-                                type="radio"
-                                name={`res-${dispute.id}`}
-                                value="RESOLVED_VENDOR"
-                                checked={form.resolution === 'RESOLVED_VENDOR'}
-                                onChange={(e) => setForm((f) => ({ ...f, resolution: e.target.value }))}
-                                className="mt-0.5"
-                              />
-                              <div>
-                                <p className="text-sm font-semibold text-green-700">Resolve for Vendor</p>
-                                <p className="text-xs text-gray-500 mt-0.5">Release payment — vendor receives funds.</p>
-                              </div>
-                            </label>
+                            {[
+                              { value: 'RESOLVED_CUSTOMER', label: 'Resolve for Customer', desc: 'Void the charge — customer is not billed.', cls: 'border-blue-400 bg-blue-50', textCls: 'text-blue-700' },
+                              { value: 'RESOLVED_VENDOR', label: 'Resolve for Vendor', desc: 'Release payment — vendor receives funds.', cls: 'border-green-400 bg-green-50', textCls: 'text-green-700' },
+                            ].map((opt) => (
+                              <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${form.resolution === opt.value ? opt.cls : 'border-gray-200 hover:border-gray-300'}`}>
+                                <input type="radio" name={`res-${dispute.id}`} value={opt.value}
+                                  checked={form.resolution === opt.value}
+                                  onChange={(e) => setForm((f) => ({ ...f, resolution: e.target.value }))}
+                                  className="mt-0.5" />
+                                <div>
+                                  <p className={`text-sm font-semibold ${opt.textCls}`}>{opt.label}</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
+                                </div>
+                              </label>
+                            ))}
                           </div>
-
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Resolution Note <span className="text-red-400">*</span>
-                          </label>
-                          <textarea
-                            rows={3}
-                            placeholder="Explain your decision — this is sent to both parties."
+                          <textarea rows={3} placeholder="Explain your decision — sent to both parties."
                             value={form.note}
                             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"
-                          />
-
-                          {formError && (
-                            <p className="text-xs text-red-500 mt-2">{formError}</p>
-                          )}
-
-                          <button
-                            onClick={() => submitResolve(dispute.id)}
-                            disabled={resolving === dispute.id}
-                            className="mt-3 w-full bg-brand text-white text-sm font-semibold py-2.5 rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity"
-                          >
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand/30 resize-none" />
+                          {formError && <p className="text-xs text-red-500 mt-2">{formError}</p>}
+                          <button onClick={() => submitResolve(dispute.id)} disabled={resolving === dispute.id}
+                            className="mt-3 w-full bg-brand text-white text-sm font-semibold py-2.5 rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">
                             {resolving === dispute.id ? 'Resolving…' : 'Submit Resolution'}
                           </button>
                         </div>
@@ -304,6 +318,7 @@ export default function DisputesPage() {
                             <div className="text-3xl mb-2">✓</div>
                             <p className="text-sm font-medium">Dispute resolved</p>
                             <p className="text-xs mt-1">{STATUS_LABEL[dispute.status]}</p>
+                            {dispute.resolution && <p className="text-xs text-gray-500 mt-2 max-w-xs">{dispute.resolution}</p>}
                           </div>
                         </div>
                       )}

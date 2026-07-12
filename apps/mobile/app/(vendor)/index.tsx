@@ -1,29 +1,106 @@
-﻿import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, Linking, Alert, AppState,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
-import { requestsApi } from '../../src/services/api';
+import { requestsApi, paymentsApi } from '../../src/services/api';
+
+const STRIPE_SKIP_KEY = 'vendorStripeSkipped';
+
+function StripeSetupBanner({ onDismiss }: { onDismiss: () => void }) {
+  const [loading, setLoading] = useState(false);
+
+  const openStripe = async () => {
+    setLoading(true);
+    try {
+      const res: any = await paymentsApi.getOnboardingLink();
+      await Linking.openURL(res.url);
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message || e?.message || 'Could not get Stripe link');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.stripeBanner}>
+      <View style={styles.stripeBannerHeader}>
+        <View style={styles.cardChip}>
+          <Text style={styles.cardChipText}>$</Text>
+        </View>
+        <Text style={styles.stripeBannerTitle}>Set Up Payouts to Get Paid</Text>
+      </View>
+      <Text style={styles.stripeBannerBody}>
+        Connect your Stripe account so Houmi can pay you when jobs are completed.
+      </Text>
+      <TouchableOpacity style={styles.stripeBtn} onPress={openStripe} disabled={loading}>
+        {loading
+          ? <ActivityIndicator color="#fff" size="small" />
+          : <Text style={styles.stripeBtnText}>Connect Stripe Account</Text>
+        }
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.dismissBtn} onPress={onDismiss}>
+        <Text style={styles.dismissText}>Remind me later</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export default function VendorDashboard() {
   const { user } = useAuthStore();
   const [myJobs, setMyJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showStripeBanner, setShowStripeBanner] = useState(false);
+  const appState = useRef(AppState.currentState);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
-      const jobs: any = await requestsApi.getVendorJobs();
-      setMyJobs(jobs || []);
+      const [jobs, skipVal] = await Promise.all([
+        requestsApi.getVendorJobs().catch(() => []),
+        AsyncStorage.getItem(STRIPE_SKIP_KEY).catch(() => null),
+      ]);
+      setMyJobs((jobs as any[]) || []);
+
+      if (skipVal !== 'true') {
+        const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
+        const status: any = await Promise.race([
+          paymentsApi.getVendorStripeStatus().catch(() => null),
+          deadline,
+        ]);
+        if (status && !status.onboardingComplete) {
+          setShowStripeBanner(true);
+        } else if (status?.onboardingComplete) {
+          setShowStripeBanner(false);
+          AsyncStorage.removeItem(STRIPE_SKIP_KEY).catch(() => {});
+        }
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Re-check Stripe when user returns from the Stripe browser tab
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        load();
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [load]);
+
+  const handleDismiss = () => {
+    AsyncStorage.setItem(STRIPE_SKIP_KEY, 'true').catch(() => {});
+    setShowStripeBanner(false);
+  };
 
   const activeJob = myJobs.find((j) => ['ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(j.status));
   const upcomingJobs = myJobs.filter((j) => j.status === 'ACCEPTED').slice(0, 3);
@@ -36,6 +113,8 @@ export default function VendorDashboard() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
+      {showStripeBanner && <StripeSetupBanner onDismiss={handleDismiss} />}
+
       <View style={styles.header}>
         <Text style={styles.greeting}>Hello, {user?.firstName}!</Text>
         <Text style={styles.subtitle}>Ready to serve homeowners today.</Text>
@@ -104,6 +183,18 @@ export default function VendorDashboard() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f9fa' },
+  // Stripe banner
+  stripeBanner: { backgroundColor: '#fff', margin: 16, marginBottom: 8, borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, borderLeftWidth: 4, borderLeftColor: '#635bff' },
+  stripeBannerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+  cardChip: { width: 36, height: 24, backgroundColor: '#635bff', borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
+  cardChipText: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  stripeBannerTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b', flex: 1 },
+  stripeBannerBody: { fontSize: 13, color: '#64748b', lineHeight: 20, marginBottom: 16 },
+  stripeBtn: { backgroundColor: '#635bff', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 8 },
+  stripeBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  dismissBtn: { alignItems: 'center', paddingVertical: 6 },
+  dismissText: { fontSize: 13, color: '#94a3b8' },
+  // Dashboard
   header: { backgroundColor: '#0B4A45', padding: 24, paddingTop: 16 },
   greeting: { fontSize: 24, fontWeight: '700', color: '#fff' },
   subtitle: { fontSize: 14, color: '#a8d5a2', marginTop: 4 },

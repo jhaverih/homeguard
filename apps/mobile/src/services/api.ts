@@ -39,6 +39,13 @@ export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
   register: (data: any) => api.post('/auth/register', data),
+  forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, password: string) =>
+    api.post('/auth/reset-password', { token, password }),
+  verifyEmail: (email: string, code: string) =>
+    api.post('/auth/verify-email', { email, code }),
+  resendVerification: (email: string) =>
+    api.post('/auth/resend-verification', { email }),
 };
 
 export const userApi = {
@@ -69,21 +76,37 @@ export const requestsApi = {
   getPending: () => api.get('/service-requests/pending'),
   getOne: (id: string) => api.get(`/service-requests/${id}`),
   getOneWithPhotos: (id: string) => api.get(`/service-requests/${id}/with-photos`),
-  accept: (id: string, scheduledDate: string) => api.post(`/service-requests/${id}/accept`, { scheduledDate }),
+  accept: (id: string, scheduledDate: string, notes?: string) => api.post(`/service-requests/${id}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
   updateStatus: (id: string, status: string, completionPhotoKeys?: string[]) =>
     api.patch(`/service-requests/${id}/status`, { status, ...(completionPhotoKeys ? { completionPhotoKeys } : {}) }),
   addNotes: (id: string, notes: string) => api.patch(`/service-requests/${id}/notes`, { notes }),
   recommendService: (id: string, data: any) => api.post(`/service-requests/${id}/additional-services`, data),
   approveService: (serviceId: string) => api.post(`/service-requests/additional-services/${serviceId}/approve`),
+  declineService: (serviceId: string) => api.delete(`/service-requests/additional-services/${serviceId}/decline`),
   getPendingAdditionalServices: () => api.get('/service-requests/additional-services/pending'),
   reschedule: (id: string, newDate: string) => api.patch(`/service-requests/${id}/reschedule`, { newDate }),
   cancel: (id: string) => api.patch(`/service-requests/${id}/cancel`),
+  confirmSchedule: (id: string) => api.patch(`/service-requests/${id}/confirm-schedule`),
+  declineSchedule: (id: string) => api.patch(`/service-requests/${id}/decline-schedule`),
+  updateLocation: (id: string, latitude: number, longitude: number) =>
+    api.patch(`/service-requests/${id}/location`, { latitude, longitude }),
+  getSolarQuote: (id: string) => api.get(`/service-requests/${id}/solar-quote`),
+  submitSolarQuote: (id: string, data: any) => api.post(`/service-requests/${id}/solar-quote`, data),
+  getSolarConsultation: (id: string) => api.get(`/service-requests/${id}/solar-consultation`),
+  requestConsultation: (id: string, preferredDate: string) => api.post(`/service-requests/${id}/solar-consultation`, { preferredDate }),
+  updateConsultation: (id: string, action: string, proposedDate?: string) => api.patch(`/service-requests/${id}/solar-consultation`, { action, proposedDate }),
 };
 
 export const inspectionsApi = {
   addNote: (requestId: string, data: any) => api.post(`/inspections/requests/${requestId}/notes`, data),
   getNotes: (requestId: string) => api.get(`/inspections/requests/${requestId}/notes`),
   getHistory: () => api.get('/inspections/history'),
+  getChecklist: () => api.get('/inspections/checklist'),
+  upsertTask: (requestId: string, taskKey: string, dto: any) =>
+    api.put(`/inspections/requests/${requestId}/tasks/${taskKey}`, dto),
+  getTasks: (requestId: string) => api.get(`/inspections/requests/${requestId}/tasks`),
+  getProgress: (requestId: string) => api.get(`/inspections/requests/${requestId}/progress`),
+  getCustomerTaskHistory: () => api.get('/inspections/customer/task-history'),
 };
 
 export const pricingApi = {
@@ -173,7 +196,18 @@ export const paymentsApi = {
   getVendorStripeStatus: (): Promise<{ connected: boolean; onboardingComplete: boolean }> =>
     api.get('/payments/vendor/stripe-status') as any,
   getPending: (): Promise<any[]> => api.get('/payments/pending') as any,
-  authorize: (paymentId: string) => api.patch(`/payments/${paymentId}/authorize`, {}),
+  authorize: (paymentId: string): Promise<{ clientSecret?: string }> =>
+    api.patch(`/payments/${paymentId}/authorize`, {}) as any,
+  createServicePayment: (serviceId: string): Promise<{ clientSecret?: string; paymentId?: string }> =>
+    api.post(`/payments/service/${serviceId}`) as any,
   getVendorHistory: (): Promise<any[]> => api.get('/payments/vendor/history') as any,
-  getHistory: () => api.get('/payments/history'),
+  getHistory: (): Promise<any[]> => api.get('/payments/history') as any,
+  createSetupIntent: (): Promise<{ setupIntentClientSecret: string; ephemeralKeySecret: string; customerId: string }> =>
+    api.post('/payments/setup-intent') as any,
+  listMethods: (): Promise<{ id: string; brand: string; last4: string; isDefault: boolean }[]> =>
+    api.get('/payments/methods') as any,
+  setDefaultMethod: (id: string): Promise<{ success: boolean }> =>
+    api.patch(`/payments/methods/${id}/default`, {}) as any,
+  removeMethod: (id: string): Promise<{ success: boolean }> =>
+    api.delete(`/payments/methods/${id}`) as any,
 };

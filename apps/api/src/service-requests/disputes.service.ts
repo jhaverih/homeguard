@@ -1,18 +1,23 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Dispute } from './entities/dispute.entity';
+import { ServiceRequest } from './entities/service-request.entity';
 import { DisputeCategory, DisputeStatus } from '../common/enums/role.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class DisputesService {
   constructor(
     @InjectRepository(Dispute)
     private disputesRepo: Repository<Dispute>,
+    @InjectRepository(ServiceRequest)
+    private requestsRepo: Repository<ServiceRequest>,
     private notificationsService: NotificationsService,
     private uploadsService: UploadsService,
+    private usersService: UsersService,
   ) {}
 
   async openDispute(
@@ -26,8 +31,19 @@ export class DisputesService {
       photoKeys?: string[];
     },
   ): Promise<Dispute> {
+    if (!dto.description || dto.description.trim().length < 20) {
+      throw new BadRequestException('Description must be at least 20 characters');
+    }
+
+    // Any family member can dispute a shared household job — "same rights".
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    const request = await this.requestsRepo.findOne({ where: { id: dto.serviceRequestId } });
+    if (!request || !relatedIds.includes(request.customerId)) {
+      throw new ForbiddenException('That service request does not belong to your account');
+    }
+
     const existing = await this.disputesRepo.findOne({
-      where: { serviceRequestId: dto.serviceRequestId, customerId, status: DisputeStatus.OPEN },
+      where: { serviceRequestId: dto.serviceRequestId, customerId: In(relatedIds), status: DisputeStatus.OPEN },
     });
     if (existing) throw new BadRequestException('A dispute is already open for this job');
 
@@ -55,8 +71,9 @@ export class DisputesService {
   }
 
   async getCustomerDisputes(customerId: string): Promise<any[]> {
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     const disputes = await this.disputesRepo.find({
-      where: { customerId },
+      where: { customerId: In(relatedIds) },
       order: { createdAt: 'DESC' },
     });
     return this.resolvePhotos(disputes);

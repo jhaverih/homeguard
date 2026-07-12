@@ -124,7 +124,16 @@ export class SubscriptionsService implements OnModuleInit {
 
   async getOrCreateStripeCustomer(userId: string): Promise<string> {
     const user = await this.usersService.findById(userId);
-    if (user.stripeCustomerId) return user.stripeCustomerId;
+
+    if (user.stripeCustomerId) {
+      try {
+        const existing = await this.stripe.customers.retrieve(user.stripeCustomerId);
+        if (!existing.deleted) return user.stripeCustomerId;
+      } catch {
+        // Customer doesn't exist in this Stripe account — fall through to create a new one
+        await this.usersService.updateStripeCustomerId(userId, null);
+      }
+    }
 
     const customer = await this.stripe.customers.create({
       email: user.email,
@@ -141,15 +150,19 @@ export class SubscriptionsService implements OnModuleInit {
   }
 
   async getActiveSubscription(customerId: string): Promise<CustomerSubscription | null> {
+    // Family members share the primary account's subscription — "same rights" as the owner.
+    const ownerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
     return this.subscriptionsRepo.findOne({
-      where: { customerId, status: SubscriptionStatus.ACTIVE },
+      where: { customerId: ownerId, status: SubscriptionStatus.ACTIVE },
       relations: ['plan'],
     });
   }
 
   async subscribe(customerId: string, planId: string): Promise<{ clientSecret: string; subscriptionId?: string; paymentIntentId?: string }> {
-    const existing = await this.getActiveSubscription(customerId);
+    const ownerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
+    const existing = await this.getActiveSubscription(ownerId);
     if (existing) throw new BadRequestException('Customer already has an active subscription');
+    customerId = ownerId;
 
     const plan = await this.plansRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
@@ -179,7 +192,10 @@ export class SubscriptionsService implements OnModuleInit {
       customer: stripeCustomerId,
       items: [{ price: plan.stripePriceId }],
       payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
+      // Card-only — the app has no deep-link/return-URL handling built, and
+      // redirect-based payment methods would require a return_url at
+      // confirmation that we can't satisfy today.
+      payment_settings: { save_default_payment_method: 'on_subscription', payment_method_types: ['card'] },
       expand: ['latest_invoice.payment_intent'],
       metadata: { customerId, planId: plan.id },
     });
@@ -212,6 +228,7 @@ export class SubscriptionsService implements OnModuleInit {
   }
 
   async cancelSubscription(customerId: string): Promise<CustomerSubscription> {
+    // Any family member can cancel the shared household subscription — "same rights".
     const sub = await this.getActiveSubscription(customerId);
     if (!sub) throw new NotFoundException('No active subscription found');
 
@@ -227,7 +244,8 @@ export class SubscriptionsService implements OnModuleInit {
     return this.subscriptionsRepo.save(sub);
   }
 
-  async changePlan(customerId: string, newPlanId: string): Promise<CustomerSubscription> {
+  async changePlan(customerId: string, newPlanId: string): Promise<{ clientSecret?: string; subscriptionId?: string }> {
+    // Any family member can change the shared household subscription — "same rights".
     const sub = await this.getActiveSubscription(customerId);
     if (!sub) throw new NotFoundException('No active subscription found');
     const plan = await this.plansRepo.findOne({ where: { id: newPlanId } });
@@ -235,6 +253,16 @@ export class SubscriptionsService implements OnModuleInit {
 
     if (sub.stripeSubscriptionId && plan.stripePriceId) {
       const stripeSub = await this.stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+
+      if (stripeSub.status === 'incomplete') {
+        // Payment was never collected — cancel the stale subscription and start fresh.
+        // Use sub.customerId (the resolved owner), not the caller's own id, so a family
+        // member restarting checkout doesn't fork off a separate subscription.
+        try { await this.stripe.subscriptions.cancel(sub.stripeSubscriptionId); } catch { /* ignore */ }
+        await this.subscriptionsRepo.remove(sub);
+        return this.subscribeViaStripe(sub.customerId, plan);
+      }
+
       await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
         items: [{ id: stripeSub.items.data[0].id, price: plan.stripePriceId }],
         proration_behavior: 'create_prorations',
@@ -243,7 +271,8 @@ export class SubscriptionsService implements OnModuleInit {
 
     sub.planId = newPlanId;
     sub.plan = plan;
-    return this.subscriptionsRepo.save(sub);
+    await this.subscriptionsRepo.save(sub);
+    return {};
   }
 
   async updatePlan(planId: string, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {

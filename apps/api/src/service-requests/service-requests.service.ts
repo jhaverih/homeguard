@@ -2,9 +2,11 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In, FindOptionsWhere } from 'typeorm';
+import { Repository, Not, In, FindOptionsWhere, MoreThan } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
 import { AdditionalService } from './entities/additional-service.entity';
+import { SolarQuote } from './entities/solar-quote.entity';
+import { SolarConsultation } from './entities/solar-consultation.entity';
 import { ServiceRequestStatus, UserRole, PaymentType } from '../common/enums/role.enum';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsersService } from '../users/users.service';
@@ -13,6 +15,15 @@ import { NotificationType } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PricingService } from '../pricing/pricing.service';
+import { InspectionsService } from '../inspections/inspections.service';
+import { VendorProfile } from '../users/entities/vendor-profile.entity';
+import { VendorCompany } from '../vendor/entities/vendor-company.entity';
+import { VendorCapability, CertificationType } from '../vendor/entities/vendor-capability.entity';
+import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
+import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
+import { ServicePrice } from '../pricing/entities/service-price.entity';
+
+const ELITE_PREFERENTIAL_WINDOW_MINUTES = 15;
 
 @Injectable()
 export class ServiceRequestsService {
@@ -21,6 +32,10 @@ export class ServiceRequestsService {
     private requestsRepo: Repository<ServiceRequest>,
     @InjectRepository(AdditionalService)
     private additionalRepo: Repository<AdditionalService>,
+    @InjectRepository(SolarQuote)
+    private solarQuoteRepo: Repository<SolarQuote>,
+    @InjectRepository(SolarConsultation)
+    private solarConsultationRepo: Repository<SolarConsultation>,
     private subscriptionsService: SubscriptionsService,
     private usersService: UsersService,
     private notificationsService: NotificationsService,
@@ -28,6 +43,20 @@ export class ServiceRequestsService {
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
     private pricingService: PricingService,
+    @Inject(forwardRef(() => InspectionsService))
+    private inspectionsService: InspectionsService,
+    @InjectRepository(VendorProfile)
+    private vendorProfileRepo: Repository<VendorProfile>,
+    @InjectRepository(VendorCompany)
+    private vendorCompanyRepo: Repository<VendorCompany>,
+    @InjectRepository(VendorCapability)
+    private vendorCapabilityRepo: Repository<VendorCapability>,
+    @InjectRepository(VendorCapabilitySelection)
+    private vendorCapabilitySelectionRepo: Repository<VendorCapabilitySelection>,
+    @InjectRepository(VendorCertification)
+    private vendorCertificationRepo: Repository<VendorCertification>,
+    @InjectRepository(ServicePrice)
+    private servicePriceRepo: Repository<ServicePrice>,
   ) {}
 
   private async generateTicketNumber(): Promise<string> {
@@ -132,6 +161,7 @@ export class ServiceRequestsService {
       zipCode: dto.zipCode,
       isPaidAddon: false,
       addonPrice: customerPrice,
+      servicePriceId: servicePrice.id,
     });
 
     const saved = await this.requestsRepo.save(request);
@@ -160,25 +190,86 @@ export class ServiceRequestsService {
     return saved;
   }
 
-  async accept(requestId: string, vendorId: string, scheduledDate: string): Promise<ServiceRequest> {
+  async accept(requestId: string, vendorId: string, scheduledDate: string, notes?: string): Promise<ServiceRequest> {
     const request = await this.findById(requestId);
     if (request.status !== ServiceRequestStatus.PENDING) {
       throw new BadRequestException('Request is no longer available');
     }
 
-    request.vendorId = vendorId;
-    request.scheduledDate = new Date(scheduledDate);
-    request.status = ServiceRequestStatus.ACCEPTED;
-    const saved = await this.requestsRepo.save(request);
+    const proposed = new Date(scheduledDate);
+    const preferred = new Date(request.preferredDate);
+    const diffMs = Math.abs(proposed.getTime() - preferred.getTime());
+    const sametime = diffMs < 5 * 60 * 1000;
 
+    request.vendorId = vendorId;
+    request.scheduledDate = proposed;
+    if (notes?.trim()) request.vendorNotes = notes.trim();
+
+    if (sametime) {
+      request.status = ServiceRequestStatus.ACCEPTED;
+      const saved = await this.requestsRepo.save(request);
+      await this.notificationsService.notifyUser(
+        request.customerId,
+        NotificationType.REQUEST_ACCEPTED,
+        'Vendor Accepted Your Request',
+        `Your inspection has been scheduled for ${proposed.toLocaleDateString()}.`,
+        { serviceRequestId: saved.id },
+      );
+      return saved;
+    }
+
+    request.status = ServiceRequestStatus.PENDING_CUSTOMER_REVIEW;
+    const saved = await this.requestsRepo.save(request);
     await this.notificationsService.notifyUser(
       request.customerId,
-      NotificationType.REQUEST_ACCEPTED,
-      'Vendor Accepted Your Request',
-      `Your inspection has been scheduled for ${new Date(scheduledDate).toLocaleDateString()}.`,
+      NotificationType.SCHEDULE_CHANGED,
+      'Vendor Proposed a New Time',
+      `Your vendor proposed ${proposed.toLocaleDateString()} at ${proposed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Please accept or decline.`,
       { serviceRequestId: saved.id },
     );
+    return saved;
+  }
 
+  async confirmSchedule(requestId: string, customerId: string): Promise<ServiceRequest> {
+    const request = await this.findById(requestId);
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    if (!relatedIds.includes(request.customerId)) throw new ForbiddenException();
+    if (request.status !== ServiceRequestStatus.PENDING_CUSTOMER_REVIEW) {
+      throw new BadRequestException('No pending time review for this request');
+    }
+    request.status = ServiceRequestStatus.ACCEPTED;
+    const saved = await this.requestsRepo.save(request);
+    await this.notificationsService.notifyUser(
+      request.vendorId,
+      NotificationType.SCHEDULE_CHANGED,
+      'Customer Confirmed the Time',
+      `The customer confirmed your proposed time for ticket ${request.ticketNumber}.`,
+      { serviceRequestId: saved.id },
+    );
+    return saved;
+  }
+
+  async declineSchedule(requestId: string, customerId: string): Promise<ServiceRequest> {
+    const request = await this.findById(requestId);
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    if (!relatedIds.includes(request.customerId)) throw new ForbiddenException();
+    if (request.status !== ServiceRequestStatus.PENDING_CUSTOMER_REVIEW) {
+      throw new BadRequestException('No pending time review for this request');
+    }
+    const prevVendorId = request.vendorId;
+    request.status = ServiceRequestStatus.PENDING;
+    request.vendorId = null;
+    request.scheduledDate = null;
+    const saved = await this.requestsRepo.save(request);
+    if (prevVendorId) {
+      await this.notificationsService.notifyUser(
+        prevVendorId,
+        NotificationType.SCHEDULE_CHANGED,
+        'Customer Declined the Proposed Time',
+        `The customer declined your proposed time for ticket ${request.ticketNumber}. The request is back in the pool.`,
+        { serviceRequestId: saved.id },
+      );
+    }
     return saved;
   }
 
@@ -195,9 +286,15 @@ export class ServiceRequestsService {
       if (!completionPhotoKeys || completionPhotoKeys.length === 0) {
         throw new BadRequestException('At least one completion photo is required to mark a job complete');
       }
+      if (request.type !== ServiceType.ADDITIONAL_SERVICE) {
+        const checklistDone = await this.inspectionsService.isChecklistComplete(requestId);
+        if (!checklistDone) {
+          throw new BadRequestException('All inspection checklist items must be completed before closing the job');
+        }
+        await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
+      }
       request.completionPhotoKeys = completionPhotoKeys;
       request.completedAt = new Date();
-      await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
 
       // Create auth holds for any approved additional services
       const approvedServices = await this.additionalRepo.find({
@@ -220,13 +317,16 @@ export class ServiceRequestsService {
     }
 
     request.status = status;
+    if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
+      request.vendorEnRouteAt = new Date();
+    }
     const saved = await this.requestsRepo.save(request);
 
     const notifMap: Partial<Record<ServiceRequestStatus, { type: NotificationType; title: string; body: string }>> = {
       [ServiceRequestStatus.VENDOR_EN_ROUTE]: {
         type: NotificationType.VENDOR_EN_ROUTE,
         title: 'Vendor On The Way',
-        body: 'Your vendor is heading to your home.',
+        body: 'Your vendor is on the way. Please make sure to be home when they arrive.',
       },
       [ServiceRequestStatus.IN_PROGRESS]: {
         type: NotificationType.VENDOR_ARRIVED,
@@ -305,10 +405,37 @@ export class ServiceRequestsService {
     return saved;
   }
 
+  async declineAdditionalService(serviceId: string, customerId: string): Promise<void> {
+    const service = await this.additionalRepo.findOne({
+      where: { id: serviceId },
+      relations: ['serviceRequest'],
+    });
+    if (!service) throw new NotFoundException();
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    if (!relatedIds.includes(service.serviceRequest.customerId)) throw new ForbiddenException();
+    if (service.approved) throw new BadRequestException('Service has already been approved');
+
+    const vendorId = service.serviceRequest.vendorId;
+    const svcName = service.name;
+    const requestId = service.serviceRequestId;
+    await this.additionalRepo.delete(serviceId);
+
+    if (vendorId) {
+      await this.notificationsService.notifyUser(
+        vendorId,
+        NotificationType.ADDITIONAL_SERVICE_DECLINED,
+        'Additional Service Declined',
+        `Customer declined: ${svcName}`,
+        { serviceRequestId: requestId },
+      );
+    }
+  }
+
   async getCustomerRequests(customerId: string): Promise<ServiceRequest[]> {
     const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     return this.requestsRepo.find({
       where: { customerId: In(relatedIds) } as FindOptionsWhere<ServiceRequest>,
+      relations: ['additionalServices'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -316,16 +443,96 @@ export class ServiceRequestsService {
   async getVendorRequests(vendorId: string): Promise<ServiceRequest[]> {
     return this.requestsRepo.find({
       where: { vendorId },
-      relations: ['customer', 'customer.customerProfile'],
+      relations: ['customer', 'customer.customerProfile', 'additionalServices'],
       order: { scheduledDate: 'ASC' },
     });
   }
 
-  async getPendingRequests(): Promise<ServiceRequest[]> {
-    return this.requestsRepo.find({
+  async getPendingRequests(callerId: string): Promise<ServiceRequest[]> {
+    const callerProfile = await this.vendorProfileRepo.findOne({ where: { userId: callerId } });
+    if (!callerProfile) return [];
+
+    const [caller, company] = await Promise.all([
+      this.usersService.findById(callerId),
+      callerProfile.companyId
+        ? this.vendorCompanyRepo.findOne({ where: { id: callerProfile.companyId } })
+        : Promise.resolve(null),
+    ]);
+
+    // Mandatory face-photo gate for technicians who go into customers' homes.
+    // Vendor Admins who only manage the team/company are exempt.
+    if (!callerProfile.isCompanyAdmin && !caller.avatarUrl) return [];
+
+    const isElite = company?.planTier === 'ELITE';
+
+    const [selections, approvedCerts] = await Promise.all([
+      this.vendorCapabilitySelectionRepo.find({ where: { userId: callerId } }),
+      this.vendorCertificationRepo.find({
+        where: { userId: callerId, status: CertificationReviewStatus.APPROVED, expirationDate: MoreThan(new Date()) },
+      }),
+    ]);
+    const selectedCapabilityIds = new Set(selections.map((s) => s.capabilityId));
+    const approvedCertTypes = new Set(approvedCerts.map((c) => c.certificationType));
+
+    const capabilities = await this.vendorCapabilityRepo.find();
+    const capabilityMap = new Map(capabilities.map((c) => [c.id, c]));
+
+    // Every capability the caller is currently allowed to see jobs for.
+    const unlockedCapabilityIds = new Set<string>();
+    for (const cap of capabilities) {
+      if (!selectedCapabilityIds.has(cap.id)) continue;
+      if (cap.requiredCertificationType === CertificationType.NONE) {
+        unlockedCapabilityIds.add(cap.id);
+      } else if (isElite && approvedCertTypes.has(cap.requiredCertificationType)) {
+        unlockedCapabilityIds.add(cap.id);
+      }
+    }
+
+    const all = await this.requestsRepo.find({
       where: { status: ServiceRequestStatus.PENDING },
+      relations: ['additionalServices'],
       order: { createdAt: 'DESC' },
     });
+
+    const servicePriceIds = [...new Set(all.map((r) => r.servicePriceId).filter(Boolean))] as string[];
+    const servicePrices = servicePriceIds.length
+      ? await this.servicePriceRepo.find({ where: { id: In(servicePriceIds) } })
+      : [];
+    const servicePriceMap = new Map(servicePrices.map((sp) => [sp.id, sp]));
+
+    const eliteWindowCutoff = new Date(Date.now() - ELITE_PREFERENTIAL_WINDOW_MINUTES * 60 * 1000);
+
+    return all.filter((r) => {
+      if (!r.servicePriceId) return true; // base subscription inspections — open to everyone
+      const servicePrice = servicePriceMap.get(r.servicePriceId);
+      if (!servicePrice?.requiredCapabilityId) return true; // no capability requirement
+      const capability = capabilityMap.get(servicePrice.requiredCapabilityId);
+      if (!capability) return true;
+
+      if (!unlockedCapabilityIds.has(capability.id)) return false;
+
+      // Trade jobs (cert-required) are Elite-exclusive already — no separate window needed.
+      if (capability.requiredCertificationType !== CertificationType.NONE) return true;
+
+      // Non-trade job: Elite companies see it immediately; Standard companies wait out the window.
+      if (isElite) return true;
+      return r.createdAt <= eliteWindowCutoff;
+    });
+  }
+
+  async updateVendorLocation(
+    requestId: string,
+    vendorId: string,
+    latitude: number,
+    longitude: number,
+  ): Promise<{ ok: boolean }> {
+    const request = await this.findById(requestId);
+    if (request.vendorId !== vendorId) throw new ForbiddenException();
+    request.vendorLatitude = latitude;
+    request.vendorLongitude = longitude;
+    request.vendorLocationAt = new Date();
+    await this.requestsRepo.save(request);
+    return { ok: true };
   }
 
   async getPendingAdditionalServices(customerId: string): Promise<AdditionalService[]> {
@@ -364,6 +571,42 @@ export class ServiceRequestsService {
         { serviceRequestId: saved.id },
       );
     }
+    return saved;
+  }
+
+  async getSolarQuote(requestId: string): Promise<SolarQuote | null> {
+    return this.solarQuoteRepo.findOne({ where: { serviceRequestId: requestId } });
+  }
+
+  async submitSolarQuote(requestId: string, vendorId: string, dto: {
+    systemSizeKw: number;
+    numInverters: number;
+    inverterManufacturer: string;
+    inverterModel: string;
+    pvSystemPrice: number;
+    storageSizeKwh?: number;
+    storageManufacturer?: string;
+    storageModel?: string;
+    storagePrice?: number;
+  }): Promise<SolarQuote> {
+    const req = await this.findById(requestId);
+    if (req.vendorId !== vendorId) throw new ForbiddenException();
+
+    const existing = await this.solarQuoteRepo.findOne({ where: { serviceRequestId: requestId } });
+    if (existing) {
+      Object.assign(existing, dto);
+      return this.solarQuoteRepo.save(existing);
+    }
+    const quote = this.solarQuoteRepo.create({ serviceRequestId: requestId, vendorId, ...dto });
+    const saved = await this.solarQuoteRepo.save(quote);
+    // Notify customer
+    await this.notificationsService.notifyUser(
+      req.customerId,
+      NotificationType.SERVICE_UPDATE,
+      'Solar Quote Ready',
+      'Your contractor has submitted a solar quote. Open the app to review it.',
+      { screen: 'my-services', requestId },
+    );
     return saved;
   }
 
@@ -421,5 +664,99 @@ export class ServiceRequestsService {
     }
 
     return saved;
+  }
+
+  async getSolarConsultation(requestId: string): Promise<SolarConsultation | null> {
+    return this.solarConsultationRepo.findOne({ where: { serviceRequestId: requestId } });
+  }
+
+  async requestConsultation(requestId: string, customerId: string, preferredDate: Date): Promise<SolarConsultation> {
+    const req = await this.findById(requestId);
+    if (req.customerId !== customerId) throw new ForbiddenException();
+    const quote = await this.solarQuoteRepo.findOne({ where: { serviceRequestId: requestId } });
+    if (!quote) throw new BadRequestException('No solar quote exists for this request');
+
+    const existing = await this.solarConsultationRepo.findOne({ where: { serviceRequestId: requestId } });
+    if (existing) {
+      if (existing.status === 'DECLINED') {
+        existing.status = 'REQUESTED';
+        existing.customerProposedDate = preferredDate;
+        existing.vendorProposedDate = null;
+        existing.confirmedDate = null;
+        return this.solarConsultationRepo.save(existing);
+      }
+      return existing;
+    }
+
+    const consultation = this.solarConsultationRepo.create({
+      serviceRequestId: requestId,
+      solarQuoteId: quote.id,
+      vendorId: req.vendorId,
+      customerId,
+      status: 'REQUESTED',
+      customerProposedDate: preferredDate,
+    });
+    const saved = await this.solarConsultationRepo.save(consultation);
+
+    await this.notificationsService.notifyUser(
+      req.vendorId,
+      NotificationType.SERVICE_UPDATE,
+      'Consultation Requested',
+      'A customer wants a site visit for their solar quote. Review and confirm the date.',
+      { screen: 'my-jobs', requestId },
+    );
+    return saved;
+  }
+
+  async updateConsultation(
+    requestId: string,
+    userId: string,
+    dto: { action: 'ACCEPT' | 'COUNTER' | 'DECLINE' | 'COMPLETE'; proposedDate?: Date },
+  ): Promise<SolarConsultation> {
+    const consultation = await this.solarConsultationRepo.findOne({ where: { serviceRequestId: requestId } });
+    if (!consultation) throw new NotFoundException('No consultation found');
+
+    if (dto.action === 'ACCEPT') {
+      if (userId === consultation.vendorId && consultation.status === 'REQUESTED') {
+        consultation.confirmedDate = consultation.customerProposedDate;
+        consultation.status = 'CONFIRMED';
+        await this.notificationsService.notifyUser(
+          consultation.customerId,
+          NotificationType.SERVICE_UPDATE,
+          'Site Visit Confirmed',
+          'Your contractor has confirmed the solar site visit. Check the app for the date.',
+          { screen: 'my-services', requestId },
+        );
+      } else if (userId === consultation.customerId && consultation.status === 'VENDOR_COUNTER') {
+        consultation.confirmedDate = consultation.vendorProposedDate;
+        consultation.status = 'CONFIRMED';
+        await this.notificationsService.notifyUser(
+          consultation.vendorId,
+          NotificationType.SERVICE_UPDATE,
+          'Site Visit Date Accepted',
+          'The customer accepted your proposed date for the solar site visit.',
+          { screen: 'my-jobs', requestId },
+        );
+      }
+    } else if (dto.action === 'COUNTER' && userId === consultation.vendorId) {
+      consultation.vendorProposedDate = dto.proposedDate!;
+      consultation.status = 'VENDOR_COUNTER';
+      await this.notificationsService.notifyUser(
+        consultation.customerId,
+        NotificationType.SERVICE_UPDATE,
+        'New Site Visit Date Proposed',
+        'Your contractor proposed a new date for the solar site visit.',
+        { screen: 'my-services', requestId },
+      );
+    } else if (dto.action === 'DECLINE' && userId === consultation.customerId) {
+      consultation.status = 'DECLINED';
+      const req = await this.findById(requestId);
+      req.status = ServiceRequestStatus.CANCELLED;
+      await this.requestsRepo.save(req);
+    } else if (dto.action === 'COMPLETE' && userId === consultation.vendorId) {
+      consultation.status = 'COMPLETED';
+    }
+
+    return this.solarConsultationRepo.save(consultation);
   }
 }

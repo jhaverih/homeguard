@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Body, Param, UseGuards, Request,
+  Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, HttpCode,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -38,9 +38,9 @@ export class ServiceRequestsController {
   }
 
   @Get('pending')
-  @ApiOperation({ summary: 'Vendor: get all open requests to accept' })
-  getPending() {
-    return this.service.getPendingRequests();
+  @ApiOperation({ summary: 'Vendor: get all open requests to accept, filtered by capability/certification/plan tier' })
+  getPending(@Request() req) {
+    return this.service.getPendingRequests(req.user.id);
   }
 
   @Get('additional-services/pending')
@@ -61,8 +61,8 @@ export class ServiceRequestsController {
 
   @Post(':id/accept')
   @ApiOperation({ summary: 'Vendor: accept a request and set scheduled date' })
-  accept(@Request() req, @Param('id') id: string, @Body() body: { scheduledDate: string }) {
-    return this.service.accept(id, req.user.id, body.scheduledDate);
+  accept(@Request() req, @Param('id') id: string, @Body() body: { scheduledDate: string; notes?: string }) {
+    return this.service.accept(id, req.user.id, body.scheduledDate, body.notes);
   }
 
   @Patch(':id/status')
@@ -93,6 +93,25 @@ export class ServiceRequestsController {
     return this.service.approveAdditionalService(serviceId, req.user.id);
   }
 
+  @Delete('additional-services/:serviceId/decline')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Customer: decline a recommended additional service' })
+  declineService(@Request() req, @Param('serviceId') serviceId: string) {
+    return this.service.declineAdditionalService(serviceId, req.user.id);
+  }
+
+  @Patch(':id/confirm-schedule')
+  @ApiOperation({ summary: 'Customer: accept the vendor-proposed scheduled time' })
+  confirmSchedule(@Request() req, @Param('id') id: string) {
+    return this.service.confirmSchedule(id, req.user.id);
+  }
+
+  @Patch(':id/decline-schedule')
+  @ApiOperation({ summary: 'Customer: decline the vendor-proposed time (request goes back to PENDING)' })
+  declineSchedule(@Request() req, @Param('id') id: string) {
+    return this.service.declineSchedule(id, req.user.id);
+  }
+
   @Patch(':id/reschedule')
   @ApiOperation({ summary: 'Reschedule an inspection (customer or vendor)' })
   reschedule(@Request() req, @Param('id') id: string, @Body() body: { newDate: string }) {
@@ -103,5 +122,43 @@ export class ServiceRequestsController {
   @ApiOperation({ summary: 'Customer: cancel an inspection request' })
   cancel(@Request() req, @Param('id') id: string) {
     return this.service.cancelRequest(id, req.user.id);
+  }
+
+  @Patch(':id/location')
+  @ApiOperation({ summary: 'Vendor: update GPS location while en route' })
+  updateLocation(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { latitude: number; longitude: number },
+  ) {
+    return this.service.updateVendorLocation(id, req.user.id, body.latitude, body.longitude);
+  }
+
+  @Get(':id/solar-quote')
+  getSolarQuote(@Param('id') id: string) {
+    return this.service.getSolarQuote(id);
+  }
+
+  @Post(':id/solar-quote')
+  submitSolarQuote(@Request() req, @Param('id') id: string, @Body() body: any) {
+    return this.service.submitSolarQuote(id, req.user.id, body);
+  }
+
+  @Get(':id/solar-consultation')
+  getSolarConsultation(@Param('id') id: string) {
+    return this.service.getSolarConsultation(id);
+  }
+
+  @Post(':id/solar-consultation')
+  requestConsultation(@Request() req, @Param('id') id: string, @Body() body: { preferredDate: string }) {
+    return this.service.requestConsultation(id, req.user.id, new Date(body.preferredDate));
+  }
+
+  @Patch(':id/solar-consultation')
+  updateConsultation(@Request() req, @Param('id') id: string, @Body() body: { action: string; proposedDate?: string }) {
+    return this.service.updateConsultation(id, req.user.id, {
+      action: body.action as any,
+      proposedDate: body.proposedDate ? new Date(body.proposedDate) : undefined,
+    });
   }
 }

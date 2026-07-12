@@ -229,6 +229,13 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.forgotRow}
+            onPress={() => router.push({ pathname: '/(auth)/forgot-password', params: { role: role ?? 'CUSTOMER' } })}
+          >
+            <Text style={[styles.forgotText, { color: accent }]}>Forgot password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.registerRow}
             onPress={() => router.push({ pathname: '/(auth)/register', params: { role: role ?? 'CUSTOMER' } })}
           >
@@ -265,6 +272,8 @@ const styles = StyleSheet.create({
   error: { color: '#e53e3e', fontSize: 12, marginTop: -8, marginBottom: 8, marginLeft: 4 },
   button: { borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 8, marginBottom: 20 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  forgotRow: { alignItems: 'center', marginBottom: 16, marginTop: -8 },
+  forgotText: { fontSize: 14, fontWeight: '600' },
   registerRow: { flexDirection: 'row', justifyContent: 'center' },
   registerText: { color: '#64748b', fontSize: 14 },
   registerLink: { fontSize: 14, fontWeight: '600' },

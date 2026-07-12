@@ -51,6 +51,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
  * Set up listeners for the app session.
  * - Foreground alerts are shown automatically by setNotificationHandler above.
  * - onIncrement: called when a notification arrives in foreground (bumps badge count).
+ * - onAlert: called when a notification arrives in foreground; receives the notification content.
  * - onNavigate: called when the user taps a notification; receives the target screen name.
  *
  * Call once from the root layout after authentication.
@@ -59,14 +60,20 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 export function setupNotificationListeners(
   onIncrement: () => void,
   onNavigate: (screen: string) => void,
+  onAlert?: (notification: Notifications.Notification) => void,
 ): () => void {
-  const receivedSub = Notifications.addNotificationReceivedListener(() => {
+  const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
     onIncrement();
+    onAlert?.(notification);
   });
 
   const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+    // 'alerts' is reserved for actual Yolink monitoring alerts (AlertsService sets
+    // it explicitly); anything else that didn't specify a screen is a general
+    // notification (schedule change, job completed, etc.) and belongs in the
+    // general notification center, not the Yolink-branded alerts screen.
     const screen = response.notification.request.content.data?.screen as string | undefined;
-    onNavigate(screen ?? 'alerts');
+    onNavigate(screen ?? 'notifications');
   });
 
   return () => {

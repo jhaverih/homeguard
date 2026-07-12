@@ -51,9 +51,10 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
-        name="request"
-        options={{ title: 'Book', tabBarIcon: ({ color }) => <Ionicons name="add-circle" size={22} color={color} /> }}
+        name="my-services"
+        options={{ title: 'My Services', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }}
       />
+      <Tabs.Screen name="request" options={{ href: null, title: 'Book Service' }} />
       <Tabs.Screen
         name="schedule"
         options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={22} color={color} /> }}
@@ -79,11 +80,13 @@ export default function CustomerLayout() {
           tabBarBadgeStyle: { backgroundColor: '#dc2626', color: '#fff', fontSize: 10 },
         }}
       />
+      <Tabs.Screen name="payments" options={{ href: null, title: 'Payments' }} />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="assistant" options={{ href: null, title: 'Houmi Assistant' }} />
       <Tabs.Screen name="approvals" options={{ href: null, title: 'Approvals' }} />
       <Tabs.Screen name="dispute" options={{ href: null, title: 'Dispute' }} />
+      <Tabs.Screen name="inspection-report" options={{ href: null, title: 'Inspection Report' }} />
     </Tabs>
   );
 }

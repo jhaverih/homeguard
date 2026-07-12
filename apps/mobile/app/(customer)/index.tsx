@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from 'react';
+﻿import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Alert,
@@ -6,8 +6,103 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
+import * as Location from 'expo-location';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi, paymentsApi } from '../../src/services/api';
+import { fmtUSD } from '../../src/utils/currency';
+
+const ACTIVE_STATUSES = ['PENDING', 'PENDING_CUSTOMER_REVIEW', 'ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'];
+
+
+function UpcomingServiceCard({ requests }: { requests: any[] }) {
+  const active = requests.filter((r) => ACTIVE_STATUSES.includes(r.status));
+  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+
+  const upcoming = active.sort((a, b) => {
+    const aT = a.scheduledDate ? new Date(a.scheduledDate).getTime() : Infinity;
+    const bT = b.scheduledDate ? new Date(b.scheduledDate).getTime() : Infinity;
+    return aT - bT;
+  })[0];
+
+  const isEnRoute = upcoming?.status === 'VENDOR_EN_ROUTE';
+
+  useEffect(() => {
+    if (!isEnRoute || !upcoming?.vendorLatitude || !upcoming?.vendorLongitude) return;
+    const ageMin = upcoming.vendorLocationAt
+      ? (Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000
+      : 999;
+    if (ageMin > 15) return;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const lat2 = parseFloat(upcoming.vendorLatitude);
+        const lon2 = parseFloat(upcoming.vendorLongitude);
+        const R = 6371;
+        const dLat = (lat2 - loc.coords.latitude) * Math.PI / 180;
+        const dLon = (lon2 - loc.coords.longitude) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(loc.coords.latitude * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        setEtaMinutes(Math.max(1, Math.round((distKm / 40) * 60)));
+      } catch {}
+    })();
+  }, [isEnRoute, upcoming?.vendorLatitude, upcoming?.vendorLongitude, upcoming?.vendorLocationAt]);
+
+  if (active.length === 0) return null;
+
+  const isToday = upcoming.scheduledDate
+    ? new Date(upcoming.scheduledDate).toDateString() === new Date().toDateString()
+    : false;
+
+  const etaLabel = etaMinutes != null
+    ? `~${etaMinutes} min away`
+    : (isEnRoute && upcoming.vendorLocationAt &&
+      (Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000 < 15)
+      ? `Location updated ${Math.round((Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000)} min ago`
+      : '';
+
+  return (
+    <TouchableOpacity
+      style={[styles.upcomingCard, isEnRoute && styles.upcomingCardEnRoute]}
+      onPress={() => router.push(`/(customer)/request-detail?id=${upcoming.id}`)}
+    >
+      <View style={styles.upcomingHeader}>
+        <Ionicons
+          name={isEnRoute ? 'navigate' : (isToday ? 'today' : 'calendar')}
+          size={20}
+          color={isEnRoute ? '#7c3aed' : '#0B4A45'}
+        />
+        <Text style={[styles.upcomingHeading, isEnRoute && { color: '#7c3aed' }]}>
+          {isEnRoute ? 'Vendor On the Way' : isToday ? "Today's Service" : 'Upcoming Service'}
+        </Text>
+      </View>
+      <Text style={styles.upcomingType}>
+        {upcoming.type === 'ADDITIONAL_SERVICE'
+          ? (upcoming.additionalServices?.[0]?.name || 'Service Request')
+          : 'Home Inspection'}
+      </Text>
+      {upcoming.scheduledDate && (
+        <Text style={styles.upcomingDate}>
+          {new Date(upcoming.scheduledDate).toLocaleString('en-US', {
+            weekday: 'short', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true,
+          })}
+        </Text>
+      )}
+      {isEnRoute && (
+        <View style={styles.enRoutePill}>
+          <Ionicons name="radio-button-on" size={10} color="#7c3aed" />
+          <Text style={styles.enRoutePillText}>
+            {etaLabel || 'Vendor is heading to your location'}
+          </Text>
+        </View>
+      )}
+      <Text style={styles.upcomingCta}>Tap to view details →</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function CustomerDashboard() {
   const { user } = useAuthStore();
@@ -72,7 +167,7 @@ export default function CustomerDashboard() {
       await paymentsApi.authorize(payment.id);
       Alert.alert(
         'Payment Authorized',
-        `$${Number(payment.amount).toFixed(2)} authorized. Funds will be released in 48 hours unless a dispute is raised.`,
+        `${fmtUSD(payment.amount)} authorized. Funds will be released in 48 hours unless a dispute is raised.`,
       );
       await load();
     } catch (e: any) {
@@ -80,15 +175,6 @@ export default function CustomerDashboard() {
     } finally {
       setPayingId(null);
     }
-  };
-
-  const statusColor: Record<string, string> = {
-    PENDING: '#f6ad55', ACCEPTED: '#68d391', VENDOR_EN_ROUTE: '#4299e1',
-    IN_PROGRESS: '#9f7aea', COMPLETED: '#17897D', CANCELLED: '#fc8181',
-  };
-  const statusLabel: Record<string, string> = {
-    PENDING: 'Waiting for vendor', ACCEPTED: 'Scheduled', VENDOR_EN_ROUTE: 'Vendor on the way',
-    IN_PROGRESS: 'In progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled',
   };
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
@@ -131,7 +217,7 @@ export default function CustomerDashboard() {
             </View>
           </View>
           <TouchableOpacity style={styles.requestBtn} onPress={() => router.push('/(customer)/request')}>
-            <Text style={styles.requestBtnText}>+ Request Inspection</Text>
+            <Text style={styles.requestBtnText}>+ Request Service</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -158,7 +244,7 @@ export default function CustomerDashboard() {
                   {isAuthorized ? 'Payment authorized — dispute window open' : 'Payment pending your approval'}
                 </Text>
               </View>
-              <Text style={styles.paymentAmount}>${Number(payment.amount).toFixed(2)}</Text>
+              <Text style={styles.paymentAmount}>{fmtUSD(payment.amount)}</Text>
             </View>
 
             {isAuthorized ? (
@@ -229,35 +315,7 @@ export default function CustomerDashboard() {
         </TouchableOpacity>
       )}
 
-      <Text style={styles.sectionTitle}>Recent Requests</Text>
-
-      {requests.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>No requests yet. Tap "Request Inspection" to get started!</Text>
-        </View>
-      ) : (
-        requests.slice(0, 5).map((req: any) => (
-          <TouchableOpacity
-            key={req.id}
-            style={styles.requestCard}
-            onPress={() => router.push(`/(customer)/request-detail?id=${req.id}`)}
-          >
-            <View style={styles.requestCardHeader}>
-              <Text style={styles.requestDate}>
-                {req.scheduledDate
-                  ? new Date(req.scheduledDate).toLocaleDateString()
-                  : `Preferred: ${new Date(req.preferredDate).toLocaleDateString()}`}
-              </Text>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor[req.status] + '25' }]}>
-                <Text style={[styles.statusText, { color: statusColor[req.status] }]}>
-                  {statusLabel[req.status]}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.requestAddress}>{req.address}, {req.city}</Text>
-          </TouchableOpacity>
-        ))
-      )}
+      <UpcomingServiceCard requests={requests} />
     </ScrollView>
   );
 }
@@ -311,13 +369,13 @@ const styles = StyleSheet.create({
   approvalsSub: { fontSize: 12, color: '#744210', marginTop: 2 },
   approvalsBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#ed8936', alignItems: 'center', justifyContent: 'center' },
   approvalsBadgeText: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 8 },
-  emptyCard: { margin: 16, backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center' },
-  emptyText: { color: '#888', textAlign: 'center', lineHeight: 22 },
-  requestCard: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  requestCardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  requestDate: { fontSize: 14, fontWeight: '600', color: '#333' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
-  statusText: { fontSize: 12, fontWeight: '600' },
-  requestAddress: { fontSize: 14, color: '#666' },
+  upcomingCard: { margin: 16, marginTop: 8, backgroundColor: '#fff', borderRadius: 16, padding: 18, borderWidth: 1.5, borderColor: '#e2e8f0', elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 },
+  upcomingCardEnRoute: { borderColor: '#ddd6fe', backgroundColor: '#faf5ff' },
+  upcomingHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  upcomingHeading: { fontSize: 15, fontWeight: '700', color: '#0B4A45', flex: 1 },
+  upcomingType: { fontSize: 13, color: '#64748b', marginBottom: 2 },
+  upcomingDate: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 8 },
+  enRoutePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f5f3ff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginBottom: 8 },
+  enRoutePillText: { fontSize: 12, color: '#7c3aed', fontWeight: '600' },
+  upcomingCta: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
 });

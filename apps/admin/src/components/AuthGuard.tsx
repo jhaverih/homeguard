@@ -3,15 +3,18 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 
+const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password'];
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const isPublic = PUBLIC_PATHS.includes(pathname);
 
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem('admin_token');
-      if (!token && pathname !== '/login') {
+      if (!token && !isPublic) {
         router.replace('/login');
       } else {
         setReady(true);
@@ -32,7 +35,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (pathname === '/login') {
+  if (isPublic) {
     return <>{children}</>;
   }
 
