@@ -55,4 +55,14 @@ export const adminApi = {
     api.get(`/admin/schedule?year=${year}&month=${month}`).then((r) => r.data),
   getAlerts: (page = 1, limit = 50) =>
     api.get(`/admin/alerts?page=${page}&limit=${limit}`).then((r) => r.data),
+  getTeamUsers: () => api.get('/admin/team-users').then((r) => r.data),
+  createTeamUser: (data: { email: string; firstName: string; lastName: string; adminLevel: string }) =>
+    api.post('/admin/team-users', data).then((r) => r.data),
+  updateTeamUserLevel: (id: string, adminLevel: string) =>
+    api.patch(`/admin/team-users/${id}/level`, { adminLevel }).then((r) => r.data),
+  removeTeamUser: (id: string) => api.delete(`/admin/team-users/${id}`).then((r) => r.data),
+};
+
+export const userApi = {
+  getMe: () => api.get('/users/me').then((r) => r.data),
 };

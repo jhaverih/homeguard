@@ -1,7 +1,9 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
+import { userApi } from '@/lib/api';
 
 const links = [
   { href: '/', label: 'Dashboard', icon: '📊' },
@@ -17,6 +19,13 @@ const links = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isSuperUser, setIsSuperUser] = useState(false);
+
+  useEffect(() => {
+    userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
+  }, []);
+
+  const visibleLinks = isSuperUser ? [...links, { href: '/team', label: 'Team', icon: '👥' }] : links;
 
   return (
     <aside className="w-64 bg-brand text-white flex flex-col min-h-screen">
@@ -35,7 +44,7 @@ export function Sidebar() {
         <p className="text-sm text-teal-200 mt-1 opacity-75">Admin Dashboard</p>
       </div>
       <nav className="flex-1 p-4 space-y-1">
-        {links.map((link) => (
+        {visibleLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}

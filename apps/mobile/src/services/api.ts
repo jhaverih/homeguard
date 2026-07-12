@@ -131,9 +131,8 @@ export const alertsApi = {
 
 export const yolinkApi = {
   getMyHomes: () => api.get('/yolink/my-homes'),
-  getAvailableHomes: () => api.get('/yolink/available-homes'),
-  linkHome: (body: { customerId: string; yolinkUAID: string; homeName: string; address?: string }) =>
-    api.post('/yolink/link', body),
+  linkHome: (body: { customerId: string; yolinkUAID: string; yolinkSecretKey: string; homeName: string; address?: string }): Promise<{ home: any; devices: any[] }> =>
+    api.post('/yolink/link', body) as any,
 };
 
 export const notificationsApi = {

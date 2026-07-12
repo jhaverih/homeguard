@@ -65,6 +65,8 @@ export const vendorApi = {
     api.patch(`/vendor/team/${id}`, data).then((r) => r.data),
   removeTeamMember: (id: string) => api.delete(`/vendor/team/${id}`).then((r) => r.data),
   getCustomerHistory: (id: string) => api.get(`/vendor/customers/${id}/history`).then((r) => r.data),
+  connectMonitoring: (data: { customerId: string; yolinkUAID: string; yolinkSecretKey: string; homeName: string; address?: string }) =>
+    api.post('/yolink/link', data).then((r) => r.data),
   getCapabilities: () => api.get('/vendor/capabilities').then((r) => r.data),
   getMyCapabilities: () => api.get('/vendor/me/capabilities').then((r) => r.data),
   setMyCapabilities: (capabilityIds: string[]) => api.patch('/vendor/me/capabilities', { capabilityIds }).then((r) => r.data),

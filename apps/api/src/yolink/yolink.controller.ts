@@ -35,28 +35,10 @@ export class YolinkController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.VENDOR)
-  @Get('available-homes')
-  @ApiOperation({ summary: 'Fetch homes from Yolink account (admin/vendor)' })
-  getAvailableHomes() {
-    return this.service.getYolinkHomes();
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.VENDOR)
-  @Get('available-homes/:yolinkHomeId/devices')
-  @ApiOperation({ summary: 'List devices in a Yolink home' })
-  getDevices(@Param('yolinkHomeId') yolinkHomeId: string) {
-    return this.service.getDevicesForHome(yolinkHomeId);
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.VENDOR)
   @Post('link')
-  @ApiOperation({ summary: 'Link a Yolink home to a customer' })
-  linkHome(@Body() body: { customerId: string; yolinkUAID: string; homeName: string; address?: string }) {
-    return this.service.linkHomeToCustomer(body.customerId, body.yolinkUAID, body.homeName, body.address);
+  @ApiOperation({ summary: "Connect a customer's own Yolink home monitoring — validates the credentials against Yolink before saving" })
+  linkHome(@Body() body: { customerId: string; yolinkUAID: string; yolinkSecretKey: string; homeName: string; address?: string }) {
+    return this.service.linkHomeToCustomer(body.customerId, body.yolinkUAID, body.yolinkSecretKey, body.homeName, body.address);
   }
 
   @ApiBearerAuth()

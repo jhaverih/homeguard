@@ -7,6 +7,10 @@ export class YolinkHome {
   @Column() customerId: string;
   @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'customerId' }) customer: User;
   @Column() yolinkUAID: string;
+  // Encrypted at rest (see common/crypto/encryption.util.ts) — this is the
+  // customer's own Yolink Personal Access Credential secret, entered by the
+  // installing vendor. Nullable only for rows that predate this column.
+  @Column({ nullable: true }) yolinkSecretKey: string | null;
   @Column({ nullable: true }) yolinkHomeId: string;
   @Column() homeName: string;
   @Column({ nullable: true }) address: string;

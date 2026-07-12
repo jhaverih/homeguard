@@ -9,7 +9,7 @@ import * as Location from 'expo-location';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { requestsApi, inspectionsApi, pricingApi, uploadsApi } from '../../src/services/api';
+import { requestsApi, inspectionsApi, pricingApi, uploadsApi, yolinkApi } from '../../src/services/api';
 import { enqueueTaskResult, flushQueue } from '../../src/services/taskQueue';
 import { fmtUSD } from '../../src/utils/currency';
 
@@ -372,6 +372,13 @@ export default function ActiveJobScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Home monitoring (Yolink) connect
+  const [showMonitorForm, setShowMonitorForm] = useState(false);
+  const [monitorForm, setMonitorForm] = useState({ yolinkUAID: '', yolinkSecretKey: '', homeName: '', address: '' });
+  const [connectingMonitor, setConnectingMonitor] = useState(false);
+  const [monitorError, setMonitorError] = useState('');
+  const [monitorResult, setMonitorResult] = useState<{ deviceCount: number } | null>(null);
 
   // Checklist
   const [checklist, setChecklist] = useState<any[]>([]);
@@ -767,6 +774,29 @@ export default function ActiveJobScreen() {
     }
   };
 
+  const submitMonitoring = async () => {
+    if (!monitorForm.yolinkUAID.trim() || !monitorForm.yolinkSecretKey.trim() || !monitorForm.homeName.trim()) {
+      setMonitorError('UAID, Secret Key, and a home name are required.');
+      return;
+    }
+    setConnectingMonitor(true);
+    setMonitorError('');
+    try {
+      const res = await yolinkApi.linkHome({
+        customerId: job.customerId,
+        yolinkUAID: monitorForm.yolinkUAID.trim(),
+        yolinkSecretKey: monitorForm.yolinkSecretKey.trim(),
+        homeName: monitorForm.homeName.trim(),
+        address: monitorForm.address.trim() || undefined,
+      });
+      setMonitorResult({ deviceCount: res.devices?.length ?? 0 });
+    } catch (e: any) {
+      setMonitorError(e.message || 'Could not connect — check the UAID and Secret Key.');
+    } finally {
+      setConnectingMonitor(false);
+    }
+  };
+
   if (loading || !job) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
 
   const serviceKey = getServiceKey(job);
@@ -817,6 +847,73 @@ export default function ActiveJobScreen() {
             <Text style={styles.customerNotes}>Note: {job.customerNotes}</Text>
           ) : null}
         </View>
+
+        {job.customerId && (
+          <View style={styles.sectionCard}>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setShowMonitorForm((v) => !v)}
+            >
+              <View style={styles.sectionLeft}>
+                <Ionicons name="wifi-outline" size={18} color="#0B4A45" />
+                <Text style={styles.sectionLabel}>Connect Home Monitoring</Text>
+              </View>
+              <Ionicons name={showMonitorForm ? 'chevron-up' : 'chevron-down'} size={18} color="#94a3b8" />
+            </TouchableOpacity>
+            {showMonitorForm && (
+              <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+                {monitorResult ? (
+                  <Text style={{ fontSize: 13, color: '#15803d', fontWeight: '600' }}>
+                    ✅ Connected — {monitorResult.deviceCount} device{monitorResult.deviceCount === 1 ? '' : 's'} found on this home.
+                  </Text>
+                ) : (
+                  <>
+                    <Text style={styles.sectionHint}>
+                      Enter this customer's own Yolink credentials — found in their Yolink app under
+                      Account → Advanced Settings → User Access Credentials. Houmi never needs their Yolink login.
+                    </Text>
+                    <TextInput
+                      style={styles.promptInput}
+                      placeholder="UAID (starts with ua_)"
+                      value={monitorForm.yolinkUAID}
+                      onChangeText={(t) => setMonitorForm((f) => ({ ...f, yolinkUAID: t }))}
+                      autoCapitalize="none"
+                    />
+                    <TextInput
+                      style={[styles.promptInput, { marginTop: 8 }]}
+                      placeholder="Secret Key (starts with sec_)"
+                      value={monitorForm.yolinkSecretKey}
+                      onChangeText={(t) => setMonitorForm((f) => ({ ...f, yolinkSecretKey: t }))}
+                      autoCapitalize="none"
+                    />
+                    <TextInput
+                      style={[styles.promptInput, { marginTop: 8 }]}
+                      placeholder="Home name"
+                      value={monitorForm.homeName}
+                      onChangeText={(t) => setMonitorForm((f) => ({ ...f, homeName: t }))}
+                    />
+                    <TextInput
+                      style={[styles.promptInput, { marginTop: 8 }]}
+                      placeholder="Address (optional)"
+                      value={monitorForm.address}
+                      onChangeText={(t) => setMonitorForm((f) => ({ ...f, address: t }))}
+                    />
+                    {monitorError ? (
+                      <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 8 }}>{monitorError}</Text>
+                    ) : null}
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: connectingMonitor ? '#94a3b8' : '#0B4A45', marginTop: 12, marginBottom: 0 }]}
+                      onPress={submitMonitoring}
+                      disabled={connectingMonitor}
+                    >
+                      <Text style={styles.actionBtnText}>{connectingMonitor ? 'Verifying…' : 'Verify & Connect'}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
+          </View>
+        )}
 
         {job.scheduledDate && (
           <View style={styles.scheduledRow}>
