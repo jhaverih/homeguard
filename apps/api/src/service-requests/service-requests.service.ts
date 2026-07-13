@@ -8,6 +8,7 @@ import { ServiceRequest, ServiceType } from './entities/service-request.entity';
 import { AdditionalService } from './entities/additional-service.entity';
 import { SolarQuote } from './entities/solar-quote.entity';
 import { SolarConsultation } from './entities/solar-consultation.entity';
+import { ServiceRequestRejection } from './entities/service-request-rejection.entity';
 import { ServiceRequestStatus, UserRole, PaymentType } from '../common/enums/role.enum';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsersService } from '../users/users.service';
@@ -35,6 +36,8 @@ export class ServiceRequestsService {
     private solarQuoteRepo: Repository<SolarQuote>,
     @InjectRepository(SolarConsultation)
     private solarConsultationRepo: Repository<SolarConsultation>,
+    @InjectRepository(ServiceRequestRejection)
+    private rejectionRepo: Repository<ServiceRequestRejection>,
     private subscriptionsService: SubscriptionsService,
     private usersService: UsersService,
     private notificationsService: NotificationsService,
@@ -448,7 +451,7 @@ export class ServiceRequestsService {
     });
   }
 
-  async getPendingRequests(callerId: string): Promise<ServiceRequest[]> {
+  private async getEligiblePendingRequests(callerId: string): Promise<ServiceRequest[]> {
     const callerProfile = await this.vendorProfileRepo.findOne({ where: { userId: callerId } });
     if (!callerProfile) return [];
 
@@ -521,6 +524,36 @@ export class ServiceRequestsService {
       if (isElite) return true;
       return r.createdAt <= eliteWindowCutoff;
     });
+  }
+
+  async getPendingRequests(callerId: string): Promise<ServiceRequest[]> {
+    const [eligible, rejections] = await Promise.all([
+      this.getEligiblePendingRequests(callerId),
+      this.rejectionRepo.find({ where: { vendorId: callerId } }),
+    ]);
+    const rejectedIds = new Set(rejections.map((r) => r.serviceRequestId));
+    return eligible.filter((r) => !rejectedIds.has(r.id));
+  }
+
+  async getRejectedRequests(callerId: string): Promise<ServiceRequest[]> {
+    const [eligible, rejections] = await Promise.all([
+      this.getEligiblePendingRequests(callerId),
+      this.rejectionRepo.find({ where: { vendorId: callerId } }),
+    ]);
+    const rejectedIds = new Set(rejections.map((r) => r.serviceRequestId));
+    return eligible.filter((r) => rejectedIds.has(r.id));
+  }
+
+  async rejectRequest(requestId: string, vendorId: string): Promise<{ ok: boolean }> {
+    const request = await this.findById(requestId);
+    if (request.status !== ServiceRequestStatus.PENDING) {
+      throw new BadRequestException('Request is no longer available');
+    }
+    const existing = await this.rejectionRepo.findOne({ where: { serviceRequestId: requestId, vendorId } });
+    if (!existing) {
+      await this.rejectionRepo.save(this.rejectionRepo.create({ serviceRequestId: requestId, vendorId }));
+    }
+    return { ok: true };
   }
 
   async updateVendorLocation(

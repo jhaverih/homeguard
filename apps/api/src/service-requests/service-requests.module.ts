@@ -7,6 +7,7 @@ import { AdditionalService } from './entities/additional-service.entity';
 import { Dispute } from './entities/dispute.entity';
 import { SolarQuote } from './entities/solar-quote.entity';
 import { SolarConsultation } from './entities/solar-consultation.entity';
+import { ServiceRequestRejection } from './entities/service-request-rejection.entity';
 import { DisputesService } from './disputes.service';
 import { DisputesController } from './disputes.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -26,7 +27,7 @@ import { ServicePrice } from '../pricing/entities/service-price.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      ServiceRequest, AdditionalService, Dispute, SolarQuote, SolarConsultation,
+      ServiceRequest, AdditionalService, Dispute, SolarQuote, SolarConsultation, ServiceRequestRejection,
       VendorProfile, VendorCompany, VendorCapability, VendorCapabilitySelection, VendorCertification, ServicePrice,
     ]),
     SubscriptionsModule,

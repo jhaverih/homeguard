@@ -43,6 +43,12 @@ export class ServiceRequestsController {
     return this.service.getPendingRequests(req.user.id);
   }
 
+  @Get('rejected')
+  @ApiOperation({ summary: 'Vendor: get requests this vendor rejected that are still available' })
+  getRejected(@Request() req) {
+    return this.service.getRejectedRequests(req.user.id);
+  }
+
   @Get('additional-services/pending')
   @ApiOperation({ summary: 'Customer: get all unapproved additional service recommendations' })
   getPendingAdditionalServices(@Request() req) {
@@ -66,6 +72,12 @@ export class ServiceRequestsController {
   @ApiOperation({ summary: 'Vendor: accept a request and set scheduled date' })
   accept(@Request() req, @Param('id') id: string, @Body() body: { scheduledDate: string; notes?: string }) {
     return this.service.accept(id, req.user.id, body.scheduledDate, body.notes);
+  }
+
+  @Post(':id/reject')
+  @ApiOperation({ summary: 'Vendor: reject an open request (hides it from Open Requests, trackable, re-acceptable while still PENDING)' })
+  reject(@Request() req, @Param('id') id: string) {
+    return this.service.rejectRequest(id, req.user.id);
   }
 
   @Patch(':id/status')

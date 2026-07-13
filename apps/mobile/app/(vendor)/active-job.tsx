@@ -408,6 +408,10 @@ export default function ActiveJobScreen() {
   // Completion
   const [completionPhotos, setCompletionPhotos] = useState<{ uri: string; key?: string }[]>([]);
   const [completingJob, setCompletingJob] = useState(false);
+
+  // General vendor notes (non-inspection jobs)
+  const [generalNotes, setGeneralNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
   const [uploadingCompletion, setUploadingCompletion] = useState(false);
 
   // Reschedule
@@ -447,6 +451,7 @@ export default function ActiveJobScreen() {
   const loadJob = useCallback(async () => {
     const data: any = await requestsApi.getOne(id);
     setJob(data);
+    setGeneralNotes(data?.vendorNotes || '');
     setLoading(false);
     if (data?.type === 'ADDITIONAL_SERVICE') {
       const svcName = (data.additionalServices?.[0]?.name || '').toLowerCase();
@@ -761,6 +766,18 @@ export default function ActiveJobScreen() {
         },
       ],
     );
+  };
+
+  const saveGeneralNotes = async () => {
+    setSavingNotes(true);
+    try {
+      await requestsApi.addNotes(id, generalNotes.trim());
+      Alert.alert('Saved', 'Your notes are visible to the homeowner.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSavingNotes(false);
+    }
   };
 
   const submitReschedule = async () => {
@@ -1458,6 +1475,26 @@ export default function ActiveJobScreen() {
         {showChecklist && serviceKey === 'other' && (
           <>
             <View style={styles.completeSeparator} />
+            <Text style={styles.sectionTitle}>Notes (optional)</Text>
+            <Text style={styles.sectionHint}>Visible to the homeowner.</Text>
+            <TextInput
+              style={styles.generalNotesInput}
+              placeholder="Any notes about the work done..."
+              placeholderTextColor="#94a3b8"
+              value={generalNotes}
+              onChangeText={setGeneralNotes}
+              multiline
+              numberOfLines={3}
+            />
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: savingNotes ? '#94a3b8' : '#0B4A45', marginTop: 8 }]}
+              onPress={saveGeneralNotes}
+              disabled={savingNotes}
+            >
+              <Text style={styles.actionBtnText}>{savingNotes ? 'Saving…' : 'Save Notes'}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.completeSeparator} />
             <Text style={styles.sectionTitle}>Complete Job</Text>
             <Text style={styles.sectionHint}>Attach completion photos to close the job.</Text>
             <Text style={styles.photoLabel}>Completion Photos <Text style={styles.required}>* min 1</Text></Text>
@@ -2005,6 +2042,10 @@ const styles = StyleSheet.create({
   promptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   promptLabel: { fontSize: 13, color: '#374151', flex: 1, paddingRight: 8 },
   promptInput: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8, fontSize: 13, color: '#0f172a', minWidth: 100, textAlign: 'right' },
+  generalNotesInput: {
+    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
+    padding: 12, fontSize: 14, color: '#0f172a', minHeight: 72, textAlignVertical: 'top',
+  },
   selectChip: { backgroundColor: '#f1f5f9', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#e2e8f0' },
   selectChipActive: { backgroundColor: '#EBF1EF', borderColor: '#0B4A45' },
   selectChipText: { fontSize: 11, color: '#64748b', fontWeight: '600' },

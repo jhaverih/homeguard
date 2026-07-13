@@ -84,36 +84,68 @@ function DateTimeField({
   );
 }
 
+type ViewKey = 'open' | 'rejected';
+
 export default function OpenRequestsScreen() {
-  const [requests, setRequests] = useState<any[]>([]);
+  const [view, setView] = useState<ViewKey>('open');
+  const [openRequests, setOpenRequests] = useState<any[]>([]);
+  const [rejectedRequests, setRejectedRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stripeReady, setStripeReady] = useState(true);
   const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string; preferredDate: Date | null }>({ visible: false, requestId: '', preferredDate: null });
   const [vendorNotes, setVendorNotes] = useState('');
 
+  const requests = view === 'open' ? openRequests : rejectedRequests;
+
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(9, 0, 0, 0);
   const [scheduledDate, setScheduledDate] = useState(tomorrow);
 
+  const sortByCreatedDesc = (data: any[]) =>
+    (data || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   const load = async () => {
     try {
-      const [stripeStatus, data]: any = await Promise.all([
+      const [stripeStatus, pending, rejected]: any = await Promise.all([
         paymentsApi.getVendorStripeStatus(),
         requestsApi.getPending(),
+        requestsApi.getRejected(),
       ]);
-      setStripeReady(!!stripeStatus?.onboardingComplete);
-      const sorted = (data || []).sort(
-        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      setRequests(stripeStatus?.onboardingComplete ? sorted : []);
+      const onboardingComplete = !!stripeStatus?.onboardingComplete;
+      setStripeReady(onboardingComplete);
+      setOpenRequests(onboardingComplete ? sortByCreatedDesc(pending) : []);
+      setRejectedRequests(onboardingComplete ? sortByCreatedDesc(rejected) : []);
     } catch {
-      setRequests([]);
+      setOpenRequests([]);
+      setRejectedRequests([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const rejectJob = (requestId: string) => {
+    Alert.alert(
+      'Reject this job?',
+      "It'll move to your Rejected tab — you can still accept it later if no one else has.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await requestsApi.reject(requestId);
+              load();
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const acceptJob = async () => {
@@ -168,11 +200,36 @@ export default function OpenRequestsScreen() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
-      <Text style={styles.pageTitle}>Open Requests ({requests.length})</Text>
+      <Text style={styles.pageTitle}>Open Requests</Text>
       <Text style={styles.subtitle}>Accept a request to get started. First to accept wins the job.</Text>
 
+      <View style={styles.filterRow}>
+        <TouchableOpacity
+          style={[styles.filterChip, view === 'open' && styles.filterChipActive]}
+          onPress={() => setView('open')}
+        >
+          <Text style={[styles.filterChipText, view === 'open' && styles.filterChipTextActive]}>
+            Open ({openRequests.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, view === 'rejected' && styles.filterChipActive]}
+          onPress={() => setView('rejected')}
+        >
+          <Text style={[styles.filterChipText, view === 'rejected' && styles.filterChipTextActive]}>
+            Rejected ({rejectedRequests.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {requests.length === 0 ? (
-        <View style={styles.empty}><Text style={styles.emptyText}>No open requests right now. Check back soon!</Text></View>
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>
+            {view === 'open'
+              ? 'No open requests right now. Check back soon!'
+              : "You haven't rejected any jobs. Rejected jobs you can still claim will show up here."}
+          </Text>
+        </View>
       ) : (
         requests.map((req: any) => (
           <View key={req.id} style={styles.card}>
@@ -208,19 +265,29 @@ export default function OpenRequestsScreen() {
             <Text style={styles.cardAddress}>{req.city}, {req.state} {req.zipCode}</Text>
             {req.customerNotes && <Text style={styles.cardNotes}>"{req.customerNotes}"</Text>}
             <Text style={styles.cardPosted}>Posted: {new Date(req.createdAt).toLocaleDateString()}</Text>
-            <TouchableOpacity
-              style={styles.acceptBtn}
-              onPress={() => {
-                const preferred = req.preferredDate ? new Date(req.preferredDate) : null;
-                const fallback = new Date();
-                fallback.setDate(fallback.getDate() + 1);
-                fallback.setHours(9, 0, 0, 0);
-                setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
-                setAcceptModal({ visible: true, requestId: req.id, preferredDate: preferred });
-              }}
-            >
-              <Text style={styles.acceptBtnText}>Accept This Job</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {view === 'open' && (
+                <TouchableOpacity
+                  style={styles.rejectBtn}
+                  onPress={() => rejectJob(req.id)}
+                >
+                  <Text style={styles.rejectBtnText}>Reject</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.acceptBtn, { flex: 1 }]}
+                onPress={() => {
+                  const preferred = req.preferredDate ? new Date(req.preferredDate) : null;
+                  const fallback = new Date();
+                  fallback.setDate(fallback.getDate() + 1);
+                  fallback.setHours(9, 0, 0, 0);
+                  setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
+                  setAcceptModal({ visible: true, requestId: req.id, preferredDate: preferred });
+                }}
+              >
+                <Text style={styles.acceptBtnText}>Accept This Job</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ))
       )}
@@ -282,6 +349,13 @@ const styles = StyleSheet.create({
   cardPosted: { fontSize: 12, color: '#aaa', marginBottom: 12 },
   acceptBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
   acceptBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  rejectBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#fca5a5', borderRadius: 10, padding: 14, alignItems: 'center', paddingHorizontal: 18 },
+  rejectBtnText: { color: '#dc2626', fontWeight: '700', fontSize: 15 },
+  filterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: '#EBF1EF' },
+  filterChipActive: { backgroundColor: '#0B4A45' },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
+  filterChipTextActive: { color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
