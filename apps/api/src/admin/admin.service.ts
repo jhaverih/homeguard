@@ -16,7 +16,6 @@ import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
-import { AuthService } from '../auth/auth.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { EmailService } from '../common/email/email.service';
 import { ServiceRequestsService } from '../service-requests/service-requests.service';
@@ -25,6 +24,7 @@ import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendo
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { emailEquals } from '../common/utils/email.util';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AdminService {
@@ -44,12 +44,16 @@ export class AdminService {
     @InjectRepository(YolinkHome) private yolinkHomesRepo: Repository<YolinkHome>,
     private notificationsService: NotificationsService,
     private usersService: UsersService,
-    private authService: AuthService,
     private uploadsService: UploadsService,
     private emailService: EmailService,
     private serviceRequestsService: ServiceRequestsService,
     private pricingService: PricingService,
+    private configService: ConfigService,
   ) {}
+
+  private getAdminPortalUrl(): string {
+    return (this.configService.get<string>('ADMIN_PORTAL_URL') || 'http://192.168.86.29/admin').replace(/\/$/, '');
+  }
 
   async getStats() {
     const firstOfMonth = new Date();
@@ -575,8 +579,8 @@ export class AdminService {
       roles: [UserRole.ADMIN],
     });
     await this.usersRepo.update(created.id, { adminLevel: data.adminLevel });
-    const code = await this.authService.issuePasswordResetToken(created.id);
-    await this.emailService.sendTeamInvite(data.email, code, data.firstName);
+    const loginUrl = `${this.getAdminPortalUrl()}/forgot-password?email=${encodeURIComponent(data.email)}`;
+    await this.emailService.sendTeamInvite(data.email, data.firstName, loginUrl);
 
     return this.usersRepo.findOne({ where: { id: created.id } });
   }

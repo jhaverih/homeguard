@@ -4,6 +4,30 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
+const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
+  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
+  { label: 'One uppercase letter', test: (p) => /[A-Z]/.test(p) },
+  { label: 'One lowercase letter', test: (p) => /[a-z]/.test(p) },
+  { label: 'One number', test: (p) => /\d/.test(p) },
+  { label: 'One special character', test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function generateStrongPassword(length = 14): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const special = '!@#$%^&*-_=+';
+  const all = upper + lower + digits + special;
+  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+  const pwd = [pick(upper), pick(lower), pick(digits), pick(special)];
+  for (let i = pwd.length; i < length; i++) pwd.push(pick(all));
+  for (let i = pwd.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
+  }
+  return pwd.join('');
+}
+
 export default function ResetPasswordPage() {
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
@@ -13,10 +37,18 @@ export default function ResetPasswordPage() {
   const [done, setDone] = useState(false);
   const router = useRouter();
 
+  const allRulesMet = PASSWORD_RULES.every((r) => r.test(password));
+
+  const handleGenerate = () => {
+    const generated = generateStrongPassword();
+    setPassword(generated);
+    setConfirm(generated);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    if (!allRulesMet) { setError('Password does not meet all requirements below.'); return; }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
 
     setLoading(true);
@@ -63,15 +95,30 @@ export default function ResetPasswordPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">New Password</label>
+                  <button type="button" onClick={handleGenerate} className="text-xs font-semibold text-brand hover:underline">
+                    Generate strong password
+                  </button>
+                </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  placeholder="At least 8 characters"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
                 />
+                <ul className="mt-2 space-y-1">
+                  {PASSWORD_RULES.map((rule) => {
+                    const met = rule.test(password);
+                    return (
+                      <li key={rule.label} className={`text-xs flex items-center gap-1.5 ${met ? 'text-green-600' : 'text-gray-400'}`}>
+                        <span>{met ? '✓' : '✗'}</span>
+                        {rule.label}
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
@@ -90,7 +137,7 @@ export default function ResetPasswordPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !allRulesMet || password !== confirm}
                 className="w-full bg-brand text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-light transition-colors disabled:opacity-50"
               >
                 {loading ? 'Resetting...' : 'Reset Password'}

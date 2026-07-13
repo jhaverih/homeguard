@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@houmi.app');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -90,10 +90,6 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Default: admin@houmi.app / Admin@1234
-        </p>
       </div>
     </div>
   );

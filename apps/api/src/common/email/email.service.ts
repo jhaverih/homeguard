@@ -51,19 +51,20 @@ export class EmailService {
     await this.send(to, subject, html);
   }
 
-  async sendTeamInvite(to: string, code: string, firstName: string): Promise<void> {
+  async sendTeamInvite(to: string, firstName: string, loginUrl: string): Promise<void> {
     const subject = "You've been added to the Houmi Admin Portal";
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
         <h2 style="color:#0B4A45">Welcome to Houmi, ${firstName}</h2>
-        <p>You've been added as a Houmi Admin Portal user. Use this code to set your password and get started:</p>
-        <div style="font-size:28px;font-weight:bold;letter-spacing:4px;color:#0B4A45;
-                    background:#EBF1EF;border-radius:12px;padding:20px;text-align:center;margin:20px 0">
-          ${code}
+        <p>You've been added as a Houmi Admin Portal user.</p>
+        <div style="text-align:center;margin:24px 0">
+          <a href="${loginUrl}" style="display:inline-block;background:#0B4A45;color:#fff;
+                    font-weight:bold;text-decoration:none;border-radius:10px;padding:14px 28px">
+            Log in to get started
+          </a>
         </div>
         <p style="color:#64748b;font-size:14px">
-          Go to the Admin Portal login page, click "Forgot password?", and enter this code along with your new password.
-          This code expires in 1 hour.
+          Click the button above, then use "Forgot password?" to set your password — your account doesn't have one yet.
         </p>
       </div>`;
     await this.send(to, subject, html);

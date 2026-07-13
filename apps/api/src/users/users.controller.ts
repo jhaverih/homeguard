@@ -1,8 +1,15 @@
 import { Controller, Get, Post, Delete, Patch, Body, Param, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { IsString } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UsersService } from './users.service';
 import { UserRole } from '../common/enums/role.enum';
+import { IsStrongPassword } from '../common/validators/password-policy';
+
+class ChangePasswordDto {
+  @IsString() currentPassword: string;
+  @IsString() @IsStrongPassword() newPassword: string;
+}
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -32,7 +39,7 @@ export class UsersController {
   }
 
   @Patch('me/password')
-  changePassword(@Request() req, @Body() body: { currentPassword: string; newPassword: string }) {
+  changePassword(@Request() req, @Body() body: ChangePasswordDto) {
     return this.usersService.changePassword(req.user.id, body.currentPassword, body.newPassword);
   }
 

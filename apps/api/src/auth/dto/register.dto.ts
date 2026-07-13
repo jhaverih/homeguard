@@ -1,15 +1,16 @@
-import { IsEmail, IsString, MinLength, IsEnum, IsArray, IsOptional } from 'class-validator';
+import { IsEmail, IsString, IsEnum, IsArray, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../common/enums/role.enum';
+import { IsStrongPassword } from '../../common/validators/password-policy';
 
 export class RegisterDto {
   @ApiProperty({ example: 'john@example.com' })
   @IsEmail()
   email: string;
 
-  @ApiProperty({ minLength: 8 })
+  @ApiProperty({ minLength: 8, description: '8+ chars, uppercase, lowercase, number, special character' })
   @IsString()
-  @MinLength(8)
+  @IsStrongPassword()
   password: string;
 
   @ApiProperty({ example: 'John' })

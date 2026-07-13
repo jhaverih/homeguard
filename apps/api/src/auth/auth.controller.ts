@@ -1,9 +1,10 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { IsStrongPassword } from '../common/validators/password-policy';
 
 class VerifyEmailDto {
   @IsEmail() email: string;
@@ -20,7 +21,7 @@ class ForgotPasswordDto {
 
 class ResetPasswordDto {
   @IsString() token: string;
-  @IsString() @MinLength(8) password: string;
+  @IsString() @IsStrongPassword() password: string;
 }
 
 @ApiTags('Auth')

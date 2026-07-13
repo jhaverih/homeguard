@@ -8,6 +8,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { HoumiLogo } from '../../src/components/HoumiLogo';
 import { authApi } from '../../src/services/api';
 
+const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
+  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
+  { label: 'One uppercase letter', test: (p) => /[A-Z]/.test(p) },
+  { label: 'One lowercase letter', test: (p) => /[a-z]/.test(p) },
+  { label: 'One number', test: (p) => /\d/.test(p) },
+  { label: 'One special character', test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function generateStrongPassword(length = 14): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const special = '!@#$%^&*-_=+';
+  const all = upper + lower + digits + special;
+  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+  const pwd = [pick(upper), pick(lower), pick(digits), pick(special)];
+  for (let i = pwd.length; i < length; i++) pwd.push(pick(all));
+  for (let i = pwd.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
+  }
+  return pwd.join('');
+}
+
 export default function ResetPasswordScreen() {
   const { token } = useLocalSearchParams<{ token?: string }>();
   const [resetToken, setResetToken] = useState(token ?? '');
@@ -17,9 +41,17 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
+  const allRulesMet = PASSWORD_RULES.every((r) => r.test(password));
+
+  const handleGenerate = () => {
+    const generated = generateStrongPassword();
+    setPassword(generated);
+    setConfirm(generated);
+  };
+
   const handleReset = async () => {
-    if (!resetToken.trim()) { Alert.alert('Token Required', 'Enter the reset token from your email.'); return; }
-    if (password.length < 8) { Alert.alert('Weak Password', 'Password must be at least 8 characters.'); return; }
+    if (!resetToken.trim()) { Alert.alert('Code Required', 'Enter the 6-digit code from your email.'); return; }
+    if (!allRulesMet) { Alert.alert('Weak Password', 'Password does not meet all requirements below.'); return; }
     if (password !== confirm) { Alert.alert('Mismatch', 'Passwords do not match.'); return; }
 
     setLoading(true);
@@ -59,19 +91,24 @@ export default function ResetPasswordScreen() {
           ) : (
             <>
               <Text style={styles.title}>New Password</Text>
-              <Text style={styles.subtitle}>Enter the token from your reset email, then choose a new password.</Text>
+              <Text style={styles.subtitle}>Check your email for a 6-digit code, enter it below, then choose a new password.</Text>
 
-              <Text style={styles.label}>Reset Token</Text>
+              <Text style={styles.label}>6-digit code</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Paste token from email"
-                autoCapitalize="none"
-                autoCorrect={false}
+                placeholder="000000"
+                keyboardType="number-pad"
+                maxLength={6}
                 value={resetToken}
-                onChangeText={setResetToken}
+                onChangeText={(t) => setResetToken(t.replace(/\D/g, '').slice(0, 6))}
               />
 
-              <Text style={styles.label}>New Password</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.label}>New Password</Text>
+                <TouchableOpacity onPress={handleGenerate}>
+                  <Text style={styles.generateText}>Generate strong password</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.passRow}>
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -83,6 +120,22 @@ export default function ResetPasswordScreen() {
                 <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
                   <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color="#94a3b8" />
                 </TouchableOpacity>
+              </View>
+
+              <View style={{ marginBottom: 14 }}>
+                {PASSWORD_RULES.map((rule) => {
+                  const met = rule.test(password);
+                  return (
+                    <View key={rule.label} style={styles.ruleRow}>
+                      <Ionicons
+                        name={met ? 'checkmark-circle' : 'close-circle'}
+                        size={14}
+                        color={met ? '#059669' : '#cbd5e1'}
+                      />
+                      <Text style={[styles.ruleText, met && styles.ruleTextMet]}>{rule.label}</Text>
+                    </View>
+                  );
+                })}
               </View>
 
               <Text style={styles.label}>Confirm Password</Text>
@@ -97,15 +150,15 @@ export default function ResetPasswordScreen() {
               />
 
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
+                style={[styles.button, (loading || !allRulesMet || password !== confirm) && styles.buttonDisabled]}
                 onPress={handleReset}
-                disabled={loading}
+                disabled={loading || !allRulesMet || password !== confirm}
               >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Reset Password</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(auth)/forgot-password')}>
-                <Text style={styles.linkText}>Need a new reset link?</Text>
+                <Text style={styles.linkText}>Need a new code?</Text>
               </TouchableOpacity>
             </>
           )}
@@ -128,8 +181,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14,
     padding: 16, fontSize: 16, marginBottom: 14, color: '#0f172a',
   },
-  passRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  passRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   eyeBtn: { padding: 12 },
+  generateText: { fontSize: 12, fontWeight: '700', color: '#0B4A45' },
+  ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  ruleText: { fontSize: 12, color: '#94a3b8' },
+  ruleTextMet: { color: '#059669' },
   button: { backgroundColor: '#0B4A45', borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 4 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
