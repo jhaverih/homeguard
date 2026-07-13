@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
             <p className="text-sm text-gray-500 mb-6">
               If that email address is registered, we&apos;ve sent a 6-digit reset code. Check your inbox (and spam folder).
             </p>
-            <Link href="/reset-password" className="block text-sm font-semibold text-brand hover:underline mb-3">
+            <Link href={`/reset-password?email=${encodeURIComponent(email)}`} className="block text-sm font-semibold text-brand hover:underline mb-3">
               Enter code &rarr;
             </Link>
             <Link href="/login" className="text-sm text-gray-400 hover:underline">

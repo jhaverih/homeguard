@@ -1,8 +1,22 @@
 'use client';
-import { useState, FormEvent } from 'react';
+import { Suspense, useState, FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
+
+function EyeIcon({ off }: { off: boolean }) {
+  return off ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
 
 const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
   { label: 'At least 8 characters', test: (p) => p.length >= 8 },
@@ -29,9 +43,21 @@ function generateStrongPassword(length = 14): string {
 }
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
+  );
+}
+
+function ResetPasswordForm() {
+  const searchParams = useSearchParams();
+  const email = searchParams.get('email') ?? '';
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -82,6 +108,18 @@ export default function ResetPasswordPage() {
             <h1 className="text-lg font-semibold text-gray-900 mb-1">New Password</h1>
             <p className="text-sm text-gray-500 mb-6">Check your email for a 6-digit code, enter it below, then choose a new password.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {email && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
+                  <input
+                    type="email"
+                    value={email}
+                    readOnly
+                    autoComplete="username"
+                    className="w-full border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-500"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">6-digit code</label>
                 <input
@@ -89,6 +127,7 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   required
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   placeholder="000000"
                   maxLength={6}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-2xl font-bold tracking-[0.5em] text-center focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
@@ -101,13 +140,25 @@ export default function ResetPasswordPage() {
                     Generate strong password
                   </button>
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <EyeIcon off={showPassword} />
+                  </button>
+                </div>
                 <ul className="mt-2 space-y-1">
                   {PASSWORD_RULES.map((rule) => {
                     const met = rule.test(password);
@@ -122,13 +173,25 @@ export default function ResetPasswordPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                <input
-                  type="password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirm ? 'text' : 'password'}
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    tabIndex={-1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                  >
+                    <EyeIcon off={showConfirm} />
+                  </button>
+                </div>
               </div>
 
               {error && (
