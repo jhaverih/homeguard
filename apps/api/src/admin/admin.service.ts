@@ -22,7 +22,7 @@ import { ServiceRequestsService } from '../service-requests/service-requests.ser
 import { PricingService } from '../pricing/pricing.service';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
-import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
+import { VendorCapability, CertificationType } from '../vendor/entities/vendor-capability.entity';
 import { emailEquals } from '../common/utils/email.util';
 import { ConfigService } from '@nestjs/config';
 
@@ -190,6 +190,27 @@ export class AdminService {
   async setVendorPlan(vendorId: string, tier: 'STANDARD' | 'ELITE', expiresAt?: string) {
     const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
     if (!profile) throw new NotFoundException('Vendor profile not found');
+
+    if (tier === 'ELITE') {
+      const teamIds = await this.usersService.getVendorTeamIds(vendorId);
+      const qualifyingCert = await this.vendorCertificationRepo.findOne({
+        where: {
+          userId: In(teamIds),
+          status: CertificationReviewStatus.APPROVED,
+          certificationType: In([
+            CertificationType.ELECTRICAL,
+            CertificationType.HVAC,
+            CertificationType.PLUMBING,
+            CertificationType.NABCEP,
+          ]),
+        },
+      });
+      if (!qualifyingCert) {
+        throw new BadRequestException(
+          'Elite tier requires the company to have at least one team member with an approved Electrical, Mechanical (HVAC), Plumbing, or NABCEP solar certification.',
+        );
+      }
+    }
 
     const elitePlanExpiresAt = tier === 'ELITE' && expiresAt ? new Date(expiresAt) : null;
 

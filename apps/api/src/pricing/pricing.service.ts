@@ -83,6 +83,7 @@ export class PricingService implements OnModuleInit {
   async onModuleInit() {
     await this.seedPrices();
     await this.seedMonitoringService();
+    await this.seedTradeServices();
   }
 
   private async seedPrices() {
@@ -120,6 +121,49 @@ export class PricingService implements OnModuleInit {
       requiredCapabilityId: capability.id,
     }));
     this.logger.log('Seeded "Home Monitoring Setup" service ($149, Yolink-capability-gated, Houmi-triggered only).');
+  }
+
+  // Separate from seedPrices() for the same reason as seedMonitoringService() —
+  // idempotent per-item, safe to re-run every boot so new trade catalog items
+  // and the Solar capability link both land on an already-seeded database.
+  private async seedTradeServices() {
+    const tradeCatalog = [
+      { name: 'Roofing Repair & Replacement', description: 'Roof repair, replacement, or inspection by a licensed roofing contractor.', capabilityName: 'Roofing Contractor' },
+      { name: 'Masonry Work', description: 'Brick, block, stone, and concrete masonry work.', capabilityName: 'Masonry' },
+      { name: 'Renovation Project', description: 'General contracting for home renovation and remodeling projects.', capabilityName: 'Renovation / General Contracting' },
+    ];
+
+    for (const item of tradeCatalog) {
+      const existing = await this.pricesRepo.findOne({ where: { name: item.name } });
+      if (existing) continue;
+
+      const capability = await this.capabilityRepo.findOne({ where: { name: item.capabilityName } });
+      if (!capability) {
+        this.logger.warn(`"${item.capabilityName}" capability not found yet — will retry seeding "${item.name}" price on next restart.`);
+        continue;
+      }
+
+      await this.pricesRepo.save(this.pricesRepo.create({
+        name: item.name,
+        description: item.description,
+        basePrice: 0,
+        priceNote: 'Request Quote',
+        requiresQuote: true,
+        requiredCapabilityId: capability.id,
+      }));
+      this.logger.log(`Seeded "${item.name}" service (quote-based, ${item.capabilityName}-capability-gated).`);
+    }
+
+    // Solar System already exists from the original catalog seed but was never
+    // capability-gated — link it now that a Solar Installation capability exists.
+    const solarPrice = await this.pricesRepo.findOne({ where: { name: 'Solar System' } });
+    if (solarPrice && !solarPrice.requiredCapabilityId) {
+      const solarCapability = await this.capabilityRepo.findOne({ where: { name: 'Solar Installation' } });
+      if (solarCapability) {
+        await this.pricesRepo.update(solarPrice.id, { requiredCapabilityId: solarCapability.id });
+        this.logger.log('Linked "Solar System" service to the Solar Installation capability (NABCEP-gated).');
+      }
+    }
   }
 
   async getAll(includeInactive = false): Promise<ServicePrice[]> {

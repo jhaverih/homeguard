@@ -7,6 +7,9 @@ export enum CertificationType {
   HVAC = 'HVAC',
   ELECTRICAL = 'ELECTRICAL',
   PLUMBING = 'PLUMBING',
+  ROOFING = 'ROOFING',
+  GENERAL_CONTRACTOR = 'GENERAL_CONTRACTOR',
+  NABCEP = 'NABCEP',
 }
 
 @Entity('vendor_capabilities')

@@ -47,6 +47,20 @@ const CAPABILITY_SEED: {
   { name: 'New water softener/filtering system installation', requiredCertificationType: CertificationType.PLUMBING },
   { name: 'Assembly new furniture', requiredCertificationType: CertificationType.NONE },
   { name: 'Move furniture', requiredCertificationType: CertificationType.NONE },
+  // Licensed trades
+  { name: 'Roofing Contractor', requiredCertificationType: CertificationType.ROOFING },
+  // No platform-enforced license — large-masonry licensing requirements are
+  // handled via Terms & Conditions / legal compliance language, not app-enforced.
+  { name: 'Masonry', requiredCertificationType: CertificationType.NONE },
+  { name: 'Renovation / General Contracting', requiredCertificationType: CertificationType.GENERAL_CONTRACTOR },
+  { name: 'Solar Installation', requiredCertificationType: CertificationType.NABCEP },
+  // Handyman broad categories
+  { name: 'Interior Repairs & Maintenance', requiredCertificationType: CertificationType.NONE },
+  { name: 'Minor Electrical Adjustments', requiredCertificationType: CertificationType.NONE },
+  { name: 'Minor Plumbing Fixes', requiredCertificationType: CertificationType.NONE },
+  { name: 'Mounting & Installations', requiredCertificationType: CertificationType.NONE },
+  { name: 'Carpentry & Assembly', requiredCertificationType: CertificationType.NONE },
+  { name: 'Exterior & Outdoor Services', requiredCertificationType: CertificationType.NONE },
 ];
 
 @Injectable()
