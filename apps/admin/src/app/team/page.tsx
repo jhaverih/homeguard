@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { adminApi } from '@/lib/api';
+import { adminApi, userApi } from '@/lib/api';
 
 const LEVELS = ['SUPER_USER', 'ADMIN', 'VIEW_ONLY'];
 const LEVEL_LABELS: Record<string, string> = {
@@ -11,6 +11,7 @@ const LEVEL_LABELS: Record<string, string> = {
 
 export default function TeamPage() {
   const [users, setUsers] = useState<any[]>([]);
+  const [isSuperUser, setIsSuperUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -20,7 +21,10 @@ export default function TeamPage() {
 
   const load = () => adminApi.getTeamUsers().then(setUsers);
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
+    load().finally(() => setLoading(false));
+  }, []);
 
   const invite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,16 +133,20 @@ export default function TeamPage() {
             placeholder="Email"
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
           />
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Access Level</label>
-            <select
-              value={form.adminLevel}
-              onChange={(e) => setForm((f) => ({ ...f, adminLevel: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
-            >
-              {LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
-            </select>
-          </div>
+          {isSuperUser ? (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Access Level</label>
+              <select
+                value={form.adminLevel}
+                onChange={(e) => setForm((f) => ({ ...f, adminLevel: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              >
+                {LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
+              </select>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">New users are added as View Only.</p>
+          )}
           {inviteError && <p className="text-red-600 text-sm">{inviteError}</p>}
           <div className="flex items-center gap-2">
             <button
@@ -170,14 +178,18 @@ export default function TeamPage() {
                 <td className="px-6 py-4 font-medium text-gray-800">{u.name}</td>
                 <td className="px-6 py-4 text-gray-500">{u.email}</td>
                 <td className="px-6 py-4">
-                  <select
-                    value={u.adminLevel}
-                    disabled={busyId === u.id}
-                    onChange={(e) => changeLevel(u.id, e.target.value)}
-                    className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50"
-                  >
-                    {LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
-                  </select>
+                  {isSuperUser ? (
+                    <select
+                      value={u.adminLevel}
+                      disabled={busyId === u.id}
+                      onChange={(e) => changeLevel(u.id, e.target.value)}
+                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50"
+                    >
+                      {LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-gray-500">{LEVEL_LABELS[u.adminLevel]}</span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${u.status === 'ACTIVE' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>

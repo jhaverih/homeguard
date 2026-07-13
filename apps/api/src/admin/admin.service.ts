@@ -548,14 +548,20 @@ export class AdminService {
     };
   }
 
-  async getTeamUsers() {
+  async getTeamUsers(callerLevel: AdminLevel) {
     const users = await this.usersRepo
       .createQueryBuilder('u')
       .where('u.roles LIKE :role', { role: `%${UserRole.ADMIN}%` })
       .orderBy('u.createdAt', 'ASC')
       .getMany();
 
-    return users.map((u) => ({
+    // Admins (not Super Users) never see other Admin/Super User rows — not
+    // just restricted actions on them, the rows themselves are invisible.
+    const visible = callerLevel === AdminLevel.SUPER_USER
+      ? users
+      : users.filter((u) => u.adminLevel === AdminLevel.VIEW_ONLY);
+
+    return visible.map((u) => ({
       id: u.id,
       name: `${u.firstName} ${u.lastName}`,
       email: u.email,
@@ -565,7 +571,14 @@ export class AdminService {
     }));
   }
 
-  async createTeamUser(data: { email: string; firstName: string; lastName: string; adminLevel: AdminLevel }) {
+  async createTeamUser(
+    data: { email: string; firstName: string; lastName: string; adminLevel: AdminLevel },
+    callerLevel: AdminLevel,
+  ) {
+    if (callerLevel !== AdminLevel.SUPER_USER && data.adminLevel !== AdminLevel.VIEW_ONLY) {
+      throw new BadRequestException('You can only add View Only users.');
+    }
+
     const existing = await this.usersRepo.findOne({ where: { email: emailEquals(data.email) } });
     if (existing) throw new ConflictException('Email already in use');
 
@@ -604,9 +617,12 @@ export class AdminService {
     return this.usersRepo.findOne({ where: { id: userId } });
   }
 
-  async removeTeamUser(userId: string) {
+  async removeTeamUser(userId: string, callerLevel: AdminLevel) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
+    if (callerLevel !== AdminLevel.SUPER_USER && user.adminLevel !== AdminLevel.VIEW_ONLY) {
+      throw new NotFoundException('Admin user not found');
+    }
 
     if (user.adminLevel === AdminLevel.SUPER_USER) {
       const superUserCount = await this.usersRepo
@@ -623,17 +639,23 @@ export class AdminService {
     return { success: true };
   }
 
-  async reinstateTeamUser(userId: string) {
+  async reinstateTeamUser(userId: string, callerLevel: AdminLevel) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
+    if (callerLevel !== AdminLevel.SUPER_USER && user.adminLevel !== AdminLevel.VIEW_ONLY) {
+      throw new NotFoundException('Admin user not found');
+    }
 
     await this.usersRepo.update(userId, { status: UserStatus.ACTIVE });
     return this.usersRepo.findOne({ where: { id: userId } });
   }
 
-  async deleteTeamUser(userId: string) {
+  async deleteTeamUser(userId: string, callerLevel: AdminLevel) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
+    if (callerLevel !== AdminLevel.SUPER_USER && user.adminLevel !== AdminLevel.VIEW_ONLY) {
+      throw new NotFoundException('Admin user not found');
+    }
 
     if (user.status !== UserStatus.SUSPENDED) {
       throw new BadRequestException('Suspend this user first (Remove) before deleting permanently.');

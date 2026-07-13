@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards, Post } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards, Post, Request } from '@nestjs/common';
 import { VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -116,17 +116,17 @@ export class AdminController {
   }
 
   @Get('team-users')
-  @MinAdminLevel(AdminLevel.SUPER_USER)
-  @ApiOperation({ summary: 'Super User: list all admin-portal users' })
-  getTeamUsers() {
-    return this.service.getTeamUsers();
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Admin/Super User: list admin-portal users (Admins only see View Only accounts)' })
+  getTeamUsers(@Request() req) {
+    return this.service.getTeamUsers(req.user.adminLevel);
   }
 
   @Post('team-users')
-  @MinAdminLevel(AdminLevel.SUPER_USER)
-  @ApiOperation({ summary: 'Super User: invite a new admin-portal user' })
-  createTeamUser(@Body() body: CreateTeamUserDto) {
-    return this.service.createTeamUser(body);
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Admin/Super User: invite a new admin-portal user (Admins can only invite at View Only)' })
+  createTeamUser(@Request() req, @Body() body: CreateTeamUserDto) {
+    return this.service.createTeamUser(body, req.user.adminLevel);
   }
 
   @Patch('team-users/:id/level')
@@ -137,24 +137,24 @@ export class AdminController {
   }
 
   @Delete('team-users/:id')
-  @MinAdminLevel(AdminLevel.SUPER_USER)
-  @ApiOperation({ summary: 'Super User: deactivate an admin-portal user' })
-  removeTeamUser(@Param('id') id: string) {
-    return this.service.removeTeamUser(id);
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Admin/Super User: deactivate an admin-portal user (Admins can only target View Only accounts)' })
+  removeTeamUser(@Request() req, @Param('id') id: string) {
+    return this.service.removeTeamUser(id, req.user.adminLevel);
   }
 
   @Patch('team-users/:id/reinstate')
-  @MinAdminLevel(AdminLevel.SUPER_USER)
-  @ApiOperation({ summary: 'Super User: reactivate a suspended admin-portal user' })
-  reinstateTeamUser(@Param('id') id: string) {
-    return this.service.reinstateTeamUser(id);
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Admin/Super User: reactivate a suspended admin-portal user (Admins can only target View Only accounts)' })
+  reinstateTeamUser(@Request() req, @Param('id') id: string) {
+    return this.service.reinstateTeamUser(id, req.user.adminLevel);
   }
 
   @Delete('team-users/:id/permanent')
-  @MinAdminLevel(AdminLevel.SUPER_USER)
-  @ApiOperation({ summary: 'Super User: permanently delete a suspended admin-portal user' })
-  deleteTeamUser(@Param('id') id: string) {
-    return this.service.deleteTeamUser(id);
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Admin/Super User: permanently delete a suspended admin-portal user (Admins can only target View Only accounts)' })
+  deleteTeamUser(@Request() req, @Param('id') id: string) {
+    return this.service.deleteTeamUser(id, req.user.adminLevel);
   }
 
   @Get('vendor-applications')
