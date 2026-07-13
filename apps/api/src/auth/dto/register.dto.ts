@@ -55,4 +55,9 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   companyName?: string;
+
+  @ApiProperty({ example: '12-3456789', required: false, description: 'Vendor company EIN, collected at vendor registration' })
+  @IsOptional()
+  @IsString()
+  ein?: string;
 }

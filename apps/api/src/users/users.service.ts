@@ -22,6 +22,7 @@ export interface CreateUserDto {
   state?: string;
   zipCode?: string;
   companyName?: string;
+  ein?: string;
   // Set by VendorService.createTechnician — the caller assigns companyId/isCompanyAdmin
   // itself afterward, so create() should not also spin up a brand new company.
   skipCompanyCreation?: boolean;
@@ -169,13 +170,13 @@ export class UsersService implements OnModuleInit {
             ...(dto.companyName ? { companyName: dto.companyName } : {}),
           }),
         );
-        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName);
+        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein);
       }
 
       return saved;
     }
 
-    const { skipCompanyCreation, ...userFields } = dto;
+    const { skipCompanyCreation, ein, ...userFields } = dto;
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = this.usersRepo.create({
       ...userFields,
@@ -203,7 +204,7 @@ export class UsersService implements OnModuleInit {
           ...(dto.companyName ? { companyName: dto.companyName } : {}),
         }),
       );
-      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName);
+      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein);
     }
 
     return saved;
@@ -213,11 +214,12 @@ export class UsersService implements OnModuleInit {
   // existing team) gets their own company, starting in PENDING_REVIEW — unlike the
   // one-time backfill for pre-existing accounts, new registrations are not
   // grandfathered and must go through the document review queue.
-  private async createCompanyForNewVendor(profile: VendorProfile, user: User, companyName?: string) {
+  private async createCompanyForNewVendor(profile: VendorProfile, user: User, companyName?: string, ein?: string) {
     const company = await this.vendorCompanyRepo.save(
       this.vendorCompanyRepo.create({
         name: companyName || `${user.firstName} ${user.lastName}`.trim(),
         applicationStatus: VendorApplicationStatus.PENDING_REVIEW,
+        ...(ein ? { ein } : {}),
       }),
     );
     await this.vendorProfileRepo.update(profile.id, { companyId: company.id, isCompanyAdmin: true });

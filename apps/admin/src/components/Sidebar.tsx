@@ -20,10 +20,12 @@ const links = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isAtLeastAdmin, setIsAtLeastAdmin] = useState(false);
+  const [userName, setUserName] = useState('');
 
   useEffect(() => {
     userApi.getMe().then((me: any) => {
       setIsAtLeastAdmin(me.adminLevel === 'SUPER_USER' || me.adminLevel === 'ADMIN');
+      setUserName(`${me.firstName} ${me.lastName}`.trim());
     }).catch(() => {});
   }, []);
 
@@ -48,6 +50,7 @@ export function Sidebar() {
           <h1 className="text-xl font-bold tracking-tight">Houmi</h1>
         </div>
         <p className="text-sm text-teal-200 mt-1 opacity-75">Admin Dashboard</p>
+        {userName && <p className="text-xs text-teal-200 mt-0.5">{userName}</p>}
       </div>
       <nav className="flex-1 p-4 space-y-1">
         {visibleLinks.map((link) => (

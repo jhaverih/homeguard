@@ -1,6 +1,7 @@
 import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Inject,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In, FindOptionsWhere, MoreThan } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
@@ -22,8 +23,6 @@ import { VendorCapability, CertificationType } from '../vendor/entities/vendor-c
 import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
-
-const ELITE_PREFERENTIAL_WINDOW_MINUTES = 15;
 
 @Injectable()
 export class ServiceRequestsService {
@@ -57,6 +56,7 @@ export class ServiceRequestsService {
     private vendorCertificationRepo: Repository<VendorCertification>,
     @InjectRepository(ServicePrice)
     private servicePriceRepo: Repository<ServicePrice>,
+    private configService: ConfigService,
   ) {}
 
   private async generateTicketNumber(): Promise<string> {
@@ -500,7 +500,10 @@ export class ServiceRequestsService {
       : [];
     const servicePriceMap = new Map(servicePrices.map((sp) => [sp.id, sp]));
 
-    const eliteWindowCutoff = new Date(Date.now() - ELITE_PREFERENTIAL_WINDOW_MINUTES * 60 * 1000);
+    const elitePreferentialWindowMinutes = Number(
+      this.configService.get('ELITE_PREFERENTIAL_WINDOW_MINUTES', '15'),
+    );
+    const eliteWindowCutoff = new Date(Date.now() - elitePreferentialWindowMinutes * 60 * 1000);
 
     return all.filter((r) => {
       if (!r.servicePriceId) return true; // base subscription inspections — open to everyone
