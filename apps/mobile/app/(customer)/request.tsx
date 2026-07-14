@@ -85,7 +85,7 @@ export default function RequestScreen() {
   tomorrow.setHours(9, 0, 0, 0);
   const [preferredDate, setPreferredDate] = useState(tomorrow);
   const [serviceDate, setServiceDate] = useState(new Date(tomorrow));
-  const { prefilledNotes } = useLocalSearchParams<{ prefilledNotes?: string }>();
+  const { prefilledNotes, preselectServicePriceId } = useLocalSearchParams<{ prefilledNotes?: string; preselectServicePriceId?: string }>();
   const [notes, setNotes] = useState('');
   const [serviceNotes, setServiceNotes] = useState('');
   const [solarMonthlyBill, setSolarMonthlyBill] = useState('');
@@ -98,6 +98,10 @@ export default function RequestScreen() {
   useEffect(() => {
     if (prefilledNotes) setNotes(prefilledNotes);
   }, [prefilledNotes]);
+
+  useEffect(() => {
+    if (preselectServicePriceId) setTab('service');
+  }, [preselectServicePriceId]);
 
   useEffect(() => {
     userApi.getMe().then((res: any) => {
@@ -113,7 +117,14 @@ export default function RequestScreen() {
     if (tab === 'service' && catalog.length === 0) {
       setCatalogLoading(true);
       pricingApi.getAll()
-        .then((items: any) => setCatalog((items || []).filter((i: any) => i.customerRequestable !== false)))
+        .then((items: any) => {
+          const filtered = (items || []).filter((i: any) => i.customerRequestable !== false);
+          setCatalog(filtered);
+          if (preselectServicePriceId) {
+            const match = filtered.find((i: any) => i.id === preselectServicePriceId);
+            if (match) setSelectedServices((prev) => (prev.some((s) => s.id === match.id) ? prev : [...prev, match]));
+          }
+        })
         .catch(() => {})
         .finally(() => setCatalogLoading(false));
     }

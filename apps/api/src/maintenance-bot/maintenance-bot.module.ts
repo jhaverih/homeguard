@@ -4,11 +4,16 @@ import { InspectionNote } from '../inspections/entities/inspection.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { ChatSession } from './entities/chat-session.entity';
 import { ChatMessage } from './entities/chat-message.entity';
+import { AiRecommendation } from './entities/ai-recommendation.entity';
 import { MaintenanceBotService } from './maintenance-bot.service';
 import { MaintenanceBotController } from './maintenance-bot.controller';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([InspectionNote, ServiceRequest, ChatSession, ChatMessage])],
+  imports: [
+    TypeOrmModule.forFeature([InspectionNote, ServiceRequest, ChatSession, ChatMessage, AiRecommendation]),
+    PricingModule,
+  ],
   providers: [MaintenanceBotService],
   controllers: [MaintenanceBotController],
 })

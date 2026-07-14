@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { maintenanceBotApi } from '../../src/services/api';
 
-type Message = { id: string; role: 'user' | 'assistant'; content: string };
+type Message = { id: string; role: 'user' | 'assistant'; content: string; recommendations?: any[] };
 
 const QUICK_PROMPTS = [
   'What needs attention in my home?',
@@ -129,10 +129,17 @@ export default function AssistantScreen() {
     setLoading(true);
     try {
       const data: any = await maintenanceBotApi.getSession(id);
+      const recsByMessage = new Map<string, any[]>();
+      for (const r of data.recommendations || []) {
+        const list = recsByMessage.get(r.messageId) || [];
+        list.push(r);
+        recsByMessage.set(r.messageId, list);
+      }
       const restored: Message[] = data.messages.map((m: any) => ({
-        id: uid(),
+        id: m.id,
         role: m.role,
         content: m.content,
+        recommendations: recsByMessage.get(m.id),
       }));
       setMessages(restored.length > 0 ? restored : [INITIAL_MESSAGE]);
       setSessionId(id);
@@ -180,7 +187,7 @@ export default function AssistantScreen() {
 
     try {
       const res: any = await maintenanceBotApi.chat(userText, history, sessionId);
-      const botMsg: Message = { id: uid(), role: 'assistant', content: res.reply };
+      const botMsg: Message = { id: uid(), role: 'assistant', content: res.reply, recommendations: res.recommendations };
       setMessages((prev) => [...prev, botMsg]);
       if (res.sessionId && !sessionId) setSessionId(res.sessionId);
     } catch (e: any) {
@@ -199,20 +206,53 @@ export default function AssistantScreen() {
     }
   }, [messages, loading, sessionId]);
 
+  const respondToRecommendation = async (rec: any, status: 'ACCEPTED' | 'DECLINED') => {
+    setMessages((prev) => prev.map((m) => (
+      m.recommendations
+        ? { ...m, recommendations: m.recommendations.map((r: any) => (r.id === rec.id ? { ...r, status } : r)) }
+        : m
+    )));
+    try {
+      await maintenanceBotApi.respondToRecommendation(rec.id, status);
+      if (status === 'ACCEPTED') {
+        router.push({ pathname: '/(customer)/request', params: { preselectServicePriceId: rec.servicePriceId } });
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
+    const pendingRecs = (item.recommendations || []).filter((r: any) => r.status === 'SUGGESTED');
     return (
-      <View style={[styles.bubbleRow, isUser ? styles.bubbleRowRight : styles.bubbleRowLeft]}>
-        {!isUser && (
-          <View style={styles.botAvatar}>
-            <Ionicons name="home" size={14} color="#fff" />
+      <View>
+        <View style={[styles.bubbleRow, isUser ? styles.bubbleRowRight : styles.bubbleRowLeft]}>
+          {!isUser && (
+            <View style={styles.botAvatar}>
+              <Ionicons name="home" size={14} color="#fff" />
+            </View>
+          )}
+          <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
+            <Text style={[styles.bubbleText, isUser ? styles.userBubbleText : styles.botBubbleText]}>
+              {item.content}
+            </Text>
           </View>
-        )}
-        <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
-          <Text style={[styles.bubbleText, isUser ? styles.userBubbleText : styles.botBubbleText]}>
-            {item.content}
-          </Text>
         </View>
+        {pendingRecs.map((rec: any) => (
+          <View key={rec.id} style={styles.recCard}>
+            <Text style={styles.recCardTitle}>💡 {rec.name}</Text>
+            {rec.priceNote && <Text style={styles.recCardPrice}>{rec.priceNote}</Text>}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+              <TouchableOpacity style={styles.recDeclineBtn} onPress={() => respondToRecommendation(rec, 'DECLINED')}>
+                <Text style={styles.recDeclineText}>Not now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.recAcceptBtn} onPress={() => respondToRecommendation(rec, 'ACCEPTED')}>
+                <Text style={styles.recAcceptText}>Book Now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
       </View>
     );
   };
@@ -407,6 +447,14 @@ const styles = StyleSheet.create({
   typingIndicator: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingHorizontal: 16 },
   typingBubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 18, borderBottomLeftRadius: 4, padding: 12, gap: 8, elevation: 1 },
   typingText: { fontSize: 13, color: '#64748b' },
+  // AI recommendation card
+  recCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#B8DAD6', padding: 12, marginLeft: 36, marginRight: 40, marginBottom: 12, marginTop: -4 },
+  recCardTitle: { fontSize: 13, fontWeight: '700', color: '#0B4A45' },
+  recCardPrice: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  recDeclineBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, backgroundColor: '#f1f5f9' },
+  recDeclineText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  recAcceptBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, backgroundColor: '#0B4A45' },
+  recAcceptText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   // Seasonal card
   seasonCard: { backgroundColor: '#fff', marginHorizontal: 12, marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
   seasonHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10 },

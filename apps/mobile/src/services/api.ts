@@ -169,6 +169,8 @@ export const maintenanceBotApi = {
   getSessions: (): Promise<any[]> => api.get('/maintenance-bot/sessions') as any,
   getSession: (id: string): Promise<any> => api.get(`/maintenance-bot/sessions/${id}`) as any,
   deleteSession: (id: string) => api.delete(`/maintenance-bot/sessions/${id}`),
+  respondToRecommendation: (id: string, status: 'ACCEPTED' | 'DECLINED') =>
+    api.patch(`/maintenance-bot/recommendations/${id}`, { status }),
 };
 
 export const uploadsApi = {
