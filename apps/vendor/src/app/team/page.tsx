@@ -78,40 +78,40 @@ export default function TeamPage() {
   };
 
   if (!isCompanyAdmin) {
-    return <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400 text-sm">Only your Vendor Admin can manage the team.</div>;
+    return <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center text-steel text-sm">Only your Vendor Admin can manage the team.</div>;
   }
 
-  if (loading) return <div className="text-gray-500 p-8">Loading...</div>;
+  if (loading) return <div className="text-steel p-8">Loading...</div>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-brand">Team</h1>
+        <h1 className="text-2xl font-bold text-lantern-deep">Team</h1>
         <button
           onClick={() => setShowInvite((v) => !v)}
-          className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition-colors"
+          className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep transition-colors"
         >
           + Invite Technician
         </button>
       </div>
-      <p className="text-gray-500 mb-8">Manage who works under your company. You count as a technician too.</p>
+      <p className="text-steel mb-8">Manage who works under your company. You count as a technician too.</p>
 
       {showInvite && (
-        <form onSubmit={invite} className="bg-white rounded-2xl border border-gray-100 p-6 mb-8 space-y-4">
+        <form onSubmit={invite} className="bg-white rounded-2xl border border-mist-dim p-6 mb-8 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <input
               required
               value={form.firstName}
               onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
               placeholder="First name"
-              className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
             />
             <input
               required
               value={form.lastName}
               onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
               placeholder="Last name"
-              className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
             />
           </div>
           <input
@@ -120,10 +120,10 @@ export default function TeamPage() {
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             placeholder="Email"
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+            className="w-full border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
           />
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Photo (optional — they can add it later if you skip this)</label>
+            <label className="block text-xs font-medium text-steel mb-1">Photo (optional — they can add it later if you skip this)</label>
             <input
               type="file"
               accept="image/*"
@@ -136,35 +136,35 @@ export default function TeamPage() {
             <button
               type="submit"
               disabled={inviting}
-              className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark disabled:opacity-50 transition-colors"
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-50 transition-colors"
             >
               {inviting ? 'Sending invite…' : 'Send invite'}
             </button>
-            <button type="button" onClick={() => setShowInvite(false)} className="text-gray-500 text-sm px-4 py-2">Cancel</button>
+            <button type="button" onClick={() => setShowInvite(false)} className="text-steel text-sm px-4 py-2">Cancel</button>
           </div>
         </form>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
+          <thead className="bg-canvas border-b border-mist-dim">
             <tr>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Photo</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Name</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Email</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Role</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Status</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Action</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Photo</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Name</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Email</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Role</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Status</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-canvas">
             {team.map((t) => (
-              <tr key={t.id} className="hover:bg-gray-50 transition-colors align-top">
+              <tr key={t.id} className="hover:bg-canvas transition-colors align-top">
                 <td className="px-6 py-4">
                   {t.avatarUrl ? (
-                    <img src={t.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-gray-100" />
+                    <img src={t.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-mist-dim" />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 text-xs">—</div>
+                    <div className="w-10 h-10 rounded-full bg-mist-dim flex items-center justify-center text-steel text-xs">—</div>
                   )}
                 </td>
                 {editingId === t.id ? (
@@ -174,13 +174,13 @@ export default function TeamPage() {
                         value={editForm.firstName}
                         onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))}
                         placeholder="First name"
-                        className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-brand outline-none"
+                        className="border border-border rounded-lg px-3 py-1.5 text-sm focus:border-lantern outline-none"
                       />
                       <input
                         value={editForm.lastName}
                         onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))}
                         placeholder="Last name"
-                        className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-brand outline-none"
+                        className="border border-border rounded-lg px-3 py-1.5 text-sm focus:border-lantern outline-none"
                       />
                       <input
                         type="file"
@@ -191,18 +191,18 @@ export default function TeamPage() {
                       <button
                         onClick={() => saveEdit(t.id)}
                         disabled={savingEdit}
-                        className="bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand-dark disabled:opacity-50"
+                        className="bg-lantern text-ink px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-lantern-deep disabled:opacity-50"
                       >
                         {savingEdit ? 'Saving…' : 'Save'}
                       </button>
-                      <button onClick={() => setEditingId(null)} className="text-gray-500 text-xs px-2">Cancel</button>
+                      <button onClick={() => setEditingId(null)} className="text-steel text-xs px-2">Cancel</button>
                     </div>
                   </td>
                 ) : (
                   <>
-                    <td className="px-6 py-4 font-medium text-gray-800">{t.name}</td>
-                    <td className="px-6 py-4 text-gray-500">{t.email}</td>
-                    <td className="px-6 py-4 text-gray-600">{t.isCompanyAdmin ? 'Vendor Admin' : 'Technician'}</td>
+                    <td className="px-6 py-4 font-medium text-ink">{t.name}</td>
+                    <td className="px-6 py-4 text-steel">{t.email}</td>
+                    <td className="px-6 py-4 text-steel">{t.isCompanyAdmin ? 'Vendor Admin' : 'Technician'}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${t.status === 'ACTIVE' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
                         {t.status}
@@ -212,7 +212,7 @@ export default function TeamPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => startEdit(t)}
-                          className="bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="bg-white border border-border text-steel text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-canvas transition-colors"
                         >
                           Edit
                         </button>

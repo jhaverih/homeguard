@@ -69,8 +69,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-sm">Loading...</div>
+      <div className="flex h-screen items-center justify-center bg-canvas">
+        <div className="text-steel text-sm">Loading...</div>
       </div>
     );
   }

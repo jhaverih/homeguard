@@ -22,49 +22,49 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-canvas">
+      <div className="bg-white rounded-2xl shadow-sm border border-mist-dim p-10 w-full max-w-sm">
         {sent ? (
           <div className="text-center">
             <p className="text-4xl mb-4">📧</p>
-            <h1 className="text-lg font-semibold text-gray-900 mb-2">Check your email</h1>
-            <p className="text-sm text-gray-500 mb-6">
+            <h1 className="text-lg font-semibold text-ink mb-2">Check your email</h1>
+            <p className="text-sm text-steel mb-6">
               If that email address is registered, we&apos;ve sent a 6-digit reset code. Check your inbox (and spam folder).
             </p>
-            <Link href={`/reset-password?email=${encodeURIComponent(email)}`} className="block text-sm font-semibold text-brand hover:underline mb-3">
+            <Link href={`/reset-password?email=${encodeURIComponent(email)}`} className="block text-sm font-semibold text-lantern-deep hover:underline mb-3">
               Enter code &rarr;
             </Link>
-            <Link href="/login" className="text-sm text-gray-400 hover:underline">
+            <Link href="/login" className="text-sm text-steel hover:underline">
               Back to Sign In
             </Link>
           </div>
         ) : (
           <>
-            <h1 className="text-lg font-semibold text-gray-900 mb-1">Reset Password</h1>
-            <p className="text-sm text-gray-500 mb-6">
+            <h1 className="text-lg font-semibold text-ink mb-1">Reset Password</h1>
+            <p className="text-sm text-steel mb-6">
               Enter your email address and we&apos;ll send you a 6-digit code to reset your password.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-ink mb-1">Email</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoFocus
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                  className="w-full border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-lantern focus:border-transparent"
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading || !email.trim()}
-                className="w-full bg-brand text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-light transition-colors disabled:opacity-50"
+                className="w-full bg-lantern text-ink rounded-xl py-3 text-sm font-semibold hover:bg-lantern-deep transition-colors disabled:opacity-50"
               >
                 {loading ? 'Sending...' : 'Send Reset Code'}
               </button>
             </form>
-            <p className="text-center text-xs text-gray-400 mt-6">
+            <p className="text-center text-xs text-steel mt-6">
               <Link href="/login" className="hover:underline">Back to Sign In</Link>
             </p>
           </>

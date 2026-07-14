@@ -5,7 +5,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        brand: { DEFAULT: '#0B4A45', light: '#17897D', dark: '#083530' },
+        ink: '#12181C',
+        slate: { DEFAULT: '#26333A', soft: '#33424A' },
+        lantern: { DEFAULT: '#F2A93C', deep: '#C97F1F' },
+        mist: { DEFAULT: '#EDF1F0', dim: '#DCE4E2' },
+        steel: '#5B6B70',
+        canvas: '#F5F7F6',
+        surface: '#FFFFFF',
+        border: '#DEE6E4',
+      },
+      fontFamily: {
+        display: ['var(--font-display)', 'Georgia', 'Times New Roman', 'serif'],
+        sans: ['var(--font-body)', '-apple-system', 'Segoe UI', 'Helvetica', 'Arial', 'sans-serif'],
       },
     },
   },

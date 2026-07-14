@@ -4,9 +4,9 @@ export function SortableHeaderCell({ label, indicator, onClick }: { label: strin
   return (
     <th
       onClick={onClick}
-      className="text-left px-6 py-3 font-semibold text-gray-600 cursor-pointer select-none hover:text-brand transition-colors whitespace-nowrap"
+      className="text-left px-6 py-3 font-semibold text-steel cursor-pointer select-none hover:text-lantern-deep transition-colors whitespace-nowrap"
     >
-      {label} <span className="text-brand text-xs">{indicator}</span>
+      {label} <span className="text-lantern-deep text-xs">{indicator}</span>
     </th>
   );
 }
@@ -18,7 +18,7 @@ export function FilterTextCell({ value, onChange, placeholder }: { value: string
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? 'Filter…'}
-        className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs font-normal focus:border-brand outline-none"
+        className="w-full border border-border rounded-lg px-2 py-1 text-xs font-normal focus:border-lantern outline-none"
       />
     </th>
   );
@@ -30,7 +30,7 @@ export function FilterSelectCell({ value, onChange, options }: { value: string; 
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs font-normal focus:border-brand outline-none"
+        className="w-full border border-border rounded-lg px-2 py-1 text-xs font-normal focus:border-lantern outline-none"
       >
         <option value="">All</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}

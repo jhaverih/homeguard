@@ -67,24 +67,24 @@ export default function CustomersPage() {
     }
   };
 
-  if (loading) return <div className="text-gray-500 p-8">Loading...</div>;
+  if (loading) return <div className="text-steel p-8">Loading...</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-brand mb-2">Customers</h1>
-      <p className="text-gray-500 mb-8">Homeowners your company has serviced. Full history requires an Elite plan.</p>
+      <h1 className="text-2xl font-bold text-lantern-deep mb-2">Customers</h1>
+      <p className="text-steel mb-8">Homeowners your company has serviced. Full history requires an Elite plan.</p>
 
       {customers.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400 text-sm">No customers yet.</div>
+        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center text-steel text-sm">No customers yet.</div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-canvas border-b border-mist-dim">
               <tr>
                 <SortableHeaderCell label="Name" indicator={sortIndicator('name')} onClick={() => toggleSort('name')} />
                 <SortableHeaderCell label="Email" indicator={sortIndicator('email')} onClick={() => toggleSort('email')} />
                 <SortableHeaderCell label="Jobs" indicator={sortIndicator('jobCount')} onClick={() => toggleSort('jobCount')} />
-                <th className="text-left px-6 py-3 font-semibold text-gray-600"></th>
+                <th className="text-left px-6 py-3 font-semibold text-steel"></th>
               </tr>
               <tr>
                 <FilterTextCell value={filters.name ?? ''} onChange={(v) => setFilter('name', v)} placeholder="Filter name…" />
@@ -93,19 +93,19 @@ export default function CustomersPage() {
                 <th />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-canvas">
               {rows.map((c) => (
                 <Fragment key={c.id}>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-800">{c.name}</td>
-                    <td className="px-6 py-4 text-gray-500">{c.email}</td>
-                    <td className="px-6 py-4 text-gray-500">{c.jobCount}</td>
+                  <tr className="hover:bg-canvas transition-colors">
+                    <td className="px-6 py-4 font-medium text-ink">{c.name}</td>
+                    <td className="px-6 py-4 text-steel">{c.email}</td>
+                    <td className="px-6 py-4 text-steel">{c.jobCount}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <button onClick={() => toggleHistory(c.id)} className="text-brand text-xs font-semibold hover:underline">
+                        <button onClick={() => toggleHistory(c.id)} className="text-lantern-deep text-xs font-semibold hover:underline">
                           {expanded === c.id ? 'Hide history' : 'View history'}
                         </button>
-                        <button onClick={() => (monitorFor === c.id ? setMonitorFor(null) : startMonitoring(c))} className="text-brand text-xs font-semibold hover:underline">
+                        <button onClick={() => (monitorFor === c.id ? setMonitorFor(null) : startMonitoring(c))} className="text-lantern-deep text-xs font-semibold hover:underline">
                           {monitorFor === c.id ? 'Cancel' : '📡 Connect Monitoring'}
                         </button>
                       </div>
@@ -113,17 +113,17 @@ export default function CustomersPage() {
                   </tr>
                   {expanded === c.id && (
                     <tr>
-                      <td colSpan={4} className="px-6 py-4 bg-gray-50/50">
+                      <td colSpan={4} className="px-6 py-4 bg-canvas/50">
                         {history[c.id] === 'error' ? (
                           <p className="text-red-500 text-xs">Full history requires an Elite plan.</p>
                         ) : !history[c.id] ? (
-                          <p className="text-gray-400 text-xs">Loading…</p>
+                          <p className="text-steel text-xs">Loading…</p>
                         ) : (history[c.id] as any[]).length === 0 ? (
-                          <p className="text-gray-400 text-xs">No history found.</p>
+                          <p className="text-steel text-xs">No history found.</p>
                         ) : (
                           <div className="space-y-1">
                             {(history[c.id] as any[]).map((h) => (
-                              <div key={h.id} className="text-xs text-gray-600 flex justify-between">
+                              <div key={h.id} className="text-xs text-steel flex justify-between">
                                 <span>{h.ticketNumber} — {h.type}</span>
                                 <span className="font-semibold">{h.status}</span>
                               </div>
@@ -135,7 +135,7 @@ export default function CustomersPage() {
                   )}
                   {monitorFor === c.id && (
                     <tr>
-                      <td colSpan={4} className="px-6 py-4 bg-teal-50/40">
+                      <td colSpan={4} className="px-6 py-4 bg-mist-dim/40">
                         {connectResult && connectResult.customerId === c.id ? (
                           <div className="text-sm text-green-700 flex items-center gap-2">
                             <span>✅</span>
@@ -143,42 +143,42 @@ export default function CustomersPage() {
                           </div>
                         ) : (
                           <form onSubmit={(e) => submitMonitoring(e, c.id)} className="space-y-3 max-w-md">
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-steel">
                               Enter this customer&apos;s own Yolink credentials — found in their Yolink app under
-                              Account → Advanced Settings → User Access Credentials. Houmi never needs their Yolink login.
+                              Account → Advanced Settings → User Access Credentials. Attenteve never needs their Yolink login.
                             </p>
                             <input
                               required
                               value={monitorForm.yolinkUAID}
                               onChange={(e) => setMonitorForm((f) => ({ ...f, yolinkUAID: e.target.value }))}
                               placeholder="UAID (starts with ua_)"
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
                             />
                             <input
                               required
                               value={monitorForm.yolinkSecretKey}
                               onChange={(e) => setMonitorForm((f) => ({ ...f, yolinkSecretKey: e.target.value }))}
                               placeholder="Secret Key (starts with sec_)"
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
                             />
                             <input
                               required
                               value={monitorForm.homeName}
                               onChange={(e) => setMonitorForm((f) => ({ ...f, homeName: e.target.value }))}
                               placeholder="Home name"
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
                             />
                             <input
                               value={monitorForm.address}
                               onChange={(e) => setMonitorForm((f) => ({ ...f, address: e.target.value }))}
                               placeholder="Address (optional)"
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
                             />
                             {connectError && <p className="text-red-600 text-xs">{connectError}</p>}
                             <button
                               type="submit"
                               disabled={connecting}
-                              className="bg-brand text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-brand-light disabled:opacity-50 transition-colors"
+                              className="bg-lantern text-ink px-4 py-2 rounded-lg text-xs font-semibold hover:bg-lantern-deep disabled:opacity-50 transition-colors"
                             >
                               {connecting ? 'Verifying…' : 'Verify & Connect'}
                             </button>
@@ -190,7 +190,7 @@ export default function CustomersPage() {
                 </Fragment>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-6 text-center text-gray-400 text-sm">No customers match your filters.</td></tr>
+                <tr><td colSpan={4} className="px-6 py-6 text-center text-steel text-sm">No customers match your filters.</td></tr>
               )}
             </tbody>
           </table>

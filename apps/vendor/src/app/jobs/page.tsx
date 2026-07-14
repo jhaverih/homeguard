@@ -47,26 +47,26 @@ export default function JobsPage() {
     }
   };
 
-  if (loading) return <div className="text-gray-500 p-8">Loading...</div>;
+  if (loading) return <div className="text-steel p-8">Loading...</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-brand mb-2">Jobs</h1>
-      <p className="text-gray-500 mb-8">All jobs assigned to your company, and who's handling each one.</p>
+      <h1 className="text-2xl font-bold text-lantern-deep mb-2">Jobs</h1>
+      <p className="text-steel mb-8">All jobs assigned to your company, and who's handling each one.</p>
 
       {jobs.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400 text-sm">No jobs yet.</div>
+        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center text-steel text-sm">No jobs yet.</div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-canvas border-b border-mist-dim">
               <tr>
                 <SortableHeaderCell label="Ticket" indicator={sortIndicator('ticketNumber')} onClick={() => toggleSort('ticketNumber')} />
                 <SortableHeaderCell label="Customer" indicator={sortIndicator('customer')} onClick={() => toggleSort('customer')} />
                 <SortableHeaderCell label="Status" indicator={sortIndicator('status')} onClick={() => toggleSort('status')} />
                 <SortableHeaderCell label="Technician" indicator={sortIndicator('technician')} onClick={() => toggleSort('technician')} />
-                {isCompanyAdmin && <th className="text-left px-6 py-3 font-semibold text-gray-600">Reassign</th>}
-                <th className="text-left px-6 py-3 font-semibold text-gray-600"></th>
+                {isCompanyAdmin && <th className="text-left px-6 py-3 font-semibold text-steel">Reassign</th>}
+                <th className="text-left px-6 py-3 font-semibold text-steel"></th>
               </tr>
               <tr>
                 <FilterTextCell value={filters.ticketNumber ?? ''} onChange={(v) => setFilter('ticketNumber', v)} placeholder="Filter ticket…" />
@@ -77,15 +77,15 @@ export default function JobsPage() {
                 <th />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-canvas">
               {rows.map((j) => (
-                <tr key={j.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-gray-800">{j.ticketNumber}</td>
-                  <td className="px-6 py-4 text-gray-500">{j.customer?.name ?? '—'}</td>
+                <tr key={j.id} className="hover:bg-canvas transition-colors">
+                  <td className="px-6 py-4 font-medium text-ink">{j.ticketNumber}</td>
+                  <td className="px-6 py-4 text-steel">{j.customer?.name ?? '—'}</td>
                   <td className="px-6 py-4">
-                    <span className="text-xs font-semibold text-gray-600">{j.status}</span>
+                    <span className="text-xs font-semibold text-steel">{j.status}</span>
                   </td>
-                  <td className="px-6 py-4 text-gray-600">{j.technician?.name ?? '—'}</td>
+                  <td className="px-6 py-4 text-steel">{j.technician?.name ?? '—'}</td>
                   {isCompanyAdmin && (
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -93,7 +93,7 @@ export default function JobsPage() {
                           defaultValue=""
                           disabled={busyId === j.id}
                           onChange={(e) => assign(j.id, e.target.value)}
-                          className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:border-brand outline-none disabled:opacity-50"
+                          className="border border-border rounded-lg px-2 py-1.5 text-xs focus:border-lantern outline-none disabled:opacity-50"
                         >
                           <option value="" disabled>Assign to…</option>
                           {team.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -101,7 +101,7 @@ export default function JobsPage() {
                         <button
                           onClick={() => autoAssign(j.id)}
                           disabled={busyId === j.id}
-                          className="text-xs font-semibold text-brand hover:underline disabled:opacity-50"
+                          className="text-xs font-semibold text-lantern-deep hover:underline disabled:opacity-50"
                         >
                           Auto
                         </button>
@@ -109,12 +109,12 @@ export default function JobsPage() {
                     </td>
                   )}
                   <td className="px-6 py-4">
-                    <Link href={`/jobs/${j.id}`} className="text-brand text-xs font-semibold hover:underline">Report</Link>
+                    <Link href={`/jobs/${j.id}`} className="text-lantern-deep text-xs font-semibold hover:underline">Report</Link>
                   </td>
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={isCompanyAdmin ? 6 : 5} className="px-6 py-6 text-center text-gray-400 text-sm">No jobs match your filters.</td></tr>
+                <tr><td colSpan={isCompanyAdmin ? 6 : 5} className="px-6 py-6 text-center text-steel text-sm">No jobs match your filters.</td></tr>
               )}
             </tbody>
           </table>

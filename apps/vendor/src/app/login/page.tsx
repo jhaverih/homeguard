@@ -3,6 +3,7 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { Logo } from '@/components/Logo';
 
 function EyeIcon({ off }: { off: boolean }) {
   return off ? (
@@ -47,28 +48,30 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-canvas">
+      <div className="bg-white rounded-2xl shadow-sm border border-mist-dim p-10 w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-brand">Houmi</h1>
-          <p className="text-sm text-gray-400 mt-1">Vendor Portal</p>
+          <div className="flex justify-center mb-2">
+            <Logo size={40} />
+          </div>
+          <p className="text-sm text-steel mt-1">Vendor Portal</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-ink mb-1">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(''); }}
               required
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+              className="w-full border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-lantern focus:border-transparent"
             />
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <Link href="/forgot-password" className="text-xs font-medium text-brand hover:underline">
+              <label className="block text-sm font-medium text-ink">Password</label>
+              <Link href="/forgot-password" className="text-xs font-medium text-lantern-deep hover:underline">
                 Forgot password?
               </Link>
             </div>
@@ -79,13 +82,13 @@ export default function LoginPage() {
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 required
                 autoComplete="current-password"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                className="w-full border border-border rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-lantern focus:border-transparent"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 tabIndex={-1}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-steel hover:text-ink"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 <EyeIcon off={showPassword} />
@@ -103,7 +106,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-brand text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-light transition-colors disabled:opacity-50"
+            className="w-full bg-lantern text-ink rounded-xl py-3 text-sm font-semibold hover:bg-lantern-deep transition-colors disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
