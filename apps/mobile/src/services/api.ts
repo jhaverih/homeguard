@@ -180,6 +180,22 @@ export const uploadsApi = {
   },
 };
 
+export const vendorApi = {
+  getCapabilities: (): Promise<any[]> => api.get('/vendor/capabilities') as any,
+  getMyCapabilities: (): Promise<any[]> => api.get('/vendor/me/capabilities') as any,
+  setMyCapabilities: (capabilityIds: string[]) => api.patch('/vendor/me/capabilities', { capabilityIds }),
+  acknowledgeCapability: (capabilityId: string) => api.post(`/vendor/me/capabilities/${capabilityId}/acknowledge`),
+  getMyCertifications: (): Promise<any[]> => api.get('/vendor/me/certifications') as any,
+  submitCertification: (data: {
+    certificationType: string; licenseNumber: string; issuingState?: string; expirationDate: string; documentKey: string;
+  }) => api.post('/vendor/me/certifications', data),
+  getApplication: (): Promise<any> => api.get('/vendor/application') as any,
+  submitApplication: (data: {
+    ein?: string; stateRegistrationDocKey?: string; businessTaxLicenseDocKey?: string;
+    businessTaxLicenseState?: string; coiDocumentKey?: string; coiExpirationDate?: string;
+  }) => api.post('/vendor/application', data),
+};
+
 export const disputesApi = {
   open: (data: {
     serviceRequestId: string;

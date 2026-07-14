@@ -47,6 +47,9 @@ export default function VendorLayout() {
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }} />
       <Tabs.Screen name="active-job" options={{ href: null, title: 'Active Job' }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
+      <Tabs.Screen name="capabilities" options={{ href: null, title: 'My Capabilities' }} />
+      <Tabs.Screen name="certifications" options={{ href: null, title: 'My Certifications' }} />
+      <Tabs.Screen name="company-application" options={{ href: null, title: 'Company Application' }} />
     </Tabs>
   );
 }

@@ -64,6 +64,14 @@ export const adminApi = {
   reinstateTeamUser: (id: string) => api.patch(`/admin/team-users/${id}/reinstate`).then((r) => r.data),
   deleteTeamUserPermanently: (id: string) => api.delete(`/admin/team-users/${id}/permanent`).then((r) => r.data),
   getCapabilities: () => api.get('/admin/capabilities').then((r) => r.data),
+  getVendorApplications: (status?: string) =>
+    api.get(`/admin/vendor-applications${status ? `?status=${status}` : ''}`).then((r) => r.data),
+  reviewVendorApplication: (id: string, status: string, reviewNotes?: string) =>
+    api.patch(`/admin/vendor-applications/${id}`, { status, reviewNotes }).then((r) => r.data),
+  getVendorCertifications: (status?: string) =>
+    api.get(`/admin/vendor-certifications${status ? `?status=${status}` : ''}`).then((r) => r.data),
+  reviewVendorCertification: (id: string, status: string, reviewNotes?: string) =>
+    api.patch(`/admin/vendor-certifications/${id}`, { status, reviewNotes }).then((r) => r.data),
   getMonitoringSetupRequests: () => api.get('/admin/monitoring-setup-requests').then((r) => r.data),
   requestMonitoringConnection: (customerId: string) =>
     api.post(`/admin/monitoring-setup-requests/${customerId}/request`).then((r) => r.data),

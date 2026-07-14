@@ -307,6 +307,29 @@ export default function VendorProfileScreen() {
         </View>
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Credentials</Text>
+        <View style={styles.teamCard}>
+          <TouchableOpacity style={styles.credentialRow} onPress={() => router.push('/(vendor)/capabilities')}>
+            <Ionicons name="construct-outline" size={20} color="#0B4A45" style={{ marginRight: 10 }} />
+            <Text style={styles.credentialRowText}>My Capabilities</Text>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.credentialRow} onPress={() => router.push('/(vendor)/certifications')}>
+            <Ionicons name="ribbon-outline" size={20} color="#0B4A45" style={{ marginRight: 10 }} />
+            <Text style={styles.credentialRowText}>My Certifications</Text>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+          {isCompanyAdmin && (
+            <TouchableOpacity style={[styles.credentialRow, { borderBottomWidth: 0 }]} onPress={() => router.push('/(vendor)/company-application')}>
+              <Ionicons name="document-text-outline" size={20} color="#0B4A45" style={{ marginRight: 10 }} />
+              <Text style={styles.credentialRowText}>Company Application</Text>
+              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>Sign Out</Text>
       </TouchableOpacity>
@@ -348,6 +371,8 @@ const styles = StyleSheet.create({
   teamCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
   emptyNote: { fontSize: 14, color: '#aaa', paddingHorizontal: 16, paddingVertical: 14, fontStyle: 'italic' },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  credentialRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  credentialRowText: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0f172a' },
   memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   memberAvatarText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   memberInfo: { flex: 1 },

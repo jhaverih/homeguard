@@ -32,6 +32,7 @@ export function Sidebar() {
   const visibleLinks = [
     ...links,
     ...(isAtLeastAdmin ? [{ href: '/monitoring-setup', label: 'Monitoring Setup', icon: '📡' }] : []),
+    ...(isAtLeastAdmin ? [{ href: '/vendor-applications', label: 'Vendor Applications', icon: '📄' }] : []),
     ...(isAtLeastAdmin ? [{ href: '/team', label: 'Team', icon: '👥' }] : []),
   ];
 
