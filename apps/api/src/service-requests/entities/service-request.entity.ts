@@ -66,6 +66,12 @@ export class ServiceRequest {
   @Column({ nullable: true, unique: true })
   ticketNumber: string;
 
+  // Shared correlation id across every ServiceRequest created from the same
+  // multi-service customer submission — lets a vendor claim the whole visit
+  // in one action instead of multiple handymen each claiming one service.
+  @Column({ nullable: true })
+  bookingGroupId: string | null;
+
   @Column({ default: false })
   isPaidAddon: boolean;
 

@@ -80,6 +80,12 @@ export class ServiceRequestsController {
     return this.service.rejectRequest(id, req.user.id);
   }
 
+  @Post('group/:bookingGroupId/accept')
+  @ApiOperation({ summary: 'Vendor: claim every eligible, still-PENDING request in a multi-service booking group in one action' })
+  acceptGroup(@Request() req, @Param('bookingGroupId') bookingGroupId: string, @Body() body: { scheduledDate: string; notes?: string }) {
+    return this.service.acceptGroup(bookingGroupId, req.user.id, body.scheduledDate, body.notes);
+  }
+
   @Patch(':id/status')
   @ApiOperation({ summary: 'Vendor: update request status (en-route, in-progress, completed)' })
   updateStatus(

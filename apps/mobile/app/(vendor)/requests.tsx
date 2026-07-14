@@ -93,10 +93,24 @@ export default function OpenRequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stripeReady, setStripeReady] = useState(true);
-  const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string; preferredDate: Date | null }>({ visible: false, requestId: '', preferredDate: null });
+  const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string; bookingGroupId: string | null; preferredDate: Date | null }>({ visible: false, requestId: '', bookingGroupId: null, preferredDate: null });
   const [vendorNotes, setVendorNotes] = useState('');
 
   const requests = view === 'open' ? openRequests : rejectedRequests;
+
+  // Groups requests that came from the same multi-service customer
+  // submission (shared bookingGroupId) so they can be claimed together —
+  // ungrouped requests (bookingGroupId null) each stay their own group of 1.
+  const grouped = (() => {
+    const order: string[] = [];
+    const map = new Map<string, any[]>();
+    for (const req of requests) {
+      const key = req.bookingGroupId || req.id;
+      if (!map.has(key)) { map.set(key, []); order.push(key); }
+      map.get(key)!.push(req);
+    }
+    return order.map((key) => ({ key, bookingGroupId: map.get(key)![0].bookingGroupId || null, items: map.get(key)! }));
+  })();
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -150,11 +164,15 @@ export default function OpenRequestsScreen() {
 
   const acceptJob = async () => {
     try {
-      await requestsApi.accept(acceptModal.requestId, scheduledDate.toISOString(), vendorNotes.trim() || undefined);
+      if (acceptModal.bookingGroupId) {
+        await requestsApi.acceptGroup(acceptModal.bookingGroupId, scheduledDate.toISOString(), vendorNotes.trim() || undefined);
+      } else {
+        await requestsApi.accept(acceptModal.requestId, scheduledDate.toISOString(), vendorNotes.trim() || undefined);
+      }
       const preferred = acceptModal.preferredDate;
       const diffMs = preferred ? Math.abs(scheduledDate.getTime() - preferred.getTime()) : Infinity;
       const sameTime = diffMs < 5 * 60 * 1000;
-      setAcceptModal({ visible: false, requestId: '', preferredDate: null });
+      setAcceptModal({ visible: false, requestId: '', bookingGroupId: null, preferredDate: null });
       setVendorNotes('');
       Alert.alert(
         sameTime ? 'Job Confirmed!' : 'Time Proposed!',
@@ -231,65 +249,107 @@ export default function OpenRequestsScreen() {
           </Text>
         </View>
       ) : (
-        requests.map((req: any) => (
-          <View key={req.id} style={styles.card}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }, req.type === 'ADDITIONAL_SERVICE' ? { backgroundColor: '#f0effe' } : { backgroundColor: '#EBF1EF' }]}>
-                <Text style={[{ fontSize: 11, fontWeight: '700' }, req.type === 'ADDITIONAL_SERVICE' ? { color: '#635bff' } : { color: '#0B4A45' }]}>
-                  {req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection'}
-                </Text>
-              </View>
-              {req.ticketNumber && <Text style={{ fontSize: 11, color: '#94a3b8' }}>{req.ticketNumber}</Text>}
-            </View>
-
-            {/* Service details for service requests */}
-            {req.type === 'ADDITIONAL_SERVICE' && req.additionalServices?.length > 0 && (
-              <View style={styles.serviceDetailBox}>
-                {req.additionalServices.map((svc: any) => (
-                  <View key={svc.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.serviceDetailName}>{svc.name}</Text>
-                    <Text style={styles.serviceDetailPrice}>${parseFloat(svc.price).toFixed(2)}</Text>
+        grouped.map((group) => {
+          if (group.items.length === 1) {
+            const req = group.items[0];
+            return (
+              <View key={req.id} style={styles.card}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }, req.type === 'ADDITIONAL_SERVICE' ? { backgroundColor: '#f0effe' } : { backgroundColor: '#EBF1EF' }]}>
+                    <Text style={[{ fontSize: 11, fontWeight: '700' }, req.type === 'ADDITIONAL_SERVICE' ? { color: '#635bff' } : { color: '#0B4A45' }]}>
+                      {req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection'}
+                    </Text>
                   </View>
+                  {req.ticketNumber && <Text style={{ fontSize: 11, color: '#94a3b8' }}>{req.ticketNumber}</Text>}
+                </View>
+
+                {/* Service details for service requests */}
+                {req.type === 'ADDITIONAL_SERVICE' && req.additionalServices?.length > 0 && (
+                  <View style={styles.serviceDetailBox}>
+                    {req.additionalServices.map((svc: any) => (
+                      <View key={svc.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={styles.serviceDetailName}>{svc.name}</Text>
+                        <Text style={styles.serviceDetailPrice}>${parseFloat(svc.price).toFixed(2)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Inspection scope summary */}
+                {req.type === 'SCHEDULED_INSPECTION' && (
+                  <View style={styles.serviceDetailBox}>
+                    <Text style={styles.serviceDetailName}>Full home inspection — HVAC, plumbing, water leak check &amp; bulb replacement</Text>
+                  </View>
+                )}
+
+                <Text style={styles.cardDate}>Preferred: {new Date(req.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
+                <Text style={styles.cardAddress}>{req.city}, {req.state} {req.zipCode}</Text>
+                {req.customerNotes && <Text style={styles.cardNotes}>"{req.customerNotes}"</Text>}
+                <Text style={styles.cardPosted}>Posted: {new Date(req.createdAt).toLocaleDateString()}</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {view === 'open' && (
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => rejectJob(req.id)}
+                    >
+                      <Text style={styles.rejectBtnText}>Reject</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.acceptBtn, { flex: 1 }]}
+                    onPress={() => {
+                      const preferred = req.preferredDate ? new Date(req.preferredDate) : null;
+                      const fallback = new Date();
+                      fallback.setDate(fallback.getDate() + 1);
+                      fallback.setHours(9, 0, 0, 0);
+                      setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
+                      setAcceptModal({ visible: true, requestId: req.id, bookingGroupId: null, preferredDate: preferred });
+                    }}
+                  >
+                    <Text style={styles.acceptBtnText}>Accept This Job</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          }
+
+          // Bundle: multiple services from one customer submission this vendor
+          // is eligible for — claim them all in one action.
+          const first = group.items[0];
+          return (
+            <View key={group.key} style={[styles.card, styles.bundleCard]}>
+              <View style={styles.bundleBadge}>
+                <Text style={styles.bundleBadgeText}>🧰 {group.items.length} services — one visit</Text>
+              </View>
+              <View style={styles.serviceDetailBox}>
+                {group.items.map((req: any) => (
+                  req.additionalServices?.map((svc: any) => (
+                    <View key={svc.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.serviceDetailName}>{svc.name}</Text>
+                      <Text style={styles.serviceDetailPrice}>${parseFloat(svc.price).toFixed(2)}</Text>
+                    </View>
+                  ))
                 ))}
               </View>
-            )}
-
-            {/* Inspection scope summary */}
-            {req.type === 'SCHEDULED_INSPECTION' && (
-              <View style={styles.serviceDetailBox}>
-                <Text style={styles.serviceDetailName}>Full home inspection — HVAC, plumbing, water leak check &amp; bulb replacement</Text>
-              </View>
-            )}
-
-            <Text style={styles.cardDate}>Preferred: {new Date(req.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
-            <Text style={styles.cardAddress}>{req.city}, {req.state} {req.zipCode}</Text>
-            {req.customerNotes && <Text style={styles.cardNotes}>"{req.customerNotes}"</Text>}
-            <Text style={styles.cardPosted}>Posted: {new Date(req.createdAt).toLocaleDateString()}</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {view === 'open' && (
-                <TouchableOpacity
-                  style={styles.rejectBtn}
-                  onPress={() => rejectJob(req.id)}
-                >
-                  <Text style={styles.rejectBtnText}>Reject</Text>
-                </TouchableOpacity>
-              )}
+              <Text style={styles.cardDate}>Preferred: {new Date(first.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
+              <Text style={styles.cardAddress}>{first.city}, {first.state} {first.zipCode}</Text>
+              <Text style={styles.cardPosted}>Posted: {new Date(first.createdAt).toLocaleDateString()}</Text>
               <TouchableOpacity
-                style={[styles.acceptBtn, { flex: 1 }]}
+                style={styles.acceptBtn}
                 onPress={() => {
-                  const preferred = req.preferredDate ? new Date(req.preferredDate) : null;
+                  const preferred = first.preferredDate ? new Date(first.preferredDate) : null;
                   const fallback = new Date();
                   fallback.setDate(fallback.getDate() + 1);
                   fallback.setHours(9, 0, 0, 0);
                   setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
-                  setAcceptModal({ visible: true, requestId: req.id, preferredDate: preferred });
+                  setAcceptModal({ visible: true, requestId: '', bookingGroupId: group.bookingGroupId, preferredDate: preferred });
                 }}
               >
-                <Text style={styles.acceptBtnText}>Accept This Job</Text>
+                <Text style={styles.acceptBtnText}>Accept All ({group.items.length})</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        ))
+          );
+        })
       )}
 
       <Modal visible={acceptModal.visible} transparent animationType="slide">
@@ -316,7 +376,7 @@ export default function OpenRequestsScreen() {
             <TouchableOpacity style={styles.confirmBtn} onPress={acceptJob}>
               <Text style={styles.confirmText}>Confirm & Accept</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setAcceptModal({ visible: false, requestId: '', preferredDate: null }); setVendorNotes(''); }} style={styles.cancelBtn}>
+            <TouchableOpacity onPress={() => { setAcceptModal({ visible: false, requestId: '', bookingGroupId: null, preferredDate: null }); setVendorNotes(''); }} style={styles.cancelBtn}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -351,6 +411,9 @@ const styles = StyleSheet.create({
   acceptBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   rejectBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#fca5a5', borderRadius: 10, padding: 14, alignItems: 'center', paddingHorizontal: 18 },
   rejectBtnText: { color: '#dc2626', fontWeight: '700', fontSize: 15 },
+  bundleCard: { borderWidth: 1, borderColor: '#0B4A45' },
+  bundleBadge: { alignSelf: 'flex-start', backgroundColor: '#0B4A45', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
+  bundleBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: '#EBF1EF' },
   filterChipActive: { backgroundColor: '#0B4A45' },

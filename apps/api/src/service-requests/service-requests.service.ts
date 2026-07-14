@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In, FindOptionsWhere, MoreThan } from 'typeorm';
+import { Repository, Not, In, FindOptionsWhere, MoreThan, MoreThanOrEqual, DataSource } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
 import { AdditionalService } from './entities/additional-service.entity';
 import { SolarQuote } from './entities/solar-quote.entity';
@@ -60,13 +60,33 @@ export class ServiceRequestsService {
     @InjectRepository(ServicePrice)
     private servicePriceRepo: Repository<ServicePrice>,
     private configService: ConfigService,
+    private dataSource: DataSource,
   ) {}
 
   private async generateTicketNumber(): Promise<string> {
     const date = new Date();
+    const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const prefix = `HSV-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-    const count = await this.requestsRepo.count();
+    const count = await this.requestsRepo.count({ where: { createdAt: MoreThanOrEqual(startOfDay) } });
     return `${prefix}-${String(count + 1).padStart(4, '0')}`;
+  }
+
+  // ticketNumber has a real DB unique constraint but generateTicketNumber()'s
+  // count-then-increment is a plain read-then-write race under concurrent
+  // submissions — this is the actual safety net: regenerate and retry on a
+  // unique-violation instead of trusting the count blindly.
+  private async saveNewRequest(build: (ticketNumber: string) => Partial<ServiceRequest>): Promise<ServiceRequest> {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const ticketNumber = await this.generateTicketNumber();
+      const entity = this.requestsRepo.create(build(ticketNumber));
+      try {
+        return await this.requestsRepo.save(entity);
+      } catch (e: any) {
+        if (e?.code === '23505' && attempt < 4) continue;
+        throw e;
+      }
+    }
+    throw new Error('Failed to generate a unique ticket number after multiple attempts');
   }
 
   async create(customerId: string, dto: {
@@ -98,12 +118,12 @@ export class ServiceRequestsService {
       ? Number(subscription.plan.addonInspectionPrice)
       : null;
 
-    const request = this.requestsRepo.create({
+    const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
       subscriptionId: subscription.id,
       type: ServiceType.SCHEDULED_INSPECTION,
       status: ServiceRequestStatus.PENDING,
-      ticketNumber: await this.generateTicketNumber(),
+      ticketNumber,
       preferredDate: new Date(dto.preferredDate),
       customerNotes: dto.customerNotes,
       address: dto.address,
@@ -112,9 +132,7 @@ export class ServiceRequestsService {
       zipCode: dto.zipCode,
       isPaidAddon: !!addonPrice,
       addonPrice,
-    });
-
-    const saved = await this.requestsRepo.save(request);
+    }));
 
     const vendors = await this.usersService.findAvailableVendors();
     if (vendors.length > 0) {
@@ -138,6 +156,7 @@ export class ServiceRequestsService {
     city: string;
     state: string;
     zipCode: string;
+    bookingGroupId?: string;
   }): Promise<ServiceRequest> {
     const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
     const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
@@ -150,12 +169,12 @@ export class ServiceRequestsService {
     const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
     const customerPrice = Math.round(Number(servicePrice.basePrice) * (1 + markup / 100) * 100) / 100;
 
-    const request = this.requestsRepo.create({
+    const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
       subscriptionId: subscription.id,
       type: ServiceType.ADDITIONAL_SERVICE,
       status: ServiceRequestStatus.PENDING,
-      ticketNumber: await this.generateTicketNumber(),
+      ticketNumber,
       preferredDate: new Date(dto.preferredDate),
       customerNotes: dto.customerNotes,
       address: dto.address,
@@ -165,9 +184,8 @@ export class ServiceRequestsService {
       isPaidAddon: false,
       addonPrice: customerPrice,
       servicePriceId: servicePrice.id,
-    });
-
-    const saved = await this.requestsRepo.save(request);
+      bookingGroupId: dto.bookingGroupId ?? null,
+    }));
 
     // Pre-create the approved additional service so vendor sees it immediately
     await this.additionalRepo.save(this.additionalRepo.create({
@@ -231,6 +249,61 @@ export class ServiceRequestsService {
       { serviceRequestId: saved.id },
     );
     return saved;
+  }
+
+  // Claims every request in the group this vendor is currently eligible for
+  // and still PENDING — not all-or-nothing. A request another vendor claims
+  // in the moment between this vendor loading their list and tapping "Accept
+  // All" is silently skipped rather than failing the whole batch, since the
+  // goal is avoiding *unnecessary* multi-vendor dispatch, not guaranteeing
+  // every original group member goes to one vendor.
+  async acceptGroup(bookingGroupId: string, vendorId: string, scheduledDate: string, notes?: string): Promise<ServiceRequest[]> {
+    const eligible = await this.getEligiblePendingRequests(vendorId);
+    const groupRequests = eligible.filter((r) => r.bookingGroupId === bookingGroupId);
+    if (groupRequests.length === 0) {
+      throw new BadRequestException('No eligible requests in this group are available');
+    }
+
+    const proposed = new Date(scheduledDate);
+    const accepted: ServiceRequest[] = [];
+
+    await this.dataSource.transaction(async (manager) => {
+      for (const r of groupRequests) {
+        const fresh = await manager.findOne(ServiceRequest, { where: { id: r.id } });
+        if (!fresh || fresh.status !== ServiceRequestStatus.PENDING) continue;
+
+        const preferred = new Date(fresh.preferredDate);
+        const diffMs = Math.abs(proposed.getTime() - preferred.getTime());
+        const sametime = diffMs < 5 * 60 * 1000;
+
+        fresh.vendorId = vendorId;
+        fresh.scheduledDate = proposed;
+        if (notes?.trim()) fresh.vendorNotes = notes.trim();
+        fresh.status = sametime ? ServiceRequestStatus.ACCEPTED : ServiceRequestStatus.PENDING_CUSTOMER_REVIEW;
+
+        await manager.save(fresh);
+        accepted.push(fresh);
+      }
+    });
+
+    if (accepted.length === 0) {
+      throw new BadRequestException('These requests are no longer available');
+    }
+
+    for (const saved of accepted) {
+      const sametime = saved.status === ServiceRequestStatus.ACCEPTED;
+      await this.notificationsService.notifyUser(
+        saved.customerId,
+        sametime ? NotificationType.REQUEST_ACCEPTED : NotificationType.SCHEDULE_CHANGED,
+        sametime ? 'Vendor Accepted Your Request' : 'Vendor Proposed a New Time',
+        sametime
+          ? `Your service has been scheduled for ${proposed.toLocaleDateString()}.`
+          : `Your vendor proposed ${proposed.toLocaleDateString()} at ${proposed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Please accept or decline.`,
+        { serviceRequestId: saved.id },
+      );
+    }
+
+    return accepted;
   }
 
   async confirmSchedule(requestId: string, customerId: string): Promise<ServiceRequest> {

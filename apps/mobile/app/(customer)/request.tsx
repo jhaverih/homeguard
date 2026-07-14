@@ -214,6 +214,12 @@ export default function RequestScreen() {
     setServiceConfirmModal(false);
     setLoading(true);
     const addr = getAddress();
+    // Correlates multiple services from this one submission so a vendor
+    // qualified for all of them can claim the whole visit in one action —
+    // not a security-sensitive id, just needs to be unique per submission.
+    const bookingGroupId = selectedServices.length > 1
+      ? `bg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+      : undefined;
     try {
       for (const svc of selectedServices) {
         const qty = svc.quantityLabel ? parseFloat(serviceQuantities[svc.id] || '0') : undefined;
@@ -226,6 +232,7 @@ export default function RequestScreen() {
           servicePriceId: svc.id,
           preferredDate: serviceDate.toISOString(),
           customerNotes: notes,
+          ...(bookingGroupId ? { bookingGroupId } : {}),
           ...addr,
         });
       }

@@ -79,6 +79,8 @@ export const requestsApi = {
   getOne: (id: string) => api.get(`/service-requests/${id}`),
   getOneWithPhotos: (id: string) => api.get(`/service-requests/${id}/with-photos`),
   accept: (id: string, scheduledDate: string, notes?: string) => api.post(`/service-requests/${id}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
+  acceptGroup: (bookingGroupId: string, scheduledDate: string, notes?: string) =>
+    api.post(`/service-requests/group/${bookingGroupId}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
   updateStatus: (id: string, status: string, completionPhotoKeys?: string[]) =>
     api.patch(`/service-requests/${id}/status`, { status, ...(completionPhotoKeys ? { completionPhotoKeys } : {}) }),
   addNotes: (id: string, notes: string) => api.patch(`/service-requests/${id}/notes`, { notes }),
