@@ -104,41 +104,41 @@ export default function DisputesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-brand mb-1">Disputes</h1>
-      <p className="text-gray-500 mb-6">Review and resolve customer payment disputes.</p>
+      <h1 className="text-2xl font-bold text-lantern-deep mb-1">Disputes</h1>
+      <p className="text-steel mb-6">Review and resolve customer payment disputes.</p>
 
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-2xl font-bold text-gray-800">{counts.all}</p>
-          <p className="text-xs text-gray-400 mt-1">Total</p>
+        <div className="bg-white rounded-xl border border-mist-dim p-4">
+          <p className="text-2xl font-bold text-ink">{counts.all}</p>
+          <p className="text-xs text-steel mt-1">Total</p>
         </div>
         <div className="bg-white rounded-xl border border-red-100 p-4">
           <p className="text-2xl font-bold text-red-600">{counts.open}</p>
-          <p className="text-xs text-gray-400 mt-1">Open</p>
+          <p className="text-xs text-steel mt-1">Open</p>
         </div>
         <div className="bg-white rounded-xl border border-yellow-100 p-4">
           <p className="text-2xl font-bold text-yellow-600">{counts.underReview}</p>
-          <p className="text-xs text-gray-400 mt-1">Under Review</p>
+          <p className="text-xs text-steel mt-1">Under Review</p>
         </div>
         <div className="bg-white rounded-xl border border-green-100 p-4">
           <p className="text-2xl font-bold text-green-600">{counts.resolved}</p>
-          <p className="text-xs text-gray-400 mt-1">Resolved</p>
+          <p className="text-xs text-steel mt-1">Resolved</p>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+        <div className="flex gap-1 bg-mist-dim p-1 rounded-lg">
           {tabs.map((t) => (
             <button key={t.key} onClick={() => setStatusFilter(t.key)}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                statusFilter === t.key ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                statusFilter === t.key ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'
               }`}
             >
               {t.label}
               {t.count > 0 && (
                 <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                  statusFilter === t.key ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'
+                  statusFilter === t.key ? 'bg-lantern text-ink' : 'bg-border text-steel'
                 }`}>{t.count}</span>
               )}
             </button>
@@ -150,26 +150,26 @@ export default function DisputesPage() {
           placeholder="Filter by customer or vendor name…"
           value={partySearch}
           onChange={(e) => setPartySearch(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 w-64"
+          className="border border-border rounded-lg px-3 py-2 text-sm text-ink bg-white focus:outline-none focus:ring-2 focus:ring-lantern/30 w-64"
         />
         {partySearch && (
-          <button onClick={() => setPartySearch('')} className="text-xs text-gray-400 hover:text-gray-600 underline">
+          <button onClick={() => setPartySearch('')} className="text-xs text-steel hover:text-ink underline">
             Clear
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="text-gray-400 text-sm">Loading...</div>
+        <div className="text-steel text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
           <div className="text-4xl mb-4">⚖️</div>
-          <p className="text-gray-400 text-sm">No disputes match the current filters.</p>
+          <p className="text-steel text-sm">No disputes match the current filters.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           {/* Header */}
-          <div className="grid grid-cols-[1fr_180px_180px_120px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <div className="grid grid-cols-[1fr_180px_180px_120px] gap-4 px-6 py-3 bg-canvas border-b border-mist-dim text-xs font-semibold text-steel uppercase tracking-wide">
             <span>Dispute</span>
             <span>Customer</span>
             <span>Vendor</span>
@@ -183,19 +183,19 @@ export default function DisputesPage() {
             const vendorName = getName(dispute.vendor, 'vendorId', dispute);
 
             return (
-              <div key={dispute.id} className={idx !== 0 ? 'border-t border-gray-100' : ''}>
-                <div className="grid grid-cols-[1fr_180px_180px_120px] gap-4 px-6 py-4 hover:bg-gray-50 transition-colors items-start">
+              <div key={dispute.id} className={idx !== 0 ? 'border-t border-mist-dim' : ''}>
+                <div className="grid grid-cols-[1fr_180px_180px_120px] gap-4 px-6 py-4 hover:bg-canvas transition-colors items-start">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_STYLE[dispute.status] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_STYLE[dispute.status] || 'bg-mist-dim text-steel'}`}>
                         {STATUS_LABEL[dispute.status] || dispute.status}
                       </span>
-                      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">
+                      <span className="text-xs text-steel bg-mist-dim px-2 py-0.5 rounded-lg">
                         {CATEGORY_LABEL[dispute.category] || dispute.category}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-700 truncate">{dispute.description}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-sm text-ink truncate">{dispute.description}</p>
+                    <p className="text-xs text-steel mt-0.5">
                       {new Date(dispute.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                   </div>
@@ -203,14 +203,14 @@ export default function DisputesPage() {
                   {/* Customer */}
                   <div className="min-w-0">
                     {dispute.customer ? (
-                      <a href={`/customers/${dispute.customer.id}`} className="text-sm font-medium text-brand hover:underline truncate block">
+                      <a href={`/customers/${dispute.customer.id}`} className="text-sm font-medium text-lantern-deep hover:underline truncate block">
                         {customerName}
                       </a>
                     ) : (
-                      <p className="text-sm text-gray-500 truncate">{customerName}</p>
+                      <p className="text-sm text-steel truncate">{customerName}</p>
                     )}
                     {dispute.customer?.email && (
-                      <p className="text-xs text-gray-400 truncate">{dispute.customer.email}</p>
+                      <p className="text-xs text-steel truncate">{dispute.customer.email}</p>
                     )}
                   </div>
 
@@ -221,10 +221,10 @@ export default function DisputesPage() {
                         {vendorName}
                       </a>
                     ) : (
-                      <p className="text-sm text-gray-500 truncate">{vendorName}</p>
+                      <p className="text-sm text-steel truncate">{vendorName}</p>
                     )}
                     {dispute.vendor?.email && (
-                      <p className="text-xs text-gray-400 truncate">{dispute.vendor.email}</p>
+                      <p className="text-xs text-steel truncate">{dispute.vendor.email}</p>
                     )}
                   </div>
 
@@ -232,8 +232,8 @@ export default function DisputesPage() {
                     onClick={() => toggleExpand(dispute.id)}
                     className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
                       isExpandedRow
-                        ? 'bg-gray-100 text-gray-600 border-gray-200'
-                        : 'bg-white text-brand border-brand hover:bg-brand hover:text-white'
+                        ? 'bg-mist-dim text-steel border-border'
+                        : 'bg-white text-lantern-deep border-lantern hover:bg-lantern-deep hover:text-white'
                     }`}
                   >
                     {isExpandedRow ? 'Collapse' : 'Details'}
@@ -241,27 +241,27 @@ export default function DisputesPage() {
                 </div>
 
                 {isExpandedRow && (
-                  <div className="px-6 pb-6 bg-gray-50 border-t border-gray-100">
+                  <div className="px-6 pb-6 bg-canvas border-t border-mist-dim">
                     <div className="grid grid-cols-2 gap-6 mt-4">
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{dispute.description}</p>
+                        <h3 className="text-sm font-semibold text-ink mb-2">Description</h3>
+                        <p className="text-sm text-steel whitespace-pre-wrap">{dispute.description}</p>
                         {dispute.stripePaymentIntentId && (
                           <div className="mt-4">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-1">Stripe Payment Intent</h3>
-                            <code className="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded">
+                            <h3 className="text-sm font-semibold text-ink mb-1">Stripe Payment Intent</h3>
+                            <code className="text-xs text-steel bg-white border border-border px-2 py-1 rounded">
                               {dispute.stripePaymentIntentId}
                             </code>
                           </div>
                         )}
                         {dispute.photoUrls?.length > 0 && (
                           <div className="mt-4">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-2">Evidence Photos</h3>
+                            <h3 className="text-sm font-semibold text-ink mb-2">Evidence Photos</h3>
                             <div className="flex flex-wrap gap-2">
                               {dispute.photoUrls.map((url: string, i: number) => (
                                 <a key={i} href={url} target="_blank" rel="noreferrer">
                                   <img src={url} alt={`Evidence ${i + 1}`}
-                                    className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
+                                    className="w-20 h-20 object-cover rounded-lg border border-border hover:opacity-80 transition-opacity" />
                                 </a>
                               ))}
                             </div>
@@ -270,7 +270,7 @@ export default function DisputesPage() {
                         {/* Quick links */}
                         <div className="mt-4 flex gap-4">
                           {dispute.customer?.id && (
-                            <a href={`/customers/${dispute.customer.id}`} className="text-xs text-brand font-semibold hover:underline">
+                            <a href={`/customers/${dispute.customer.id}`} className="text-xs text-lantern-deep font-semibold hover:underline">
                               → Customer activity
                             </a>
                           )}
@@ -284,20 +284,20 @@ export default function DisputesPage() {
 
                       {isActive ? (
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-700 mb-3">Resolve Dispute</h3>
+                          <h3 className="text-sm font-semibold text-ink mb-3">Resolve Dispute</h3>
                           <div className="space-y-2 mb-4">
                             {[
                               { value: 'RESOLVED_CUSTOMER', label: 'Resolve for Customer', desc: 'Void the charge — customer is not billed.', cls: 'border-blue-400 bg-blue-50', textCls: 'text-blue-700' },
                               { value: 'RESOLVED_VENDOR', label: 'Resolve for Vendor', desc: 'Release payment — vendor receives funds.', cls: 'border-green-400 bg-green-50', textCls: 'text-green-700' },
                             ].map((opt) => (
-                              <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${form.resolution === opt.value ? opt.cls : 'border-gray-200 hover:border-gray-300'}`}>
+                              <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${form.resolution === opt.value ? opt.cls : 'border-border hover:border-steel'}`}>
                                 <input type="radio" name={`res-${dispute.id}`} value={opt.value}
                                   checked={form.resolution === opt.value}
                                   onChange={(e) => setForm((f) => ({ ...f, resolution: e.target.value }))}
                                   className="mt-0.5" />
                                 <div>
                                   <p className={`text-sm font-semibold ${opt.textCls}`}>{opt.label}</p>
-                                  <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
+                                  <p className="text-xs text-steel mt-0.5">{opt.desc}</p>
                                 </div>
                               </label>
                             ))}
@@ -305,20 +305,20 @@ export default function DisputesPage() {
                           <textarea rows={3} placeholder="Explain your decision — sent to both parties."
                             value={form.note}
                             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand/30 resize-none" />
+                            className="w-full border border-border rounded-xl px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:ring-2 focus:ring-lantern/30 resize-none" />
                           {formError && <p className="text-xs text-red-500 mt-2">{formError}</p>}
                           <button onClick={() => submitResolve(dispute.id)} disabled={resolving === dispute.id}
-                            className="mt-3 w-full bg-brand text-white text-sm font-semibold py-2.5 rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">
+                            className="mt-3 w-full bg-lantern text-ink text-sm font-semibold py-2.5 rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">
                             {resolving === dispute.id ? 'Resolving…' : 'Submit Resolution'}
                           </button>
                         </div>
                       ) : (
                         <div className="flex items-center justify-center">
-                          <div className="text-center text-gray-400">
+                          <div className="text-center text-steel">
                             <div className="text-3xl mb-2">✓</div>
                             <p className="text-sm font-medium">Dispute resolved</p>
                             <p className="text-xs mt-1">{STATUS_LABEL[dispute.status]}</p>
-                            {dispute.resolution && <p className="text-xs text-gray-500 mt-2 max-w-xs">{dispute.resolution}</p>}
+                            {dispute.resolution && <p className="text-xs text-steel mt-2 max-w-xs">{dispute.resolution}</p>}
                           </div>
                         </div>
                       )}

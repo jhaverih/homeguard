@@ -32,7 +32,7 @@ const CERT_TYPE_LABEL: Record<string, string> = {
 
 function CompletenessBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium ${ok ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium ${ok ? 'bg-green-50 text-green-700' : 'bg-mist-dim text-steel'}`}>
       {ok ? '✓' : '✗'} {label}
     </span>
   );
@@ -121,81 +121,81 @@ export default function VendorApplicationsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-brand mb-1">Vendor Applications</h1>
-      <p className="text-gray-500 mb-6">Review company applications and individual trade certifications.</p>
+      <h1 className="text-2xl font-bold text-lantern-deep mb-1">Vendor Applications</h1>
+      <p className="text-steel mb-6">Review company applications and individual trade certifications.</p>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-4">
+      <div className="flex gap-1 bg-mist-dim p-1 rounded-lg w-fit mb-4">
         <button
           onClick={() => setView('applications')}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'applications' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'applications' ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
         >
           Company Applications
         </button>
         <button
           onClick={() => setView('certifications')}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'certifications' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'certifications' ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
         >
           Certifications
         </button>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-6">
+      <div className="flex gap-1 bg-mist-dim p-1 rounded-lg w-fit mb-6">
         <button
           onClick={() => setStatusFilter('ALL')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${statusFilter === 'ALL' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${statusFilter === 'ALL' ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
         >
           All
-          {counts.ALL > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${statusFilter === 'ALL' ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'}`}>{counts.ALL}</span>}
+          {counts.ALL > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${statusFilter === 'ALL' ? 'bg-lantern text-ink' : 'bg-border text-steel'}`}>{counts.ALL}</span>}
         </button>
         {statuses.map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${statusFilter === s ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${statusFilter === s ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
           >
             {STATUS_LABEL[s]}
-            {counts[s] > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${statusFilter === s ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'}`}>{counts[s]}</span>}
+            {counts[s] > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${statusFilter === s ? 'bg-lantern text-ink' : 'bg-border text-steel'}`}>{counts[s]}</span>}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="text-gray-400 text-sm">Loading...</div>
+        <div className="text-steel text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
           <div className="text-4xl mb-4">📄</div>
-          <p className="text-gray-400 text-sm">No {view === 'applications' ? 'applications' : 'certifications'} match the current filter.</p>
+          <p className="text-steel text-sm">No {view === 'applications' ? 'applications' : 'certifications'} match the current filter.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           {filtered.map((item, idx) => {
             const isExpandedRow = expanded === item.id;
             const status = item.applicationStatus ?? item.status;
             const isPending = status === 'PENDING_REVIEW';
 
             return (
-              <div key={item.id} className={idx !== 0 ? 'border-t border-gray-100' : ''}>
-                <div className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
+              <div key={item.id} className={idx !== 0 ? 'border-t border-mist-dim' : ''}>
+                <div className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-canvas transition-colors">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_STYLE[status] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_STYLE[status] || 'bg-mist-dim text-steel'}`}>
                         {STATUS_LABEL[status] || status}
                       </span>
                       {view === 'certifications' && (
-                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">
+                        <span className="text-xs text-steel bg-mist-dim px-2 py-0.5 rounded-lg">
                           {CERT_TYPE_LABEL[item.certificationType] || item.certificationType}
                         </span>
                       )}
                     </div>
                     {view === 'applications' ? (
                       <>
-                        <p className="text-sm font-medium text-gray-800">{item.name}</p>
-                        <p className="text-xs text-gray-400">{item.vendorAdmin?.name || '—'} · {item.vendorAdmin?.email || '—'}</p>
+                        <p className="text-sm font-medium text-ink">{item.name}</p>
+                        <p className="text-xs text-steel">{item.vendorAdmin?.name || '—'} · {item.vendorAdmin?.email || '—'}</p>
                       </>
                     ) : (
                       <>
-                        <p className="text-sm font-medium text-gray-800">{item.user?.name || '—'}</p>
-                        <p className="text-xs text-gray-400">License #{item.licenseNumber} · {item.issuingState}</p>
+                        <p className="text-sm font-medium text-ink">{item.user?.name || '—'}</p>
+                        <p className="text-xs text-steel">License #{item.licenseNumber} · {item.issuingState}</p>
                       </>
                     )}
                   </div>
@@ -203,8 +203,8 @@ export default function VendorApplicationsPage() {
                     onClick={() => toggleExpand(item.id)}
                     className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
                       isExpandedRow
-                        ? 'bg-gray-100 text-gray-600 border-gray-200'
-                        : 'bg-white text-brand border-brand hover:bg-brand hover:text-white'
+                        ? 'bg-mist-dim text-steel border-border'
+                        : 'bg-white text-lantern-deep border-lantern hover:bg-lantern-deep hover:text-white'
                     }`}
                   >
                     {isExpandedRow ? 'Collapse' : 'Details'}
@@ -212,12 +212,12 @@ export default function VendorApplicationsPage() {
                 </div>
 
                 {isExpandedRow && (
-                  <div className="px-6 pb-6 bg-gray-50 border-t border-gray-100">
+                  <div className="px-6 pb-6 bg-canvas border-t border-mist-dim">
                     <div className="grid grid-cols-2 gap-6 mt-4">
                       <div>
                         {view === 'applications' ? (
                           <>
-                            <h3 className="text-sm font-semibold text-gray-700 mb-2">Completeness</h3>
+                            <h3 className="text-sm font-semibold text-ink mb-2">Completeness</h3>
                             <div className="flex flex-wrap gap-1.5 mb-4">
                               <CompletenessBadge ok={item.completeness.stateRegistration} label="State Registration" />
                               <CompletenessBadge ok={item.completeness.ein} label="EIN" />
@@ -225,45 +225,45 @@ export default function VendorApplicationsPage() {
                               <CompletenessBadge ok={item.completeness.coi} label="COI (valid)" />
                               <CompletenessBadge ok={item.completeness.vendorAdminPhoto} label="Admin Photo" />
                             </div>
-                            <p className="text-sm text-gray-600 mb-1">EIN: <span className="font-mono">{item.ein || '—'}</span></p>
+                            <p className="text-sm text-steel mb-1">EIN: <span className="font-mono">{item.ein || '—'}</span></p>
                             <div className="flex flex-col gap-1 mt-3">
                               {item.stateRegistrationUrl && (
-                                <a href={item.stateRegistrationUrl} target="_blank" rel="noreferrer" className="text-xs text-brand font-semibold hover:underline">→ State registration document</a>
+                                <a href={item.stateRegistrationUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">→ State registration document</a>
                               )}
                               {item.businessTaxLicenseUrl && (
-                                <a href={item.businessTaxLicenseUrl} target="_blank" rel="noreferrer" className="text-xs text-brand font-semibold hover:underline">→ Business tax license ({item.businessTaxLicenseState || '—'})</a>
+                                <a href={item.businessTaxLicenseUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">→ Business tax license ({item.businessTaxLicenseState || '—'})</a>
                               )}
                               {item.coiUrl && (
-                                <a href={item.coiUrl} target="_blank" rel="noreferrer" className="text-xs text-brand font-semibold hover:underline">
+                                <a href={item.coiUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">
                                   → Certificate of Insurance {item.coiExpirationDate && `(expires ${new Date(item.coiExpirationDate).toLocaleDateString()})`}
                                 </a>
                               )}
                             </div>
                             {item.reviewNotes && (
                               <div className="mt-4">
-                                <h3 className="text-sm font-semibold text-gray-700 mb-1">Last Review Note</h3>
-                                <p className="text-sm text-gray-600">{item.reviewNotes}</p>
+                                <h3 className="text-sm font-semibold text-ink mb-1">Last Review Note</h3>
+                                <p className="text-sm text-steel">{item.reviewNotes}</p>
                               </div>
                             )}
                           </>
                         ) : (
                           <>
-                            <h3 className="text-sm font-semibold text-gray-700 mb-2">Completeness</h3>
+                            <h3 className="text-sm font-semibold text-ink mb-2">Completeness</h3>
                             <div className="flex flex-wrap gap-1.5 mb-4">
                               <CompletenessBadge ok={item.completeness.licenseNumber} label="License Number" />
                               <CompletenessBadge ok={item.completeness.notExpired} label="Not Expired" />
                               <CompletenessBadge ok={item.completeness.document} label="Document" />
                             </div>
-                            <p className="text-sm text-gray-600 mb-1">Issued in: {item.issuingState || '—'}</p>
-                            <p className="text-sm text-gray-600 mb-1">Expires: {item.expirationDate ? new Date(item.expirationDate).toLocaleDateString() : '—'}</p>
-                            <p className="text-sm text-gray-600 mb-1">Submitted by: {item.user?.email || '—'}</p>
+                            <p className="text-sm text-steel mb-1">Issued in: {item.issuingState || '—'}</p>
+                            <p className="text-sm text-steel mb-1">Expires: {item.expirationDate ? new Date(item.expirationDate).toLocaleDateString() : '—'}</p>
+                            <p className="text-sm text-steel mb-1">Submitted by: {item.user?.email || '—'}</p>
                             {item.documentUrl && (
-                              <a href={item.documentUrl} target="_blank" rel="noreferrer" className="block mt-3 text-xs text-brand font-semibold hover:underline">→ License document</a>
+                              <a href={item.documentUrl} target="_blank" rel="noreferrer" className="block mt-3 text-xs text-lantern-deep font-semibold hover:underline">→ License document</a>
                             )}
                             {item.reviewNotes && (
                               <div className="mt-4">
-                                <h3 className="text-sm font-semibold text-gray-700 mb-1">Last Review Note</h3>
-                                <p className="text-sm text-gray-600">{item.reviewNotes}</p>
+                                <h3 className="text-sm font-semibold text-ink mb-1">Last Review Note</h3>
+                                <p className="text-sm text-steel">{item.reviewNotes}</p>
                               </div>
                             )}
                           </>
@@ -272,10 +272,10 @@ export default function VendorApplicationsPage() {
 
                       {isPending ? (
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-700 mb-3">Decision</h3>
+                          <h3 className="text-sm font-semibold text-ink mb-3">Decision</h3>
                           <div className="space-y-2 mb-4">
                             {decisionOptions.map((opt) => (
-                              <label key={opt.value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${form.decision === opt.value ? opt.cls : 'border-gray-200 hover:border-gray-300'}`}>
+                              <label key={opt.value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${form.decision === opt.value ? opt.cls : 'border-border hover:border-steel'}`}>
                                 <input type="radio" name={`decision-${item.id}`} value={opt.value}
                                   checked={form.decision === opt.value}
                                   onChange={(e) => setForm((f) => ({ ...f, decision: e.target.value }))}
@@ -287,16 +287,16 @@ export default function VendorApplicationsPage() {
                           <textarea rows={3} placeholder="Optional note — sent to the vendor."
                             value={form.note}
                             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand/30 resize-none" />
+                            className="w-full border border-border rounded-xl px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:ring-2 focus:ring-lantern/30 resize-none" />
                           {formError && <p className="text-xs text-red-500 mt-2">{formError}</p>}
                           <button onClick={() => submitReview(item.id)} disabled={reviewing === item.id}
-                            className="mt-3 w-full bg-brand text-white text-sm font-semibold py-2.5 rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">
+                            className="mt-3 w-full bg-lantern text-ink text-sm font-semibold py-2.5 rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity">
                             {reviewing === item.id ? 'Submitting…' : 'Submit Decision'}
                           </button>
                         </div>
                       ) : (
                         <div className="flex items-center justify-center">
-                          <div className="text-center text-gray-400">
+                          <div className="text-center text-steel">
                             <div className="text-3xl mb-2">✓</div>
                             <p className="text-sm font-medium">Already reviewed</p>
                             <p className="text-xs mt-1">{STATUS_LABEL[status]}</p>

@@ -92,37 +92,37 @@ export default function TeamPage() {
     }
   };
 
-  if (loading) return <div className="text-gray-500 p-8">Loading...</div>;
+  if (loading) return <div className="text-steel p-8">Loading...</div>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-brand">Team</h1>
+        <h1 className="text-2xl font-bold text-lantern-deep">Team</h1>
         <button
           onClick={() => setShowInvite((v) => !v)}
-          className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-light transition-colors"
+          className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep hover:text-white transition-colors"
         >
           + Invite Admin User
         </button>
       </div>
-      <p className="text-gray-500 mb-8">Houmi staff with access to this Admin Portal.</p>
+      <p className="text-steel mb-8">Attenteve staff with access to this Admin Portal.</p>
 
       {showInvite && (
-        <form onSubmit={invite} className="bg-white rounded-2xl border border-gray-100 p-6 mb-8 space-y-4">
+        <form onSubmit={invite} className="bg-white rounded-2xl border border-mist-dim p-6 mb-8 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <input
               required
               value={form.firstName}
               onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
               placeholder="First name"
-              className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
             />
             <input
               required
               value={form.lastName}
               onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
               placeholder="Last name"
-              className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
             />
           </div>
           <input
@@ -131,64 +131,64 @@ export default function TeamPage() {
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             placeholder="Email"
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+            className="w-full border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
           />
           {isSuperUser ? (
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Access Level</label>
+              <label className="block text-xs font-medium text-steel mb-1">Access Level</label>
               <select
                 value={form.adminLevel}
                 onChange={(e) => setForm((f) => ({ ...f, adminLevel: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                className="w-full border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern"
               >
                 {LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
               </select>
             </div>
           ) : (
-            <p className="text-xs text-gray-400">New users are added as View Only.</p>
+            <p className="text-xs text-steel">New users are added as View Only.</p>
           )}
           {inviteError && <p className="text-red-600 text-sm">{inviteError}</p>}
           <div className="flex items-center gap-2">
             <button
               type="submit"
               disabled={inviting}
-              className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-light disabled:opacity-50 transition-colors"
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep hover:text-white disabled:opacity-50 transition-colors"
             >
               {inviting ? 'Sending invite…' : 'Send invite'}
             </button>
-            <button type="button" onClick={() => setShowInvite(false)} className="text-gray-500 text-sm px-4 py-2">Cancel</button>
+            <button type="button" onClick={() => setShowInvite(false)} className="text-steel text-sm px-4 py-2">Cancel</button>
           </div>
         </form>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
+          <thead className="bg-canvas border-b border-mist-dim">
             <tr>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Name</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Email</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Level</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Status</th>
-              <th className="text-left px-6 py-4 font-semibold text-gray-600">Action</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Name</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Email</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Level</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Status</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-canvas">
             {users.map((u) => (
-              <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 font-medium text-gray-800">{u.name}</td>
-                <td className="px-6 py-4 text-gray-500">{u.email}</td>
+              <tr key={u.id} className="hover:bg-canvas transition-colors">
+                <td className="px-6 py-4 font-medium text-ink">{u.name}</td>
+                <td className="px-6 py-4 text-steel">{u.email}</td>
                 <td className="px-6 py-4">
                   {isSuperUser ? (
                     <select
                       value={u.adminLevel}
                       disabled={busyId === u.id}
                       onChange={(e) => changeLevel(u.id, e.target.value)}
-                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand disabled:opacity-50"
+                      className="border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-lantern disabled:opacity-50"
                     >
                       {LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
                     </select>
                   ) : (
-                    <span className="text-xs text-gray-500">{LEVEL_LABELS[u.adminLevel]}</span>
+                    <span className="text-xs text-steel">{LEVEL_LABELS[u.adminLevel]}</span>
                   )}
                 </td>
                 <td className="px-6 py-4">

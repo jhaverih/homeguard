@@ -89,39 +89,39 @@ function ResetPasswordForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-canvas">
+      <div className="bg-white rounded-2xl shadow-sm border border-mist-dim p-10 w-full max-w-sm">
         {done ? (
           <div className="text-center">
             <p className="text-4xl mb-4">✅</p>
-            <h1 className="text-lg font-semibold text-gray-900 mb-2">Password Updated</h1>
-            <p className="text-sm text-gray-500 mb-6">Your password has been reset. Sign in with your new password.</p>
+            <h1 className="text-lg font-semibold text-ink mb-2">Password Updated</h1>
+            <p className="text-sm text-steel mb-6">Your password has been reset. Sign in with your new password.</p>
             <button
               onClick={() => router.replace('/login')}
-              className="w-full bg-brand text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-light transition-colors"
+              className="w-full bg-lantern text-ink rounded-xl py-3 text-sm font-semibold hover:bg-lantern-deep hover:text-white transition-colors"
             >
               Sign In
             </button>
           </div>
         ) : (
           <>
-            <h1 className="text-lg font-semibold text-gray-900 mb-1">New Password</h1>
-            <p className="text-sm text-gray-500 mb-6">Check your email for a 6-digit code, enter it below, then choose a new password.</p>
+            <h1 className="text-lg font-semibold text-ink mb-1">New Password</h1>
+            <p className="text-sm text-steel mb-6">Check your email for a 6-digit code, enter it below, then choose a new password.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               {email && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
+                  <label className="block text-sm font-medium text-ink mb-1">Account</label>
                   <input
                     type="email"
                     value={email}
                     readOnly
                     autoComplete="username"
-                    className="w-full border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-500"
+                    className="w-full border border-mist-dim bg-canvas rounded-xl px-4 py-3 text-sm text-steel"
                   />
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">6-digit code</label>
+                <label className="block text-sm font-medium text-ink mb-1">6-digit code</label>
                 <input
                   value={token}
                   onChange={(e) => setToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -130,13 +130,13 @@ function ResetPasswordForm() {
                   autoComplete="one-time-code"
                   placeholder="000000"
                   maxLength={6}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-2xl font-bold tracking-[0.5em] text-center focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                  className="w-full border border-border rounded-xl px-4 py-3 text-2xl font-bold tracking-[0.5em] text-center focus:outline-none focus:ring-2 focus:ring-lantern focus:border-transparent"
                 />
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-700">New Password</label>
-                  <button type="button" onClick={handleGenerate} className="text-xs font-semibold text-brand hover:underline">
+                  <label className="block text-sm font-medium text-ink">New Password</label>
+                  <button type="button" onClick={handleGenerate} className="text-xs font-semibold text-lantern-deep hover:underline">
                     Generate strong password
                   </button>
                 </div>
@@ -147,13 +147,13 @@ function ResetPasswordForm() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     autoComplete="new-password"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                    className="w-full border border-border rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-lantern focus:border-transparent"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     tabIndex={-1}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-steel hover:text-ink"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     <EyeIcon off={showPassword} />
@@ -163,7 +163,7 @@ function ResetPasswordForm() {
                   {PASSWORD_RULES.map((rule) => {
                     const met = rule.test(password);
                     return (
-                      <li key={rule.label} className={`text-xs flex items-center gap-1.5 ${met ? 'text-green-600' : 'text-gray-400'}`}>
+                      <li key={rule.label} className={`text-xs flex items-center gap-1.5 ${met ? 'text-green-600' : 'text-steel'}`}>
                         <span>{met ? '✓' : '✗'}</span>
                         {rule.label}
                       </li>
@@ -172,7 +172,7 @@ function ResetPasswordForm() {
                 </ul>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <label className="block text-sm font-medium text-ink mb-1">Confirm Password</label>
                 <div className="relative">
                   <input
                     type={showConfirm ? 'text' : 'password'}
@@ -180,13 +180,13 @@ function ResetPasswordForm() {
                     onChange={(e) => setConfirm(e.target.value)}
                     required
                     autoComplete="new-password"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                    className="w-full border border-border rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-lantern focus:border-transparent"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirm((v) => !v)}
                     tabIndex={-1}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-steel hover:text-ink"
                     aria-label={showConfirm ? 'Hide password' : 'Show password'}
                   >
                     <EyeIcon off={showConfirm} />
@@ -201,12 +201,12 @@ function ResetPasswordForm() {
               <button
                 type="submit"
                 disabled={loading || !allRulesMet || password !== confirm}
-                className="w-full bg-brand text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-light transition-colors disabled:opacity-50"
+                className="w-full bg-lantern text-ink rounded-xl py-3 text-sm font-semibold hover:bg-lantern-deep hover:text-white transition-colors disabled:opacity-50"
               >
                 {loading ? 'Resetting...' : 'Reset Password'}
               </button>
             </form>
-            <p className="text-center text-xs text-gray-400 mt-6">
+            <p className="text-center text-xs text-steel mt-6">
               <Link href="/forgot-password" className="hover:underline">Need a new code?</Link>
             </p>
           </>

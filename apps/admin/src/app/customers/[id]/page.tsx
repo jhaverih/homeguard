@@ -7,7 +7,7 @@ const STATUS_COLOR: Record<string, string> = {
   ACCEPTED: 'bg-blue-50 text-blue-700',
   IN_PROGRESS: 'bg-orange-50 text-orange-700',
   COMPLETED: 'bg-green-50 text-green-700',
-  CANCELLED: 'bg-gray-100 text-gray-500',
+  CANCELLED: 'bg-mist-dim text-steel',
   PENDING: 'bg-yellow-50 text-yellow-700',
 };
 
@@ -30,13 +30,13 @@ export default function CustomerDetailPage() {
   }, [id]);
 
   if (loading) {
-    return <div className="text-gray-400 text-sm py-12 text-center">Loading customer activity…</div>;
+    return <div className="text-steel text-sm py-12 text-center">Loading customer activity…</div>;
   }
   if (!activity) {
     return (
       <div className="text-center py-16">
-        <p className="text-gray-400">Could not load customer data.</p>
-        <button onClick={() => router.back()} className="mt-4 text-brand text-sm font-semibold hover:underline">← Back</button>
+        <p className="text-steel">Could not load customer data.</p>
+        <button onClick={() => router.back()} className="mt-4 text-lantern-deep text-sm font-semibold hover:underline">← Back</button>
       </div>
     );
   }
@@ -52,29 +52,29 @@ export default function CustomerDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.back()} className="flex items-center gap-1 text-sm text-gray-400 hover:text-brand mb-6 transition-colors">
+      <button onClick={() => router.back()} className="flex items-center gap-1 text-sm text-steel hover:text-lantern-deep mb-6 transition-colors">
         ← Back
       </button>
 
       {/* Customer header */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+      <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-6">
         <div className="flex items-start gap-5">
-          <div className="w-14 h-14 rounded-full bg-brand/10 flex items-center justify-center text-2xl font-bold text-brand shrink-0">
+          <div className="w-14 h-14 rounded-full bg-lantern/10 flex items-center justify-center text-2xl font-bold text-lantern-deep shrink-0">
             {(customer?.name ?? customer?.email ?? '?')[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-gray-900">{customer?.name ?? '—'}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{customer?.email}</p>
-            {customer?.phone && <p className="text-sm text-gray-500">{customer.phone}</p>}
-            {customer?.address && <p className="text-sm text-gray-400 mt-1">{customer.address}</p>}
+            <h1 className="text-xl font-bold text-ink">{customer?.name ?? '—'}</h1>
+            <p className="text-sm text-steel mt-0.5">{customer?.email}</p>
+            {customer?.phone && <p className="text-sm text-steel">{customer.phone}</p>}
+            {customer?.address && <p className="text-sm text-steel mt-1">{customer.address}</p>}
           </div>
-          <div className="text-right text-sm text-gray-400">
+          <div className="text-right text-sm text-steel">
             <p>Member since</p>
-            <p className="font-medium text-gray-700">{customer?.createdAt ? fmt(customer.createdAt) : '—'}</p>
+            <p className="font-medium text-ink">{customer?.createdAt ? fmt(customer.createdAt) : '—'}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-4 mt-6 pt-5 border-t border-gray-100">
+        <div className="grid grid-cols-4 gap-4 mt-6 pt-5 border-t border-mist-dim">
           {[
             { label: 'Total Jobs', value: serviceRequests.length },
             { label: 'Completed', value: serviceRequests.filter((r: any) => r.status === 'COMPLETED').length },
@@ -82,24 +82,24 @@ export default function CustomerDetailPage() {
             { label: 'Open Disputes', value: disputes.filter((d: any) => d.status === 'OPEN').length },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
-              <p className="text-2xl font-bold text-brand">{stat.value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{stat.label}</p>
+              <p className="text-2xl font-bold text-lantern-deep">{stat.value}</p>
+              <p className="text-xs text-steel mt-0.5">{stat.label}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* Activity tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-4">
+      <div className="flex gap-1 bg-mist-dim p-1 rounded-lg w-fit mb-4">
         {tabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              tab === t.key ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              tab === t.key ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'
             }`}
           >
             {t.label}
             {t.count > 0 && (
-              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${tab === t.key ? 'bg-brand text-white' : 'bg-gray-200 text-gray-600'}`}>
+              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${tab === t.key ? 'bg-lantern text-ink' : 'bg-border text-steel'}`}>
                 {t.count}
               </span>
             )}
@@ -109,12 +109,12 @@ export default function CustomerDetailPage() {
 
       {/* Jobs tab */}
       {tab === 'jobs' && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           {serviceRequests.length === 0 ? (
-            <p className="text-gray-400 text-sm p-8 text-center">No jobs or inspections yet.</p>
+            <p className="text-steel text-sm p-8 text-center">No jobs or inspections yet.</p>
           ) : (
             <>
-              <div className="grid grid-cols-[80px_1fr_160px_160px_120px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <div className="grid grid-cols-[80px_1fr_160px_160px_120px] gap-4 px-6 py-3 bg-canvas border-b border-mist-dim text-xs font-semibold text-steel uppercase tracking-wide">
                 <span>ID</span><span>Service</span><span>Vendor</span><span>Date</span><span>Status</span>
               </div>
               {serviceRequests.map((req: any) => {
@@ -122,11 +122,11 @@ export default function CustomerDetailPage() {
                   ? `${req.vendor.firstName ?? ''} ${req.vendor.lastName ?? ''}`.trim() || req.vendor.email
                   : '—';
                 return (
-                  <div key={req.id} className="grid grid-cols-[80px_1fr_160px_160px_120px] gap-4 px-6 py-4 border-t border-gray-100 items-center hover:bg-gray-50">
-                    <span className="text-xs text-gray-400 font-mono truncate">{req.ticketNumber || req.id.slice(0, 8)}</span>
+                  <div key={req.id} className="grid grid-cols-[80px_1fr_160px_160px_120px] gap-4 px-6 py-4 border-t border-mist-dim items-center hover:bg-canvas">
+                    <span className="text-xs text-steel font-mono truncate">{req.ticketNumber || req.id.slice(0, 8)}</span>
                     <div>
-                      <p className="text-sm font-medium text-gray-800">{req.type?.replace(/_/g, ' ') ?? 'Service'}</p>
-                      <p className="text-xs text-gray-400 truncate">{req.address}, {req.city}</p>
+                      <p className="text-sm font-medium text-ink">{req.type?.replace(/_/g, ' ') ?? 'Service'}</p>
+                      <p className="text-xs text-steel truncate">{req.address}, {req.city}</p>
                     </div>
                     <div>
                       {req.vendor?.id ? (
@@ -134,11 +134,11 @@ export default function CustomerDetailPage() {
                           {vendorName}
                         </a>
                       ) : (
-                        <span className="text-sm text-gray-400">{vendorName}</span>
+                        <span className="text-sm text-steel">{vendorName}</span>
                       )}
                     </div>
-                    <span className="text-sm text-gray-600">{req.scheduledDate ? fmt(req.scheduledDate) : '—'}</span>
-                    <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold w-fit ${STATUS_COLOR[req.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                    <span className="text-sm text-steel">{req.scheduledDate ? fmt(req.scheduledDate) : '—'}</span>
+                    <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold w-fit ${STATUS_COLOR[req.status] ?? 'bg-mist-dim text-steel'}`}>
                       {req.status?.replace(/_/g, ' ') ?? '—'}
                     </span>
                   </div>
@@ -151,26 +151,26 @@ export default function CustomerDetailPage() {
 
       {/* Payments tab */}
       {tab === 'payments' && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           {payments.length === 0 ? (
-            <p className="text-gray-400 text-sm p-8 text-center">No payment records yet.</p>
+            <p className="text-steel text-sm p-8 text-center">No payment records yet.</p>
           ) : (
             <>
-              <div className="grid grid-cols-[1fr_140px_120px_120px] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <div className="grid grid-cols-[1fr_140px_120px_120px] gap-4 px-6 py-3 bg-canvas border-b border-mist-dim text-xs font-semibold text-steel uppercase tracking-wide">
                 <span>Description</span><span>Amount</span><span>Date</span><span>Status</span>
               </div>
               {payments.map((p: any) => (
-                <div key={p.id} className="grid grid-cols-[1fr_140px_120px_120px] gap-4 px-6 py-4 border-t border-gray-100 items-center hover:bg-gray-50">
+                <div key={p.id} className="grid grid-cols-[1fr_140px_120px_120px] gap-4 px-6 py-4 border-t border-mist-dim items-center hover:bg-canvas">
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{p.description || p.serviceType || 'Service'}</p>
-                    {p.vendorName && <p className="text-xs text-gray-400">Vendor: {p.vendorName}</p>}
+                    <p className="text-sm font-medium text-ink">{p.description || p.serviceType || 'Service'}</p>
+                    {p.vendorName && <p className="text-xs text-steel">Vendor: {p.vendorName}</p>}
                   </div>
-                  <span className="text-sm font-semibold text-gray-800">${Number(p.amount).toFixed(2)}</span>
-                  <span className="text-sm text-gray-500">{p.paidAt ? fmt(p.paidAt) : fmt(p.createdAt)}</span>
+                  <span className="text-sm font-semibold text-ink">${Number(p.amount).toFixed(2)}</span>
+                  <span className="text-sm text-steel">{p.paidAt ? fmt(p.paidAt) : fmt(p.createdAt)}</span>
                   <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold w-fit ${
                     p.status === 'PAID' ? 'bg-green-50 text-green-700' :
                     p.status === 'PENDING' ? 'bg-yellow-50 text-yellow-700' :
-                    'bg-gray-100 text-gray-500'
+                    'bg-mist-dim text-steel'
                   }`}>{p.status}</span>
                 </div>
               ))}
@@ -181,16 +181,16 @@ export default function CustomerDetailPage() {
 
       {/* Disputes tab */}
       {tab === 'disputes' && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           {disputes.length === 0 ? (
-            <p className="text-gray-400 text-sm p-8 text-center">No disputes.</p>
+            <p className="text-steel text-sm p-8 text-center">No disputes.</p>
           ) : (
             disputes.map((d: any, idx: number) => {
               const vendorName = d.vendor
                 ? `${d.vendor.firstName ?? ''} ${d.vendor.lastName ?? ''}`.trim() || d.vendor.email
                 : '—';
               return (
-                <div key={d.id} className={`px-6 py-4 ${idx !== 0 ? 'border-t border-gray-100' : ''} hover:bg-gray-50`}>
+                <div key={d.id} className={`px-6 py-4 ${idx !== 0 ? 'border-t border-mist-dim' : ''} hover:bg-canvas`}>
                   <div className="flex items-center gap-3 mb-1">
                     <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${
                       d.status === 'OPEN' ? 'bg-red-50 text-red-700' :
@@ -198,14 +198,14 @@ export default function CustomerDetailPage() {
                       d.status === 'RESOLVED_VENDOR' ? 'bg-green-50 text-green-700' :
                       'bg-yellow-50 text-yellow-700'
                     }`}>{d.status?.replace(/_/g, ' ')}</span>
-                    <span className="text-xs text-gray-400">{fmt(d.createdAt)}</span>
-                    <span className="text-xs text-gray-400">·</span>
-                    <span className="text-xs text-gray-500">Vendor: {d.vendor?.id ? (
+                    <span className="text-xs text-steel">{fmt(d.createdAt)}</span>
+                    <span className="text-xs text-steel">·</span>
+                    <span className="text-xs text-steel">Vendor: {d.vendor?.id ? (
                       <a href={`/vendors/${d.vendor.id}`} className="text-green-700 hover:underline">{vendorName}</a>
                     ) : vendorName}</span>
                   </div>
-                  <p className="text-sm text-gray-700">{d.description}</p>
-                  <a href="/disputes" className="text-xs text-brand font-semibold hover:underline mt-1 inline-block">→ Manage in Disputes</a>
+                  <p className="text-sm text-ink">{d.description}</p>
+                  <a href="/disputes" className="text-xs text-lantern-deep font-semibold hover:underline mt-1 inline-block">→ Manage in Disputes</a>
                 </div>
               );
             })
@@ -215,12 +215,12 @@ export default function CustomerDetailPage() {
 
       {/* Alerts tab */}
       {tab === 'alerts' && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           {alerts.length === 0 ? (
-            <p className="text-gray-400 text-sm p-8 text-center">No monitoring alerts.</p>
+            <p className="text-steel text-sm p-8 text-center">No monitoring alerts.</p>
           ) : (
             alerts.map((a: any, idx: number) => (
-              <div key={a.id} className={`px-6 py-4 ${idx !== 0 ? 'border-t border-gray-100' : ''} hover:bg-gray-50`}>
+              <div key={a.id} className={`px-6 py-4 ${idx !== 0 ? 'border-t border-mist-dim' : ''} hover:bg-canvas`}>
                 <div className="flex items-center gap-3 mb-1">
                   <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${
                     a.severity === 'CRITICAL' ? 'bg-red-50 text-red-700' :
@@ -228,11 +228,11 @@ export default function CustomerDetailPage() {
                     a.severity === 'MEDIUM' ? 'bg-yellow-50 text-yellow-700' :
                     'bg-blue-50 text-blue-700'
                   }`}>{a.severity}</span>
-                  {a.deviceType && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-lg">{a.deviceType}</span>}
-                  <span className="text-xs text-gray-400 ml-auto">{fmt(a.createdAt)}</span>
+                  {a.deviceType && <span className="text-xs bg-mist-dim text-steel px-2 py-0.5 rounded-lg">{a.deviceType}</span>}
+                  <span className="text-xs text-steel ml-auto">{fmt(a.createdAt)}</span>
                 </div>
-                <p className="text-sm text-gray-700">{a.message}</p>
-                {a.deviceName && <p className="text-xs text-gray-400 mt-0.5">Device: {a.deviceName}</p>}
+                <p className="text-sm text-ink">{a.message}</p>
+                {a.deviceName && <p className="text-xs text-steel mt-0.5">Device: {a.deviceName}</p>}
               </div>
             ))
           )}

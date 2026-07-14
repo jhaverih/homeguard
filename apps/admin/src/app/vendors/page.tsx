@@ -49,39 +49,39 @@ export default function VendorsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-brand mb-2">Vendors</h1>
-      <p className="text-gray-500 mb-8">Service providers registered on the platform.</p>
+      <h1 className="text-2xl font-bold text-lantern-deep mb-2">Vendors</h1>
+      <p className="text-steel mb-8">Service providers registered on the platform.</p>
 
       {loading ? (
-        <div className="text-gray-400 text-sm">Loading...</div>
+        <div className="text-steel text-sm">Loading...</div>
       ) : vendors.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
           <div className="text-4xl mb-4">🔧</div>
-          <p className="text-gray-400 text-sm">No vendors yet. They register through the mobile app.</p>
+          <p className="text-steel text-sm">No vendors yet. They register through the mobile app.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-canvas border-b border-mist-dim">
               <tr>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Name</th>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Company</th>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Email</th>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Status</th>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Stripe</th>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Reviews</th>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Joined</th>
-                <th className="text-left px-6 py-4 font-semibold text-gray-600">Action</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Name</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Company</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Email</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Status</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Stripe</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Reviews</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Joined</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-canvas">
               {vendors.map((v) => (
-                <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-gray-800">
-                    <Link href={`/vendors/${v.id}`} className="text-brand hover:underline">{v.name}</Link>
+                <tr key={v.id} className="hover:bg-canvas transition-colors">
+                  <td className="px-6 py-4 font-medium text-ink">
+                    <Link href={`/vendors/${v.id}`} className="text-lantern-deep hover:underline">{v.name}</Link>
                   </td>
-                  <td className="px-6 py-4 text-gray-600">{v.companyName ?? <span className="text-gray-300 text-xs">—</span>}</td>
-                  <td className="px-6 py-4 text-gray-500">{v.email}</td>
+                  <td className="px-6 py-4 text-steel">{v.companyName ?? <span className="text-steel text-xs">—</span>}</td>
+                  <td className="px-6 py-4 text-steel">{v.email}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
                       v.status === 'ACTIVE'
@@ -97,20 +97,20 @@ export default function VendorsPage() {
                     {v.stripeConnected ? (
                       <span className="text-green-600 text-xs font-semibold">✓ Connected</span>
                     ) : (
-                      <span className="text-gray-400 text-xs">Not set up</span>
+                      <span className="text-steel text-xs">Not set up</span>
                     )}
                   </td>
                   <td className="px-6 py-4">
                     {reviewStats[v.id] ? (
                       <span className="text-sm font-semibold text-amber-600">
                         ★ {reviewStats[v.id].avg.toFixed(1)}
-                        <span className="text-gray-400 font-normal ml-1">({reviewStats[v.id].count})</span>
+                        <span className="text-steel font-normal ml-1">({reviewStats[v.id].count})</span>
                       </span>
                     ) : (
-                      <span className="text-gray-300 text-xs">—</span>
+                      <span className="text-steel text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-gray-400">
+                  <td className="px-6 py-4 text-steel">
                     {new Date(v.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 flex gap-2">
@@ -118,7 +118,7 @@ export default function VendorsPage() {
                       <button
                         onClick={() => approve(v.id)}
                         disabled={approving === v.id}
-                        className="bg-vendor text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        className="bg-lantern text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
                       >
                         {approving === v.id ? 'Approving…' : 'Approve'}
                       </button>

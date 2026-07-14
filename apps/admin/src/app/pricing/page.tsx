@@ -214,7 +214,7 @@ export default function PricingPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `houmi-services-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `attenteve-services-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -275,34 +275,34 @@ export default function PricingPage() {
     }
   };
 
-  if (loading) return <div className="text-gray-500 p-8">Loading...</div>;
+  if (loading) return <div className="text-steel p-8">Loading...</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-brand mb-2">Pricing Management</h1>
-      <p className="text-gray-500 mb-8">Edit service names, descriptions, pricing notes, and rates. Changes save on blur.</p>
+      <h1 className="text-2xl font-bold text-lantern-deep mb-2">Pricing Management</h1>
+      <p className="text-steel mb-8">Edit service names, descriptions, pricing notes, and rates. Changes save on blur.</p>
 
       {/* Subscription Plans */}
-      <div className="bg-white rounded-2xl border border-gray-100 mb-8">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-brand">Subscription Plan Prices</h2>
+      <div className="bg-white rounded-2xl border border-mist-dim mb-8">
+        <div className="p-6 border-b border-mist-dim">
+          <h2 className="text-lg font-bold text-lantern-deep">Subscription Plan Prices</h2>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-canvas">
           {plans.map((plan: any) => (
             <div key={plan.id} className="p-6 flex items-center justify-between">
               <div>
-                <div className="font-semibold text-gray-800">{plan.name}</div>
-                <div className="text-sm text-gray-500">{plan.tier} tier</div>
+                <div className="font-semibold text-ink">{plan.name}</div>
+                <div className="text-sm text-steel">{plan.tier} tier</div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-400">$</span>
+                <span className="text-sm text-steel">$</span>
                 <input
                   type="number"
                   defaultValue={plan.price}
                   onBlur={(e) => subscriptionsApi.updatePlan(plan.id, { price: parseFloat(e.target.value) })}
-                  className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-right focus:border-brand outline-none"
+                  className="w-24 border border-border rounded-lg px-3 py-2 text-right focus:border-lantern outline-none"
                 />
-                <span className="text-sm text-gray-400">/year</span>
+                <span className="text-sm text-steel">/year</span>
               </div>
             </div>
           ))}
@@ -310,22 +310,22 @@ export default function PricingPage() {
       </div>
 
       {/* Service Prices */}
-      <div className="bg-white rounded-2xl border border-gray-100">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+      <div className="bg-white rounded-2xl border border-mist-dim">
+        <div className="p-6 border-b border-mist-dim flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-lg font-bold text-brand">Additional Services Catalog</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="text-lg font-bold text-lantern-deep">Additional Services Catalog</h2>
+            <p className="text-sm text-steel mt-1">
               All fields editable. Stripe fee: 2.9% + $0.30. Toggle the switch to disable without deleting.
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={exportCsv}
-              className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="border border-border text-steel px-4 py-2 rounded-lg text-sm font-semibold hover:bg-canvas transition-colors flex items-center gap-2"
             >
               ↓ Export CSV
             </button>
-            <label className={`border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer flex items-center gap-2 ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
+            <label className={`border border-border text-steel px-4 py-2 rounded-lg text-sm font-semibold hover:bg-canvas transition-colors cursor-pointer flex items-center gap-2 ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
               {importing ? '⏳ Importing…' : '↑ Import CSV'}
               <input
                 ref={fileInputRef}
@@ -337,7 +337,7 @@ export default function PricingPage() {
             </label>
             <button
               onClick={() => setAddingRow(true)}
-              className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-brand-dark transition-colors"
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep hover:text-white transition-colors"
             >
               + Add Service
             </button>
@@ -346,10 +346,10 @@ export default function PricingPage() {
 
         {/* Import result */}
         {importResult && (
-          <div className="mx-6 mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div className="mx-6 mt-4 bg-canvas border border-border rounded-xl p-4">
             <div className="flex justify-between items-start">
-              <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">{importResult}</pre>
-              <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600 ml-4 text-lg leading-none">×</button>
+              <pre className="text-xs text-ink whitespace-pre-wrap font-mono">{importResult}</pre>
+              <button onClick={() => setImportResult(null)} className="text-steel hover:text-ink ml-4 text-lg leading-none">×</button>
             </div>
           </div>
         )}
@@ -357,24 +357,24 @@ export default function PricingPage() {
         <div className="overflow-x-auto mt-2">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/70">
-                <th className="px-3 py-3 text-left font-semibold text-gray-600 w-16">Active</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[160px]">Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[200px]">Description</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 min-w-[130px]">Price Note</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-600 w-24">Quote Only</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-600 w-24">Customer Requestable</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 w-40">Required Capability</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 w-28">Qty Label</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-24">Min. Qty</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-28">Base Price</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-24">Markup %</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-28">Customer Price</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 w-28">Global Markup</th>
+              <tr className="border-b border-mist-dim bg-canvas/70">
+                <th className="px-3 py-3 text-left font-semibold text-steel w-16">Active</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[160px]">Name</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[200px]">Description</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[130px]">Price Note</th>
+                <th className="px-4 py-3 text-center font-semibold text-steel w-24">Quote Only</th>
+                <th className="px-4 py-3 text-center font-semibold text-steel w-24">Customer Requestable</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel w-40">Required Capability</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel w-28">Qty Label</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24">Min. Qty</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-28">Base Price</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24">Markup %</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-28">Customer Price</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-28">Global Markup</th>
                 <th className="w-16 pr-4"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-canvas">
               {prices.map((price) => {
                 const state = editStates[price.id];
                 if (!state) return null;
@@ -388,13 +388,13 @@ export default function PricingPage() {
                 const inactive = !price.isActive;
 
                 return (
-                  <tr key={price.id} className={`hover:bg-gray-50/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
+                  <tr key={price.id} className={`hover:bg-canvas/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
                     {/* Active toggle */}
                     <td className="px-3 py-3 text-center">
                       <button
                         onClick={() => toggleActive(price.id, price.isActive)}
                         title={price.isActive ? 'Disable service' : 'Enable service'}
-                        className={`w-10 h-6 rounded-full transition-colors ${price.isActive ? 'bg-teal-600' : 'bg-gray-300'} relative`}
+                        className={`w-10 h-6 rounded-full transition-colors ${price.isActive ? 'bg-lantern' : 'bg-steel'} relative`}
                       >
                         <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${price.isActive ? 'left-[18px]' : 'left-0.5'}`} />
                       </button>
@@ -406,7 +406,7 @@ export default function PricingPage() {
                         value={state.name}
                         onChange={(e) => updateField(price.id, 'name', e.target.value)}
                         onBlur={() => savePrice(price.id)}
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-semibold text-gray-800 focus:border-brand outline-none"
+                        className="w-full border border-border rounded-lg px-2 py-1.5 text-sm font-semibold text-ink focus:border-lantern outline-none"
                       />
                     </td>
                     {/* Description */}
@@ -416,7 +416,7 @@ export default function PricingPage() {
                         onChange={(e) => updateField(price.id, 'description', e.target.value)}
                         onBlur={() => savePrice(price.id)}
                         rows={2}
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600 focus:border-brand outline-none resize-none"
+                        className="w-full border border-border rounded-lg px-2 py-1.5 text-xs text-steel focus:border-lantern outline-none resize-none"
                       />
                     </td>
                     {/* Price Note */}
@@ -427,7 +427,7 @@ export default function PricingPage() {
                         onChange={(e) => updateField(price.id, 'priceNote', e.target.value)}
                         onBlur={() => savePrice(price.id)}
                         placeholder="e.g. $75/hr"
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 focus:border-brand outline-none"
+                        className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
                       />
                     </td>
                     {/* Requires Quote */}
@@ -439,7 +439,7 @@ export default function PricingPage() {
                           updateField(price.id, 'requiresQuote', e.target.checked);
                           setTimeout(() => savePrice(price.id), 0);
                         }}
-                        className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                        className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
                     </td>
                     {/* Customer Requestable */}
@@ -451,8 +451,8 @@ export default function PricingPage() {
                           updateField(price.id, 'customerRequestable', e.target.checked);
                           setTimeout(() => savePrice(price.id), 0);
                         }}
-                        title="Uncheck for services only Houmi triggers (e.g. Home Monitoring Setup) — hidden from the customer's own request list"
-                        className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                        title="Uncheck for services only Attenteve triggers (e.g. Home Monitoring Setup) — hidden from the customer's own request list"
+                        className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
                     </td>
                     {/* Required Capability */}
@@ -463,7 +463,7 @@ export default function PricingPage() {
                           updateField(price.id, 'requiredCapabilityId', e.target.value);
                           setTimeout(() => savePrice(price.id), 0);
                         }}
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 focus:border-brand outline-none"
+                        className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
                       >
                         <option value="">Any vendor</option>
                         {capabilities.map((c) => (
@@ -479,7 +479,7 @@ export default function PricingPage() {
                         onChange={(e) => updateField(price.id, 'quantityLabel', e.target.value)}
                         onBlur={() => savePrice(price.id)}
                         placeholder="e.g. sq ft"
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-600 focus:border-brand outline-none"
+                        className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
                       />
                     </td>
                     {/* Minimum Quantity */}
@@ -490,20 +490,20 @@ export default function PricingPage() {
                         onChange={(e) => updateField(price.id, 'minimumQuantity', e.target.value)}
                         onBlur={() => savePrice(price.id)}
                         placeholder="0"
-                        className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                        className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                         min="0"
                       />
                     </td>
                     {/* Base Price */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <span className="text-gray-400 text-xs">$</span>
+                        <span className="text-steel text-xs">$</span>
                         <input
                           type="number"
                           value={state.basePrice}
                           onChange={(e) => updateField(price.id, 'basePrice', e.target.value)}
                           onBlur={() => savePrice(price.id)}
-                          className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                           min="0" step="0.01"
                         />
                       </div>
@@ -517,10 +517,10 @@ export default function PricingPage() {
                           onChange={(e) => updateField(price.id, 'markupPercent', e.target.value)}
                           onBlur={() => savePrice(price.id)}
                           placeholder={globalMarkup}
-                          className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none placeholder-gray-300"
+                          className="w-16 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
                           min="0" max="200" step="0.1"
                         />
-                        <span className="text-gray-400 text-xs">%</span>
+                        <span className="text-steel text-xs">%</span>
                       </div>
                     </td>
                     {/* Customer Price */}
@@ -528,7 +528,7 @@ export default function PricingPage() {
                       {state.requiresQuote ? (
                         <span className="text-xs font-semibold text-purple-600 bg-purple-50 rounded-full px-2 py-1">Request a Quote</span>
                       ) : (
-                        <span className="font-bold text-brand tabular-nums">${Math.ceil(customerPrice)}</span>
+                        <span className="font-bold text-lantern-deep tabular-nums">${Math.ceil(customerPrice)}</span>
                       )}
                     </td>
                     {/* Global markup field */}
@@ -539,20 +539,20 @@ export default function PricingPage() {
                             type="number"
                             value={globalMarkup}
                             onChange={(e) => setGlobalMarkup(e.target.value)}
-                            className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs text-right focus:border-brand outline-none"
+                            className="w-14 border border-border rounded-lg px-2 py-1 text-xs text-right focus:border-lantern outline-none"
                           />
-                          <span className="text-xs text-gray-300">%</span>
+                          <span className="text-xs text-steel">%</span>
                         </div>
                       )}
                     </td>
                     {/* Delete */}
                     <td className="pr-4 text-center">
                       {isSaving || isDeleting ? (
-                        <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin inline-block" />
+                        <div className="w-4 h-4 border-2 border-lantern border-t-transparent rounded-full animate-spin inline-block" />
                       ) : (
                         <button
                           onClick={() => deletePrice(price.id, state.name)}
-                          className="text-gray-300 hover:text-red-500 transition-colors px-1"
+                          className="text-steel hover:text-red-500 transition-colors px-1"
                           title="Delete service"
                         >
                           ✕
@@ -565,7 +565,7 @@ export default function PricingPage() {
 
               {/* Add new row */}
               {addingRow && (
-                <tr className="bg-teal-50/30 border-t-2 border-teal-200">
+                <tr className="bg-mist-dim/30 border-t-2 border-lantern">
                   <td className="px-3 py-3" />
                   <td className="px-4 py-3">
                     <input
@@ -573,7 +573,7 @@ export default function PricingPage() {
                       value={newRow.name}
                       onChange={(e) => setNewRow((p) => ({ ...p, name: e.target.value }))}
                       placeholder="Service name"
-                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm font-semibold focus:border-brand outline-none"
+                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm font-semibold focus:border-lantern outline-none"
                       autoFocus
                     />
                   </td>
@@ -583,7 +583,7 @@ export default function PricingPage() {
                       onChange={(e) => setNewRow((p) => ({ ...p, description: e.target.value }))}
                       placeholder="Description"
                       rows={2}
-                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-xs focus:border-brand outline-none resize-none"
+                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-xs focus:border-lantern outline-none resize-none"
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -592,7 +592,7 @@ export default function PricingPage() {
                       value={newRow.priceNote}
                       onChange={(e) => setNewRow((p) => ({ ...p, priceNote: e.target.value }))}
                       placeholder="e.g. $75/hr"
-                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand outline-none"
+                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
                     />
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -600,7 +600,7 @@ export default function PricingPage() {
                       type="checkbox"
                       checked={newRow.requiresQuote}
                       onChange={(e) => setNewRow((p) => ({ ...p, requiresQuote: e.target.checked }))}
-                      className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                      className="w-4 h-4 rounded cursor-pointer accent-lantern"
                     />
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -608,14 +608,14 @@ export default function PricingPage() {
                       type="checkbox"
                       checked={newRow.customerRequestable}
                       onChange={(e) => setNewRow((p) => ({ ...p, customerRequestable: e.target.checked }))}
-                      className="w-4 h-4 rounded cursor-pointer accent-teal-700"
+                      className="w-4 h-4 rounded cursor-pointer accent-lantern"
                     />
                   </td>
                   <td className="px-4 py-3">
                     <select
                       value={newRow.requiredCapabilityId}
                       onChange={(e) => setNewRow((p) => ({ ...p, requiredCapabilityId: e.target.value }))}
-                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand outline-none"
+                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
                     >
                       <option value="">Any vendor</option>
                       {capabilities.map((c) => (
@@ -629,7 +629,7 @@ export default function PricingPage() {
                       value={newRow.quantityLabel}
                       onChange={(e) => setNewRow((p) => ({ ...p, quantityLabel: e.target.value }))}
                       placeholder="e.g. sq ft"
-                      className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand outline-none"
+                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -638,18 +638,18 @@ export default function PricingPage() {
                       value={newRow.minimumQuantity}
                       onChange={(e) => setNewRow((p) => ({ ...p, minimumQuantity: e.target.value }))}
                       placeholder="0"
-                      className="w-20 border border-teal-300 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                      className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                       min="0"
                     />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <span className="text-gray-400 text-xs">$</span>
+                      <span className="text-steel text-xs">$</span>
                       <input
                         type="number"
                         value={newRow.basePrice}
                         onChange={(e) => setNewRow((p) => ({ ...p, basePrice: e.target.value }))}
-                        className="w-20 border border-teal-300 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none"
+                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                         min="0" step="0.01"
                       />
                     </div>
@@ -661,10 +661,10 @@ export default function PricingPage() {
                         value={newRow.markupPercent}
                         onChange={(e) => setNewRow((p) => ({ ...p, markupPercent: e.target.value }))}
                         placeholder={globalMarkup}
-                        className="w-16 border border-teal-300 rounded-lg px-2 py-1.5 text-sm text-right focus:border-brand outline-none placeholder-gray-300"
+                        className="w-16 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
                         min="0" max="200" step="0.1"
                       />
-                      <span className="text-gray-400 text-xs">%</span>
+                      <span className="text-steel text-xs">%</span>
                     </div>
                   </td>
                   <td colSpan={2} />
@@ -672,14 +672,14 @@ export default function PricingPage() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '', requiredCapabilityId: '', customerRequestable: true }); }}
-                        className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1"
+                        className="text-steel hover:text-ink text-sm px-2 py-1"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={addRow}
                         disabled={!newRow.name.trim() || saving.has('new')}
-                        className="bg-brand text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-brand-dark disabled:opacity-40 transition-colors"
+                        className="bg-lantern text-ink px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-lantern-deep hover:text-white disabled:opacity-40 transition-colors"
                       >
                         {saving.has('new') ? 'Saving…' : 'Add'}
                       </button>
@@ -691,15 +691,15 @@ export default function PricingPage() {
           </table>
 
           {prices.length === 0 && !addingRow && (
-            <div className="p-12 text-center text-gray-400">
+            <div className="p-12 text-center text-steel">
               No services yet. Click <strong>+ Add Service</strong> to add one.
             </div>
           )}
         </div>
 
         {/* CSV format hint */}
-        <div className="p-4 border-t border-gray-100">
-          <p className="text-xs text-gray-400">
+        <div className="p-4 border-t border-mist-dim">
+          <p className="text-xs text-steel">
             <strong>CSV format:</strong> name, description, priceNote, requiresQuote (true/false), basePrice, markupPercent, quantityLabel, minimumQuantity, isActive (true/false), customerRequestable (true/false) — existing rows matched by name, new names are created. Required Capability isn&apos;t part of CSV — set it per-row in the table above.
           </p>
         </div>
