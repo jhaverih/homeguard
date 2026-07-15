@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { requestsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const FULL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -113,7 +114,7 @@ export default function CustomerSchedule() {
 
   const monthCells = buildMonthGrid(monthAnchor.getFullYear(), monthAnchor.getMonth());
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView
@@ -252,46 +253,46 @@ function VisitCard({ req }: { req: any }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  weekStrip: { backgroundColor: '#0B4A45', paddingBottom: 16 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  weekStrip: { backgroundColor: colors.ink, paddingBottom: 16 },
   weekHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 },
   weekNavBtn: { padding: 4 },
-  weekNavText: { color: '#a8c4e5', fontSize: 28, lineHeight: 28 },
+  weekNavText: { color: colors.mistDim, fontSize: 28, lineHeight: 28 },
   viewToggle: { alignItems: 'center', flex: 1 },
-  weekTitle: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  viewToggleHint: { color: '#a8c4e5', fontSize: 11, marginTop: 2 },
+  weekTitle: { color: colors.mist, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  viewToggleHint: { color: colors.mistDim, fontSize: 11, marginTop: 2 },
   weekDays: { flexDirection: 'row', paddingHorizontal: 8 },
   weekDay: { flex: 1, alignItems: 'center', gap: 4 },
-  dowText: { fontSize: 11, color: '#a8c4e5', fontWeight: '500' },
-  selectedDowText: { color: '#fff' },
+  dowText: { fontSize: 11, color: colors.mistDim, fontWeight: '500' },
+  selectedDowText: { color: colors.mist },
   dayCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  selectedDayCircle: { backgroundColor: '#fff' },
+  selectedDayCircle: { backgroundColor: colors.surface },
   todayCircle: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  dayNum: { fontSize: 15, color: '#a8c4e5', fontWeight: '500' },
-  selectedDayNum: { color: '#0B4A45', fontWeight: '800' },
-  todayNum: { color: '#fff', fontWeight: '700' },
+  dayNum: { fontSize: 15, color: colors.mistDim, fontWeight: '500' },
+  selectedDayNum: { color: colors.lanternDeep, fontWeight: '800' },
+  todayNum: { color: colors.mist, fontWeight: '700' },
   eventDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#60a5fa' },
-  selectedEventDot: { backgroundColor: '#0B4A45' },
+  selectedEventDot: { backgroundColor: colors.lantern },
   monthGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 4 },
-  monthDowLabel: { width: '14.28%', textAlign: 'center', color: '#a8c4e5', fontSize: 11, fontWeight: '600', paddingBottom: 6 },
+  monthDowLabel: { width: '14.28%', textAlign: 'center', color: colors.mistDim, fontSize: 11, fontWeight: '600', paddingBottom: 6 },
   monthCell: { width: '14.28%', alignItems: 'center', paddingVertical: 3 },
   monthDayCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  monthDayNum: { fontSize: 13, color: '#a8c4e5', fontWeight: '500' },
+  monthDayNum: { fontSize: 13, color: colors.mistDim, fontWeight: '500' },
   section: { marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', paddingHorizontal: 16, paddingVertical: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.lanternDeep, paddingHorizontal: 16, paddingVertical: 12 },
   visitCard: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6 },
   visitTimeline: { width: 4 },
   visitContent: { flex: 1, padding: 14 },
   visitHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  visitTime: { fontSize: 15, fontWeight: '700', color: '#111' },
+  visitTime: { fontSize: 15, fontWeight: '700', color: colors.ink },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 99 },
   statusText: { fontSize: 11, fontWeight: '600' },
-  visitDate: { fontSize: 13, color: '#555', marginBottom: 2 },
-  visitAddress: { fontSize: 13, color: '#777' },
-  visitNote: { fontSize: 12, color: '#999', marginTop: 4, fontStyle: 'italic' },
+  visitDate: { fontSize: 13, color: colors.steel, marginBottom: 2 },
+  visitAddress: { fontSize: 13, color: colors.steel },
+  visitNote: { fontSize: 12, color: colors.steel, marginTop: 4, fontStyle: 'italic' },
   emptyCard: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 28, marginHorizontal: 16, marginBottom: 10 },
   emptyIcon: { fontSize: 36, marginBottom: 8 },
-  emptyText: { color: '#888', textAlign: 'center', lineHeight: 22, fontSize: 14 },
-  requestBtn: { marginTop: 16, backgroundColor: '#0B4A45', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
-  requestBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  emptyText: { color: colors.steel, textAlign: 'center', lineHeight: 22, fontSize: 14 },
+  requestBtn: { marginTop: 16, backgroundColor: colors.lantern, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
+  requestBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
 });

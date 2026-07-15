@@ -10,6 +10,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuthStore } from '../../src/store/auth.store';
 import { userApi, subscriptionsApi, teamApi } from '../../src/services/api';
 import { api } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const BIOMETRIC_ENABLED_KEY = 'hg_biometric_enabled';
 const SAVED_EMAIL_KEY = 'hg_saved_email';
@@ -161,7 +162,7 @@ export default function CustomerProfileScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   const address = profile?.address
     ? `${profile.address}, ${profile.city}, ${profile.state} ${profile.zipCode}`
@@ -185,9 +186,9 @@ export default function CustomerProfileScreen() {
       </View>
 
       <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(customer)/notifications')}>
-        <Ionicons name="notifications-outline" size={20} color="#0B4A45" />
+        <Ionicons name="notifications-outline" size={20} color={colors.lanternDeep} />
         <Text style={styles.linkRowText}>Notifications</Text>
-        <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+        <Ionicons name="chevron-forward" size={18} color={colors.steel} />
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Family Members</Text>
@@ -214,14 +215,14 @@ export default function CustomerProfileScreen() {
             <TextInput
               style={styles.input}
               placeholder="Family member's email"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.steel}
               value={familyEmail}
               onChangeText={setFamilyEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
             <TouchableOpacity style={styles.saveBtn} onPress={addFamilyMember} disabled={addingMember}>
-              {addingMember ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Member</Text>}
+              {addingMember ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Add Member</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { setShowFamilyForm(false); setFamilyEmail(''); }} style={styles.cancelInlineBtn}>
               <Text style={styles.cancelInlineText}>Cancel</Text>
@@ -260,10 +261,10 @@ export default function CustomerProfileScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              style={{ backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' }}
+              style={{ backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center' }}
               onPress={() => router.push('/(customer)/subscribe')}
             >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>View Plans & Subscribe</Text>
+              <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 14 }}>View Plans & Subscribe</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -292,14 +293,14 @@ export default function CustomerProfileScreen() {
             <TextInput
               style={styles.input}
               placeholder="New email address"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.steel}
               value={newEmail}
               onChangeText={setNewEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
             <TouchableOpacity style={styles.saveBtn} onPress={changeEmail} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Update Email</Text>}
+              {saving ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Update Email</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -312,11 +313,11 @@ export default function CustomerProfileScreen() {
         </TouchableOpacity>
         {showPasswordForm && (
           <View style={styles.formInner}>
-            <TextInput style={styles.input} placeholder="Current password" placeholderTextColor="#94a3b8" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
-            <TextInput style={styles.input} placeholder="New password" placeholderTextColor="#94a3b8" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-            <TextInput style={styles.input} placeholder="Confirm new password" placeholderTextColor="#94a3b8" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+            <TextInput style={styles.input} placeholder="Current password" placeholderTextColor={colors.steel} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
+            <TextInput style={styles.input} placeholder="New password" placeholderTextColor={colors.steel} value={newPassword} onChangeText={setNewPassword} secureTextEntry />
+            <TextInput style={styles.input} placeholder="Confirm new password" placeholderTextColor={colors.steel} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
             <TouchableOpacity style={styles.saveBtn} onPress={changePassword} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Update Password</Text>}
+              {saving ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Update Password</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -340,45 +341,45 @@ function Row({ label, value }: { label: string; value?: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: 24, paddingTop: 32 },
   linkRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 14,
-    padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#e2e8f0',
+    padding: 16, marginBottom: 20, borderWidth: 1, borderColor: colors.border,
   },
-  linkRowText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#0B4A45' },
+  linkRowText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.lanternDeep },
   avatarWrap: { alignItems: 'center', marginBottom: 28 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  avatarText: { color: '#fff', fontSize: 28, fontWeight: '700' },
-  name: { fontSize: 22, fontWeight: '700', color: '#0B4A45' },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#888', textTransform: 'uppercase', marginBottom: 8, marginTop: 4 },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatarText: { color: colors.mist, fontSize: 28, fontWeight: '700' },
+  name: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.steel, textTransform: 'uppercase', marginBottom: 8, marginTop: 4 },
   card: { backgroundColor: '#fff', borderRadius: 14, marginBottom: 20, overflow: 'hidden' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  rowLabel: { fontSize: 14, color: '#888', flex: 1 },
-  rowValue: { fontSize: 14, fontWeight: '600', color: '#0B4A45', flex: 2, textAlign: 'right' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  rowLabel: { fontSize: 14, color: colors.steel, flex: 1 },
+  rowValue: { fontSize: 14, fontWeight: '600', color: colors.lanternDeep, flex: 2, textAlign: 'right' },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
-  actionLabel: { fontSize: 15, fontWeight: '600', color: '#0B4A45' },
-  actionChevron: { fontSize: 12, color: '#aaa' },
-  divider: { height: 1, backgroundColor: '#f0f0f0' },
+  actionLabel: { fontSize: 15, fontWeight: '600', color: colors.lanternDeep },
+  actionChevron: { fontSize: 12, color: colors.steel },
+  divider: { height: 1, backgroundColor: colors.border },
   formInner: { paddingHorizontal: 16, paddingBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: '#f8f9fa', color: '#0f172a' },
-  saveBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: colors.canvas, color: colors.ink },
+  saveBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center' },
+  saveBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   logoutBtn: { backgroundColor: '#fed7d7', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   logoutText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
-  emptyNote: { fontSize: 14, color: '#aaa', paddingHorizontal: 16, paddingVertical: 14, fontStyle: 'italic' },
-  memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  memberAvatarText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  emptyNote: { fontSize: 14, color: colors.steel, paddingHorizontal: 16, paddingVertical: 14, fontStyle: 'italic' },
+  memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  memberAvatarText: { color: colors.mist, fontSize: 13, fontWeight: '700' },
   memberInfo: { flex: 1 },
-  memberName: { fontSize: 14, fontWeight: '700', color: '#0B4A45' },
-  memberEmail: { fontSize: 12, color: '#888', marginTop: 1 },
+  memberName: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
+  memberEmail: { fontSize: 12, color: colors.steel, marginTop: 1 },
   removeBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
   removeBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
-  addFamilyBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: '#0B4A45', borderStyle: 'dashed', padding: 13, alignItems: 'center' },
-  addFamilyBtnText: { fontSize: 14, fontWeight: '700', color: '#0B4A45' },
+  addFamilyBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', padding: 13, alignItems: 'center' },
+  addFamilyBtnText: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
   cancelInlineBtn: { alignItems: 'center', paddingVertical: 10 },
-  cancelInlineText: { color: '#888', fontSize: 14 },
+  cancelInlineText: { color: colors.steel, fontSize: 14 },
   disableBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
   disableBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
 });

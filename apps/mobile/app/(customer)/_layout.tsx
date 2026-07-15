@@ -6,6 +6,7 @@ import { useAuthStore } from '../../src/store/auth.store';
 import { useAlertsStore } from '../../src/store/alerts.store';
 import { userApi } from '../../src/services/api';
 import { AttenteveIcon, AttenteveLogo } from '../../src/components/AttenteveLogo';
+import { colors } from '../../src/theme';
 
 function RoleSwitcher() {
   const { user, setUser } = useAuthStore();
@@ -33,12 +34,12 @@ export default function CustomerLayout() {
     <Tabs
       screenOptions={({ route }) => ({
         headerRight: () => <RoleSwitcher />,
-        headerStyle: { backgroundColor: '#0B4A45' },
-        headerTintColor: '#fff',
+        headerStyle: { backgroundColor: colors.ink },
+        headerTintColor: colors.mist,
         headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: '#0B4A45',
-        tabBarInactiveTintColor: '#94a3b8',
-        tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
+        tabBarActiveTintColor: colors.lanternDeep,
+        tabBarInactiveTintColor: colors.steel,
+        tabBarStyle: { borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: 4, height: 58 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       })}
     >
@@ -83,7 +84,7 @@ export default function CustomerLayout() {
       <Tabs.Screen name="payments" options={{ href: null, title: 'Payments' }} />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="assistant" options={{ href: null, title: 'Houmi Assistant' }} />
+      <Tabs.Screen name="assistant" options={{ href: null, title: 'Attenteve Assistant' }} />
       <Tabs.Screen name="approvals" options={{ href: null, title: 'Approvals' }} />
       <Tabs.Screen name="dispute" options={{ href: null, title: 'Dispute' }} />
       <Tabs.Screen name="inspection-report" options={{ href: null, title: 'Inspection Report' }} />
@@ -92,6 +93,6 @@ export default function CustomerLayout() {
 }
 
 const styles = StyleSheet.create({
-  switchBtn: { marginRight: 16, backgroundColor: '#17897D', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  switchBtn: { marginRight: 16, backgroundColor: colors.lanternDeep, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   switchText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 });

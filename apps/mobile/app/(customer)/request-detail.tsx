@@ -10,6 +10,7 @@ import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 import { TextInput } from 'react-native';
 
@@ -298,7 +299,7 @@ export default function RequestDetailScreen() {
     }
   };
 
-  if (loading || !request) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading || !request) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.PENDING;
   const canReschedule = !['COMPLETED', 'CANCELLED', 'PENDING_CUSTOMER_REVIEW', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(request.status);
@@ -308,13 +309,13 @@ export default function RequestDetailScreen() {
   const canChat = !!request.vendorId;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8f9fa' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }} edges={['top']}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <View style={[styles.statusBadge, { backgroundColor: cfg.bg, marginBottom: 0 }]}>
           <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
-        {request.ticketNumber && <Text style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'monospace' }}>{request.ticketNumber}</Text>}
+        {request.ticketNumber && <Text style={{ fontSize: 12, color: colors.steel, fontFamily: 'monospace' }}>{request.ticketNumber}</Text>}
       </View>
 
       {request.isPaidAddon && (
@@ -330,7 +331,7 @@ export default function RequestDetailScreen() {
         const addr = request.address ? request : profileAddress;
         return addr?.address
           ? <Text style={styles.value}>{addr.address}, {addr.city}, {addr.state} {addr.zipCode}</Text>
-          : <Text style={[styles.value, { color: '#aaa', fontStyle: 'italic' }]}>No address recorded</Text>;
+          : <Text style={[styles.value, { color: colors.steel, fontStyle: 'italic' }]}>No address recorded</Text>;
       })()}
 
       <Text style={styles.sectionTitle}>Preferred Date</Text>
@@ -358,7 +359,7 @@ export default function RequestDetailScreen() {
               disabled={scheduleBusy}
             >
               {scheduleBusy
-                ? <ActivityIndicator color="#fff" size="small" />
+                ? <ActivityIndicator color={colors.ink} size="small" />
                 : <Text style={styles.reviewAcceptText}>Accept Time</Text>
               }
             </TouchableOpacity>
@@ -453,7 +454,7 @@ export default function RequestDetailScreen() {
       {solarQuote && request.type === 'ADDITIONAL_SERVICE' && (request.additionalServices?.[0]?.name || '').toLowerCase().includes('solar') && (
         <>
           <Text style={styles.sectionTitle}>Solar Quote</Text>
-          <View style={[styles.svcCard, { borderColor: '#0B4A45' }]}>
+          <View style={[styles.svcCard, { borderColor: colors.lanternDeep }]}>
             {/* Status badge */}
             <View style={[styles.svcHeader, { marginBottom: 8 }]}>
               <Text style={[styles.svcName, { flex: 1 }]}>Contractor Proposal</Text>
@@ -476,18 +477,18 @@ export default function RequestDetailScreen() {
 
             {/* Quote details */}
             <View style={{ gap: 5, marginBottom: 10 }}>
-              <Text style={styles.svcDesc}>System: <Text style={{ fontWeight: '700', color: '#0f172a' }}>{Number(solarQuote.systemSizeKw).toFixed(1)} kW • {solarQuote.numInverters}x {solarQuote.inverterManufacturer} {solarQuote.inverterModel}</Text></Text>
+              <Text style={styles.svcDesc}>System: <Text style={{ fontWeight: '700', color: colors.ink }}>{Number(solarQuote.systemSizeKw).toFixed(1)} kW • {solarQuote.numInverters}x {solarQuote.inverterManufacturer} {solarQuote.inverterModel}</Text></Text>
               <Text style={styles.svcDesc}>PV System: <Text style={{ fontWeight: '700', color: '#059669' }}>${Number(solarQuote.pvSystemPrice).toLocaleString()}</Text></Text>
               {solarQuote.storageManufacturer && (
                 <>
-                  <Text style={styles.svcDesc}>Storage: <Text style={{ fontWeight: '700', color: '#0f172a' }}>{solarQuote.storageSizeKwh} kWh • {solarQuote.storageManufacturer} {solarQuote.storageModel}</Text></Text>
+                  <Text style={styles.svcDesc}>Storage: <Text style={{ fontWeight: '700', color: colors.ink }}>{solarQuote.storageSizeKwh} kWh • {solarQuote.storageManufacturer} {solarQuote.storageModel}</Text></Text>
                   {solarQuote.storagePrice && (
                     <Text style={styles.svcDesc}>Storage: <Text style={{ fontWeight: '700', color: '#059669' }}>${Number(solarQuote.storagePrice).toLocaleString()}</Text></Text>
                   )}
                 </>
               )}
-              <View style={{ height: 1, backgroundColor: '#e2e8f0', marginVertical: 4 }} />
-              <Text style={[styles.svcDesc, { fontWeight: '800', fontSize: 15, color: '#0B4A45' }]}>
+              <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+              <Text style={[styles.svcDesc, { fontWeight: '800', fontSize: 15, color: colors.lanternDeep }]}>
                 Total: ${(Number(solarQuote.pvSystemPrice) + Number(solarQuote.storagePrice || 0)).toLocaleString()}
               </Text>
             </View>
@@ -495,10 +496,10 @@ export default function RequestDetailScreen() {
             {/* Consultation flow */}
             {!solarConsultation && (
               <View style={{ marginTop: 4, gap: 10 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 2 }}>Preferred Site Visit Date</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.slate, marginBottom: 2 }}>Preferred Site Visit Date</Text>
                 <DateTimeField value={consultationDate} onChange={setConsultationDate} />
                 <TouchableOpacity
-                  style={{ backgroundColor: '#0B4A45', borderRadius: 12, padding: 14, alignItems: 'center' }}
+                  style={{ backgroundColor: colors.lantern, borderRadius: 12, padding: 14, alignItems: 'center' }}
                   disabled={consultationBusy}
                   onPress={async () => {
                     setConsultationBusy(true);
@@ -510,8 +511,8 @@ export default function RequestDetailScreen() {
                   }}
                 >
                   {consultationBusy
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Request Site Visit</Text>}
+                    ? <ActivityIndicator color={colors.ink} />
+                    : <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 15 }}>Request Site Visit</Text>}
                 </TouchableOpacity>
               </View>
             )}
@@ -554,7 +555,7 @@ export default function RequestDetailScreen() {
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                   <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: '#0B4A45', borderRadius: 10, padding: 12, alignItems: 'center' }}
+                    style={{ flex: 1, backgroundColor: colors.lantern, borderRadius: 10, padding: 12, alignItems: 'center' }}
                     disabled={consultationBusy}
                     onPress={async () => {
                       setConsultationBusy(true);
@@ -565,7 +566,7 @@ export default function RequestDetailScreen() {
                       finally { setConsultationBusy(false); }
                     }}
                   >
-                    <Text style={{ color: '#fff', fontWeight: '700' }}>Accept Date</Text>
+                    <Text style={{ color: colors.ink, fontWeight: '700' }}>Accept Date</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flex: 1, borderWidth: 1, borderColor: '#dc2626', borderRadius: 10, padding: 12, alignItems: 'center' }}
@@ -663,7 +664,7 @@ export default function RequestDetailScreen() {
           style={styles.reportBtn}
           onPress={() => router.push(`/(customer)/inspection-report?id=${id}`)}
         >
-          <Ionicons name="document-text-outline" size={18} color="#fff" />
+          <Ionicons name="document-text-outline" size={18} color={colors.ink} />
           <Text style={styles.reportBtnText}>
             {(request.additionalServices?.[0]?.name || '').toLowerCase().includes('hvac')
               ? 'View HVAC Inspection Report'
@@ -694,7 +695,7 @@ export default function RequestDetailScreen() {
               <TextInput
                 style={styles.reviewInput}
                 placeholder="Leave a comment (optional)..."
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={colors.steel}
                 value={reviewComment}
                 onChangeText={setReviewComment}
                 multiline
@@ -763,48 +764,48 @@ export default function RequestDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: 20 },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99, marginBottom: 20 },
   statusText: { fontSize: 13, fontWeight: '700' },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#888', textTransform: 'uppercase', marginTop: 16, marginBottom: 4 },
-  value: { fontSize: 16, color: '#0B4A45' },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.steel, textTransform: 'uppercase', marginTop: 16, marginBottom: 4 },
+  value: { fontSize: 16, color: colors.lanternDeep },
   noteCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   noteCardFinding: { borderLeftWidth: 3, borderLeftColor: '#ed8936' },
-  noteTitle: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
-  noteContent: { fontSize: 14, color: '#555', lineHeight: 20 },
+  noteTitle: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
+  noteContent: { fontSize: 14, color: colors.steel, lineHeight: 20 },
   findingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff4e5', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginBottom: 6 },
   findingBadgeText: { fontSize: 11, fontWeight: '700', color: '#c05621' },
   photoThumb: { width: 120, height: 90, borderRadius: 10, marginRight: 8 },
   notePhotoThumb: { width: 80, height: 60, borderRadius: 8, marginRight: 6 },
-  rescheduleBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 28 },
-  rescheduleBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  rescheduleBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 28 },
+  rescheduleBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   chatBtn: { backgroundColor: '#2563eb', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 12 },
   chatBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: colors.lanternDeep, marginBottom: 16 },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   dateBtn: {
-    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
+    backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 12,
     padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16,
   },
-  dateBtnText: { fontSize: 15, color: '#111', fontWeight: '500', flex: 1 },
+  dateBtnText: { fontSize: 15, color: colors.ink, fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
-  doneBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
-  doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  confirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
-  confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  doneBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  doneBtnText: { color: colors.ink, fontWeight: '700', fontSize: 16 },
+  confirmBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  confirmText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
-  cancelText: { color: '#888' },
+  cancelText: { color: colors.steel },
   cancelRequestBtn: { backgroundColor: '#fff5f5', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: '#fed7d7' },
   cancelRequestText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
-  svcCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+  svcCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 8, borderWidth: 1, borderColor: colors.border },
   svcCardApproved: { borderColor: '#059669', backgroundColor: '#f0fdf4' },
   svcHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  svcName: { fontSize: 15, fontWeight: '700', color: '#0B4A45', flex: 1, marginRight: 8 },
+  svcName: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep, flex: 1, marginRight: 8 },
   svcPrice: { fontSize: 15, fontWeight: '700', color: '#059669' },
-  svcDesc: { fontSize: 13, color: '#555', lineHeight: 18, marginBottom: 10 },
+  svcDesc: { fontSize: 13, color: colors.steel, lineHeight: 18, marginBottom: 10 },
   approveBtn: { backgroundColor: '#059669', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   reviewBanner: {
@@ -813,8 +814,8 @@ const styles = StyleSheet.create({
   },
   reviewBannerText: { fontSize: 14, color: '#78350f', lineHeight: 20 },
   reviewActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  reviewAcceptBtn: { flex: 1, backgroundColor: '#0B4A45', borderRadius: 10, padding: 13, alignItems: 'center' },
-  reviewAcceptText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  reviewAcceptBtn: { flex: 1, backgroundColor: colors.lantern, borderRadius: 10, padding: 13, alignItems: 'center' },
+  reviewAcceptText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
   reviewDeclineBtn: { flex: 1, backgroundColor: '#fff5f5', borderRadius: 10, padding: 13, alignItems: 'center', borderWidth: 1.5, borderColor: '#fed7d7' },
   reviewDeclineText: { color: '#c53030', fontWeight: '700', fontSize: 14 },
   addonBanner: { backgroundColor: '#fef3c7', borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#fde68a' },
@@ -823,25 +824,25 @@ const styles = StyleSheet.create({
   enRouteTitle: { fontSize: 15, fontWeight: '800', color: '#92400e', marginBottom: 2 },
   enRouteBody: { fontSize: 13, color: '#78350f', lineHeight: 20 },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
-  vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: '#e2e8f0' },
-  vendorName: { fontSize: 15, fontWeight: '700', color: '#0B4A45' },
-  vendorCompany: { fontSize: 13, color: '#64748b', marginTop: 2 },
-  reviewCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-  reviewHint: { fontSize: 14, color: '#555', marginBottom: 12 },
+  vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: colors.border },
+  vendorName: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep },
+  vendorCompany: { fontSize: 13, color: colors.steel, marginTop: 2 },
+  reviewCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: colors.border },
+  reviewHint: { fontSize: 14, color: colors.steel, marginBottom: 12 },
   starsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   star: { fontSize: 36, color: '#d1d5db' },
   starFilled: { color: '#f59e0b' },
-  reviewInput: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 12, fontSize: 14, color: '#333', height: 80, textAlignVertical: 'top', marginBottom: 12 },
-  reviewBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
-  reviewBtnDisabled: { backgroundColor: '#94a3b8' },
-  reviewBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  reviewInput: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, fontSize: 14, color: '#333', height: 80, textAlignVertical: 'top', marginBottom: 12 },
+  reviewBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center' },
+  reviewBtnDisabled: { backgroundColor: colors.steel },
+  reviewBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
   reviewSubmitted: { backgroundColor: '#f0fdf4', borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#6ee7b7', alignItems: 'center' },
   reviewStars: { fontSize: 28, color: '#f59e0b', letterSpacing: 2, marginBottom: 4 },
   reviewSubmittedText: { fontSize: 14, color: '#059669', fontWeight: '600', marginBottom: 4 },
-  reviewComment: { fontSize: 13, color: '#555', textAlign: 'center', fontStyle: 'italic' },
+  reviewComment: { fontSize: 13, color: colors.steel, textAlign: 'center', fontStyle: 'italic' },
   reportBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 4,
+    backgroundColor: colors.lantern, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 4,
   },
-  reportBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  reportBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
 });

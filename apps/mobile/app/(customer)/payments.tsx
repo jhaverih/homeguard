@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import { paymentsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   PENDING:   { label: 'Due',       color: '#b45309', bg: '#fffbeb' },
@@ -55,7 +56,7 @@ export default function PaymentsScreen() {
         setupIntentClientSecret,
         customerId,
         customerEphemeralKeySecret: ephemeralKeySecret,
-        merchantDisplayName: 'Houmi',
+        merchantDisplayName: 'Attenteve',
       });
       if (initErr) { Alert.alert('Error', initErr.message); return; }
       const { error: presentErr } = await presentPaymentSheet();
@@ -119,7 +120,7 @@ export default function PaymentsScreen() {
               if (res?.clientSecret) {
                 const { error: initErr } = await initPaymentSheet({
                   paymentIntentClientSecret: res.clientSecret,
-                  merchantDisplayName: 'Houmi',
+                  merchantDisplayName: 'Attenteve',
                 });
                 if (initErr) { Alert.alert('Error', initErr.message); return; }
                 const { error: presentErr } = await presentPaymentSheet();
@@ -141,7 +142,7 @@ export default function PaymentsScreen() {
     );
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView
@@ -160,7 +161,7 @@ export default function PaymentsScreen() {
             <View key={m.id} style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                  <Ionicons name="card-outline" size={22} color="#0B4A45" />
+                  <Ionicons name="card-outline" size={22} color={colors.lanternDeep} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardDesc}>
                       {m.brand.charAt(0).toUpperCase() + m.brand.slice(1)} •••• {m.last4}
@@ -169,7 +170,7 @@ export default function PaymentsScreen() {
                   </View>
                 </View>
                 {methodBusyId === m.id ? (
-                  <ActivityIndicator size="small" color="#0B4A45" />
+                  <ActivityIndicator size="small" color={colors.lanternDeep} />
                 ) : (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {!m.isDefault && (
@@ -188,10 +189,10 @@ export default function PaymentsScreen() {
         )}
         <TouchableOpacity style={styles.addCardBtn} onPress={addCard} disabled={addingCard}>
           {addingCard ? (
-            <ActivityIndicator size="small" color="#0B4A45" />
+            <ActivityIndicator size="small" color={colors.lanternDeep} />
           ) : (
             <>
-              <Ionicons name="add-circle-outline" size={18} color="#0B4A45" />
+              <Ionicons name="add-circle-outline" size={18} color={colors.lanternDeep} />
               <Text style={styles.addCardBtnText}>Add Card</Text>
             </>
           )}
@@ -227,10 +228,10 @@ export default function PaymentsScreen() {
                 disabled={paying === p.id}
               >
                 {paying === p.id ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.ink} />
                 ) : (
                   <>
-                    <Ionicons name="card" size={16} color="#fff" />
+                    <Ionicons name="card" size={16} color={colors.ink} />
                     <Text style={styles.payBtnText}>Pay {fmt(p.amount)}</Text>
                   </>
                 )}
@@ -279,31 +280,31 @@ export default function PaymentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   section: { padding: 16, paddingBottom: 0 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0B4A45', marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.lanternDeep, marginBottom: 12 },
   card: { backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 12, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   cardPending: { borderLeftWidth: 3, borderLeftColor: '#b45309' },
   cardTop: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  cardDesc: { fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
-  cardSub: { fontSize: 12, color: '#64748b', marginTop: 1 },
-  cardDate: { fontSize: 12, color: '#94a3b8', marginTop: 4 },
+  cardDesc: { fontSize: 15, fontWeight: '600', color: colors.ink, marginBottom: 2 },
+  cardSub: { fontSize: 12, color: colors.steel, marginTop: 1 },
+  cardDate: { fontSize: 12, color: colors.steel, marginTop: 4 },
   amountDue: { fontSize: 20, fontWeight: '800', color: '#b45309' },
-  amount: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0B4A45', borderRadius: 10, padding: 13 },
+  amount: { fontSize: 18, fontWeight: '700', color: colors.ink },
+  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.lantern, borderRadius: 10, padding: 13 },
   payBtnLoading: { opacity: 0.7 },
-  payBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  payBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   statusText: { fontSize: 11, fontWeight: '700' },
   emptyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 24, alignItems: 'center', gap: 8, marginBottom: 12 },
-  emptyText: { fontSize: 14, color: '#94a3b8' },
-  methodActionBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#e2e8f0' },
+  emptyText: { fontSize: 14, color: colors.steel },
+  methodActionBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
   methodActionBtnDanger: { borderColor: '#fed7d7' },
-  methodActionText: { fontSize: 12, fontWeight: '700', color: '#0B4A45' },
+  methodActionText: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep },
   methodActionTextDanger: { color: '#c53030' },
   addCardBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 12, borderWidth: 1.5, borderColor: '#0B4A45', borderStyle: 'dashed', padding: 14,
+    borderRadius: 12, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', padding: 14,
   },
-  addCardBtnText: { color: '#0B4A45', fontWeight: '700', fontSize: 14 },
+  addCardBtnText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 14 },
 });

@@ -7,6 +7,7 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 export default function ApprovalsScreen() {
   const [services, setServices] = useState<any[]>([]);
@@ -61,7 +62,7 @@ export default function ApprovalsScreen() {
     );
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView
@@ -79,7 +80,7 @@ export default function ApprovalsScreen() {
 
       {services.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Ionicons name="checkmark-circle" size={48} color="#17897D" style={{ marginBottom: 12 }} />
+          <Ionicons name="checkmark-circle" size={48} color={colors.lanternDeep} style={{ marginBottom: 12 }} />
           <Text style={styles.emptyTitle}>No pending approvals</Text>
           <Text style={styles.emptyText}>Your vendor hasn't recommended any additional services yet.</Text>
         </View>
@@ -98,7 +99,7 @@ export default function ApprovalsScreen() {
             <View key={svc.id} style={styles.card}>
               <View style={styles.cardMeta}>
                 <View style={styles.iconWrap}>
-                  <Ionicons name="construct" size={20} color="#0B4A45" />
+                  <Ionicons name="construct" size={20} color={colors.lanternDeep} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.vendorName}>{vendorName} recommends</Text>
@@ -128,10 +129,10 @@ export default function ApprovalsScreen() {
                   disabled={approving === svc.id}
                 >
                   {approving === svc.id ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={colors.ink} />
                   ) : (
                     <>
-                      <Ionicons name="checkmark" size={16} color="#fff" />
+                      <Ionicons name="checkmark" size={16} color={colors.ink} />
                       <Text style={styles.approveBtnText}>Approve</Text>
                     </>
                   )}
@@ -146,27 +147,27 @@ export default function ApprovalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  header: { backgroundColor: '#0B4A45', padding: 24, paddingTop: 16 },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: '#fff' },
-  headerSub: { fontSize: 13, color: '#a8c4e5', marginTop: 4 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  header: { backgroundColor: colors.ink, padding: 24, paddingTop: 16 },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: colors.mist },
+  headerSub: { fontSize: 13, color: colors.mistDim, marginTop: 4 },
   emptyCard: { margin: 32, alignItems: 'center', paddingTop: 16 },
-  emptyTitle: { fontSize: 17, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 21 },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: colors.lanternDeep, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: colors.steel, textAlign: 'center', lineHeight: 21 },
   card: { margin: 16, marginBottom: 0, backgroundColor: '#fff', borderRadius: 16, padding: 18, elevation: 2, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 8 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#EBF1EF', alignItems: 'center', justifyContent: 'center' },
-  vendorName: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
-  address: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  serviceName: { fontSize: 17, fontWeight: '700', color: '#0f172a', marginBottom: 6 },
-  serviceDesc: { fontSize: 14, color: '#475569', lineHeight: 21, marginBottom: 14 },
-  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14 },
-  priceLabel: { fontSize: 13, color: '#64748b' },
-  price: { fontSize: 20, fontWeight: '800', color: '#0B4A45' },
+  iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.mist, alignItems: 'center', justifyContent: 'center' },
+  vendorName: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep },
+  address: { fontSize: 12, color: colors.steel, marginTop: 2 },
+  serviceName: { fontSize: 17, fontWeight: '700', color: colors.ink, marginBottom: 6 },
+  serviceDesc: { fontSize: 14, color: colors.steel, lineHeight: 21, marginBottom: 14 },
+  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14 },
+  priceLabel: { fontSize: 13, color: colors.steel },
+  price: { fontSize: 20, fontWeight: '800', color: colors.lanternDeep },
   actions: { flexDirection: 'row', gap: 10 },
-  declineBtn: { flex: 1, borderWidth: 1.5, borderColor: '#cbd5e1', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-  declineBtnText: { fontSize: 14, fontWeight: '600', color: '#64748b' },
-  approveBtn: { flex: 2, backgroundColor: '#0B4A45', borderRadius: 10, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  declineBtn: { flex: 1, borderWidth: 1.5, borderColor: colors.border, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  declineBtnText: { fontSize: 14, fontWeight: '600', color: colors.steel },
+  approveBtn: { flex: 2, backgroundColor: colors.lantern, borderRadius: 10, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   approveBtnLoading: { opacity: 0.7 },
-  approveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  approveBtnText: { fontSize: 14, fontWeight: '700', color: colors.ink },
 });

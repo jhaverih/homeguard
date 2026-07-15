@@ -7,6 +7,7 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { alertsApi } from '../../src/services/api';
 import { useAlertsStore } from '../../src/store/alerts.store';
+import { colors } from '../../src/theme';
 
 const SEVERITY_CONFIG = {
   CRITICAL: { color: '#dc2626', bg: '#fef2f2', icon: 'warning' as const, label: 'Critical' },
@@ -114,7 +115,7 @@ export default function AlertsScreen() {
     );
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <View style={styles.container}>
@@ -153,27 +154,27 @@ export default function AlertsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  topBarText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
-  markAllRead: { fontSize: 13, color: '#0B4A45', fontWeight: '600' },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  topBarText: { fontSize: 13, color: colors.steel, fontWeight: '500' },
+  markAllRead: { fontSize: 13, color: colors.lanternDeep, fontWeight: '600' },
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, flexDirection: 'row', gap: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  cardUnread: { borderLeftWidth: 3, borderLeftColor: '#0B4A45' },
+  cardUnread: { borderLeftWidth: 3, borderLeftColor: colors.lanternDeep },
   cardIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   cardBody: { flex: 1, gap: 4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   badgeText: { fontSize: 11, fontWeight: '700' },
-  newDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0B4A45' },
-  time: { fontSize: 11, color: '#94a3b8', marginLeft: 'auto' },
-  message: { fontSize: 14, fontWeight: '600', color: '#1e293b', lineHeight: 20 },
-  device: { fontSize: 12, color: '#64748b' },
+  newDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lanternDeep },
+  time: { fontSize: 11, color: colors.steel, marginLeft: 'auto' },
+  message: { fontSize: 14, fontWeight: '600', color: colors.ink, lineHeight: 20 },
+  device: { fontSize: 12, color: colors.steel },
   dispatchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   dispatchBtnText: { fontSize: 12, color: '#dc2626', fontWeight: '600' },
   dispatchedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   dispatchedText: { fontSize: 12, color: '#16a34a', fontWeight: '600' },
   empty: { flex: 1 },
   emptyInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 80 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', marginTop: 16, marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#94a3b8', textAlign: 'center' },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.lanternDeep, marginTop: 16, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: colors.steel, textAlign: 'center' },
 });

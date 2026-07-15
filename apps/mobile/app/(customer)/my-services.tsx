@@ -6,6 +6,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: '#f6ad55',
@@ -64,7 +65,7 @@ export default function MyServicesScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   const filtered = requests.filter((r) => matchesFilter(r, filter));
   const activeCount = requests.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
@@ -77,7 +78,7 @@ export default function MyServicesScreen() {
       <View style={styles.topRow}>
         <Text style={styles.pageTitle}>My Services</Text>
         <TouchableOpacity style={styles.bookBtn} onPress={() => router.push('/(customer)/request')}>
-          <Ionicons name="add-circle" size={18} color="#fff" />
+          <Ionicons name="add-circle" size={18} color={colors.ink} />
           <Text style={styles.bookBtnText}>Book</Text>
         </TouchableOpacity>
       </View>
@@ -116,7 +117,7 @@ export default function MyServicesScreen() {
         </View>
       ) : (
         filtered.map((req: any) => {
-          const color = STATUS_COLOR[req.status] || '#888';
+          const color = STATUS_COLOR[req.status] || colors.steel;
           const isEnRoute = req.status === 'VENDOR_EN_ROUTE';
           const isActive = ACTIVE_STATUSES.includes(req.status);
           const typeLabel = req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection';
@@ -170,36 +171,36 @@ export default function MyServicesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45' },
-  bookBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0B4A45', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
-  bookBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep },
+  bookBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.lantern, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
+  bookBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
   filterRow: { marginBottom: 8 },
-  filterChip: { backgroundColor: '#fff', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: '#e2e8f0' },
-  filterChipActive: { backgroundColor: '#0B4A45', borderColor: '#0B4A45' },
-  filterChipText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
-  filterChipTextActive: { color: '#fff' },
+  filterChip: { backgroundColor: '#fff', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: colors.border },
+  filterChipActive: { backgroundColor: colors.lantern, borderColor: colors.lantern },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: colors.steel },
+  filterChipTextActive: { color: colors.ink },
   emptyBox: { padding: 48, alignItems: 'center', gap: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#374151', marginTop: 8 },
-  emptyText: { color: '#888', textAlign: 'center', lineHeight: 22 },
-  emptyBookBtn: { marginTop: 16, backgroundColor: '#0B4A45', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 14 },
-  emptyBookBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.slate, marginTop: 8 },
+  emptyText: { color: colors.steel, textAlign: 'center', lineHeight: 22 },
+  emptyBookBtn: { marginTop: 16, backgroundColor: colors.lantern, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 14 },
+  emptyBookBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   card: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#fff', borderRadius: 14, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   cardHeader: { flexDirection: 'row', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
   typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
-  typeBadgeInspection: { backgroundColor: '#EBF1EF' },
+  typeBadgeInspection: { backgroundColor: colors.mist },
   typeBadgeService: { backgroundColor: '#f0effe' },
   typeBadgeText: { fontSize: 11, fontWeight: '700' },
-  typeBadgeTextInspection: { color: '#0B4A45' },
+  typeBadgeTextInspection: { color: colors.lanternDeep },
   typeBadgeTextService: { color: '#635bff' },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 99 },
   statusText: { fontSize: 12, fontWeight: '600' },
-  cardServiceName: { fontSize: 15, fontWeight: '700', color: '#0B4A45', marginBottom: 3 },
-  cardDate: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 2 },
-  cardAddress: { fontSize: 14, color: '#555', marginBottom: 6 },
-  ticketNumber: { fontSize: 11, color: '#94a3b8', fontFamily: 'monospace', marginBottom: 4 },
+  cardServiceName: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep, marginBottom: 3 },
+  cardDate: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep, marginBottom: 2 },
+  cardAddress: { fontSize: 14, color: colors.steel, marginBottom: 6 },
+  ticketNumber: { fontSize: 11, color: colors.steel, fontFamily: 'monospace', marginBottom: 4 },
   enRouteBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#f5f3ff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
   enRouteText: { fontSize: 12, color: '#7c3aed', fontWeight: '600' },
-  cardCta: { fontSize: 12, color: '#0B4A45', fontWeight: '600' },
+  cardCta: { fontSize: 12, color: colors.lanternDeep, fontWeight: '600' },
 });

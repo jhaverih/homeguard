@@ -8,6 +8,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, userApi, subscriptionsApi, pricingApi, standaloneServiceApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 function DateTimeField({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
   const [showDate, setShowDate] = useState(false);
@@ -265,12 +266,12 @@ export default function RequestScreen() {
     return (
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView style={styles.container} contentContainerStyle={[styles.content, { alignItems: 'center', paddingTop: 60 }]}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#EBF1EF', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-            <Ionicons name="shield-outline" size={38} color="#0B4A45" />
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.mist, alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <Ionicons name="shield-outline" size={38} color={colors.lanternDeep} />
           </View>
           <Text style={[styles.title, { textAlign: 'center' }]}>Subscription Required</Text>
           <Text style={[styles.subtitle, { textAlign: 'center' }]}>
-            A Houmi plan is required to request services. Choose a plan to get started.
+            An Attenteve plan is required to request services. Choose a plan to get started.
           </Text>
           <TouchableOpacity
             style={[styles.button, { marginTop: 16, width: '100%' }]}
@@ -294,14 +295,14 @@ export default function RequestScreen() {
             style={[styles.tabBtn, tab === 'inspection' && styles.tabBtnActive]}
             onPress={() => setTab('inspection')}
           >
-            <Ionicons name="clipboard-outline" size={16} color={tab === 'inspection' ? '#fff' : '#0B4A45'} />
+            <Ionicons name="clipboard-outline" size={16} color={tab === 'inspection' ? colors.ink : colors.lanternDeep} />
             <Text style={[styles.tabBtnText, tab === 'inspection' && styles.tabBtnTextActive]}>Inspection</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tabBtn, tab === 'service' && styles.tabBtnActive]}
             onPress={() => setTab('service')}
           >
-            <Ionicons name="construct-outline" size={16} color={tab === 'service' ? '#fff' : '#0B4A45'} />
+            <Ionicons name="construct-outline" size={16} color={tab === 'service' ? colors.ink : colors.lanternDeep} />
             <Text style={[styles.tabBtnText, tab === 'service' && styles.tabBtnTextActive]}>Additional Services</Text>
           </TouchableOpacity>
         </View>
@@ -335,7 +336,7 @@ export default function RequestScreen() {
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Any special instructions..."
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.steel}
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -360,7 +361,7 @@ export default function RequestScreen() {
 
             <TouchableOpacity style={styles.button} onPress={handleInspectionSubmit} disabled={loading}>
               {loading
-                ? <ActivityIndicator color="#fff" />
+                ? <ActivityIndicator color={colors.ink} />
                 : <Text style={styles.buttonText}>
                     {limitReached ? `Book Additional Inspection (${fmtUSD(addonPrice)})` : 'Send Request'}
                   </Text>
@@ -377,7 +378,7 @@ export default function RequestScreen() {
             </Text>
 
             {catalogLoading ? (
-              <ActivityIndicator color="#0B4A45" style={{ marginVertical: 24 }} />
+              <ActivityIndicator color={colors.lanternDeep} style={{ marginVertical: 24 }} />
             ) : (
               catalog.map((item) => {
                 const price = customerPrice(item);
@@ -399,7 +400,7 @@ export default function RequestScreen() {
                           {item.requiresQuote ? 'Request a Quote' : `$${Number(price).toLocaleString('en-US')}`}
                         </Text>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={22} color="#0B4A45" />
+                          <Ionicons name="checkmark-circle" size={22} color={colors.lanternDeep} />
                         )}
                       </View>
                     </View>
@@ -415,7 +416,7 @@ export default function RequestScreen() {
                         <TextInput
                           style={styles.qtyInput}
                           placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
-                          placeholderTextColor="#94a3b8"
+                          placeholderTextColor={colors.steel}
                           keyboardType="number-pad"
                           value={serviceQuantities[item.id] || ''}
                           onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
@@ -434,7 +435,7 @@ export default function RequestScreen() {
                             style={styles.billInput}
                             keyboardType="number-pad"
                             placeholder="e.g. 250"
-                            placeholderTextColor="#94a3b8"
+                            placeholderTextColor={colors.steel}
                             value={solarMonthlyBill}
                             onChangeText={setSolarMonthlyBill}
                           />
@@ -490,7 +491,7 @@ export default function RequestScreen() {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Any special instructions..."
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor={colors.steel}
                   value={serviceNotes}
                   onChangeText={setServiceNotes}
                   multiline
@@ -530,7 +531,7 @@ export default function RequestScreen() {
                   disabled={loading || selectedServices.length === 0}
                 >
                   {loading
-                    ? <ActivityIndicator color="#fff" />
+                    ? <ActivityIndicator color={colors.ink} />
                     : <Text style={styles.buttonText}>
                         {selectedServices.length === 0
                           ? 'Select Services Above'
@@ -558,7 +559,7 @@ export default function RequestScreen() {
         <Modal visible={addonConfirmModal} transparent animationType="fade">
           <View style={styles.addonOverlay}>
             <View style={styles.addonCard}>
-              <Ionicons name="calendar-outline" size={40} color="#0B4A45" style={{ alignSelf: 'center', marginBottom: 12 }} />
+              <Ionicons name="calendar-outline" size={40} color={colors.lanternDeep} style={{ alignSelf: 'center', marginBottom: 12 }} />
               <Text style={styles.addonTitle}>Book Additional Inspection</Text>
               <Text style={styles.addonBody}>
                 You've used all inspections included in your {subscription?.plan?.name}. This additional
@@ -583,7 +584,7 @@ export default function RequestScreen() {
         <Modal visible={serviceConfirmModal} transparent animationType="fade">
           <View style={styles.addonOverlay}>
             <View style={styles.addonCard}>
-              <Ionicons name="construct-outline" size={40} color="#0B4A45" style={{ alignSelf: 'center', marginBottom: 12 }} />
+              <Ionicons name="construct-outline" size={40} color={colors.lanternDeep} style={{ alignSelf: 'center', marginBottom: 12 }} />
               <Text style={styles.addonTitle}>Confirm Service Request</Text>
               <Text style={styles.addonBody}>
                 A vendor will come to your home on your requested date to perform {selectedServices.length === 1 ? 'this service' : 'these services'}.
@@ -599,7 +600,7 @@ export default function RequestScreen() {
                 </View>
               ))}
               {selectedServices.length > 1 && (
-                <View style={[styles.addonPriceRow, { borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 4, paddingTop: 12 }]}>
+                <View style={[styles.addonPriceRow, { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, paddingTop: 12 }]}>
                   <Text style={[styles.addonPriceLabel, { fontWeight: '800' }]}>Total</Text>
                   <Text style={[styles.addonPrice, { fontSize: 20 }]}>${totalServicePrice}</Text>
                 </View>
@@ -620,15 +621,15 @@ export default function RequestScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: 24 },
-  title: { fontSize: 24, fontWeight: '700', color: '#0B4A45', marginBottom: 12 },
+  title: { fontSize: 24, fontWeight: '700', color: colors.lanternDeep, marginBottom: 12 },
   subtitle: { fontSize: 14, color: '#666', lineHeight: 22, marginBottom: 16 },
-  tabRow: { flexDirection: 'row', backgroundColor: '#EBF1EF', borderRadius: 12, padding: 4, marginBottom: 20, gap: 4 },
+  tabRow: { flexDirection: 'row', backgroundColor: colors.mist, borderRadius: 12, padding: 4, marginBottom: 20, gap: 4 },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
-  tabBtnActive: { backgroundColor: '#0B4A45' },
-  tabBtnText: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
-  tabBtnTextActive: { color: '#fff' },
+  tabBtnActive: { backgroundColor: colors.lantern },
+  tabBtnText: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep },
+  tabBtnTextActive: { color: colors.ink },
   quotaBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1 },
   quotaBannerOk: { backgroundColor: '#ecfdf5', borderColor: '#6ee7b7' },
   quotaBannerWarn: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
@@ -637,61 +638,61 @@ const styles = StyleSheet.create({
   quotaTextWarn: { color: '#92400e' },
   fieldWrap: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
-  dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dateBtnText: { fontSize: 15, color: '#0B4A45', fontWeight: '500', flex: 1 },
+  dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dateBtnText: { fontSize: 15, color: colors.lanternDeep, fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16, color: '#0f172a' },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 16, color: colors.ink },
   textArea: { height: 100, textAlignVertical: 'top' },
-  infoBox: { backgroundColor: '#EBF1EF', borderRadius: 12, padding: 16, marginBottom: 16 },
-  infoTitle: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
-  infoItem: { fontSize: 14, color: '#17897D', lineHeight: 24 },
+  infoBox: { backgroundColor: colors.mist, borderRadius: 12, padding: 16, marginBottom: 16 },
+  infoTitle: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep, marginBottom: 8 },
+  infoItem: { fontSize: 14, color: colors.lanternDeep, lineHeight: 24 },
   noShowNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#fffbeb', borderRadius: 10, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: '#fde68a' },
   noShowText: { fontSize: 12, color: '#92400e', lineHeight: 18, flex: 1 },
-  button: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
-  buttonDisabled: { backgroundColor: '#94a3b8' },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  button: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
+  buttonDisabled: { backgroundColor: colors.steel },
+  buttonText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
   cancelBtn: { alignItems: 'center', padding: 12 },
-  cancelText: { color: '#888', fontSize: 14 },
+  cancelText: { color: colors.steel, fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
-  doneBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
-  doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  serviceCard: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14, padding: 16, marginBottom: 10 },
-  serviceCardSelected: { borderColor: '#0B4A45', backgroundColor: '#f0faf8' },
+  doneBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  doneBtnText: { color: colors.ink, fontWeight: '700', fontSize: 16 },
+  serviceCard: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 10 },
+  serviceCardSelected: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   serviceCardRow: { flexDirection: 'row', alignItems: 'center' },
-  serviceName: { fontSize: 15, fontWeight: '700', color: '#1e293b', marginBottom: 4 },
-  serviceNameSelected: { color: '#0B4A45' },
-  serviceDesc: { fontSize: 13, color: '#64748b', lineHeight: 18 },
-  servicePrice: { fontSize: 15, fontWeight: '700', color: '#64748b' },
-  servicePriceSelected: { color: '#0B4A45' },
-  priceNote: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, backgroundColor: '#EBF1EF', borderRadius: 8, padding: 10 },
-  qtyLabel: { fontSize: 13, color: '#0B4A45', fontWeight: '600', flex: 1 },
-  qtyInput: { width: 80, backgroundColor: '#fff', borderWidth: 1, borderColor: '#b7d5ce', borderRadius: 8, padding: 8, fontSize: 14, color: '#0f172a', textAlign: 'right' },
-  totalBar: { backgroundColor: '#0B4A45', borderRadius: 14, padding: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 2 },
+  serviceName: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 4 },
+  serviceNameSelected: { color: colors.lanternDeep },
+  serviceDesc: { fontSize: 13, color: colors.steel, lineHeight: 18 },
+  servicePrice: { fontSize: 15, fontWeight: '700', color: colors.steel },
+  servicePriceSelected: { color: colors.lanternDeep },
+  priceNote: { fontSize: 12, color: colors.steel, marginTop: 6 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, backgroundColor: colors.mist, borderRadius: 8, padding: 10 },
+  qtyLabel: { fontSize: 13, color: colors.lanternDeep, fontWeight: '600', flex: 1 },
+  qtyInput: { width: 80, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, fontSize: 14, color: colors.ink, textAlign: 'right' },
+  totalBar: { backgroundColor: colors.ink, borderRadius: 14, padding: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 14, fontWeight: '700', color: colors.mist, marginBottom: 2 },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', maxWidth: 220 },
-  totalAmount: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  totalAmount: { fontSize: 22, fontWeight: '800', color: colors.mist },
   addonOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
   addonCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, maxHeight: '85%' },
-  addonTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', textAlign: 'center', marginBottom: 12 },
-  addonBody: { fontSize: 14, color: '#64748b', lineHeight: 22, textAlign: 'center', marginBottom: 20 },
-  addonPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EBF1EF', borderRadius: 12, padding: 14, marginBottom: 8 },
-  addonPriceLabel: { fontSize: 14, fontWeight: '600', color: '#374151', flex: 1, marginRight: 8 },
-  addonPrice: { fontSize: 18, fontWeight: '800', color: '#0B4A45' },
-  addonNote: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 4 },
-  addonConfirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 10, marginTop: 12 },
-  addonConfirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  addonTitle: { fontSize: 20, fontWeight: '700', color: colors.lanternDeep, textAlign: 'center', marginBottom: 12 },
+  addonBody: { fontSize: 14, color: colors.steel, lineHeight: 22, textAlign: 'center', marginBottom: 20 },
+  addonPriceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.mist, borderRadius: 12, padding: 14, marginBottom: 8 },
+  addonPriceLabel: { fontSize: 14, fontWeight: '600', color: colors.slate, flex: 1, marginRight: 8 },
+  addonPrice: { fontSize: 18, fontWeight: '800', color: colors.lanternDeep },
+  addonNote: { fontSize: 12, color: colors.steel, textAlign: 'center', marginBottom: 4 },
+  addonConfirmBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 10, marginTop: 12 },
+  addonConfirmText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   addonCancelBtn: { alignItems: 'center', padding: 12 },
-  addonCancelText: { color: '#888', fontSize: 14 },
+  addonCancelText: { color: colors.steel, fontSize: 14 },
   solarFields: { marginTop: 12, backgroundColor: '#f0fdf4', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#86efac' },
   solarFieldsTitle: { fontSize: 13, fontWeight: '700', color: '#065f46', marginBottom: 8 },
-  billInputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, backgroundColor: '#fff', paddingHorizontal: 12, marginBottom: 12 },
-  billDollar: { fontSize: 16, color: '#374151', marginRight: 4 },
-  billInput: { flex: 1, fontSize: 16, padding: 10, color: '#0f172a' },
+  billInputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: '#fff', paddingHorizontal: 12, marginBottom: 12 },
+  billDollar: { fontSize: 16, color: colors.slate, marginRight: 4 },
+  billInput: { flex: 1, fontSize: 16, padding: 10, color: colors.ink },
   choiceRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  choiceBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', backgroundColor: '#fff' },
-  choiceBtnActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
-  choiceBtnText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
-  choiceBtnTextActive: { color: '#0B4A45' },
+  choiceBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', backgroundColor: '#fff' },
+  choiceBtnActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
+  choiceBtnText: { fontSize: 13, fontWeight: '600', color: colors.steel },
+  choiceBtnTextActive: { color: colors.lanternDeep },
 });

@@ -7,6 +7,7 @@ import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, subscriptionsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   OK: 'Good',
@@ -16,18 +17,18 @@ const TASK_STATUS_LABELS: Record<string, string> = {
 };
 
 const C = {
-  bg: '#F3F6F5',
-  surface: '#FFFFFF',
-  sunken: '#EBF1EF',
-  ink: '#0E211E',
-  inkSoft: '#4B615D',
-  border: '#DCE7E4',
-  teal: '#14867B',
-  tealDeep: '#0B4A45',
-  coral: '#FF7A45',
-  ok: '#14867B',
-  okBg: '#E4F1EE',
-  okBorder: '#A7D5CC',
+  bg: colors.canvas,
+  surface: colors.surface,
+  sunken: colors.mist,
+  ink: colors.ink,
+  inkSoft: colors.steel,
+  border: colors.border,
+  teal: colors.lanternDeep,
+  tealDeep: colors.lanternDeep,
+  coral: colors.lanternDeep,
+  ok: colors.lanternDeep,
+  okBg: colors.mist,
+  okBorder: colors.border,
   warn: '#B4620F',
   warnBg: '#FBEDDB',
   warnBorder: '#EEC087',
@@ -397,11 +398,11 @@ export default function InspectionReportScreen() {
                       const isPASS = c.status === 'PASS';
                       const isFAIL = c.status === 'FAIL';
                       return (
-                        <View key={c.key} style={[hvacRpt.checkRow, idx > 0 && { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]}>
+                        <View key={c.key} style={[hvacRpt.checkRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
                           <View style={[hvacRpt.statusBadge,
                             isPASS && { backgroundColor: '#dcfce7', borderColor: '#86efac' },
                             isFAIL && { backgroundColor: '#fee2e2', borderColor: '#fca5a5' },
-                            !isPASS && !isFAIL && { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' },
+                            !isPASS && !isFAIL && { backgroundColor: colors.border, borderColor: colors.border },
                           ]}>
                             <Text style={[hvacRpt.statusText,
                               isPASS && { color: '#059669' },
@@ -708,7 +709,7 @@ const styles = StyleSheet.create({
     borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3,
   },
   coralCountBadgeText: { fontSize: 12, fontWeight: '700', color: C.coral },
-  emptyText: { fontSize: 14, color: '#94a3b8', fontStyle: 'italic' },
+  emptyText: { fontSize: 14, color: colors.steel, fontStyle: 'italic' },
 
   // Finding cards
   findingCard: {
@@ -805,17 +806,17 @@ const styles = StyleSheet.create({
 
 const hvacRpt = StyleSheet.create({
   card: { backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border, marginBottom: 12, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e3040', padding: 12, gap: 10 },
-  badge: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#f97316', alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontSize: 12, fontWeight: '800', color: '#fff' },
-  title: { fontSize: 14, fontWeight: '700', color: '#fff', flex: 1 },
-  tableHeaderRow: { flexDirection: 'row', backgroundColor: '#2d4a5c' },
-  tableDataRow: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e2e8f0' },
-  tableFirstCol: { width: 130, padding: 8, borderRightWidth: 1, borderRightColor: '#3a5c72', justifyContent: 'center' },
-  tableCol: { width: 90, padding: 8, borderRightWidth: 1, borderRightColor: '#e2e8f0', justifyContent: 'center' },
-  tableHeaderText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-  tableRowLabel: { fontSize: 11, fontWeight: '600', color: '#374151' },
-  tableCellText: { fontSize: 12, color: '#0f172a' },
+  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.ink, padding: 12, gap: 10 },
+  badge: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.lantern, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 12, fontWeight: '800', color: colors.ink },
+  title: { fontSize: 14, fontWeight: '700', color: colors.mist, flex: 1 },
+  tableHeaderRow: { flexDirection: 'row', backgroundColor: colors.slate },
+  tableDataRow: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.border },
+  tableFirstCol: { width: 130, padding: 8, borderRightWidth: 1, borderRightColor: colors.slateSoft, justifyContent: 'center' },
+  tableCol: { width: 90, padding: 8, borderRightWidth: 1, borderRightColor: colors.border, justifyContent: 'center' },
+  tableHeaderText: { fontSize: 10, fontWeight: '700', color: colors.mist },
+  tableRowLabel: { fontSize: 11, fontWeight: '600', color: colors.slate },
+  tableCellText: { fontSize: 12, color: colors.ink },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 9, borderTopWidth: 1, borderTopColor: C.border },
   infoLabel: { fontSize: 13, color: C.inkSoft, flex: 1 },
   infoValue: { fontSize: 13, fontWeight: '600', color: C.ink, flex: 1, textAlign: 'right' },

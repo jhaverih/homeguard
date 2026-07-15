@@ -10,6 +10,7 @@ import * as Location from 'expo-location';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi, paymentsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 const ACTIVE_STATUSES = ['PENDING', 'PENDING_CUSTOMER_REVIEW', 'ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'];
 
@@ -72,7 +73,7 @@ function UpcomingServiceCard({ requests }: { requests: any[] }) {
         <Ionicons
           name={isEnRoute ? 'navigate' : (isToday ? 'today' : 'calendar')}
           size={20}
-          color={isEnRoute ? '#7c3aed' : '#0B4A45'}
+          color={isEnRoute ? '#7c3aed' : colors.lanternDeep}
         />
         <Text style={[styles.upcomingHeading, isEnRoute && { color: '#7c3aed' }]}>
           {isEnRoute ? 'Vendor On the Way' : isToday ? "Today's Service" : 'Upcoming Service'}
@@ -148,7 +149,7 @@ export default function CustomerDashboard() {
     try {
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: payment.stripeClientSecret,
-        merchantDisplayName: 'Houmi',
+        merchantDisplayName: 'Attenteve',
       });
       if (initError) {
         Alert.alert('Payment Setup Failed', initError.message);
@@ -177,7 +178,7 @@ export default function CustomerDashboard() {
     }
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView
@@ -249,7 +250,7 @@ export default function CustomerDashboard() {
 
             {isAuthorized ? (
               <View style={styles.authorizedNote}>
-                <Ionicons name="time-outline" size={14} color="#17897D" />
+                <Ionicons name="time-outline" size={14} color={colors.lanternDeep} />
                 <Text style={styles.authorizedNoteText}>
                   Funds release {new Date(payment.disputeWindowExpiresAt).toLocaleDateString()} unless disputed
                 </Text>
@@ -264,8 +265,8 @@ export default function CustomerDashboard() {
                   disabled={isPaying}
                 >
                   {isPaying
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Ionicons name="card" size={15} color="#fff" /><Text style={styles.payNowBtnText}> Pay Now</Text></>
+                    ? <ActivityIndicator size="small" color={colors.ink} />
+                    : <><Ionicons name="card" size={15} color={colors.ink} /><Text style={styles.payNowBtnText}> Pay Now</Text></>
                   }
                 </TouchableOpacity>
               )}
@@ -286,14 +287,14 @@ export default function CustomerDashboard() {
       <TouchableOpacity style={styles.aiCard} onPress={() => router.push('/(customer)/assistant')}>
         <View style={styles.aiCardLeft}>
           <View style={styles.aiIcon}>
-            <Ionicons name="chatbubbles" size={22} color="#fff" />
+            <Ionicons name="chatbubbles" size={22} color={colors.mist} />
           </View>
           <View>
             <Text style={styles.aiCardTitle}>AI Home Assistant</Text>
             <Text style={styles.aiCardSub}>Ask about maintenance, repairs & inspections</Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={20} color="#a8c4e5" />
+        <Ionicons name="chevron-forward" size={20} color={colors.mistDim} />
       </TouchableOpacity>
 
       {pendingApprovals > 0 && (
@@ -321,21 +322,21 @@ export default function CustomerDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  header: { backgroundColor: '#0B4A45', padding: 24, paddingTop: 16 },
-  greeting: { fontSize: 24, fontWeight: '700', color: '#fff' },
-  subtitle: { fontSize: 14, color: '#a8c4e5', marginTop: 4 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  header: { backgroundColor: colors.ink, padding: 24, paddingTop: 16 },
+  greeting: { fontSize: 24, fontWeight: '700', color: colors.mist },
+  subtitle: { fontSize: 14, color: colors.mistDim, marginTop: 4 },
   subCard: { margin: 16, backgroundColor: '#fff', borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8 },
   subHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  subTitle: { fontSize: 18, fontWeight: '700', color: '#0B4A45' },
+  subTitle: { fontSize: 18, fontWeight: '700', color: colors.lanternDeep },
   activeBadge: { backgroundColor: '#c6f6d5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
-  activeBadgeText: { color: '#17897D', fontSize: 12, fontWeight: '600' },
+  activeBadgeText: { color: '#059669', fontSize: 12, fontWeight: '600' },
   subStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
   stat: { alignItems: 'center' },
-  statNum: { fontSize: 24, fontWeight: '800', color: '#0B4A45' },
-  statLabel: { fontSize: 12, color: '#888', marginTop: 2 },
-  requestBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
-  requestBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  statNum: { fontSize: 24, fontWeight: '800', color: colors.lanternDeep },
+  statLabel: { fontSize: 12, color: colors.steel, marginTop: 2 },
+  requestBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center' },
+  requestBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   noSubCard: { margin: 16, backgroundColor: '#fff4e5', borderRadius: 16, padding: 20, borderWidth: 2, borderColor: '#f6ad55' },
   noSubTitle: { fontSize: 16, fontWeight: '700', color: '#c05621', marginBottom: 4 },
   noSubText: { color: '#744210', fontSize: 14 },
@@ -346,22 +347,22 @@ const styles = StyleSheet.create({
   },
   paymentCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   paymentIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff5f5', alignItems: 'center', justifyContent: 'center' },
-  paymentTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  paymentSub: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  paymentTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  paymentSub: { fontSize: 12, color: colors.steel, marginTop: 2 },
   paymentAmount: { fontSize: 18, fontWeight: '800', color: '#c05621' },
   authorizedNote: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', borderRadius: 8, padding: 8, marginBottom: 8 },
-  authorizedNoteText: { fontSize: 12, color: '#17897D', flex: 1 },
+  authorizedNoteText: { fontSize: 12, color: colors.lanternDeep, flex: 1 },
   paymentActions: { flexDirection: 'row', gap: 8 },
-  payNowBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0B4A45', borderRadius: 10, padding: 12 },
-  payNowBtnDisabled: { backgroundColor: '#94a3b8' },
-  payNowBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  payNowBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lantern, borderRadius: 10, padding: 12 },
+  payNowBtnDisabled: { backgroundColor: colors.steel },
+  payNowBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
   disputeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fed7d7', borderRadius: 10, padding: 12, paddingHorizontal: 16 },
   disputeBtnText: { color: '#c53030', fontWeight: '700', fontSize: 14 },
-  aiCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 16, marginTop: 8, backgroundColor: '#0B4A45', borderRadius: 14, padding: 16 },
+  aiCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 16, marginTop: 8, backgroundColor: colors.ink, borderRadius: 14, padding: 16 },
   aiCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   aiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  aiCardTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  aiCardSub: { fontSize: 12, color: '#a8c4e5', marginTop: 2 },
+  aiCardTitle: { fontSize: 15, fontWeight: '700', color: colors.mist },
+  aiCardSub: { fontSize: 12, color: colors.mistDim, marginTop: 2 },
   approvalsCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 0, backgroundColor: '#fff4e5', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: '#f6ad55' },
   approvalsLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   approvalsIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#feebc8', alignItems: 'center', justifyContent: 'center' },
@@ -369,13 +370,13 @@ const styles = StyleSheet.create({
   approvalsSub: { fontSize: 12, color: '#744210', marginTop: 2 },
   approvalsBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#ed8936', alignItems: 'center', justifyContent: 'center' },
   approvalsBadgeText: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  upcomingCard: { margin: 16, marginTop: 8, backgroundColor: '#fff', borderRadius: 16, padding: 18, borderWidth: 1.5, borderColor: '#e2e8f0', elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 },
+  upcomingCard: { margin: 16, marginTop: 8, backgroundColor: '#fff', borderRadius: 16, padding: 18, borderWidth: 1.5, borderColor: colors.border, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 },
   upcomingCardEnRoute: { borderColor: '#ddd6fe', backgroundColor: '#faf5ff' },
   upcomingHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  upcomingHeading: { fontSize: 15, fontWeight: '700', color: '#0B4A45', flex: 1 },
-  upcomingType: { fontSize: 13, color: '#64748b', marginBottom: 2 },
-  upcomingDate: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 8 },
+  upcomingHeading: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep, flex: 1 },
+  upcomingType: { fontSize: 13, color: colors.steel, marginBottom: 2 },
+  upcomingDate: { fontSize: 14, fontWeight: '600', color: colors.ink, marginBottom: 8 },
   enRoutePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f5f3ff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginBottom: 8 },
   enRoutePillText: { fontSize: 12, color: '#7c3aed', fontWeight: '600' },
-  upcomingCta: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
+  upcomingCta: { fontSize: 12, color: colors.steel, fontWeight: '600' },
 });

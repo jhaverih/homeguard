@@ -7,6 +7,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { disputesApi, uploadsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const CATEGORIES = [
   { key: 'WORK_NOT_COMPLETED', label: 'Work not completed', icon: 'close-circle-outline' },
@@ -68,7 +69,7 @@ export default function DisputeScreen() {
       });
       Alert.alert(
         'Dispute Submitted',
-        'Your dispute has been received and the payment is on hold. Houmi will review and contact you within 2 business days.',
+        'Your dispute has been received and the payment is on hold. Attenteve will review and contact you within 2 business days.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e: any) {
@@ -82,7 +83,7 @@ export default function DisputeScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
-        <Ionicons name="shield-half" size={28} color="#fff" />
+        <Ionicons name="shield-half" size={28} color={colors.mist} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.headerTitle}>Raise a Dispute</Text>
           <Text style={styles.headerSub}>
@@ -92,9 +93,9 @@ export default function DisputeScreen() {
       </View>
 
       <View style={styles.infoBox}>
-        <Ionicons name="information-circle" size={18} color="#0B4A45" />
+        <Ionicons name="information-circle" size={18} color={colors.lanternDeep} />
         <Text style={styles.infoText}>
-          Houmi will review your dispute within 2 business days. Both you and your vendor will be notified of the outcome.
+          Attenteve will review your dispute within 2 business days. Both you and your vendor will be notified of the outcome.
         </Text>
       </View>
 
@@ -105,9 +106,9 @@ export default function DisputeScreen() {
           style={[styles.categoryRow, category === c.key && styles.categoryRowActive]}
           onPress={() => setCategory(c.key)}
         >
-          <Ionicons name={c.icon as any} size={20} color={category === c.key ? '#0B4A45' : '#94a3b8'} />
+          <Ionicons name={c.icon as any} size={20} color={category === c.key ? colors.lanternDeep : colors.steel} />
           <Text style={[styles.categoryText, category === c.key && styles.categoryTextActive]}>{c.label}</Text>
-          {category === c.key && <Ionicons name="checkmark-circle" size={18} color="#0B4A45" />}
+          {category === c.key && <Ionicons name="checkmark-circle" size={18} color={colors.lanternDeep} />}
         </TouchableOpacity>
       ))}
 
@@ -115,7 +116,7 @@ export default function DisputeScreen() {
       <TextInput
         style={styles.textArea}
         placeholder="Please describe the issue in detail. What did you expect and what actually happened?"
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={colors.steel}
         value={description}
         onChangeText={setDescription}
         multiline
@@ -137,8 +138,8 @@ export default function DisputeScreen() {
         {photos.length < 3 && (
           <TouchableOpacity style={styles.addPhotoBtn} onPress={pickPhoto} disabled={uploading}>
             {uploading
-              ? <ActivityIndicator size="small" color="#0B4A45" />
-              : <><Ionicons name="camera" size={24} color="#0B4A45" /><Text style={styles.addPhotoText}>Add photo</Text></>
+              ? <ActivityIndicator size="small" color={colors.lanternDeep} />
+              : <><Ionicons name="camera" size={24} color={colors.lanternDeep} /><Text style={styles.addPhotoText}>Add photo</Text></>
             }
           </TouchableOpacity>
         )}
@@ -150,8 +151,8 @@ export default function DisputeScreen() {
         disabled={!category || description.trim().length < 20 || submitting}
       >
         {submitting
-          ? <ActivityIndicator color="#fff" />
-          : <><Ionicons name="shield-checkmark" size={18} color="#fff" /><Text style={styles.submitBtnText}> Submit Dispute</Text></>
+          ? <ActivityIndicator color={colors.ink} />
+          : <><Ionicons name="shield-checkmark" size={18} color={colors.ink} /><Text style={styles.submitBtnText}> Submit Dispute</Text></>
         }
       </TouchableOpacity>
 
@@ -164,32 +165,32 @@ export default function DisputeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: 20, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0B4A45', borderRadius: 14, padding: 18, marginBottom: 16 },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#fff' },
-  headerSub: { fontSize: 12, color: '#a8c4e5', marginTop: 2 },
-  infoBox: { flexDirection: 'row', gap: 10, backgroundColor: '#eff6ff', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#bfdbfe' },
-  infoText: { flex: 1, fontSize: 13, color: '#0B4A45', lineHeight: 20 },
-  label: { fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.ink, borderRadius: 14, padding: 18, marginBottom: 16 },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.mist },
+  headerSub: { fontSize: 12, color: colors.mistDim, marginTop: 2 },
+  infoBox: { flexDirection: 'row', gap: 10, backgroundColor: colors.mist, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.border },
+  infoText: { flex: 1, fontSize: 13, color: colors.lanternDeep, lineHeight: 20 },
+  label: { fontSize: 14, fontWeight: '700', color: colors.ink, marginBottom: 8 },
   required: { color: '#c53030' },
-  optional: { fontSize: 12, fontWeight: '400', color: '#94a3b8' },
-  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5, borderColor: '#e2e8f0' },
-  categoryRowActive: { borderColor: '#0B4A45', backgroundColor: '#eff6ff' },
-  categoryText: { flex: 1, fontSize: 14, color: '#64748b' },
-  categoryTextActive: { fontWeight: '600', color: '#0B4A45' },
-  textArea: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 14, color: '#0f172a', height: 120, textAlignVertical: 'top', lineHeight: 21 },
-  charCount: { fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 4, marginBottom: 4 },
+  optional: { fontSize: 12, fontWeight: '400', color: colors.steel },
+  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5, borderColor: colors.border },
+  categoryRowActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
+  categoryText: { flex: 1, fontSize: 14, color: colors.steel },
+  categoryTextActive: { fontWeight: '600', color: colors.lanternDeep },
+  textArea: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 12, padding: 14, fontSize: 14, color: colors.ink, height: 120, textAlignVertical: 'top', lineHeight: 21 },
+  charCount: { fontSize: 11, color: colors.steel, textAlign: 'right', marginTop: 4, marginBottom: 4 },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
   photoThumb: { width: 84, height: 84, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   photoImg: { width: '100%', height: '100%' },
   removeBtn: { position: 'absolute', top: 3, right: 3, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 10 },
   photoSpinner: { position: 'absolute', bottom: 6, left: 6 },
-  addPhotoBtn: { width: 84, height: 84, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#94a3b8', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', gap: 4 },
-  addPhotoText: { fontSize: 11, color: '#0B4A45', fontWeight: '600' },
-  submitBtn: { flexDirection: 'row', backgroundColor: '#0B4A45', borderRadius: 14, padding: 17, alignItems: 'center', justifyContent: 'center' },
-  submitBtnDisabled: { backgroundColor: '#94a3b8' },
-  submitBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  addPhotoBtn: { width: 84, height: 84, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.steel, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', gap: 4 },
+  addPhotoText: { fontSize: 11, color: colors.lanternDeep, fontWeight: '600' },
+  submitBtn: { flexDirection: 'row', backgroundColor: colors.lantern, borderRadius: 14, padding: 17, alignItems: 'center', justifyContent: 'center' },
+  submitBtnDisabled: { backgroundColor: colors.steel },
+  submitBtnText: { fontSize: 15, fontWeight: '700', color: colors.ink },
   cancelLink: { alignItems: 'center', marginTop: 16 },
-  cancelLinkText: { fontSize: 13, color: '#94a3b8' },
+  cancelLinkText: { fontSize: 13, color: colors.steel },
 });

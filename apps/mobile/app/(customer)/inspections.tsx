@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { inspectionsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const STATUS_COLOR: Record<string, string> = {
   OK: '#059669',
@@ -81,7 +82,7 @@ export default function InspectionHistoryScreen() {
     });
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   const groups = groupByArea(tasks);
 
@@ -139,14 +140,14 @@ export default function InspectionHistoryScreen() {
                           <Text style={styles.issueBadgeText}>{issueCount} issue{issueCount !== 1 ? 's' : ''}</Text>
                         </View>
                       )}
-                      <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#64748b" />
+                      <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.steel} />
                     </View>
                   </TouchableOpacity>
 
                   {expanded && (
                     <View style={styles.taskItems}>
                       {items.map((task: any, idx: number) => {
-                        const color = STATUS_COLOR[task.status] || '#64748b';
+                        const color = STATUS_COLOR[task.status] || colors.steel;
                         const label = STATUS_LABEL[task.status] || task.status;
                         return (
                           <View key={task.id} style={[styles.taskItem, idx > 0 && styles.taskItemBorder]}>
@@ -216,38 +217,38 @@ export default function InspectionHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 8 },
-  tabBar: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 16, backgroundColor: '#e2e8f0', borderRadius: 12, padding: 4 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, margin: 16, marginBottom: 8 },
+  tabBar: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 16, backgroundColor: colors.border, borderRadius: 12, padding: 4 },
   tab: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 10 },
   tabActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
-  tabText: { fontSize: 14, fontWeight: '600', color: '#64748b' },
-  tabTextActive: { color: '#0B4A45' },
+  tabText: { fontSize: 14, fontWeight: '600', color: colors.steel },
+  tabTextActive: { color: colors.lanternDeep },
   emptyCard: { margin: 16, backgroundColor: '#fff', borderRadius: 16, padding: 32, alignItems: 'center' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
-  emptyText: { color: '#888', textAlign: 'center', lineHeight: 22 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.lanternDeep, marginBottom: 8 },
+  emptyText: { color: colors.steel, textAlign: 'center', lineHeight: 22 },
   // Area cards (timeline)
-  areaCard: { marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0' },
+  areaCard: { marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
   areaHeader: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  areaLabel: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
-  areaDate: { fontSize: 12, color: '#64748b' },
+  areaLabel: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 2 },
+  areaDate: { fontSize: 12, color: colors.steel },
   issueBadge: { backgroundColor: '#fff5f5', borderWidth: 1, borderColor: '#fca5a5', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
   issueBadgeText: { fontSize: 11, fontWeight: '700', color: '#dc2626' },
-  taskItems: { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingBottom: 4 },
+  taskItems: { borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: 4 },
   taskItem: { flexDirection: 'row', alignItems: 'flex-start', padding: 12, gap: 10 },
-  taskItemBorder: { borderTopWidth: 1, borderTopColor: '#f8fafc' },
+  taskItemBorder: { borderTopWidth: 1, borderTopColor: colors.canvas },
   taskDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  taskItemLabel: { fontSize: 13, fontWeight: '600', color: '#374151', lineHeight: 20 },
-  taskItemFindings: { fontSize: 12, color: '#64748b', lineHeight: 18, marginTop: 2 },
-  taskItemDate: { fontSize: 11, color: '#94a3b8', marginTop: 3 },
+  taskItemLabel: { fontSize: 13, fontWeight: '600', color: colors.slate, lineHeight: 20 },
+  taskItemFindings: { fontSize: 12, color: colors.steel, lineHeight: 18, marginTop: 2 },
+  taskItemDate: { fontSize: 11, color: colors.steel, marginTop: 3 },
   statusPill: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, alignSelf: 'flex-start' },
   statusPillText: { fontSize: 11, fontWeight: '700' },
   photoStrip: { marginHorizontal: 12, marginBottom: 10 },
   photo: { width: 80, height: 80, borderRadius: 8, marginRight: 8 },
   // Notes tab
-  noteCard: { marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#e2e8f0' },
-  noteDate: { fontSize: 12, color: '#888', marginBottom: 4 },
-  noteTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
-  noteContent: { fontSize: 14, color: '#555', lineHeight: 22 },
+  noteCard: { marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border },
+  noteDate: { fontSize: 12, color: colors.steel, marginBottom: 4 },
+  noteTitle: { fontSize: 16, fontWeight: '700', color: colors.lanternDeep, marginBottom: 8 },
+  noteContent: { fontSize: 14, color: colors.steel, lineHeight: 22 },
 });
