@@ -6,6 +6,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING_CUSTOMER_REVIEW: '#b45309',
@@ -73,7 +74,7 @@ export default function MyJobsScreen() {
   };
 
   useFocusEffect(useCallback(() => { load(); }, []));
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   const filtered = jobs.filter((j) => matchesFilter(j, filter));
 
@@ -130,8 +131,8 @@ export default function MyJobsScreen() {
                       {typeLabel}
                     </Text>
                   </View>
-                  <View style={[styles.badge, { backgroundColor: (STATUS_COLOR[job.status] || '#888') + '20' }]}>
-                    <Text style={[styles.badgeText, { color: STATUS_COLOR[job.status] || '#888' }]}>
+                  <View style={[styles.badge, { backgroundColor: (STATUS_COLOR[job.status] || colors.steel) + '20' }]}>
+                    <Text style={[styles.badgeText, { color: STATUS_COLOR[job.status] || colors.steel }]}>
                       {STATUS_LABEL[job.status] || job.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
@@ -150,7 +151,7 @@ export default function MyJobsScreen() {
               <Text style={styles.cardAddress}>{job.address}, {job.city}, {job.state}</Text>
               {(job.status === 'IN_PROGRESS' || job.status === 'VENDOR_EN_ROUTE') ? (
                 <View style={styles.resumeChip}>
-                  <Ionicons name="play-circle" size={14} color="#fff" />
+                  <Ionicons name="play-circle" size={14} color={colors.ink} />
                   <Text style={styles.resumeChipText}>Resume Job</Text>
                 </View>
               ) : (
@@ -165,32 +166,32 @@ export default function MyJobsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 8 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, margin: 16, marginBottom: 8 },
   filterRow: { marginBottom: 12 },
-  filterChip: { backgroundColor: '#fff', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: '#e2e8f0' },
-  filterChipActive: { backgroundColor: '#0B4A45', borderColor: '#0B4A45' },
-  filterChipText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
-  filterChipTextActive: { color: '#fff' },
+  filterChip: { backgroundColor: '#fff', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: colors.border },
+  filterChipActive: { backgroundColor: colors.lantern, borderColor: colors.lantern },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: colors.steel },
+  filterChipTextActive: { color: colors.ink },
   empty: { padding: 32, alignItems: 'center' },
-  emptyText: { color: '#888', textAlign: 'center' },
+  emptyText: { color: colors.steel, textAlign: 'center' },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, marginBottom: 12 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   badgeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1 },
   typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
-  typeBadgeInspection: { backgroundColor: '#EBF1EF' },
+  typeBadgeInspection: { backgroundColor: colors.mist },
   typeBadgeService: { backgroundColor: '#f0effe' },
   typeBadgeText: { fontSize: 11, fontWeight: '700' },
-  typeBadgeTextInspection: { color: '#0B4A45' },
+  typeBadgeTextInspection: { color: colors.lanternDeep },
   typeBadgeTextService: { color: '#635bff' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
   badgeText: { fontSize: 12, fontWeight: '600' },
-  ticketNumber: { fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' },
-  serviceNameLabel: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginTop: 4, marginBottom: 2 },
-  customerName: { fontSize: 16, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
-  cardDate: { fontSize: 14, fontWeight: '600', color: '#0B4A45', marginBottom: 4 },
-  cardAddress: { fontSize: 14, color: '#555', marginBottom: 8 },
-  cardCta: { fontSize: 12, color: '#0B4A45', fontWeight: '600' },
-  resumeChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#0B4A45', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
-  resumeChipText: { fontSize: 12, color: '#fff', fontWeight: '700' },
+  ticketNumber: { fontSize: 11, color: colors.steel, fontFamily: 'monospace' },
+  serviceNameLabel: { fontSize: 15, fontWeight: '700', color: colors.ink, marginTop: 4, marginBottom: 2 },
+  customerName: { fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: 2 },
+  cardDate: { fontSize: 14, fontWeight: '600', color: colors.lanternDeep, marginBottom: 4 },
+  cardAddress: { fontSize: 14, color: colors.steel, marginBottom: 8 },
+  cardCta: { fontSize: 12, color: colors.lanternDeep, fontWeight: '600' },
+  resumeChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.lantern, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
+  resumeChipText: { fontSize: 12, color: colors.ink, fontWeight: '700' },
 });

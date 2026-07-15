@@ -10,6 +10,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../src/store/auth.store';
 import { paymentsApi, userApi, teamApi, uploadsApi, api } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 type StripeStatus = { connected: boolean; onboardingComplete: boolean };
 
@@ -172,12 +173,12 @@ export default function VendorProfileScreen() {
       <TouchableOpacity onPress={changePhoto} disabled={uploadingAvatar} style={styles.avatarWrap}>
         <View style={styles.avatar}>
           {uploadingAvatar
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color={colors.mist} />
             : <Text style={styles.avatarText}>{user?.firstName?.[0]}{user?.lastName?.[0]}</Text>
           }
         </View>
         <View style={styles.avatarBadge}>
-          <Ionicons name="camera" size={14} color="#fff" />
+          <Ionicons name="camera" size={14} color={colors.ink} />
         </View>
       </TouchableOpacity>
       <Text style={styles.name}>{user?.firstName} {user?.lastName}</Text>
@@ -186,8 +187,8 @@ export default function VendorProfileScreen() {
 
       {!user?.avatarUrl && (
         <View style={[styles.photoNotice, isCompanyAdmin ? styles.photoNoticeOptional : styles.photoNoticeRequired]}>
-          <Ionicons name={isCompanyAdmin ? 'information-circle-outline' : 'alert-circle'} size={16} color={isCompanyAdmin ? '#0B4A45' : '#d97706'} />
-          <Text style={[styles.photoNoticeText, { color: isCompanyAdmin ? '#0B4A45' : '#d97706' }]}>
+          <Ionicons name={isCompanyAdmin ? 'information-circle-outline' : 'alert-circle'} size={16} color={isCompanyAdmin ? colors.lanternDeep : '#d97706'} />
+          <Text style={[styles.photoNoticeText, { color: isCompanyAdmin ? colors.lanternDeep : '#d97706' }]}>
             {isCompanyAdmin
               ? 'Add a profile photo if you plan to accept jobs yourself.'
               : 'A profile photo is required before jobs will appear in your Open Requests queue.'}
@@ -285,14 +286,14 @@ export default function VendorProfileScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Technician's email"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={colors.steel}
                 value={techEmail}
                 onChangeText={setTechEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
               <TouchableOpacity style={styles.addBtn} onPress={addTechnician} disabled={addingTech}>
-                {addingTech ? <ActivityIndicator color="#fff" /> : <Text style={styles.addBtnText}>Add Technician</Text>}
+                {addingTech ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.addBtnText}>Add Technician</Text>}
               </TouchableOpacity>
               <TouchableOpacity onPress={() => { setShowTeamForm(false); setTechEmail(''); }} style={styles.cancelInlineBtn}>
                 <Text style={styles.cancelInlineText}>Cancel</Text>
@@ -311,20 +312,20 @@ export default function VendorProfileScreen() {
         <Text style={styles.sectionTitle}>Credentials</Text>
         <View style={styles.teamCard}>
           <TouchableOpacity style={styles.credentialRow} onPress={() => router.push('/(vendor)/capabilities')}>
-            <Ionicons name="construct-outline" size={20} color="#0B4A45" style={{ marginRight: 10 }} />
+            <Ionicons name="construct-outline" size={20} color={colors.lanternDeep} style={{ marginRight: 10 }} />
             <Text style={styles.credentialRowText}>My Capabilities</Text>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            <Ionicons name="chevron-forward" size={18} color={colors.steel} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.credentialRow} onPress={() => router.push('/(vendor)/certifications')}>
-            <Ionicons name="ribbon-outline" size={20} color="#0B4A45" style={{ marginRight: 10 }} />
+            <Ionicons name="ribbon-outline" size={20} color={colors.lanternDeep} style={{ marginRight: 10 }} />
             <Text style={styles.credentialRowText}>My Certifications</Text>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            <Ionicons name="chevron-forward" size={18} color={colors.steel} />
           </TouchableOpacity>
           {isCompanyAdmin && (
             <TouchableOpacity style={[styles.credentialRow, { borderBottomWidth: 0 }]} onPress={() => router.push('/(vendor)/company-application')}>
-              <Ionicons name="document-text-outline" size={20} color="#0B4A45" style={{ marginRight: 10 }} />
+              <Ionicons name="document-text-outline" size={20} color={colors.lanternDeep} style={{ marginRight: 10 }} />
               <Text style={styles.credentialRowText}>Company Application</Text>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              <Ionicons name="chevron-forward" size={18} color={colors.steel} />
             </TouchableOpacity>
           )}
         </View>
@@ -339,55 +340,55 @@ export default function VendorProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: '#f8f9fa' },
+  scroll: { flex: 1, backgroundColor: colors.canvas },
   container: { padding: 24, alignItems: 'center', paddingTop: 48, paddingBottom: 40 },
   avatarWrap: { marginBottom: 12 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontSize: 28, fontWeight: '700' },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: colors.mist, fontSize: 28, fontWeight: '700' },
   avatarBadge: {
     position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13,
-    backgroundColor: '#17897D', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#f8f9fa',
+    backgroundColor: colors.lantern, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.canvas,
   },
   photoNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginBottom: 16, width: '100%' },
   photoNoticeRequired: { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a' },
   photoNoticeOptional: { backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#99e6dc' },
   photoNoticeText: { flex: 1, fontSize: 12.5, fontWeight: '500' },
-  name: { fontSize: 22, fontWeight: '700', color: '#0B4A45', marginBottom: 2 },
-  companyName: { fontSize: 16, fontWeight: '600', color: '#2EA89B', marginBottom: 2 },
-  email: { fontSize: 14, color: '#888', marginBottom: 20 },
-  infoCard: { width: '100%', backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#e2e8f0' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  infoLabel: { fontSize: 14, color: '#888', fontWeight: '500' },
-  infoValue: { fontSize: 14, color: '#0B4A45', fontWeight: '600', flexShrink: 1, textAlign: 'right', marginLeft: 8 },
+  name: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, marginBottom: 2 },
+  companyName: { fontSize: 16, fontWeight: '600', color: colors.lanternDeep, marginBottom: 2 },
+  email: { fontSize: 14, color: colors.steel, marginBottom: 20 },
+  infoCard: { width: '100%', backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: colors.border },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  infoLabel: { fontSize: 14, color: colors.steel, fontWeight: '500' },
+  infoValue: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600', flexShrink: 1, textAlign: 'right', marginLeft: 8 },
   section: { width: '100%', marginBottom: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.lanternDeep, marginBottom: 12 },
   stripeStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginBottom: 10 },
   stripeStatusGreen: { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#6ee7b7' },
   stripeStatusOrange: { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a' },
   stripeStatusText: { flex: 1, fontSize: 13, fontWeight: '500' },
   stripeBtn: { backgroundColor: '#635bff', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   stripeBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  stripeHint: { fontSize: 12, color: '#888', textAlign: 'center' },
-  teamCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
-  emptyNote: { fontSize: 14, color: '#aaa', paddingHorizontal: 16, paddingVertical: 14, fontStyle: 'italic' },
-  memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  credentialRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  credentialRowText: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0f172a' },
-  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#0B4A45', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  memberAvatarText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  stripeHint: { fontSize: 12, color: colors.steel, textAlign: 'center' },
+  teamCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  emptyNote: { fontSize: 14, color: colors.steel, paddingHorizontal: 16, paddingVertical: 14, fontStyle: 'italic' },
+  memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  credentialRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  credentialRowText: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.ink },
+  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  memberAvatarText: { color: colors.mist, fontSize: 13, fontWeight: '700' },
   memberInfo: { flex: 1 },
-  memberName: { fontSize: 14, fontWeight: '700', color: '#0B4A45' },
-  memberEmail: { fontSize: 12, color: '#888', marginTop: 1 },
+  memberName: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
+  memberEmail: { fontSize: 12, color: colors.steel, marginTop: 1 },
   removeBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
   removeBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
   formInner: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: '#f8f9fa', color: '#0f172a' },
-  addBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 4 },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: colors.canvas, color: colors.ink },
+  addBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 4 },
+  addBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   cancelInlineBtn: { alignItems: 'center', paddingVertical: 10 },
-  cancelInlineText: { color: '#888', fontSize: 14 },
-  addTeamBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: '#0B4A45', borderStyle: 'dashed', padding: 13, alignItems: 'center' },
-  addTeamBtnText: { fontSize: 14, fontWeight: '700', color: '#0B4A45' },
+  cancelInlineText: { color: colors.steel, fontSize: 14 },
+  addTeamBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', padding: 13, alignItems: 'center' },
+  addTeamBtnText: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
   logoutBtn: { backgroundColor: '#fed7d7', borderRadius: 12, padding: 16, width: '100%', alignItems: 'center', marginTop: 8 },
   logoutText: { color: '#c53030', fontWeight: '700', fontSize: 15 },
 });

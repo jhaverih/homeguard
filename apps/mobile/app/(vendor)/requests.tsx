@@ -7,9 +7,10 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, paymentsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 function DateTimeField({
-  label, value, onChange, accentColor = '#0B4A45',
+  label, value, onChange, accentColor = colors.lanternDeep,
 }: { label: string; value: Date; onChange: (d: Date) => void; accentColor?: string }) {
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
@@ -187,7 +188,7 @@ export default function OpenRequestsScreen() {
   };
 
   useFocusEffect(useCallback(() => { load(); }, []));
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   if (!stripeReady) {
     return (
@@ -255,12 +256,12 @@ export default function OpenRequestsScreen() {
             return (
               <View key={req.id} style={styles.card}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }, req.type === 'ADDITIONAL_SERVICE' ? { backgroundColor: '#f0effe' } : { backgroundColor: '#EBF1EF' }]}>
-                    <Text style={[{ fontSize: 11, fontWeight: '700' }, req.type === 'ADDITIONAL_SERVICE' ? { color: '#635bff' } : { color: '#0B4A45' }]}>
+                  <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }, req.type === 'ADDITIONAL_SERVICE' ? { backgroundColor: '#f0effe' } : { backgroundColor: colors.mist }]}>
+                    <Text style={[{ fontSize: 11, fontWeight: '700' }, req.type === 'ADDITIONAL_SERVICE' ? { color: '#635bff' } : { color: colors.lanternDeep }]}>
                       {req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection'}
                     </Text>
                   </View>
-                  {req.ticketNumber && <Text style={{ fontSize: 11, color: '#94a3b8' }}>{req.ticketNumber}</Text>}
+                  {req.ticketNumber && <Text style={{ fontSize: 11, color: colors.steel }}>{req.ticketNumber}</Text>}
                 </View>
 
                 {/* Service details for service requests */}
@@ -361,13 +362,13 @@ export default function OpenRequestsScreen() {
               label="Inspection Date & Time"
               value={scheduledDate}
               onChange={setScheduledDate}
-              accentColor="#0B4A45"
+              accentColor={colors.lanternDeep}
             />
             <Text style={styles.modalSubtitle}>Notes for this job (optional)</Text>
             <TextInput
               style={styles.notesInput}
               placeholder="Any notes about this job..."
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.steel}
               value={vendorNotes}
               onChangeText={setVendorNotes}
               multiline
@@ -387,57 +388,57 @@ export default function OpenRequestsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  lockedContainer: { flex: 1, backgroundColor: '#f8f9fa', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  lockedCard: { backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  lockedContainer: { flex: 1, backgroundColor: colors.canvas, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  lockedCard: { backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   lockedIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#f0effe', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  lockedTitle: { fontSize: 20, fontWeight: '800', color: '#1e293b', textAlign: 'center', marginBottom: 12 },
-  lockedBody: { fontSize: 14, color: '#64748b', lineHeight: 22, textAlign: 'center', marginBottom: 24 },
+  lockedTitle: { fontSize: 20, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 12 },
+  lockedBody: { fontSize: 14, color: colors.steel, lineHeight: 22, textAlign: 'center', marginBottom: 24 },
   lockedBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#635bff', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 20 },
   lockedBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 4 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, margin: 16, marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#666', marginHorizontal: 16, marginBottom: 16 },
   empty: { padding: 32, alignItems: 'center' },
-  emptyText: { color: '#888', textAlign: 'center' },
+  emptyText: { color: colors.steel, textAlign: 'center' },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, marginBottom: 12 },
-  cardDate: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
-  cardAddress: { fontSize: 14, color: '#555', marginBottom: 4 },
+  cardDate: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
+  cardAddress: { fontSize: 14, color: colors.steel, marginBottom: 4 },
   cardNotes: { fontSize: 13, color: '#666', marginBottom: 4, fontStyle: 'italic' },
-  serviceDetailBox: { backgroundColor: '#f8fafc', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-  serviceDetailName: { fontSize: 13, color: '#0B4A45', fontWeight: '600', flex: 1 },
+  serviceDetailBox: { backgroundColor: '#f8fafc', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  serviceDetailName: { fontSize: 13, color: colors.lanternDeep, fontWeight: '600', flex: 1 },
   serviceDetailPrice: { fontSize: 13, color: '#059669', fontWeight: '700' },
-  cardPosted: { fontSize: 12, color: '#aaa', marginBottom: 12 },
-  acceptBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center' },
-  acceptBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  cardPosted: { fontSize: 12, color: colors.steel, marginBottom: 12 },
+  acceptBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center' },
+  acceptBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   rejectBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#fca5a5', borderRadius: 10, padding: 14, alignItems: 'center', paddingHorizontal: 18 },
   rejectBtnText: { color: '#dc2626', fontWeight: '700', fontSize: 15 },
-  bundleCard: { borderWidth: 1, borderColor: '#0B4A45' },
-  bundleBadge: { alignSelf: 'flex-start', backgroundColor: '#0B4A45', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
-  bundleBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  bundleCard: { borderWidth: 1, borderColor: colors.lanternDeep },
+  bundleBadge: { alignSelf: 'flex-start', backgroundColor: colors.ink, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
+  bundleBadgeText: { color: colors.mist, fontSize: 12, fontWeight: '700' },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: '#EBF1EF' },
-  filterChipActive: { backgroundColor: '#0B4A45' },
-  filterChipText: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
-  filterChipTextActive: { color: '#fff' },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: colors.mist },
+  filterChipActive: { backgroundColor: colors.lantern },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep },
+  filterChipTextActive: { color: colors.ink },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#0B4A45', marginBottom: 8 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: colors.lanternDeep, marginBottom: 8 },
   modalSubtitle: { color: '#666', marginBottom: 8 },
-  confirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
-  confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  confirmBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  confirmText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
-  cancelText: { color: '#888' },
+  cancelText: { color: colors.steel },
   notesInput: {
-    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
-    padding: 12, fontSize: 14, color: '#0f172a', minHeight: 72, textAlignVertical: 'top', marginBottom: 12,
+    backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    padding: 12, fontSize: 14, color: colors.ink, minHeight: 72, textAlignVertical: 'top', marginBottom: 12,
   },
   fieldWrap: { marginBottom: 16 },
   pickerLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   dateBtn: {
-    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 12,
+    backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 12,
     padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  dateBtnText: { fontSize: 15, color: '#111', fontWeight: '500', flex: 1 },
+  dateBtnText: { fontSize: 15, color: colors.ink, fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
   iosOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   iosPickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },

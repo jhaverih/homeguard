@@ -6,6 +6,7 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { vendorApi, uploadsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING_REVIEW: '#b45309',
@@ -29,7 +30,7 @@ function DocUploadRow({
   return (
     <TouchableOpacity style={styles.docBtn} onPress={onPress} disabled={uploading}>
       {uploading ? (
-        <ActivityIndicator color="#0B4A45" />
+        <ActivityIndicator color={colors.lanternDeep} />
       ) : (
         <Text style={styles.docBtnText}>{uploaded ? `✓ ${label} uploaded — tap to replace` : `📷 Upload ${label}`}</Text>
       )}
@@ -112,7 +113,7 @@ export default function CompanyApplicationScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
@@ -132,7 +133,7 @@ export default function CompanyApplicationScreen() {
       <TextInput
         style={styles.input}
         placeholder="12-3456789"
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={colors.steel}
         value={ein}
         onChangeText={setEin}
       />
@@ -149,7 +150,7 @@ export default function CompanyApplicationScreen() {
       <TextInput
         style={styles.input}
         placeholder="Issuing state (e.g. TN)"
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={colors.steel}
         value={businessTaxLicenseState}
         onChangeText={setBusinessTaxLicenseState}
         maxLength={2}
@@ -185,28 +186,28 @@ export default function CompanyApplicationScreen() {
       />
 
       <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={submitting}>
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit Application</Text>}
+        {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Submit Application</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  title: { fontSize: 22, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  title: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#666', marginBottom: 16 },
-  statusCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' },
+  statusCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
   statusText: { fontSize: 14, fontWeight: '700' },
-  reviewNote: { fontSize: 13, color: '#555', marginTop: 6 },
-  formLabel: { fontSize: 13, fontWeight: '600', color: '#0B4A45', marginBottom: 8, marginTop: 4 },
+  reviewNote: { fontSize: 13, color: colors.steel, marginTop: 6 },
+  formLabel: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep, marginBottom: 8, marginTop: 4 },
   input: {
-    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
-    padding: 12, fontSize: 14, color: '#0f172a', marginBottom: 12,
+    backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    padding: 12, fontSize: 14, color: colors.ink, marginBottom: 12,
   },
-  dateBtn: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 12, marginBottom: 12 },
-  dateBtnText: { fontSize: 14, color: '#0f172a' },
-  docBtn: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 },
-  docBtnText: { fontSize: 14, color: '#0B4A45', fontWeight: '600' },
-  submitBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 24 },
-  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  dateBtn: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 12 },
+  dateBtnText: { fontSize: 14, color: colors.ink },
+  docBtn: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 },
+  docBtnText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
+  submitBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 24 },
+  submitBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
 });

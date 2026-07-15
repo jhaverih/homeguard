@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, pricingApi, uploadsApi, yolinkApi } from '../../src/services/api';
 import { enqueueTaskResult, flushQueue } from '../../src/services/taskQueue';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 const NEXT_STATUS: Record<string, { label: string; next: string; color: string }> = {
   ACCEPTED: { label: "I'm On My Way", next: 'VENDOR_EN_ROUTE', color: '#9f7aea' },
@@ -257,8 +258,8 @@ function PhotoStrip({
       {!readOnly && photos.length < maxPhotos && (
         <TouchableOpacity style={ps.addBtn} onPress={onAdd} disabled={uploading}>
           {uploading
-            ? <ActivityIndicator size="small" color="#0B4A45" />
-            : <><Ionicons name="camera" size={22} color="#0B4A45" /><Text style={ps.addText}>Photo</Text></>}
+            ? <ActivityIndicator size="small" color={colors.lanternDeep} />
+            : <><Ionicons name="camera" size={22} color={colors.lanternDeep} /><Text style={ps.addText}>Photo</Text></>}
         </TouchableOpacity>
       )}
     </View>
@@ -323,8 +324,8 @@ function PromptField({
       <View style={styles.promptRow}>
         <Text style={styles.promptLabel}>{field.label}</Text>
         {readOnly
-          ? <Text style={[styles.promptInput, { color: '#0B4A45', fontWeight: '700' }]}>{value ? 'Yes' : 'No'}</Text>
-          : <Switch value={!!value} onValueChange={onChange} trackColor={{ true: '#0B4A45' }} thumbColor={value ? '#fff' : '#f3f4f6'} />
+          ? <Text style={[styles.promptInput, { color: colors.lanternDeep, fontWeight: '700' }]}>{value ? 'Yes' : 'No'}</Text>
+          : <Switch value={!!value} onValueChange={onChange} trackColor={{ true: colors.lanternDeep }} thumbColor={value ? '#fff' : '#f3f4f6'} />
         }
       </View>
     );
@@ -358,7 +359,7 @@ function PromptField({
       <TextInput
         style={styles.promptInput}
         placeholder={readOnly ? '' : (field.placeholder || (field.type === 'number' ? '0' : 'Enter...'))}
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={colors.steel}
         keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'}
         value={value != null ? String(value) : ''}
         onChangeText={onChange}
@@ -814,7 +815,7 @@ export default function ActiveJobScreen() {
     }
   };
 
-  if (loading || !job) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading || !job) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   const serviceKey = getServiceKey(job);
   const solarConsultationConfirmed = solarConsultation?.status === 'CONFIRMED' || solarConsultation?.status === 'COMPLETED';
@@ -872,13 +873,13 @@ export default function ActiveJobScreen() {
               onPress={() => setShowMonitorForm((v) => !v)}
             >
               <View style={styles.sectionLeft}>
-                <Ionicons name="wifi-outline" size={18} color="#0B4A45" />
+                <Ionicons name="wifi-outline" size={18} color={colors.lanternDeep} />
                 <Text style={styles.sectionLabel}>Connect Home Monitoring</Text>
               </View>
-              <Ionicons name={showMonitorForm ? 'chevron-up' : 'chevron-down'} size={18} color="#94a3b8" />
+              <Ionicons name={showMonitorForm ? 'chevron-up' : 'chevron-down'} size={18} color={colors.steel} />
             </TouchableOpacity>
             {showMonitorForm && (
-              <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+              <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
                 {monitorResult ? (
                   <Text style={{ fontSize: 13, color: '#15803d', fontWeight: '600' }}>
                     ✅ Connected — {monitorResult.deviceCount} device{monitorResult.deviceCount === 1 ? '' : 's'} found on this home.
@@ -887,7 +888,7 @@ export default function ActiveJobScreen() {
                   <>
                     <Text style={styles.sectionHint}>
                       Enter this customer's own Yolink credentials — found in their Yolink app under
-                      Account → Advanced Settings → User Access Credentials. Houmi never needs their Yolink login.
+                      Account → Advanced Settings → User Access Credentials. Attenteve never needs their Yolink login.
                     </Text>
                     <TextInput
                       style={styles.promptInput}
@@ -919,7 +920,7 @@ export default function ActiveJobScreen() {
                       <Text style={{ fontSize: 12, color: '#dc2626', marginTop: 8 }}>{monitorError}</Text>
                     ) : null}
                     <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: connectingMonitor ? '#94a3b8' : '#0B4A45', marginTop: 12, marginBottom: 0 }]}
+                      style={[styles.actionBtn, { backgroundColor: connectingMonitor ? colors.steel : colors.lanternDeep, marginTop: 12, marginBottom: 0 }]}
                       onPress={submitMonitoring}
                       disabled={connectingMonitor}
                     >
@@ -958,7 +959,7 @@ export default function ActiveJobScreen() {
 
         {nextAction && (
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: advancingStatus ? '#94a3b8' : nextAction.color }]}
+            style={[styles.actionBtn, { backgroundColor: advancingStatus ? colors.steel : nextAction.color }]}
             onPress={advanceStatus}
             disabled={advancingStatus}
           >
@@ -1020,7 +1021,7 @@ export default function ActiveJobScreen() {
                       </View>
                       <Text style={styles.sectionLabel}>{section.label}</Text>
                     </View>
-                    <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#64748b" />
+                    <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.steel} />
                   </TouchableOpacity>
 
                   {expanded && (
@@ -1033,7 +1034,7 @@ export default function ActiveJobScreen() {
                             key={task.key}
                             style={[
                               styles.taskRow,
-                              result && { borderLeftColor: statusOpt?.color || '#e2e8f0', borderLeftWidth: 3 },
+                              result && { borderLeftColor: statusOpt?.color || colors.border, borderLeftWidth: 3 },
                               isCompleted && { opacity: 0.75 },
                             ]}
                             onPress={() => openTask(task)}
@@ -1145,7 +1146,7 @@ export default function ActiveJobScreen() {
                       key={task.key}
                       style={[
                         styles.taskRow,
-                        result && { borderLeftColor: statusOpt?.color || '#e2e8f0', borderLeftWidth: 3 },
+                        result && { borderLeftColor: statusOpt?.color || colors.border, borderLeftWidth: 3 },
                         isCompleted && { opacity: 0.75 },
                       ]}
                       onPress={() => openTask(task)}
@@ -1174,7 +1175,7 @@ export default function ActiveJobScreen() {
             <View style={[styles.progressCard, { marginTop: 0 }]}>
               <Text style={[styles.progressLabel, { marginBottom: 8 }]}>Notes to Document</Text>
               {GUTTER_NOTES_FIELDS.map((note, i) => (
-                <Text key={i} style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>• {note}</Text>
+                <Text key={i} style={{ fontSize: 13, color: colors.steel, marginBottom: 4 }}>• {note}</Text>
               ))}
             </View>
 
@@ -1251,11 +1252,11 @@ export default function ActiveJobScreen() {
                       <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                         <View>
                           <View style={hvacSt.tableHeaderRow}>
-                            <View style={[hvacSt.tableFirstCol, { backgroundColor: '#1e3040' }]}>
+                            <View style={[hvacSt.tableFirstCol, { backgroundColor: colors.slate }]}>
                               <Text style={hvacSt.tableHeaderText}>Equipment</Text>
                             </View>
                             {EQUIP_COLS.map((col) => (
-                              <View key={col.key} style={[hvacSt.tableCol, { backgroundColor: '#1e3040' }]}>
+                              <View key={col.key} style={[hvacSt.tableCol, { backgroundColor: colors.slate }]}>
                                 <Text style={hvacSt.tableHeaderText}>{col.label}</Text>
                               </View>
                             ))}
@@ -1309,7 +1310,7 @@ export default function ActiveJobScreen() {
                           <TextInput
                             style={[(field as any).type === 'textarea' ? hvacSt.textArea : hvacSt.textInput]}
                             placeholder={(field as any).placeholder || ''}
-                            placeholderTextColor="#94a3b8"
+                            placeholderTextColor={colors.steel}
                             keyboardType={(field as any).type === 'number' ? 'decimal-pad' : 'default'}
                             multiline={(field as any).type === 'textarea'}
                             numberOfLines={(field as any).type === 'textarea' ? 3 : 1}
@@ -1330,7 +1331,7 @@ export default function ActiveJobScreen() {
                         const status = hvacData[statusKey] || '';
                         const notes = hvacData[notesKey] || '';
                         return (
-                          <View key={check.key} style={[hvacSt.checkRow, cIdx > 0 && { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]}>
+                          <View key={check.key} style={[hvacSt.checkRow, cIdx > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
                             <Text style={hvacSt.checkLabel}>{check.label}</Text>
                             <View style={hvacSt.checkControls}>
                               {(['PASS', 'FAIL', 'N/A'] as const).map((opt) => (
@@ -1350,7 +1351,7 @@ export default function ActiveJobScreen() {
                               <TextInput
                                 style={hvacSt.checkNotes}
                                 placeholder="Notes..."
-                                placeholderTextColor="#94a3b8"
+                                placeholderTextColor={colors.steel}
                                 value={notes}
                                 onChangeText={(v) => setHvacData((p) => ({ ...p, [notesKey]: v }))}
                               />
@@ -1385,7 +1386,7 @@ export default function ActiveJobScreen() {
               <TextInput
                 style={[styles.input, styles.textArea]}
                 placeholder="Describe recommended repairs or replacements..."
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={colors.steel}
                 multiline
                 numberOfLines={3}
                 value={hvacRecNotes}
@@ -1395,7 +1396,7 @@ export default function ActiveJobScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="e.g. $850"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={colors.steel}
                 keyboardType="decimal-pad"
                 value={hvacRecPrice}
                 onChangeText={(v) => setHvacRecPrice(formatCurrencyInput(v))}
@@ -1418,14 +1419,14 @@ export default function ActiveJobScreen() {
                     finally { setSendingHvacRec(false); }
                   }}
                 >
-                  {sendingHvacRec ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Send to Customer</Text>}
+                  {sendingHvacRec ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Send to Customer</Text>}
                 </TouchableOpacity>
               )}
             </View>
 
             {/* Save report button */}
             <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: '#0B4A45' }, savingHvac && styles.saveBtnDisabled]}
+              style={[styles.saveBtn, savingHvac && styles.saveBtnDisabled]}
               disabled={savingHvac}
               onPress={async () => {
                 setSavingHvac(true);
@@ -1441,7 +1442,7 @@ export default function ActiveJobScreen() {
                 } finally { setSavingHvac(false); }
               }}
             >
-              {savingHvac ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save HVAC Report</Text>}
+              {savingHvac ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Save HVAC Report</Text>}
             </TouchableOpacity>
 
             {job.status === 'IN_PROGRESS' && (
@@ -1480,14 +1481,14 @@ export default function ActiveJobScreen() {
             <TextInput
               style={styles.generalNotesInput}
               placeholder="Any notes about the work done..."
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.steel}
               value={generalNotes}
               onChangeText={setGeneralNotes}
               multiline
               numberOfLines={3}
             />
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: savingNotes ? '#94a3b8' : '#0B4A45', marginTop: 8 }]}
+              style={[styles.actionBtn, { backgroundColor: savingNotes ? colors.steel : colors.lanternDeep, marginTop: 8 }]}
               onPress={saveGeneralNotes}
               disabled={savingNotes}
             >
@@ -1526,34 +1527,34 @@ export default function ActiveJobScreen() {
                 <Text style={styles.sectionHint}>{solarQuoteEditing ? 'Update your quote below.' : 'Complete the quote. Customer contact is revealed after site visit is confirmed.'}</Text>
 
                 <Text style={styles.fieldLabel}>System Size (kW) *</Text>
-                <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.systemSizeKw} onChangeText={(v) => setSolarForm((p) => ({ ...p, systemSizeKw: v }))} placeholder="e.g. 8.5" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.systemSizeKw} onChangeText={(v) => setSolarForm((p) => ({ ...p, systemSizeKw: v }))} placeholder="e.g. 8.5" placeholderTextColor={colors.steel} />
                 <Text style={styles.fieldLabel}>Number of Inverters *</Text>
-                <TextInput style={styles.input} keyboardType="number-pad" value={solarForm.numInverters} onChangeText={(v) => setSolarForm((p) => ({ ...p, numInverters: v }))} placeholder="e.g. 1" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.input} keyboardType="number-pad" value={solarForm.numInverters} onChangeText={(v) => setSolarForm((p) => ({ ...p, numInverters: v }))} placeholder="e.g. 1" placeholderTextColor={colors.steel} />
                 <Text style={styles.fieldLabel}>Inverter Manufacturer *</Text>
-                <TextInput style={styles.input} value={solarForm.inverterManufacturer} onChangeText={(v) => setSolarForm((p) => ({ ...p, inverterManufacturer: v }))} placeholder="e.g. Enphase" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.input} value={solarForm.inverterManufacturer} onChangeText={(v) => setSolarForm((p) => ({ ...p, inverterManufacturer: v }))} placeholder="e.g. Enphase" placeholderTextColor={colors.steel} />
                 <Text style={styles.fieldLabel}>Inverter Model *</Text>
-                <TextInput style={styles.input} value={solarForm.inverterModel} onChangeText={(v) => setSolarForm((p) => ({ ...p, inverterModel: v }))} placeholder="e.g. IQ8+" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.input} value={solarForm.inverterModel} onChangeText={(v) => setSolarForm((p) => ({ ...p, inverterModel: v }))} placeholder="e.g. IQ8+" placeholderTextColor={colors.steel} />
                 <Text style={styles.fieldLabel}>PV System Price ($) *</Text>
-                <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.pvSystemPrice} onChangeText={(v) => setSolarForm((p) => ({ ...p, pvSystemPrice: formatCurrencyInput(v) }))} placeholder="e.g. $24,000" placeholderTextColor="#94a3b8" />
+                <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.pvSystemPrice} onChangeText={(v) => setSolarForm((p) => ({ ...p, pvSystemPrice: formatCurrencyInput(v) }))} placeholder="e.g. $24,000" placeholderTextColor={colors.steel} />
 
                 {!(job.customerNotes || '').includes('Solar Only') && (
                   <>
-                    <Text style={[styles.fieldLabel, { marginTop: 16, color: '#64748b' }]}>Energy Storage (optional)</Text>
+                    <Text style={[styles.fieldLabel, { marginTop: 16, color: colors.steel }]}>Energy Storage (optional)</Text>
                     <Text style={styles.fieldLabel}>Storage Size (kWh)</Text>
-                    <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.storageSizeKwh} onChangeText={(v) => setSolarForm((p) => ({ ...p, storageSizeKwh: v }))} placeholder="e.g. 13.5" placeholderTextColor="#94a3b8" />
+                    <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.storageSizeKwh} onChangeText={(v) => setSolarForm((p) => ({ ...p, storageSizeKwh: v }))} placeholder="e.g. 13.5" placeholderTextColor={colors.steel} />
                     <Text style={styles.fieldLabel}>Storage Manufacturer</Text>
-                    <TextInput style={styles.input} value={solarForm.storageManufacturer} onChangeText={(v) => setSolarForm((p) => ({ ...p, storageManufacturer: v }))} placeholder="e.g. Tesla" placeholderTextColor="#94a3b8" />
+                    <TextInput style={styles.input} value={solarForm.storageManufacturer} onChangeText={(v) => setSolarForm((p) => ({ ...p, storageManufacturer: v }))} placeholder="e.g. Tesla" placeholderTextColor={colors.steel} />
                     <Text style={styles.fieldLabel}>Storage Model</Text>
-                    <TextInput style={styles.input} value={solarForm.storageModel} onChangeText={(v) => setSolarForm((p) => ({ ...p, storageModel: v }))} placeholder="e.g. Powerwall 3" placeholderTextColor="#94a3b8" />
+                    <TextInput style={styles.input} value={solarForm.storageModel} onChangeText={(v) => setSolarForm((p) => ({ ...p, storageModel: v }))} placeholder="e.g. Powerwall 3" placeholderTextColor={colors.steel} />
                     <Text style={styles.fieldLabel}>Storage Price ($)</Text>
-                    <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.storagePrice} onChangeText={(v) => setSolarForm((p) => ({ ...p, storagePrice: formatCurrencyInput(v) }))} placeholder="e.g. $10,000" placeholderTextColor="#94a3b8" />
+                    <TextInput style={styles.input} keyboardType="decimal-pad" value={solarForm.storagePrice} onChangeText={(v) => setSolarForm((p) => ({ ...p, storagePrice: formatCurrencyInput(v) }))} placeholder="e.g. $10,000" placeholderTextColor={colors.steel} />
                   </>
                 )}
 
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                   {solarQuoteEditing && (
-                    <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#e2e8f0' }]} onPress={() => setSolarQuoteEditing(false)}>
-                      <Text style={[styles.saveBtnText, { color: '#374151' }]}>Cancel</Text>
+                    <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.border }]} onPress={() => setSolarQuoteEditing(false)}>
+                      <Text style={[styles.saveBtnText, { color: colors.slate }]}>Cancel</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -1588,7 +1589,7 @@ export default function ActiveJobScreen() {
                       }
                     }}
                   >
-                    {submittingSolar ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{solarQuoteEditing ? 'Update Quote' : 'Submit Quote'}</Text>}
+                    {submittingSolar ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>{solarQuoteEditing ? 'Update Quote' : 'Submit Quote'}</Text>}
                   </TouchableOpacity>
                 </View>
               </>
@@ -1597,23 +1598,23 @@ export default function ActiveJobScreen() {
                 {/* Quote summary */}
                 <View style={[styles.progressCard, { marginBottom: 8 }]}>
                   <Text style={{ fontSize: 13, fontWeight: '700', color: '#059669', marginBottom: 6 }}>✓ Quote Submitted</Text>
-                  <Text style={{ fontSize: 13, color: '#374151' }}>System: {Number(solarQuote.systemSizeKw).toFixed(1)} kW • {solarQuote.numInverters}x {solarQuote.inverterManufacturer} {solarQuote.inverterModel}</Text>
-                  <Text style={{ fontSize: 13, color: '#374151', marginTop: 3 }}>PV System: <Text style={{ fontWeight: '700' }}>${Number(solarQuote.pvSystemPrice).toLocaleString()}</Text></Text>
+                  <Text style={{ fontSize: 13, color: colors.slate }}>System: {Number(solarQuote.systemSizeKw).toFixed(1)} kW • {solarQuote.numInverters}x {solarQuote.inverterManufacturer} {solarQuote.inverterModel}</Text>
+                  <Text style={{ fontSize: 13, color: colors.slate, marginTop: 3 }}>PV System: <Text style={{ fontWeight: '700' }}>${Number(solarQuote.pvSystemPrice).toLocaleString()}</Text></Text>
                   {solarQuote.storageManufacturer && (
                     <>
-                      <Text style={{ fontSize: 13, color: '#374151', marginTop: 3 }}>Storage: {solarQuote.storageSizeKwh} kWh • {solarQuote.storageManufacturer} {solarQuote.storageModel}</Text>
+                      <Text style={{ fontSize: 13, color: colors.slate, marginTop: 3 }}>Storage: {solarQuote.storageSizeKwh} kWh • {solarQuote.storageManufacturer} {solarQuote.storageModel}</Text>
                       {solarQuote.storagePrice && (
-                        <Text style={{ fontSize: 13, color: '#374151', marginTop: 3 }}>Storage Price: <Text style={{ fontWeight: '700' }}>${Number(solarQuote.storagePrice).toLocaleString()}</Text></Text>
+                        <Text style={{ fontSize: 13, color: colors.slate, marginTop: 3 }}>Storage Price: <Text style={{ fontWeight: '700' }}>${Number(solarQuote.storagePrice).toLocaleString()}</Text></Text>
                       )}
                     </>
                   )}
-                  <View style={{ height: 1, backgroundColor: '#e2e8f0', marginVertical: 8 }} />
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0B4A45' }}>
+                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.lanternDeep }}>
                     Total: ${(Number(solarQuote.pvSystemPrice) + Number(solarQuote.storagePrice || 0)).toLocaleString()}
                   </Text>
                   {(!solarConsultation || ['REQUESTED', 'VENDOR_COUNTER'].includes(solarConsultation?.status)) && (
                     <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: '#f1f5f9', marginTop: 10 }]}
+                      style={[styles.saveBtn, { backgroundColor: colors.border, marginTop: 10 }]}
                       onPress={() => {
                         setSolarForm({
                           systemSizeKw: String(solarQuote.systemSizeKw),
@@ -1629,7 +1630,7 @@ export default function ActiveJobScreen() {
                         setSolarQuoteEditing(true);
                       }}
                     >
-                      <Text style={[styles.saveBtnText, { color: '#374151' }]}>Edit Quote</Text>
+                      <Text style={[styles.saveBtnText, { color: colors.slate }]}>Edit Quote</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1648,7 +1649,7 @@ export default function ActiveJobScreen() {
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                       <TouchableOpacity
-                        style={[styles.saveBtn, { flex: 1, backgroundColor: '#0B4A45' }, consultationBusy && styles.saveBtnDisabled]}
+                        style={[styles.saveBtn, { flex: 1 }, consultationBusy && styles.saveBtnDisabled]}
                         disabled={consultationBusy}
                         onPress={async () => {
                           setConsultationBusy(true);
@@ -1663,11 +1664,11 @@ export default function ActiveJobScreen() {
                         <Text style={styles.saveBtnText}>Accept Date</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.saveBtn, { flex: 1, backgroundColor: '#e2e8f0' }, consultationBusy && styles.saveBtnDisabled]}
+                        style={[styles.saveBtn, { flex: 1, backgroundColor: colors.border }, consultationBusy && styles.saveBtnDisabled]}
                         disabled={consultationBusy}
                         onPress={() => { setCounterDate(new Date(solarConsultation.customerProposedDate)); setShowCounterDatePicker(true); }}
                       >
-                        <Text style={[styles.saveBtnText, { color: '#374151' }]}>Propose New Date</Text>
+                        <Text style={[styles.saveBtnText, { color: colors.slate }]}>Propose New Date</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1687,11 +1688,11 @@ export default function ActiveJobScreen() {
                         {new Date(solarConsultation.confirmedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </Text>
                     </View>
-                    <View style={[styles.progressCard, { backgroundColor: '#EBF1EF', borderColor: '#0B4A45' }]}>
+                    <View style={[styles.progressCard, { backgroundColor: colors.mist, borderColor: colors.lanternDeep }]}>
                       <Text style={styles.progressLabel}>Customer Contact</Text>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: '#0B4A45', marginTop: 4 }}>{job.customer?.firstName} {job.customer?.lastName}</Text>
-                      {job.customer?.phone && <Text style={{ fontSize: 14, color: '#374151' }}>{job.customer.phone}</Text>}
-                      {job.customer?.email && <Text style={{ fontSize: 14, color: '#374151' }}>{job.customer.email}</Text>}
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: colors.lanternDeep, marginTop: 4 }}>{job.customer?.firstName} {job.customer?.lastName}</Text>
+                      {job.customer?.phone && <Text style={{ fontSize: 14, color: colors.slate }}>{job.customer.phone}</Text>}
+                      {job.customer?.email && <Text style={{ fontSize: 14, color: colors.slate }}>{job.customer.email}</Text>}
                     </View>
                   </>
                 ) : solarConsultation.status === 'DECLINED' ? (
@@ -1709,11 +1710,11 @@ export default function ActiveJobScreen() {
                         <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Propose New Date</Text>
                         <DateTimeField value={counterDate} onChange={setCounterDate} />
                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                          <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#e2e8f0' }]} onPress={() => setShowCounterDatePicker(false)}>
-                            <Text style={[styles.saveBtnText, { color: '#374151' }]}>Cancel</Text>
+                          <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.border }]} onPress={() => setShowCounterDatePicker(false)}>
+                            <Text style={[styles.saveBtnText, { color: colors.slate }]}>Cancel</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            style={[styles.saveBtn, { flex: 1, backgroundColor: '#0B4A45' }, consultationBusy && styles.saveBtnDisabled]}
+                            style={[styles.saveBtn, { flex: 1 }, consultationBusy && styles.saveBtnDisabled]}
                             disabled={consultationBusy}
                             onPress={async () => {
                               setConsultationBusy(true);
@@ -1759,7 +1760,7 @@ export default function ActiveJobScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                   <Text style={[styles.modalTitle, { flex: 1 }]}>{activeTask?.label}</Text>
                   <TouchableOpacity onPress={() => setTaskModalVisible(false)} style={{ padding: 4 }}>
-                    <Ionicons name="close" size={22} color="#64748b" />
+                    <Ionicons name="close" size={22} color={colors.steel} />
                   </TouchableOpacity>
                 </View>
                 {activeTask?.description && (
@@ -1875,7 +1876,7 @@ export default function ActiveJobScreen() {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Describe what you found or performed..."
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor={colors.steel}
                   value={taskFindings}
                   onChangeText={setTaskFindings}
                   multiline
@@ -1898,7 +1899,7 @@ export default function ActiveJobScreen() {
                   disabled={!taskStatus || savingTask}
                 >
                   {savingTask
-                    ? <ActivityIndicator color="#fff" />
+                    ? <ActivityIndicator color={colors.ink} />
                     : <Text style={styles.saveBtnText}>Save</Text>}
                 </TouchableOpacity>
                 <View style={{ height: 24 }} />
@@ -1930,7 +1931,7 @@ export default function ActiveJobScreen() {
                       <Text style={styles.recOptionName}>{item.name}</Text>
                       <Text style={styles.recOptionPrices}>{item.priceNote || fmtUSD(item.basePrice)}</Text>
                     </View>
-                    {upsellSelectedId === item.id && <Ionicons name="checkmark-circle" size={20} color="#0B4A45" />}
+                    {upsellSelectedId === item.id && <Ionicons name="checkmark-circle" size={20} color={colors.lanternDeep} />}
                   </TouchableOpacity>
                 );
               })}
@@ -1939,13 +1940,13 @@ export default function ActiveJobScreen() {
                 onPress={() => setUpsellSelectedId('other')}
               >
                 <Text style={styles.recOptionName}>Custom recommendation</Text>
-                {upsellSelectedId === 'other' && <Ionicons name="checkmark-circle" size={20} color="#0B4A45" />}
+                {upsellSelectedId === 'other' && <Ionicons name="checkmark-circle" size={20} color={colors.lanternDeep} />}
               </TouchableOpacity>
               {upsellSelectedId === 'other' && (
                 <View style={{ marginTop: 8 }}>
-                  <TextInput style={styles.input} placeholder="Service name" placeholderTextColor="#94a3b8"
+                  <TextInput style={styles.input} placeholder="Service name" placeholderTextColor={colors.steel}
                     value={upsellCustomName} onChangeText={setUpsellCustomName} />
-                  <TextInput style={styles.input} placeholder="e.g. $1,200" placeholderTextColor="#94a3b8"
+                  <TextInput style={styles.input} placeholder="e.g. $1,200" placeholderTextColor={colors.steel}
                     keyboardType="decimal-pad" value={upsellCustomPrice} onChangeText={(v) => setUpsellCustomPrice(formatCurrencyInput(v))} />
                 </View>
               )}
@@ -1953,7 +1954,7 @@ export default function ActiveJobScreen() {
             {upsellSelectedId && (
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#7c3aed', marginTop: 12 }]}
                 onPress={sendUpsell} disabled={sendingUpsell}>
-                {sendingUpsell ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Send Quote to Customer</Text>}
+                {sendingUpsell ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Send Quote to Customer</Text>}
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setUpsellModalVisible(false)}>
@@ -1989,156 +1990,156 @@ const ps = StyleSheet.create({
   img: { width: '100%', height: '100%' },
   removeBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 10 },
   spinner: { position: 'absolute', bottom: 4, left: 4 },
-  addBtn: { width: 76, height: 76, borderRadius: 10, borderWidth: 1.5, borderColor: '#0B4A45', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0fdf4' },
-  addText: { fontSize: 11, color: '#0B4A45', marginTop: 2, fontWeight: '600' },
+  addBtn: { width: 76, height: 76, borderRadius: 10, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0fdf4' },
+  addText: { fontSize: 11, color: colors.lanternDeep, marginTop: 2, fontWeight: '600' },
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: 16 },
-  customerBox: { backgroundColor: '#0B4A45', borderRadius: 16, padding: 20, marginBottom: 12 },
+  customerBox: { backgroundColor: colors.ink, borderRadius: 16, padding: 20, marginBottom: 12 },
   customerLabel: { fontSize: 12, color: '#a8d5a2', marginBottom: 4, fontWeight: '600', textTransform: 'uppercase' },
-  customerName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  customerName: { fontSize: 18, fontWeight: '700', color: colors.mist, marginBottom: 4 },
   customerAddress: { fontSize: 14, color: '#c8e6c0', marginBottom: 2 },
   customerCity: { fontSize: 14, color: '#c8e6c0', marginBottom: 8 },
   customerNotes: { fontSize: 13, color: '#a8d5a2', fontStyle: 'italic' },
   requestedServicesBox: { marginTop: 10, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, padding: 10 },
   requestedServicesLabel: { fontSize: 11, color: '#a8d5a2', fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
   requestedServicesLine: { fontSize: 13, color: '#fff', lineHeight: 20 },
-  scheduledRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 12, gap: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-  scheduledLabel: { fontSize: 13, fontWeight: '600', color: '#64748b' },
-  scheduledDate: { fontSize: 13, fontWeight: '700', color: '#0B4A45', flex: 1 },
+  scheduledRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 12, gap: 8, borderWidth: 1, borderColor: colors.border },
+  scheduledLabel: { fontSize: 13, fontWeight: '600', color: colors.steel },
+  scheduledDate: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep, flex: 1 },
   pendingReviewBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#fffbeb', borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1.5, borderColor: '#fde68a' },
   pendingReviewTitle: { fontSize: 14, fontWeight: '700', color: '#92400e', marginBottom: 4 },
   pendingReviewBody: { fontSize: 13, color: '#78350f', lineHeight: 19 },
   actionBtn: { borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 12 },
   actionBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   completedBadge: { backgroundColor: '#c6f6d5', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
-  completedText: { color: '#17897D', fontWeight: '700', fontSize: 16 },
-  progressCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 },
-  progressLabel: { fontSize: 13, fontWeight: '600', color: '#374151' },
-  progressCount: { fontSize: 13, fontWeight: '700', color: '#0B4A45' },
-  progressTrack: { height: 8, backgroundColor: '#e2e8f0', borderRadius: 99, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#0B4A45', borderRadius: 99 },
-  progressHint: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
-  sectionCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 8, overflow: 'hidden' },
+  completedText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 16 },
+  progressCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  progressLabel: { fontSize: 13, fontWeight: '600', color: colors.slate },
+  progressCount: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep },
+  progressTrack: { height: 8, backgroundColor: colors.border, borderRadius: 99, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: colors.lanternDeep, borderRadius: 99 },
+  progressHint: { fontSize: 12, color: colors.steel, marginTop: 6 },
+  sectionCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 8, overflow: 'hidden' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
   sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  sectionBadge: { backgroundColor: '#f1f5f9', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
+  sectionBadge: { backgroundColor: colors.border, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
   sectionBadgeDone: { backgroundColor: '#dcfce7' },
-  sectionBadgeText: { fontSize: 12, fontWeight: '700', color: '#64748b' },
-  sectionLabel: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
-  taskList: { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  sectionBadgeText: { fontSize: 12, fontWeight: '700', color: colors.steel },
+  sectionLabel: { fontSize: 14, fontWeight: '600', color: colors.ink, flex: 1 },
+  taskList: { borderTopWidth: 1, borderTopColor: colors.border },
   taskRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#f8fafc', borderLeftWidth: 3, borderLeftColor: 'transparent' },
-  taskRowLabel: { fontSize: 14, color: '#374151', lineHeight: 20, marginBottom: 4 },
+  taskRowLabel: { fontSize: 14, color: colors.slate, lineHeight: 20, marginBottom: 4 },
   taskStatusPill: { alignSelf: 'flex-start', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
   taskStatusPillText: { fontSize: 11, fontWeight: '700' },
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 12 },
-  taskDescText: { fontSize: 13, color: '#64748b', lineHeight: 19, marginBottom: 4 },
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: colors.slate, marginBottom: 8, marginTop: 12 },
+  taskDescText: { fontSize: 13, color: colors.steel, lineHeight: 19, marginBottom: 4 },
   statusGrid: { gap: 6 },
   statusBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, borderWidth: 1.5 },
   statusDot: { width: 8, height: 8, borderRadius: 99 },
-  statusBtnText: { fontSize: 14, color: '#374151', flex: 1 },
-  promptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  promptLabel: { fontSize: 13, color: '#374151', flex: 1, paddingRight: 8 },
-  promptInput: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8, fontSize: 13, color: '#0f172a', minWidth: 100, textAlign: 'right' },
+  statusBtnText: { fontSize: 14, color: colors.slate, flex: 1 },
+  promptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  promptLabel: { fontSize: 13, color: colors.slate, flex: 1, paddingRight: 8 },
+  promptInput: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, fontSize: 13, color: colors.ink, minWidth: 100, textAlign: 'right' },
   generalNotesInput: {
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
-    padding: 12, fontSize: 14, color: '#0f172a', minHeight: 72, textAlignVertical: 'top',
+    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    padding: 12, fontSize: 14, color: colors.ink, minHeight: 72, textAlignVertical: 'top',
   },
-  selectChip: { backgroundColor: '#f1f5f9', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#e2e8f0' },
-  selectChipActive: { backgroundColor: '#EBF1EF', borderColor: '#0B4A45' },
-  selectChipText: { fontSize: 11, color: '#64748b', fontWeight: '600' },
-  selectChipTextActive: { color: '#0B4A45' },
-  dynamicGroup: { backgroundColor: '#EBF1EF', borderRadius: 12, padding: 12, marginTop: 12, borderWidth: 1, borderColor: '#b7d5ce' },
-  dynamicGroupLabel: { fontSize: 13, fontWeight: '800', color: '#0B4A45', marginBottom: 8 },
-  subGroup: { backgroundColor: '#fff', borderRadius: 8, padding: 10, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-  subGroupLabel: { fontSize: 12, fontWeight: '700', color: '#64748b', marginBottom: 6 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0B4A45', marginBottom: 4, marginTop: 16 },
-  sectionHint: { fontSize: 13, color: '#888', marginBottom: 12 },
-  photoLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  selectChip: { backgroundColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border },
+  selectChipActive: { backgroundColor: colors.mist, borderColor: colors.lanternDeep },
+  selectChipText: { fontSize: 11, color: colors.steel, fontWeight: '600' },
+  selectChipTextActive: { color: colors.lanternDeep },
+  dynamicGroup: { backgroundColor: colors.mist, borderRadius: 12, padding: 12, marginTop: 12, borderWidth: 1, borderColor: '#b7d5ce' },
+  dynamicGroupLabel: { fontSize: 13, fontWeight: '800', color: colors.lanternDeep, marginBottom: 8 },
+  subGroup: { backgroundColor: '#fff', borderRadius: 8, padding: 10, marginTop: 8, borderWidth: 1, borderColor: colors.border },
+  subGroupLabel: { fontSize: 12, fontWeight: '700', color: colors.steel, marginBottom: 6 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4, marginTop: 16 },
+  sectionHint: { fontSize: 13, color: colors.steel, marginBottom: 12 },
+  photoLabel: { fontSize: 13, fontWeight: '600', color: colors.slate, marginBottom: 6 },
   required: { color: '#c53030' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 10, color: '#0f172a' },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 10, color: colors.ink },
   textArea: { height: 90, textAlignVertical: 'top' },
-  saveBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 8 },
-  saveBtnDisabled: { backgroundColor: '#94a3b8' },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  completeSeparator: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 20 },
+  saveBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 8 },
+  saveBtnDisabled: { backgroundColor: colors.steel },
+  saveBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
+  completeSeparator: { height: 1, backgroundColor: colors.border, marginVertical: 20 },
   completeBtn: { flexDirection: 'row', backgroundColor: '#059669', borderRadius: 14, padding: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   completeBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   sentSvcCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1.5 },
   sentSvcApproved: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
   sentSvcPending: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
-  sentSvcName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
-  sentSvcPrice: { fontSize: 13, color: '#475569', marginTop: 2 },
+  sentSvcName: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  sentSvcPrice: { fontSize: 13, color: colors.steel, marginTop: 2 },
   sentSvcBadge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
   badgeGreen: { backgroundColor: '#dcfce7' },
   badgeOrange: { backgroundColor: '#fef3c7' },
   sentSvcBadgeText: { fontSize: 12, fontWeight: '700' },
   solarCard: { marginBottom: 8 },
-  recOption: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
-  recOptionSelected: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
-  recOptionName: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
-  recOptionPrices: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  rescheduleBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 10, borderWidth: 1.5, borderColor: '#0B4A45' },
-  rescheduleBtnText: { color: '#0B4A45', fontWeight: '700', fontSize: 15 },
-  chatBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 32 },
-  chatBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  recOption: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#f8fafc' },
+  recOptionSelected: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
+  recOptionName: { fontSize: 14, fontWeight: '600', color: colors.ink, flex: 1 },
+  recOptionPrices: { fontSize: 12, color: colors.steel, marginTop: 2 },
+  rescheduleBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 10, borderWidth: 1.5, borderColor: colors.lanternDeep },
+  rescheduleBtnText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 15 },
+  chatBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 32 },
+  chatBtnText: { color: colors.ink, fontWeight: '600', fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
-  modalSubtitle: { fontSize: 14, color: '#64748b', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
+  modalSubtitle: { fontSize: 14, color: colors.steel, marginBottom: 16 },
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
-  dateBtn: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  dateBtnText: { fontSize: 15, color: '#111', fontWeight: '500', flex: 1 },
+  dateBtn: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  dateBtnText: { fontSize: 15, color: colors.ink, fontWeight: '500', flex: 1 },
   dateIcon: { fontSize: 20 },
-  doneBtn: { backgroundColor: '#0B4A45', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
-  doneBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  confirmBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
-  confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  doneBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
+  doneBtnText: { color: colors.ink, fontWeight: '700', fontSize: 16 },
+  confirmBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  confirmText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 12 },
-  cancelText: { color: '#888' },
+  cancelText: { color: colors.steel },
 });
 
 const hvacSt = StyleSheet.create({
   tabBar: { marginBottom: 12 },
-  tab: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  tabActive: { backgroundColor: '#1e3040' },
-  tabText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
-  tabTextActive: { color: '#fff' },
-  secHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e3040', borderRadius: 12, padding: 14, marginBottom: 12, gap: 10 },
-  badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f97316', alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  secTitle: { fontSize: 15, fontWeight: '700', color: '#fff', flex: 1 },
-  tableWrap: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12, overflow: 'hidden' },
+  tab: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  tabActive: { backgroundColor: colors.ink },
+  tabText: { fontSize: 14, fontWeight: '700', color: colors.steel },
+  tabTextActive: { color: colors.mist },
+  secHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.ink, borderRadius: 12, padding: 14, marginBottom: 12, gap: 10 },
+  badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.lantern, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 13, fontWeight: '800', color: colors.ink },
+  secTitle: { fontSize: 15, fontWeight: '700', color: colors.mist, flex: 1 },
+  tableWrap: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 12, overflow: 'hidden' },
   tableHeaderRow: { flexDirection: 'row' },
-  tableDataRow: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e2e8f0' },
-  tableFirstCol: { width: 140, padding: 8, justifyContent: 'center', borderRightWidth: 1, borderRightColor: '#2d4a5c' },
-  tableCol: { width: 100, padding: 8, borderRightWidth: 1, borderRightColor: '#e2e8f0', justifyContent: 'center' },
-  tableHeaderText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  tableRowLabelText: { fontSize: 11, fontWeight: '600', color: '#374151' },
-  tableCellInput: { fontSize: 12, color: '#0f172a', padding: 0, minHeight: 24 },
+  tableDataRow: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.border },
+  tableFirstCol: { width: 140, padding: 8, justifyContent: 'center', borderRightWidth: 1, borderRightColor: colors.slate },
+  tableCol: { width: 100, padding: 8, borderRightWidth: 1, borderRightColor: colors.border, justifyContent: 'center' },
+  tableHeaderText: { fontSize: 11, fontWeight: '700', color: colors.mist },
+  tableRowLabelText: { fontSize: 11, fontWeight: '600', color: colors.slate },
+  tableCellInput: { fontSize: 12, color: colors.ink, padding: 0, minHeight: 24 },
   fieldBlock: { marginBottom: 12 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
-  textInput: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 12, fontSize: 14, color: '#0f172a' },
-  textArea: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 12, fontSize: 14, color: '#0f172a', height: 80, textAlignVertical: 'top' },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
-  chipActive: { backgroundColor: '#EBF1EF', borderColor: '#0B4A45' },
-  chipText: { fontSize: 12, color: '#64748b', fontWeight: '600' },
-  chipTextActive: { color: '#0B4A45', fontWeight: '700' },
-  checksCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12, overflow: 'hidden' },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.slate, marginBottom: 6 },
+  textInput: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, fontSize: 14, color: colors.ink },
+  textArea: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, fontSize: 14, color: colors.ink, height: 80, textAlignVertical: 'top' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#f8fafc' },
+  chipActive: { backgroundColor: colors.mist, borderColor: colors.lanternDeep },
+  chipText: { fontSize: 12, color: colors.steel, fontWeight: '600' },
+  chipTextActive: { color: colors.lanternDeep, fontWeight: '700' },
+  checksCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 12, overflow: 'hidden' },
   checkRow: { padding: 12 },
-  checkLabel: { fontSize: 13, fontWeight: '600', color: '#1a7a6d', marginBottom: 8 },
+  checkLabel: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep, marginBottom: 8 },
   checkControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  pfnBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 6, borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  pfnBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 6, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#f8fafc' },
   pfnPass: { backgroundColor: '#059669', borderColor: '#059669' },
   pfnFail: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
   pfnNA: { backgroundColor: '#6b7280', borderColor: '#6b7280' },
-  pfnText: { fontSize: 11, fontWeight: '700', color: '#64748b' },
-  checkNotes: { flex: 1, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, color: '#374151', minHeight: 30 },
+  pfnText: { fontSize: 11, fontWeight: '700', color: colors.steel },
+  checkNotes: { flex: 1, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, color: colors.slate, minHeight: 30 },
   navRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  navBtnPrev: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
-  navBtnNext: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: '#1e3040' },
-  navPrevText: { fontSize: 14, fontWeight: '700', color: '#374151' },
-  navNextText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  navBtnPrev: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: colors.border, borderWidth: 1, borderColor: colors.border },
+  navBtnNext: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: colors.lantern },
+  navPrevText: { fontSize: 14, fontWeight: '700', color: colors.slate },
+  navNextText: { fontSize: 14, fontWeight: '700', color: colors.ink },
 });

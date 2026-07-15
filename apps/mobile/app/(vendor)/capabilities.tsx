@@ -5,6 +5,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { vendorApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const CERT_TYPE_LABEL: Record<string, string> = {
   HVAC: 'HVAC (Mechanical) license required',
@@ -98,7 +99,7 @@ export default function CapabilitiesScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
@@ -113,7 +114,7 @@ export default function CapabilitiesScreen() {
             <Ionicons
               name={isSelected ? 'checkbox' : 'square-outline'}
               size={24}
-              color={isSelected ? '#0B4A45' : '#94a3b8'}
+              color={isSelected ? colors.lanternDeep : colors.steel}
             />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.rowLabel}>{cap.name}</Text>
@@ -129,23 +130,23 @@ export default function CapabilitiesScreen() {
       })}
 
       <TouchableOpacity style={styles.saveBtn} onPress={save} disabled={saving}>
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save</Text>}
+        {saving ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Save</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  title: { fontSize: 22, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  title: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
   row: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12,
-    padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0',
+    padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border,
   },
-  rowLabel: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
+  rowLabel: { fontSize: 15, fontWeight: '600', color: colors.ink },
   rowSub: { fontSize: 12, color: '#b45309', marginTop: 2 },
   rowTraining: { fontSize: 12, color: '#635bff', marginTop: 2 },
-  saveBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 12, marginBottom: 24 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  saveBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 12, marginBottom: 24 },
+  saveBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
 });

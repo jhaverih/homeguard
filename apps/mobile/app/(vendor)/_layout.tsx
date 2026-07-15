@@ -5,6 +5,7 @@ import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { userApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 function RoleSwitcher() {
   const { user, setUser } = useAuthStore();
@@ -30,12 +31,12 @@ export default function VendorLayout() {
     <Tabs
       screenOptions={{
         headerRight: () => <RoleSwitcher />,
-        headerStyle: { backgroundColor: '#0B4A45' },
-        headerTintColor: '#fff',
+        headerStyle: { backgroundColor: colors.ink },
+        headerTintColor: colors.mist,
         headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: '#0B4A45',
-        tabBarInactiveTintColor: '#94a3b8',
-        tabBarStyle: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingBottom: 4, height: 58 },
+        tabBarActiveTintColor: colors.lanternDeep,
+        tabBarInactiveTintColor: colors.steel,
+        tabBarStyle: { borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: 4, height: 58 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
@@ -55,6 +56,6 @@ export default function VendorLayout() {
 }
 
 const styles = StyleSheet.create({
-  switchBtn: { marginRight: 16, backgroundColor: '#0B4A45', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  switchBtn: { marginRight: 16, backgroundColor: colors.lanternDeep, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   switchText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 });

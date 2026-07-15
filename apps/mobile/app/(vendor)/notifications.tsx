@@ -4,6 +4,7 @@ import {
   RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { notificationsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 export default function VendorNotificationsScreen() {
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -26,7 +27,7 @@ export default function VendorNotificationsScreen() {
   };
 
   useEffect(() => { load(); }, []);
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView
@@ -54,13 +55,13 @@ export default function VendorNotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#0B4A45', margin: 16 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, margin: 16 },
   empty: { padding: 32, alignItems: 'center' },
-  emptyText: { color: '#888' },
+  emptyText: { color: colors.steel },
   card: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  cardUnread: { borderLeftWidth: 4, borderLeftColor: '#0B4A45' },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
-  cardBody: { fontSize: 14, color: '#555', lineHeight: 20 },
-  cardTime: { fontSize: 12, color: '#aaa', marginTop: 8 },
+  cardUnread: { borderLeftWidth: 4, borderLeftColor: colors.lanternDeep },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
+  cardBody: { fontSize: 14, color: colors.steel, lineHeight: 20 },
+  cardTime: { fontSize: 12, color: colors.steel, marginTop: 8 },
 });

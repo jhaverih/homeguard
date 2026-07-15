@@ -6,6 +6,7 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { vendorApi, uploadsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const CERT_TYPES = [
   { value: 'HVAC', label: 'HVAC (Mechanical)' },
@@ -114,7 +115,7 @@ export default function CertificationsScreen() {
     }
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
@@ -153,14 +154,14 @@ export default function CertificationsScreen() {
           <TextInput
             style={styles.input}
             placeholder="License number"
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={colors.steel}
             value={licenseNumber}
             onChangeText={setLicenseNumber}
           />
           <TextInput
             style={styles.input}
             placeholder="Issuing state (e.g. TN)"
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={colors.steel}
             value={issuingState}
             onChangeText={setIssuingState}
             maxLength={2}
@@ -186,14 +187,14 @@ export default function CertificationsScreen() {
           <Text style={styles.formLabel}>License Photo</Text>
           <TouchableOpacity style={styles.docBtn} onPress={pickDocument} disabled={uploadingDoc}>
             {uploadingDoc ? (
-              <ActivityIndicator color="#0B4A45" />
+              <ActivityIndicator color={colors.lanternDeep} />
             ) : (
               <Text style={styles.docBtnText}>{document?.key ? '✓ Photo uploaded — tap to replace' : '📷 Take or choose a photo'}</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={submitting}>
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit Certification</Text>}
+            {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Submit Certification</Text>}
           </TouchableOpacity>
           <TouchableOpacity onPress={resetForm} style={styles.cancelBtn}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -209,32 +210,32 @@ export default function CertificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  title: { fontSize: 22, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  title: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
   cardSub: { fontSize: 13, color: '#666', marginTop: 2 },
   statusBadge: { fontSize: 12, fontWeight: '700' },
   rejectNote: { fontSize: 12, color: '#dc2626', marginTop: 6, fontStyle: 'italic' },
-  addBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
-  addBtnText: { color: '#0B4A45', fontWeight: '700', fontSize: 15 },
-  formCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-  formLabel: { fontSize: 13, fontWeight: '600', color: '#0B4A45', marginBottom: 8 },
-  typeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99, backgroundColor: '#EBF1EF', marginRight: 8 },
-  typeChipActive: { backgroundColor: '#0B4A45' },
-  typeChipText: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
-  typeChipTextActive: { color: '#fff' },
+  addBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.lanternDeep, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  addBtnText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 15 },
+  formCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: colors.border },
+  formLabel: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep, marginBottom: 8 },
+  typeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99, backgroundColor: colors.mist, marginRight: 8 },
+  typeChipActive: { backgroundColor: colors.lantern },
+  typeChipText: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep },
+  typeChipTextActive: { color: colors.ink },
   input: {
-    backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10,
-    padding: 12, fontSize: 14, color: '#0f172a', marginBottom: 12,
+    backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    padding: 12, fontSize: 14, color: colors.ink, marginBottom: 12,
   },
-  dateBtn: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 12, marginBottom: 12 },
-  dateBtnText: { fontSize: 14, color: '#0f172a' },
-  docBtn: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 },
-  docBtnText: { fontSize: 14, color: '#0B4A45', fontWeight: '600' },
-  submitBtn: { backgroundColor: '#0B4A45', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
-  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  dateBtn: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 12 },
+  dateBtnText: { fontSize: 14, color: colors.ink },
+  docBtn: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 },
+  docBtnText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
+  submitBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  submitBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   cancelBtn: { alignItems: 'center', padding: 8 },
-  cancelBtnText: { color: '#888' },
+  cancelBtnText: { color: colors.steel },
 });

@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { paymentsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { colors } from '../../src/theme';
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: '#f6ad55',
@@ -45,7 +46,7 @@ export default function EarningsScreen() {
     .filter((p) => ['PENDING', 'AUTHORIZED'].includes(p.status))
     .reduce((sum, p) => sum + Number(p.vendorAmount), 0);
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView
@@ -65,7 +66,7 @@ export default function EarningsScreen() {
       </View>
 
       <View style={styles.feeNote}>
-        <Ionicons name="information-circle-outline" size={16} color="#64748b" />
+        <Ionicons name="information-circle-outline" size={16} color={colors.steel} />
         <Text style={styles.feeNoteText}>
           Net payout = amount billed − Stripe processing fee (2.9% + $0.30)
         </Text>
@@ -75,7 +76,7 @@ export default function EarningsScreen() {
 
       {payments.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Ionicons name="cash-outline" size={40} color="#94a3b8" />
+          <Ionicons name="cash-outline" size={40} color={colors.steel} />
           <Text style={styles.emptyText}>No payments yet.</Text>
           <Text style={styles.emptySubText}>Completed jobs with approved add-ons will appear here.</Text>
         </View>
@@ -84,7 +85,7 @@ export default function EarningsScreen() {
           const amount = Number(payment.amount);
           const stripeFee = Number(payment.stripeFee);
           const vendorAmount = Number(payment.vendorAmount);
-          const color = STATUS_COLOR[payment.status] || '#94a3b8';
+          const color = STATUS_COLOR[payment.status] || colors.steel;
 
           return (
             <View key={payment.id} style={styles.paymentCard}>
@@ -102,7 +103,7 @@ export default function EarningsScreen() {
 
               <View style={styles.breakdown}>
                 <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Billed to Houmi</Text>
+                  <Text style={styles.breakdownLabel}>Billed to Attenteve</Text>
                   <Text style={styles.breakdownValue}>{fmtUSD(amount)}</Text>
                 </View>
                 <View style={styles.breakdownRow}>
@@ -123,41 +124,41 @@ export default function EarningsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   summary: {
-    flexDirection: 'row', backgroundColor: '#0B4A45', padding: 24,
+    flexDirection: 'row', backgroundColor: colors.ink, padding: 24,
     justifyContent: 'space-around', alignItems: 'center',
   },
   summaryItem: { alignItems: 'center' },
-  summaryAmount: { fontSize: 28, fontWeight: '800', color: '#fff' },
-  summaryLabel: { fontSize: 12, color: '#a8d5a2', marginTop: 4 },
+  summaryAmount: { fontSize: 28, fontWeight: '800', color: colors.mist },
+  summaryLabel: { fontSize: 12, color: colors.mistDim, marginTop: 4 },
   summaryDivider: { width: 1, height: 40, backgroundColor: 'rgba(255,255,255,0.2)' },
   feeNote: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#f1f5f9', margin: 16, borderRadius: 10, padding: 12,
+    backgroundColor: colors.border, margin: 16, borderRadius: 10, padding: 12,
   },
-  feeNoteText: { flex: 1, fontSize: 12, color: '#64748b', lineHeight: 18 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#0B4A45', marginHorizontal: 16, marginBottom: 8 },
+  feeNoteText: { flex: 1, fontSize: 12, color: colors.steel, lineHeight: 18 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.lanternDeep, marginHorizontal: 16, marginBottom: 8 },
   emptyCard: {
     margin: 16, backgroundColor: '#fff', borderRadius: 16, padding: 32,
     alignItems: 'center', gap: 8,
   },
-  emptyText: { fontSize: 16, fontWeight: '600', color: '#64748b' },
-  emptySubText: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
+  emptyText: { fontSize: 16, fontWeight: '600', color: colors.steel },
+  emptySubText: { fontSize: 13, color: colors.steel, textAlign: 'center' },
   paymentCard: {
     marginHorizontal: 16, marginBottom: 10, backgroundColor: '#fff',
-    borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#e2e8f0',
+    borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  cardTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  cardDate: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  cardTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  cardDate: { fontSize: 12, color: colors.steel, marginTop: 2 },
   statusBadge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
   statusText: { fontSize: 12, fontWeight: '600' },
-  breakdown: { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 12, gap: 6 },
+  breakdown: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, gap: 6 },
   breakdownRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  breakdownLabel: { fontSize: 13, color: '#64748b' },
-  breakdownValue: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
-  breakdownNetRow: { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 8, marginTop: 4 },
-  breakdownNetLabel: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  breakdownNetValue: { fontSize: 16, fontWeight: '800', color: '#0B4A45' },
+  breakdownLabel: { fontSize: 13, color: colors.steel },
+  breakdownValue: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  breakdownNetRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4 },
+  breakdownNetLabel: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  breakdownNetValue: { fontSize: 16, fontWeight: '800', color: colors.lanternDeep },
 });

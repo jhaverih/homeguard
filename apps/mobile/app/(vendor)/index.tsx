@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { requestsApi, paymentsApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const STRIPE_SKIP_KEY = 'vendorStripeSkipped';
 
@@ -34,7 +35,7 @@ function StripeSetupBanner({ onDismiss }: { onDismiss: () => void }) {
         <Text style={styles.stripeBannerTitle}>Set Up Payouts to Get Paid</Text>
       </View>
       <Text style={styles.stripeBannerBody}>
-        Connect your Stripe account so Houmi can pay you when jobs are completed.
+        Connect your Stripe account so Attenteve can pay you when jobs are completed.
       </Text>
       <TouchableOpacity style={styles.stripeBtn} onPress={openStripe} disabled={loading}>
         {loading
@@ -106,7 +107,7 @@ export default function VendorDashboard() {
   const upcomingJobs = myJobs.filter((j) => j.status === 'ACCEPTED').slice(0, 3);
   const completedCount = myJobs.filter((j) => j.status === 'COMPLETED').length;
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color="#0B4A45" size="large" />;
+  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <ScrollView
@@ -182,40 +183,40 @@ export default function VendorDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   // Stripe banner
   stripeBanner: { backgroundColor: '#fff', margin: 16, marginBottom: 8, borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, borderLeftWidth: 4, borderLeftColor: '#635bff' },
   stripeBannerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   cardChip: { width: 36, height: 24, backgroundColor: '#635bff', borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   cardChipText: { color: '#fff', fontWeight: '900', fontSize: 14 },
-  stripeBannerTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b', flex: 1 },
-  stripeBannerBody: { fontSize: 13, color: '#64748b', lineHeight: 20, marginBottom: 16 },
+  stripeBannerTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, flex: 1 },
+  stripeBannerBody: { fontSize: 13, color: colors.steel, lineHeight: 20, marginBottom: 16 },
   stripeBtn: { backgroundColor: '#635bff', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 8 },
   stripeBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   dismissBtn: { alignItems: 'center', paddingVertical: 6 },
-  dismissText: { fontSize: 13, color: '#94a3b8' },
+  dismissText: { fontSize: 13, color: colors.steel },
   // Dashboard
-  header: { backgroundColor: '#0B4A45', padding: 24, paddingTop: 16 },
-  greeting: { fontSize: 24, fontWeight: '700', color: '#fff' },
-  subtitle: { fontSize: 14, color: '#a8d5a2', marginTop: 4 },
+  header: { backgroundColor: colors.ink, padding: 24, paddingTop: 16 },
+  greeting: { fontSize: 24, fontWeight: '700', color: colors.mist },
+  subtitle: { fontSize: 14, color: colors.mistDim, marginTop: 4 },
   statsRow: { flexDirection: 'row', padding: 16, gap: 12 },
   statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  statNum: { fontSize: 28, fontWeight: '800', color: '#0B4A45' },
-  statLabel: { fontSize: 12, color: '#888', marginTop: 2 },
-  activeJobCard: { margin: 16, marginTop: 0, backgroundColor: '#0B4A45', borderRadius: 16, padding: 20 },
+  statNum: { fontSize: 28, fontWeight: '800', color: colors.lanternDeep },
+  statLabel: { fontSize: 12, color: colors.steel, marginTop: 2 },
+  activeJobCard: { margin: 16, marginTop: 0, backgroundColor: colors.ink, borderRadius: 16, padding: 20 },
   activeJobHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  activeJobTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  activeJobTitle: { fontSize: 16, fontWeight: '700', color: colors.mist },
   activeDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#68d391' },
-  activeJobAddress: { fontSize: 16, color: '#e2f0d9', marginBottom: 4 },
-  activeJobStatus: { fontSize: 13, color: '#a8d5a2', marginBottom: 8 },
+  activeJobAddress: { fontSize: 16, color: colors.mistDim, marginBottom: 4 },
+  activeJobStatus: { fontSize: 13, color: colors.mistDim, marginBottom: 8 },
   activeJobCta: { fontSize: 13, color: '#68d391', fontWeight: '600' },
   actionsRow: { flexDirection: 'row', padding: 16, paddingTop: 0, gap: 12 },
   actionBtn: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   actionIcon: { fontSize: 28, marginBottom: 8 },
-  actionText: { fontSize: 13, fontWeight: '600', color: '#0B4A45' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0B4A45', margin: 16, marginBottom: 8 },
+  actionText: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.lanternDeep, margin: 16, marginBottom: 8 },
   jobCard: { margin: 16, marginTop: 0, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  jobDate: { fontSize: 14, fontWeight: '700', color: '#0B4A45', marginBottom: 4 },
-  jobAddress: { fontSize: 14, color: '#555', marginBottom: 2 },
-  jobCustomer: { fontSize: 12, color: '#888' },
+  jobDate: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
+  jobAddress: { fontSize: 14, color: colors.steel, marginBottom: 2 },
+  jobCustomer: { fontSize: 12, color: colors.steel },
 });
