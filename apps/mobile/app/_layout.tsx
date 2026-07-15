@@ -14,6 +14,7 @@ import {
   registerForPushNotificationsAsync,
   setupNotificationListeners,
 } from '../src/services/notifications';
+import { colors } from '../src/theme';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PK || '';
 
@@ -167,11 +168,11 @@ const alertStyles = StyleSheet.create({
   },
   iconRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   title: { fontSize: 17, fontWeight: '700', flex: 1 },
-  body: { fontSize: 15, color: '#1e293b', lineHeight: 22, marginBottom: 20 },
+  body: { fontSize: 15, color: colors.ink, lineHeight: 22, marginBottom: 20 },
   btnRow: { flexDirection: 'row', gap: 10 },
   btn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
   viewBtn: { backgroundColor: '#fff', borderWidth: 1.5 },
   viewBtnText: { fontWeight: '700', fontSize: 14 },
-  dismissBtn: { backgroundColor: '#e2e8f0' },
-  dismissText: { color: '#475569', fontWeight: '600', fontSize: 14 },
+  dismissBtn: { backgroundColor: colors.border },
+  dismissText: { color: colors.steel, fontWeight: '600', fontSize: 14 },
 });

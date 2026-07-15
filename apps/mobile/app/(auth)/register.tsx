@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi, subscriptionsApi, api } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
+import { colors } from '../../src/theme';
 
 const US_STATES: Record<string, string> = {
   'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
@@ -49,7 +50,7 @@ function AddressPicker({
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=us&q=${encodeURIComponent(text)}&limit=6`,
-          { headers: { 'User-Agent': 'HoumiApp/1.0' } }
+          { headers: { 'User-Agent': 'AttenteveApp/1.0' } }
         );
         const data = await res.json();
         setSuggestions(Array.isArray(data) ? data : []);
@@ -78,20 +79,20 @@ function AddressPicker({
   return (
     <View style={{ zIndex: 200 }}>
       <View style={addrStyles.inputWrap}>
-        <Ionicons name="search-outline" size={18} color="#94a3b8" style={addrStyles.searchIcon} />
+        <Ionicons name="search-outline" size={18} color={colors.steel} style={addrStyles.searchIcon} />
         <TextInput
           style={addrStyles.searchInput}
           placeholder="Search your home address..."
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={colors.steel}
           value={query}
           onChangeText={search}
           autoCapitalize="none"
           autoCorrect={false}
         />
-        {searching && <ActivityIndicator size="small" color="#0B4A45" style={{ marginRight: 8 }} />}
+        {searching && <ActivityIndicator size="small" color={colors.lanternDeep} style={{ marginRight: 8 }} />}
         {validated && !searching && (
           <TouchableOpacity onPress={() => { setQuery(''); setSuggestions([]); onClear(); }}>
-            <Ionicons name="close-circle" size={20} color="#94a3b8" style={{ marginRight: 8 }} />
+            <Ionicons name="close-circle" size={20} color={colors.steel} style={{ marginRight: 8 }} />
           </TouchableOpacity>
         )}
       </View>
@@ -103,7 +104,7 @@ function AddressPicker({
               onPress={() => pick(item)}
               style={addrStyles.suggestion}
             >
-              <Ionicons name="location-outline" size={14} color="#0B4A45" style={{ marginRight: 8, flexShrink: 0 }} />
+              <Ionicons name="location-outline" size={14} color={colors.lanternDeep} style={{ marginRight: 8, flexShrink: 0 }} />
               <Text style={addrStyles.suggestionText} numberOfLines={2}>{item.display_name}</Text>
             </TouchableOpacity>
           ))}
@@ -116,22 +117,22 @@ function AddressPicker({
 const addrStyles = StyleSheet.create({
   inputWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border,
     borderRadius: 12, marginBottom: 4,
   },
   searchIcon: { marginLeft: 14 },
   searchInput: {
-    flex: 1, padding: 15, fontSize: 16, color: '#0f172a',
+    flex: 1, padding: 15, fontSize: 16, color: colors.ink,
   },
   dropdown: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border,
     borderRadius: 12, marginBottom: 8, overflow: 'hidden',
   },
   suggestion: {
     flexDirection: 'row', alignItems: 'center', padding: 14,
-    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  suggestionText: { fontSize: 13, color: '#0f172a', flex: 1, lineHeight: 18 },
+  suggestionText: { fontSize: 13, color: colors.ink, flex: 1, lineHeight: 18 },
 });
 
 type Step = 'select' | 'account' | 'vendor-licenses' | 'plan' | 'vendor-confirm' | 'verify';
@@ -326,7 +327,7 @@ export default function RegisterScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
-          <Ionicons name="arrow-back" size={22} color="#64748b" />
+          <Ionicons name="arrow-back" size={22} color={colors.steel} />
           {step !== 'select' && step !== 'verify' && (
             <Text style={styles.backLabel}>Cancel — start over</Text>
           )}
@@ -337,29 +338,29 @@ export default function RegisterScreen() {
         {/* ── Role selection ── */}
         {step === 'select' && (
           <>
-            <Text style={styles.title}>Join Houmi</Text>
+            <Text style={styles.title}>Join Attenteve</Text>
             <Text style={styles.subtitle}>Who are you signing up as?</Text>
 
             <TouchableOpacity style={styles.roleCard} onPress={() => handleRoleSelect('CUSTOMER')}>
-              <View style={[styles.roleIconCircle, { backgroundColor: '#EBF1EF' }]}>
-                <Ionicons name="home" size={32} color="#0B4A45" />
+              <View style={[styles.roleIconCircle, { backgroundColor: colors.mist }]}>
+                <Ionicons name="home" size={32} color={colors.lanternDeep} />
               </View>
               <View style={styles.roleCardText}>
                 <Text style={styles.roleCardTitle}>Homeowner</Text>
                 <Text style={styles.roleCardDesc}>Book inspections, maintenance, and home monitoring services.</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+              <Ionicons name="chevron-forward" size={20} color={colors.steel} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.roleCard} onPress={() => handleRoleSelect('VENDOR')}>
-              <View style={[styles.roleIconCircle, { backgroundColor: '#fff8f0' }]}>
-                <Ionicons name="construct" size={32} color="#FF7A45" />
+              <View style={[styles.roleIconCircle, { backgroundColor: colors.mist }]}>
+                <Ionicons name="construct" size={32} color={colors.lanternDeep} />
               </View>
               <View style={styles.roleCardText}>
                 <Text style={styles.roleCardTitle}>Service Provider</Text>
                 <Text style={styles.roleCardDesc}>List your business and get matched with homeowners in your area.</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+              <Ionicons name="chevron-forward" size={20} color={colors.steel} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.loginRow} onPress={() => router.push('/(auth)/login')}>
@@ -373,9 +374,9 @@ export default function RegisterScreen() {
         {step === 'account' && (
           <>
             <Text style={styles.title}>Create Account</Text>
-            <View style={[styles.rolePill, { backgroundColor: isVendor ? '#fff8f0' : '#EBF1EF' }]}>
-              <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={14} color={isVendor ? '#FF7A45' : '#0B4A45'} />
-              <Text style={[styles.rolePillText, { color: isVendor ? '#FF7A45' : '#0B4A45' }]}>
+            <View style={[styles.rolePill, { backgroundColor: colors.mist }]}>
+              <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={14} color={colors.lanternDeep} />
+              <Text style={[styles.rolePillText, { color: colors.lanternDeep }]}>
                 {isVendor ? 'Service Provider' : 'Homeowner'}
               </Text>
             </View>
@@ -388,7 +389,7 @@ export default function RegisterScreen() {
                     <TextInput
                       style={[styles.input, errors[field] && styles.inputError]}
                       placeholder={field === 'firstName' ? 'First Name' : 'Last Name'}
-                      placeholderTextColor="#94a3b8" autoCapitalize="words"
+                      placeholderTextColor={colors.steel} autoCapitalize="words"
                       value={value} onChangeText={onChange}
                     />
                     {errors[field] && <Text style={styles.errorText}>{(errors[field] as any)?.message}</Text>}
@@ -403,7 +404,7 @@ export default function RegisterScreen() {
                 <>
                   <TextInput
                     style={[styles.input, errors.email && styles.inputError]}
-                    placeholder="Email" placeholderTextColor="#94a3b8"
+                    placeholder="Email" placeholderTextColor={colors.steel}
                     autoCapitalize="none" keyboardType="email-address"
                     value={value} onChangeText={onChange}
                   />
@@ -421,7 +422,7 @@ export default function RegisterScreen() {
                 <>
                   <TextInput
                     style={[styles.input, errors.phone && styles.inputError]}
-                    placeholder="Phone Number" placeholderTextColor="#94a3b8"
+                    placeholder="Phone Number" placeholderTextColor={colors.steel}
                     keyboardType="phone-pad" value={value} onChangeText={onChange}
                   />
                   {errors.phone && <Text style={styles.errorText}>{(errors.phone as any)?.message}</Text>}
@@ -435,7 +436,7 @@ export default function RegisterScreen() {
                 <>
                   <TextInput
                     style={[styles.input, errors.password && styles.inputError]}
-                    placeholder="Password (min 8 chars)" placeholderTextColor="#94a3b8"
+                    placeholder="Password (min 8 chars)" placeholderTextColor={colors.steel}
                     secureTextEntry value={value} onChangeText={onChange}
                   />
                   {errors.password && <Text style={styles.errorText}>{(errors.password as any)?.message}</Text>}
@@ -452,7 +453,7 @@ export default function RegisterScreen() {
                     <>
                       <TextInput
                         style={[styles.input, errors.companyName && styles.inputError]}
-                        placeholder="Company / Business Name" placeholderTextColor="#94a3b8"
+                        placeholder="Company / Business Name" placeholderTextColor={colors.steel}
                         value={value} onChangeText={onChange}
                       />
                       {errors.companyName && <Text style={styles.errorText}>{(errors.companyName as any)?.message}</Text>}
@@ -469,7 +470,7 @@ export default function RegisterScreen() {
                     <>
                       <TextInput
                         style={[styles.input, errors.ein && styles.inputError]}
-                        placeholder="EIN (XX-XXXXXXX)" placeholderTextColor="#94a3b8"
+                        placeholder="EIN (XX-XXXXXXX)" placeholderTextColor={colors.steel}
                         keyboardType="numbers-and-punctuation" maxLength={10}
                         value={value}
                         onChangeText={(text) => {
@@ -491,7 +492,7 @@ export default function RegisterScreen() {
                         <TextInput
                           style={[styles.input, errors[field] && styles.inputError]}
                           placeholder={field === 'companyAddress' ? 'Street Address' : field === 'companyCity' ? 'City' : field === 'companyState' ? 'State (e.g. TN)' : 'Zip Code'}
-                          placeholderTextColor="#94a3b8" value={value} onChangeText={onChange}
+                          placeholderTextColor={colors.steel} value={value} onChangeText={onChange}
                         />
                         {errors[field] && <Text style={styles.errorText}>{(errors[field] as any)?.message}</Text>}
                       </>
@@ -574,7 +575,7 @@ export default function RegisterScreen() {
                       <Image source={{ uri: lic.imageUri }} style={styles.licenseThumbSm} />
                     )}
                     <TouchableOpacity onPress={() => setLicenses((p) => p.filter((l) => l.id !== lic.id))}>
-                      <Ionicons name="close-circle" size={22} color="#dc2626" />
+                      <Ionicons name="close-circle" size={22} color={colors.danger} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -604,13 +605,13 @@ export default function RegisterScreen() {
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TextInput
                   style={[styles.input, { flex: 1, marginBottom: 4 }]}
-                  placeholder="License Number" placeholderTextColor="#94a3b8"
+                  placeholder="License Number" placeholderTextColor={colors.steel}
                   value={adding.licenseNumber || ''}
                   onChangeText={(v) => setAdding((p) => ({ ...p, licenseNumber: v }))}
                 />
                 <TextInput
                   style={[styles.input, { width: 70, marginBottom: 4 }]}
-                  placeholder="State" placeholderTextColor="#94a3b8"
+                  placeholder="State" placeholderTextColor={colors.steel}
                   autoCapitalize="characters" maxLength={2}
                   value={adding.licenseState || ''}
                   onChangeText={(v) => setAdding((p) => ({ ...p, licenseState: v.toUpperCase() }))}
@@ -620,14 +621,14 @@ export default function RegisterScreen() {
               <TextInput
                 style={[styles.input, { marginTop: 4 }]}
                 placeholder="Expiry Date (MM/YYYY) — optional"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={colors.steel}
                 keyboardType="numbers-and-punctuation"
                 value={adding.expiryDate || ''}
                 onChangeText={(v) => setAdding((p) => ({ ...p, expiryDate: v }))}
               />
 
               <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
-                <Ionicons name="camera-outline" size={18} color="#0B4A45" />
+                <Ionicons name="camera-outline" size={18} color={colors.lanternDeep} />
                 <Text style={styles.uploadBtnText}>
                   {adding.imageUri ? 'Change Photo' : 'Upload License Photo (Optional)'}
                 </Text>
@@ -637,8 +638,8 @@ export default function RegisterScreen() {
               )}
 
               <TouchableOpacity style={[styles.button, styles.addLicenseBtn]} onPress={addLicense}>
-                <Ionicons name="add" size={18} color="#fff" />
-                <Text style={[styles.buttonText, { marginLeft: 4 }]}>Add License</Text>
+                <Ionicons name="add" size={18} color={colors.mist} />
+                <Text style={[styles.buttonText, { marginLeft: 4, color: colors.mist }]}>Add License</Text>
               </TouchableOpacity>
             </View>
 
@@ -646,7 +647,7 @@ export default function RegisterScreen() {
               style={[styles.button, licenses.length === 0 && styles.buttonOutline]}
               onPress={() => setStep('vendor-confirm')}
             >
-              <Text style={[styles.buttonText, licenses.length === 0 && { color: '#0B4A45' }]}>
+              <Text style={[styles.buttonText, licenses.length === 0 && { color: colors.lanternDeep }]}>
                 {licenses.length === 0 ? 'Skip for Now' : `Continue with ${licenses.length} License${licenses.length !== 1 ? 's' : ''}`}
               </Text>
             </TouchableOpacity>
@@ -671,7 +672,7 @@ export default function RegisterScreen() {
                   onPress={() => setSelectedPlanId(plan.id)}
                 >
                   {selectedPlanId === plan.id && (
-                    <Ionicons name="checkmark-circle" size={20} color="#0B4A45" style={styles.planCheck} />
+                    <Ionicons name="checkmark-circle" size={20} color={colors.lanternDeep} style={styles.planCheck} />
                   )}
                   <Text style={styles.planName}>{plan.name}</Text>
                   <Text style={styles.planPrice}>${plan.price}/year</Text>
@@ -683,7 +684,7 @@ export default function RegisterScreen() {
             )}
 
             <TouchableOpacity style={styles.button} onPress={handleSubmit(onSubmit)} disabled={loading}>
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+              {loading ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Create Account</Text>}
             </TouchableOpacity>
           </>
         )}
@@ -693,7 +694,7 @@ export default function RegisterScreen() {
           <>
             <Text style={styles.title}>Almost Done!</Text>
             <View style={styles.confirmBox}>
-              <Ionicons name="construct" size={40} color="#FF7A45" style={{ marginBottom: 12 }} />
+              <Ionicons name="construct" size={40} color={colors.lanternDeep} style={{ marginBottom: 12 }} />
               <Text style={styles.confirmText}>
                 Your Service Provider account will be created.
                 {licenses.length > 0
@@ -702,8 +703,8 @@ export default function RegisterScreen() {
                 {'\n\n'}Complete your Stripe payout setup from your profile to start receiving payments.
               </Text>
             </View>
-            <TouchableOpacity style={[styles.button, { backgroundColor: '#FF7A45' }]} onPress={handleSubmit(onSubmit)} disabled={loading}>
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+            <TouchableOpacity style={styles.button} onPress={handleSubmit(onSubmit)} disabled={loading}>
+              {loading ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Create Account</Text>}
             </TouchableOpacity>
           </>
         )}
@@ -713,17 +714,17 @@ export default function RegisterScreen() {
           <>
             <Text style={styles.title}>Verify Your Email</Text>
             <View style={styles.verifyBox}>
-              <Ionicons name="mail-outline" size={52} color="#0B4A45" style={{ marginBottom: 12 }} />
+              <Ionicons name="mail-outline" size={52} color={colors.lanternDeep} style={{ marginBottom: 12 }} />
               <Text style={styles.verifyText}>
                 We sent a 6-digit code to{'\n'}
-                <Text style={{ fontWeight: '700', color: '#0B4A45' }}>{pendingEmail}</Text>
+                <Text style={{ fontWeight: '700', color: colors.lanternDeep }}>{pendingEmail}</Text>
               </Text>
             </View>
 
             <TextInput
               style={[styles.input, styles.codeInput, verifyError ? styles.inputError : null]}
               placeholder="000000"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.steel}
               keyboardType="number-pad"
               maxLength={6}
               value={verifyCode}
@@ -737,7 +738,7 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.resendRow} onPress={handleResend} disabled={cooldown > 0}>
-              <Text style={[styles.resendText, cooldown > 0 && { color: '#94a3b8' }]}>
+              <Text style={[styles.resendText, cooldown > 0 && { color: colors.steel }]}>
                 {cooldown > 0 ? `Resend in ${cooldown}s` : "Didn't get the code? Resend"}
               </Text>
             </TouchableOpacity>
@@ -754,23 +755,23 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: 24, paddingTop: 48, paddingBottom: 40 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  backLabel: { fontSize: 13, color: '#64748b' },
+  backLabel: { fontSize: 13, color: colors.steel },
   logoRow: { alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 26, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 6 },
-  subtitle: { fontSize: 15, color: '#64748b', textAlign: 'center', marginBottom: 24 },
+  title: { fontSize: 26, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 6 },
+  subtitle: { fontSize: 15, color: colors.steel, textAlign: 'center', marginBottom: 24 },
 
   roleCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: '#fff', borderRadius: 16, padding: 18,
-    borderWidth: 1.5, borderColor: '#e2e8f0', marginBottom: 14,
+    borderWidth: 1.5, borderColor: colors.border, marginBottom: 14,
   },
   roleIconCircle: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
   roleCardText: { flex: 1 },
-  roleCardTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a', marginBottom: 3 },
-  roleCardDesc: { fontSize: 13, color: '#64748b', lineHeight: 18 },
+  roleCardTitle: { fontSize: 17, fontWeight: '700', color: colors.ink, marginBottom: 3 },
+  roleCardDesc: { fontSize: 13, color: colors.steel, lineHeight: 18 },
 
   rolePill: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'center',
@@ -779,70 +780,70 @@ const styles = StyleSheet.create({
   },
   rolePillText: { fontSize: 13, fontWeight: '600' },
 
-  sectionLabel: { fontSize: 15, fontWeight: '600', color: '#0B4A45', marginBottom: 10, marginTop: 6 },
+  sectionLabel: { fontSize: 15, fontWeight: '600', color: colors.lanternDeep, marginBottom: 10, marginTop: 6 },
   input: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 12,
-    padding: 15, fontSize: 16, marginBottom: 4, color: '#0f172a',
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
+    padding: 15, fontSize: 16, marginBottom: 4, color: colors.ink,
   },
-  inputError: { borderColor: '#e53e3e' },
-  errorText: { color: '#e53e3e', fontSize: 12, marginBottom: 8, marginLeft: 2 },
+  inputError: { borderColor: colors.danger },
+  errorText: { color: colors.danger, fontSize: 12, marginBottom: 8, marginLeft: 2 },
 
   button: {
-    backgroundColor: '#0B4A45', borderRadius: 14, padding: 17,
+    backgroundColor: colors.lantern, borderRadius: 14, padding: 17,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
     marginTop: 12, marginBottom: 8,
   },
   buttonOutline: {
-    backgroundColor: 'transparent', borderWidth: 2, borderColor: '#0B4A45',
+    backgroundColor: 'transparent', borderWidth: 2, borderColor: colors.lantern,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
 
   // Licenses
   licenseList: { marginBottom: 16, gap: 10 },
   licenseChip: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#fff', borderRadius: 12, padding: 12,
-    borderWidth: 1.5, borderColor: '#e2e8f0',
+    borderWidth: 1.5, borderColor: colors.border,
   },
-  licenseChipType: { fontSize: 14, fontWeight: '700', color: '#0B4A45' },
-  licenseChipDetail: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  licenseThumbSm: { width: 40, height: 40, borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0' },
+  licenseChipType: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
+  licenseChipDetail: { fontSize: 12, color: colors.steel, marginTop: 2 },
+  licenseThumbSm: { width: 40, height: 40, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
 
   addBox: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    borderWidth: 1.5, borderColor: '#e2e8f0', marginBottom: 4,
+    borderWidth: 1.5, borderColor: colors.border, marginBottom: 4,
   },
-  addBoxTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 12 },
-  addBoxLabel: { fontSize: 13, fontWeight: '600', color: '#64748b', marginBottom: 8 },
+  addBoxTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
+  addBoxLabel: { fontSize: 13, fontWeight: '600', color: colors.steel, marginBottom: 8 },
 
   typeChip: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99,
-    borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#f8f9fa',
+    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.canvas,
   },
-  typeChipActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
-  typeChipText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
-  typeChipTextActive: { color: '#0B4A45', fontWeight: '700' },
+  typeChipActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
+  typeChipText: { fontSize: 13, color: colors.steel, fontWeight: '500' },
+  typeChipTextActive: { color: colors.lanternDeep, fontWeight: '700' },
 
   uploadBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: '#0B4A45', borderRadius: 10,
+    borderWidth: 1.5, borderColor: colors.lanternDeep, borderRadius: 10,
     padding: 12, marginTop: 8,
   },
-  uploadBtnText: { fontSize: 14, color: '#0B4A45', fontWeight: '600' },
+  uploadBtnText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
   licenseThumb: { width: '100%', height: 120, borderRadius: 10, marginTop: 8, resizeMode: 'cover' },
 
-  addLicenseBtn: { backgroundColor: '#17897D', marginTop: 12, marginBottom: 0 },
+  addLicenseBtn: { backgroundColor: colors.slate, marginTop: 12, marginBottom: 0 },
 
   // Plans
   planCard: {
     backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 12,
-    borderWidth: 2, borderColor: '#e2e8f0',
+    borderWidth: 2, borderColor: colors.border,
   },
-  planCardActive: { borderColor: '#0B4A45', backgroundColor: '#EBF1EF' },
+  planCardActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   planCheck: { position: 'absolute', top: 14, right: 14 },
-  planName: { fontSize: 17, fontWeight: '700', color: '#0B4A45', marginBottom: 2 },
-  planPrice: { fontSize: 22, fontWeight: '800', color: '#17897D', marginBottom: 8 },
-  planFeature: { fontSize: 14, color: '#555', lineHeight: 22 },
+  planName: { fontSize: 17, fontWeight: '700', color: colors.lanternDeep, marginBottom: 2 },
+  planPrice: { fontSize: 22, fontWeight: '800', color: colors.lanternDeep, marginBottom: 8 },
+  planFeature: { fontSize: 14, color: colors.steel, lineHeight: 22 },
 
   emptyPlans: {
     backgroundColor: '#fff4e5', borderRadius: 12, padding: 16, marginBottom: 12,
@@ -853,27 +854,27 @@ const styles = StyleSheet.create({
   // Confirm
   confirmBox: {
     backgroundColor: '#fff', borderRadius: 16, padding: 24, alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#ffe0d0', marginBottom: 8,
+    borderWidth: 1.5, borderColor: colors.border, marginBottom: 8,
   },
-  confirmText: { fontSize: 15, color: '#555', lineHeight: 22, textAlign: 'center' },
+  confirmText: { fontSize: 15, color: colors.steel, lineHeight: 22, textAlign: 'center' },
 
   // Verify
   verifyBox: {
-    backgroundColor: '#EBF1EF', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 20,
+    backgroundColor: colors.mist, borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 20,
   },
-  verifyText: { fontSize: 15, color: '#334155', lineHeight: 22, textAlign: 'center' },
+  verifyText: { fontSize: 15, color: colors.slate, lineHeight: 22, textAlign: 'center' },
   codeInput: {
     fontSize: 28, fontWeight: '700', letterSpacing: 8, textAlign: 'center',
     padding: 20, marginBottom: 4,
   },
   resendRow: { alignItems: 'center', marginTop: 12, padding: 8 },
-  resendText: { fontSize: 14, color: '#0B4A45', fontWeight: '600' },
+  resendText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
   skipRow: { alignItems: 'center', marginTop: 4, padding: 8 },
-  skipText: { fontSize: 13, color: '#94a3b8' },
+  skipText: { fontSize: 13, color: colors.steel },
 
   loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
-  loginText: { color: '#64748b', fontSize: 14 },
-  loginLink: { fontSize: 14, fontWeight: '600', color: '#0B4A45' },
+  loginText: { color: colors.steel, fontSize: 14 },
+  loginLink: { fontSize: 14, fontWeight: '600', color: colors.lanternDeep },
 
   addrConfirmed: {
     flexDirection: 'row', alignItems: 'flex-start',

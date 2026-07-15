@@ -11,6 +11,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { authApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
+import { colors } from '../../src/theme';
 
 const SAVED_EMAIL_KEY = 'hg_saved_email';
 const SAVED_PASSWORD_KEY = 'hg_saved_password';
@@ -35,7 +36,7 @@ export default function LoginScreen() {
   const { role } = useLocalSearchParams<{ role?: string }>();
 
   const isVendor = role === 'VENDOR';
-  const accent = isVendor ? '#0B4A45' : '#0B4A45';
+  const accent = colors.lanternDeep;
   const roleLabel = isVendor ? 'Service Provider' : 'Homeowner';
 
   const doLogin = async (email: string, password: string) => {
@@ -89,7 +90,7 @@ export default function LoginScreen() {
     setBiometricLoading(true);
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Sign in to Houmi',
+        promptMessage: 'Sign in to Attenteve',
         fallbackLabel: 'Use Password',
         disableDeviceFallback: false,
       });
@@ -145,7 +146,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={styles.container} behavior="padding">
       <SafeAreaView style={{ flex: 1 }}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#64748b" />
+          <Ionicons name="arrow-back" size={22} color={colors.steel} />
         </TouchableOpacity>
 
         <View style={styles.inner}>
@@ -154,7 +155,7 @@ export default function LoginScreen() {
           </View>
 
           <Text style={styles.title}>Welcome Back</Text>
-          <View style={[styles.badge, { backgroundColor: isVendor ? '#e8f5e9' : '#EBF1EF' }]}>
+          <View style={[styles.badge, { backgroundColor: colors.mist }]}>
             <Ionicons name={isVendor ? 'construct-outline' : 'home-outline'} size={16} color={accent} />
             <Text style={[styles.badgeText, { color: accent }]}>{roleLabel} Sign In</Text>
           </View>
@@ -221,11 +222,11 @@ export default function LoginScreen() {
           {errors.password && <Text style={styles.error}>{errors.password.message as string}</Text>}
 
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: accent }]}
+            style={[styles.button, { backgroundColor: colors.lantern }]}
             onPress={handleSubmit(onSubmit)}
             disabled={loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+            {loading ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Sign In</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -249,32 +250,32 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   backBtn: { padding: 16 },
   inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 40 },
   logoRow: { alignItems: 'center', marginBottom: 20 },
   badge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 7, gap: 6, marginBottom: 24 },
   badgeText: { fontSize: 14, fontWeight: '600' },
-  title: { fontSize: 28, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 10 },
+  title: { fontSize: 28, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 10 },
   biometricBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    borderWidth: 2, borderRadius: 14, padding: 16, marginBottom: 8, backgroundColor: '#fff',
+    borderWidth: 2, borderRadius: 14, padding: 16, marginBottom: 8, backgroundColor: colors.surface,
   },
   biometricLabel: { fontSize: 16, fontWeight: '700' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 10 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
-  dividerText: { fontSize: 13, color: '#94a3b8' },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { fontSize: 13, color: colors.steel },
   input: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14,
-    padding: 16, fontSize: 16, marginBottom: 12, color: '#0f172a',
+    backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, borderRadius: 14,
+    padding: 16, fontSize: 16, marginBottom: 12, color: colors.ink,
   },
-  inputError: { borderColor: '#e53e3e' },
-  error: { color: '#e53e3e', fontSize: 12, marginTop: -8, marginBottom: 8, marginLeft: 4 },
+  inputError: { borderColor: colors.danger },
+  error: { color: colors.danger, fontSize: 12, marginTop: -8, marginBottom: 8, marginLeft: 4 },
   button: { borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 8, marginBottom: 20 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
   forgotRow: { alignItems: 'center', marginBottom: 16, marginTop: -8 },
   forgotText: { fontSize: 14, fontWeight: '600' },
   registerRow: { flexDirection: 'row', justifyContent: 'center' },
-  registerText: { color: '#64748b', fontSize: 14 },
+  registerText: { color: colors.steel, fontSize: 14 },
   registerLink: { fontSize: 14, fontWeight: '600' },
 });

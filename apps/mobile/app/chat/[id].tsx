@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { connectSocket } from '../../src/services/socket';
+import { colors } from '../../src/theme';
 
 export default function ChatScreen() {
   const { id: roomId, recipientName } = useLocalSearchParams<{ id: string; recipientName: string }>();
@@ -83,7 +84,7 @@ export default function ChatScreen() {
         <TextInput
           style={styles.input}
           placeholder="Type a message..."
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={colors.steel}
           value={text}
           onChangeText={setText}
           multiline
@@ -98,30 +99,30 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  header: { backgroundColor: '#0B4A45', padding: 16 },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  header: { backgroundColor: colors.ink, padding: 16 },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: colors.mist },
   messageList: { padding: 16, paddingBottom: 8 },
   bubbleWrapper: { marginBottom: 8, maxWidth: '80%' },
   wrapperLeft: { alignSelf: 'flex-start' },
   wrapperRight: { alignSelf: 'flex-end' },
-  senderName: { fontSize: 11, fontWeight: '600', color: '#888', marginBottom: 3, marginLeft: 4 },
+  senderName: { fontSize: 11, fontWeight: '600', color: colors.steel, marginBottom: 3, marginLeft: 4 },
   bubble: {
     borderRadius: 16, padding: 12,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2,
   },
-  myBubble: { backgroundColor: '#0B4A45' },
-  theirBubble: { backgroundColor: '#fff' },
-  bubbleText: { fontSize: 15, color: '#333', lineHeight: 22 },
-  myBubbleText: { color: '#fff' },
-  bubbleTime: { fontSize: 11, color: '#aaa', marginTop: 4, alignSelf: 'flex-end' },
-  myBubbleTime: { color: 'rgba(255,255,255,0.6)' },
-  inputRow: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee', gap: 8 },
+  myBubble: { backgroundColor: colors.ink },
+  theirBubble: { backgroundColor: colors.surface },
+  bubbleText: { fontSize: 15, color: colors.ink, lineHeight: 22 },
+  myBubbleText: { color: colors.mist },
+  bubbleTime: { fontSize: 11, color: colors.steel, marginTop: 4, alignSelf: 'flex-end' },
+  myBubbleTime: { color: colors.mistDim },
+  inputRow: { flexDirection: 'row', padding: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, gap: 8 },
   input: {
-    flex: 1, backgroundColor: '#f8f9fa', borderRadius: 20, paddingHorizontal: 16,
-    paddingVertical: 10, fontSize: 15, maxHeight: 100, color: '#0f172a',
+    flex: 1, backgroundColor: colors.canvas, borderRadius: 20, paddingHorizontal: 16,
+    paddingVertical: 10, fontSize: 15, maxHeight: 100, color: colors.ink,
   },
-  sendBtn: { backgroundColor: '#0B4A45', borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
-  sendBtnText: { color: '#fff', fontWeight: '600' },
+  sendBtn: { backgroundColor: colors.lantern, borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
+  sendBtnText: { color: colors.ink, fontWeight: '600' },
 });

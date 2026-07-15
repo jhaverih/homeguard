@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi } from '../../src/services/api';
+import { colors } from '../../src/theme';
 
 const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
   { label: 'At least 8 characters', test: (p) => p.length >= 8 },
@@ -71,7 +72,7 @@ export default function ResetPasswordScreen() {
     <KeyboardAvoidingView style={styles.container} behavior="padding">
       <SafeAreaView style={{ flex: 1 }}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#64748b" />
+          <Ionicons name="arrow-back" size={22} color={colors.steel} />
         </TouchableOpacity>
 
         <View style={styles.inner}>
@@ -81,7 +82,7 @@ export default function ResetPasswordScreen() {
 
           {done ? (
             <View style={styles.successBox}>
-              <Ionicons name="checkmark-circle" size={56} color="#059669" style={{ marginBottom: 16 }} />
+              <Ionicons name="checkmark-circle" size={56} color={colors.success} style={{ marginBottom: 16 }} />
               <Text style={styles.title}>Password Updated</Text>
               <Text style={styles.subtitle}>Your password has been reset. Sign in with your new password.</Text>
               <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
@@ -118,7 +119,7 @@ export default function ResetPasswordScreen() {
                   onChangeText={setPassword}
                 />
                 <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
-                  <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color="#94a3b8" />
+                  <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.steel} />
                 </TouchableOpacity>
               </View>
 
@@ -130,7 +131,7 @@ export default function ResetPasswordScreen() {
                       <Ionicons
                         name={met ? 'checkmark-circle' : 'close-circle'}
                         size={14}
-                        color={met ? '#059669' : '#cbd5e1'}
+                        color={met ? colors.success : colors.border}
                       />
                       <Text style={[styles.ruleText, met && styles.ruleTextMet]}>{rule.label}</Text>
                     </View>
@@ -154,7 +155,7 @@ export default function ResetPasswordScreen() {
                 onPress={handleReset}
                 disabled={loading || !allRulesMet || password !== confirm}
               >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Reset Password</Text>}
+                {loading ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Reset Password</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(auth)/forgot-password')}>
@@ -169,27 +170,27 @@ export default function ResetPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   backBtn: { padding: 16 },
   inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 40 },
   logoRow: { alignItems: 'center', marginBottom: 20 },
   successBox: { alignItems: 'center' },
-  title: { fontSize: 26, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 10 },
-  subtitle: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 4 },
+  title: { fontSize: 26, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 10 },
+  subtitle: { fontSize: 14, color: colors.steel, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  label: { fontSize: 13, fontWeight: '600', color: colors.slate, marginBottom: 6, marginTop: 4 },
   input: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14,
-    padding: 16, fontSize: 16, marginBottom: 14, color: '#0f172a',
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 14,
+    padding: 16, fontSize: 16, marginBottom: 14, color: colors.ink,
   },
   passRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   eyeBtn: { padding: 12 },
-  generateText: { fontSize: 12, fontWeight: '700', color: '#0B4A45' },
+  generateText: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep },
   ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  ruleText: { fontSize: 12, color: '#94a3b8' },
-  ruleTextMet: { color: '#059669' },
-  button: { backgroundColor: '#0B4A45', borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 4 },
+  ruleText: { fontSize: 12, color: colors.steel },
+  ruleTextMet: { color: colors.success },
+  button: { backgroundColor: colors.lantern, borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 4 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
   linkRow: { alignItems: 'center', marginTop: 16 },
-  linkText: { color: '#0B4A45', fontSize: 14, fontWeight: '600' },
+  linkText: { color: colors.lanternDeep, fontSize: 14, fontWeight: '600' },
 });

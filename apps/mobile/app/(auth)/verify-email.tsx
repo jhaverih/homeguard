@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
+import { colors } from '../../src/theme';
 
 export default function VerifyEmailScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -65,7 +66,7 @@ export default function VerifyEmailScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#64748b" />
+          <Ionicons name="arrow-back" size={22} color={colors.steel} />
         </TouchableOpacity>
 
         <View style={styles.logoRow}><AttenteveLogo size="md" /></View>
@@ -73,17 +74,17 @@ export default function VerifyEmailScreen() {
         <Text style={styles.title}>Verify Your Email</Text>
 
         <View style={styles.infoBox}>
-          <Ionicons name="mail-outline" size={52} color="#0B4A45" style={{ marginBottom: 12 }} />
+          <Ionicons name="mail-outline" size={52} color={colors.lanternDeep} style={{ marginBottom: 12 }} />
           <Text style={styles.infoText}>
             We sent a 6-digit code to{'\n'}
-            <Text style={{ fontWeight: '700', color: '#0B4A45' }}>{resolvedEmail}</Text>
+            <Text style={{ fontWeight: '700', color: colors.lanternDeep }}>{resolvedEmail}</Text>
           </Text>
         </View>
 
         <TextInput
           style={[styles.input, error ? styles.inputError : null]}
           placeholder="000000"
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={colors.steel}
           keyboardType="number-pad"
           maxLength={6}
           value={code}
@@ -93,11 +94,11 @@ export default function VerifyEmailScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & Continue</Text>}
+          {loading ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Verify & Continue</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.resendRow} onPress={handleResend} disabled={cooldown > 0}>
-          <Text style={[styles.resendText, cooldown > 0 && { color: '#94a3b8' }]}>
+          <Text style={[styles.resendText, cooldown > 0 && { color: colors.steel }]}>
             {cooldown > 0 ? `Resend in ${cooldown}s` : "Didn't get the code? Resend"}
           </Text>
         </TouchableOpacity>
@@ -108,28 +109,28 @@ export default function VerifyEmailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: 24, paddingTop: 48, paddingBottom: 40 },
   backBtn: { marginBottom: 8 },
   logoRow: { alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 26, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 20 },
+  title: { fontSize: 26, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 20 },
   infoBox: {
-    backgroundColor: '#EBF1EF', borderRadius: 16, padding: 28,
+    backgroundColor: colors.mist, borderRadius: 16, padding: 28,
     alignItems: 'center', marginBottom: 24,
   },
-  infoText: { fontSize: 15, color: '#334155', lineHeight: 22, textAlign: 'center' },
+  infoText: { fontSize: 15, color: colors.slate, lineHeight: 22, textAlign: 'center' },
   input: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 12,
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
     padding: 20, fontSize: 28, fontWeight: '700', letterSpacing: 8,
-    textAlign: 'center', marginBottom: 4, color: '#0f172a',
+    textAlign: 'center', marginBottom: 4, color: colors.ink,
   },
-  inputError: { borderColor: '#e53e3e' },
-  errorText: { color: '#e53e3e', fontSize: 12, marginBottom: 8, marginLeft: 2 },
+  inputError: { borderColor: colors.danger },
+  errorText: { color: colors.danger, fontSize: 12, marginBottom: 8, marginLeft: 2 },
   button: {
-    backgroundColor: '#0B4A45', borderRadius: 14, padding: 17,
+    backgroundColor: colors.lantern, borderRadius: 14, padding: 17,
     alignItems: 'center', marginTop: 12, marginBottom: 8,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
   resendRow: { alignItems: 'center', marginTop: 12, padding: 8 },
-  resendText: { fontSize: 14, color: '#0B4A45', fontWeight: '600' },
+  resendText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
 });
