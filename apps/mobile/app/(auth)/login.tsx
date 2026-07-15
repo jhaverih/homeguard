@@ -6,7 +6,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
-import { HoumiLogo, HoumiIcon } from '../../src/components/HoumiLogo';
+import { AttenteveLogo, AttenteveIcon } from '../../src/components/AttenteveLogo';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { authApi } from '../../src/services/api';
@@ -150,7 +150,7 @@ export default function LoginScreen() {
 
         <View style={styles.inner}>
           <View style={styles.logoRow}>
-            <HoumiLogo size="md" />
+            <AttenteveLogo size="md" />
           </View>
 
           <Text style={styles.title}>Welcome Back</Text>

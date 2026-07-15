@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { HoumiIcon, HoumiLogo } from '../../src/components/HoumiLogo';
+import { AttenteveIcon, AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
@@ -39,7 +39,7 @@ export default function VendorLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Dashboard', headerTitle: () => <HoumiLogo size="sm" onDark />, tabBarIcon: ({ color }) => <HoumiIcon size="sm" onDark={false} /> }} />
+      <Tabs.Screen name="index" options={{ title: 'Dashboard', headerTitle: () => <AttenteveLogo size="sm" onDark />, tabBarIcon: ({ color }) => <AttenteveIcon size="sm" onDark={false} /> }} />
       <Tabs.Screen name="requests" options={{ title: 'Open Jobs', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }} />
       <Tabs.Screen name="my-jobs" options={{ title: 'My Jobs', tabBarIcon: ({ color }) => <Ionicons name="briefcase" size={22} color={color} /> }} />
       <Tabs.Screen name="schedule" options={{ title: 'Schedule', tabBarIcon: ({ color }) => <Ionicons name="calendar" size={22} color={color} /> }} />

@@ -1,14 +1,14 @@
 ﻿import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { HoumiLogo } from '../../src/components/HoumiLogo';
+import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 
 export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.hero}>
-          <HoumiLogo size="xl" onDark />
+          <AttenteveLogo size="xl" onDark />
           <Text style={styles.tagline}>Professional Home Care & Inspections</Text>
         </View>
 

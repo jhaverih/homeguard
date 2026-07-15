@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { HoumiLogo } from '../../src/components/HoumiLogo';
+import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi } from '../../src/services/api';
 
 export default function ForgotPasswordScreen() {
@@ -40,7 +40,7 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.inner}>
           <View style={styles.logoRow}>
-            <HoumiLogo size="md" />
+            <AttenteveLogo size="md" />
           </View>
 
           {sent ? (

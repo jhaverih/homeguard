@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { HoumiLogo } from '../../src/components/HoumiLogo';
+import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi, subscriptionsApi, api } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
@@ -332,7 +332,7 @@ export default function RegisterScreen() {
           )}
         </TouchableOpacity>
 
-        <View style={styles.logoRow}><HoumiLogo size="md" /></View>
+        <View style={styles.logoRow}><AttenteveLogo size="md" /></View>
 
         {/* ── Role selection ── */}
         {step === 'select' && (

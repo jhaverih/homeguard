@@ -5,6 +5,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
+import { Newsreader_500Medium, Newsreader_600SemiBold } from '@expo-google-fonts/newsreader';
+import { Karla_400Regular, Karla_700Bold } from '@expo-google-fonts/karla';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useAuthStore } from '../src/store/auth.store';
 import { useAlertsStore } from '../src/store/alerts.store';
@@ -70,7 +72,13 @@ const SEVERITY_COLORS: Record<string, { border: string; icon: string; bg: string
 };
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts(Ionicons.font);
+  const [fontsLoaded] = useFonts({
+    ...Ionicons.font,
+    Newsreader_500Medium,
+    Newsreader_600SemiBold,
+    Karla_400Regular,
+    Karla_700Bold,
+  });
   const { user } = useAuthStore();
   const { increment, setUnreadCount } = useAlertsStore();
   const router = useRouter();
@@ -95,7 +103,7 @@ export default function RootLayout() {
       (notification) => {
         const { title, body, data } = notification.request.content;
         setAlertPopup({
-          title: title ?? 'Houmi Alert',
+          title: title ?? 'Attenteve Alert',
           body: body ?? '',
           severity: (data?.severity as string) ?? 'MEDIUM',
         });

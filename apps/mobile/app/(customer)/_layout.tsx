@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { useAlertsStore } from '../../src/store/alerts.store';
 import { userApi } from '../../src/services/api';
-import { HoumiIcon, HoumiLogo } from '../../src/components/HoumiLogo';
+import { AttenteveIcon, AttenteveLogo } from '../../src/components/AttenteveLogo';
 
 function RoleSwitcher() {
   const { user, setUser } = useAuthStore();
@@ -46,8 +46,8 @@ export default function CustomerLayout() {
         name="index"
         options={{
           title: 'Home',
-          headerTitle: () => <HoumiLogo size="sm" onDark />,
-          tabBarIcon: ({ color, focused }) => <HoumiIcon size="sm" onDark={false} />,
+          headerTitle: () => <AttenteveLogo size="sm" onDark />,
+          tabBarIcon: ({ color, focused }) => <AttenteveIcon size="sm" onDark={false} />,
         }}
       />
       <Tabs.Screen

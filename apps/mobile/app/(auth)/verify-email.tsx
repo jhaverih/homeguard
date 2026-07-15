@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { HoumiLogo } from '../../src/components/HoumiLogo';
+import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
@@ -68,7 +68,7 @@ export default function VerifyEmailScreen() {
           <Ionicons name="arrow-back" size={22} color="#64748b" />
         </TouchableOpacity>
 
-        <View style={styles.logoRow}><HoumiLogo size="md" /></View>
+        <View style={styles.logoRow}><AttenteveLogo size="md" /></View>
 
         <Text style={styles.title}>Verify Your Email</Text>
 

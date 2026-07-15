@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { HoumiLogo } from '../../src/components/HoumiLogo';
+import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi } from '../../src/services/api';
 
 const PASSWORD_RULES: { label: string; test: (p: string) => boolean }[] = [
@@ -76,7 +76,7 @@ export default function ResetPasswordScreen() {
 
         <View style={styles.inner}>
           <View style={styles.logoRow}>
-            <HoumiLogo size="md" />
+            <AttenteveLogo size="md" />
           </View>
 
           {done ? (

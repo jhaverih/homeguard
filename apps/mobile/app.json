@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Houmi",
+    "name": "Attenteve",
     "slug": "homeguard",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,20 +10,20 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B4A45"
+      "backgroundColor": "#1B2529"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.homeguard.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Houmi needs camera access to take inspection photos.",
-        "NSPhotoLibraryUsageDescription": "Houmi needs photo library access to upload inspection photos."
+        "NSCameraUsageDescription": "Attenteve needs camera access to take inspection photos.",
+        "NSPhotoLibraryUsageDescription": "Attenteve needs photo library access to upload inspection photos."
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0B4A45"
+        "backgroundColor": "#1B2529"
       },
       "package": "com.homeguard.app",
       "softwareKeyboardLayoutMode": "resize",
@@ -47,7 +47,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#0B4A45"
+          "color": "#F2A93C"
         }
       ],
       "./plugins/withAndroidCleartextTraffic",
