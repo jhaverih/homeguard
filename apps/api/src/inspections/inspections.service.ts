@@ -6,7 +6,8 @@ import { Repository } from 'typeorm';
 import { InspectionNote } from './entities/inspection.entity';
 import { InspectionTaskResult } from './entities/inspection-task-result.entity';
 import { UploadsService } from '../uploads/uploads.service';
-import { NoteType, TaskStatus } from '../common/enums/role.enum';
+import { NoteType, TaskStatus, ServiceRequestStatus } from '../common/enums/role.enum';
+import { ServiceRequest, ServiceType } from '../service-requests/entities/service-request.entity';
 import {
   INSPECTION_CHECKLIST, ALL_TASK_KEYS, TASK_TOTAL, getTaskDef, getSectionKey,
 } from './checklists';
@@ -18,6 +19,8 @@ export class InspectionsService {
     private notesRepo: Repository<InspectionNote>,
     @InjectRepository(InspectionTaskResult)
     private taskResultsRepo: Repository<InspectionTaskResult>,
+    @InjectRepository(ServiceRequest)
+    private requestsRepo: Repository<ServiceRequest>,
     private uploadsService: UploadsService,
   ) {}
 
@@ -159,10 +162,77 @@ export class InspectionsService {
   async getTaskHistoryForCustomer(customerId: string): Promise<any[]> {
     const results = await this.taskResultsRepo
       .createQueryBuilder('r')
-      .innerJoin('service_requests', 'sr', 'sr.id = r.serviceRequestId AND sr.customerId = :customerId', { customerId })
+      // service_requests.id is uuid, inspection_task_results.serviceRequestId
+      // is varchar — Postgres has no implicit uuid = varchar operator, so the
+      // uuid side must be cast explicitly or every call errors.
+      .innerJoin('service_requests', 'sr', 'sr.id::text = r.serviceRequestId AND sr.customerId = :customerId', { customerId })
       .orderBy('r.updatedAt', 'DESC')
       .getMany();
     return this.resolveTaskPhotos(results);
+  }
+
+  // Findings flagged NEEDS_ATTENTION/URGENT during an inspection, still
+  // "open" because nothing in the schema marks a maintenance issue as
+  // resolved — the closest available signal is whether the vendor-proposed
+  // AdditionalService that would address it was ever approved.
+  async getOpenIssuesForCustomer(customerId: string): Promise<{ taskKey: string; label: string; status: TaskStatus; findings: string | null; recommendation: string | null }[]> {
+    const results = await this.taskResultsRepo
+      .createQueryBuilder('r')
+      .innerJoin('service_requests', 'sr', 'sr.id::text = r.serviceRequestId AND sr.customerId = :customerId', { customerId })
+      .leftJoin('additional_services', 'a', 'a.id::text = r.linkedAdditionalServiceId')
+      .where('r.status IN (:...statuses)', { statuses: [TaskStatus.NEEDS_ATTENTION, TaskStatus.URGENT] })
+      .andWhere('(r.linkedAdditionalServiceId IS NULL OR a.approved IS NOT TRUE)')
+      .orderBy('r.updatedAt', 'DESC')
+      .getMany();
+
+    return results.map((r) => ({
+      taskKey: r.taskKey,
+      label: getTaskDef(r.taskKey)?.label ?? r.taskKey,
+      status: r.status,
+      findings: r.findings ?? null,
+      recommendation: r.recommendation ?? null,
+    }));
+  }
+
+  // Most recent completed inspection, summarized for the AI assistant's
+  // "explain my last inspection report" flow — deterministic facts computed
+  // here, natural-language phrasing left to the model.
+  async getLastInspectionSummary(customerId: string): Promise<
+    | { found: false }
+    | { found: true; serviceRequestId: string; completedAt: Date; summary: string }
+  > {
+    const request = await this.requestsRepo.findOne({
+      where: { customerId, type: ServiceType.SCHEDULED_INSPECTION, status: ServiceRequestStatus.COMPLETED },
+      order: { completedAt: 'DESC' },
+    });
+    if (!request) return { found: false };
+
+    const results = await this.taskResultsRepo.find({ where: { serviceRequestId: request.id } });
+    const counts = { OK: 0, NEEDS_ATTENTION: 0, URGENT: 0, NOT_ACCESSIBLE: 0 };
+    const flaggedLines: string[] = [];
+    for (const r of results) {
+      counts[r.status] = (counts[r.status] ?? 0) + 1;
+      if (r.status === TaskStatus.NEEDS_ATTENTION || r.status === TaskStatus.URGENT) {
+        const label = getTaskDef(r.taskKey)?.label ?? r.taskKey;
+        flaggedLines.push(`${label} (${r.status}): ${r.findings ?? 'no details recorded'}`);
+      }
+    }
+
+    const summaryLines = [
+      `Inspection completed ${request.completedAt ? new Date(request.completedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'recently'} at ${request.address}.`,
+      `${results.length} items checked: ${counts.OK} OK, ${counts.NEEDS_ATTENTION} needing attention, ${counts.URGENT} urgent, ${counts.NOT_ACCESSIBLE} not accessible.`,
+    ];
+    if (flaggedLines.length > 0) {
+      summaryLines.push('Flagged items:', ...flaggedLines.map((l) => `- ${l}`));
+    }
+    if (request.vendorNotes) summaryLines.push(`Vendor notes: ${request.vendorNotes}`);
+
+    return {
+      found: true,
+      serviceRequestId: request.id,
+      completedAt: request.completedAt,
+      summary: summaryLines.join('\n'),
+    };
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

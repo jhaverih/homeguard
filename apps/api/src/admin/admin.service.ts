@@ -23,8 +23,10 @@ import { PricingService } from '../pricing/pricing.service';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { VendorCapability, CertificationType } from '../vendor/entities/vendor-capability.entity';
+import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { emailEquals } from '../common/utils/email.util';
 import { ConfigService } from '@nestjs/config';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class AdminService {
@@ -41,6 +43,7 @@ export class AdminService {
     @InjectRepository(VendorCompany) private vendorCompanyRepo: Repository<VendorCompany>,
     @InjectRepository(VendorCertification) private vendorCertificationRepo: Repository<VendorCertification>,
     @InjectRepository(VendorCapability) private vendorCapabilityRepo: Repository<VendorCapability>,
+    @InjectRepository(VendorMembershipPayment) private membershipPaymentsRepo: Repository<VendorMembershipPayment>,
     @InjectRepository(YolinkHome) private yolinkHomesRepo: Repository<YolinkHome>,
     private notificationsService: NotificationsService,
     private usersService: UsersService,
@@ -49,6 +52,7 @@ export class AdminService {
     private serviceRequestsService: ServiceRequestsService,
     private pricingService: PricingService,
     private configService: ConfigService,
+    private paymentsService: PaymentsService,
   ) {}
 
   private getAdminPortalUrl(): string {
@@ -212,6 +216,40 @@ export class AdminService {
       }
     }
 
+    // Eligible for Elite — now actually collect the membership fee before
+    // activating anything. Default amount is a placeholder pending business
+    // sign-off; override via ELITE_MEMBERSHIP_FEE without a code change.
+    if (tier === 'ELITE') {
+      const fee = parseFloat(this.configService.get('ELITE_MEMBERSHIP_FEE', '199'));
+      const charge = await this.paymentsService.chargeVendorMembershipFee(
+        vendorId,
+        fee,
+        'Attenteve Elite Membership',
+      );
+
+      const membershipPayment = this.membershipPaymentsRepo.create({
+        vendorCompanyId: profile.companyId ?? vendorId,
+        amount: fee,
+        status: charge.status === 'succeeded' ? PaymentStatus.SUCCEEDED : PaymentStatus.FAILED,
+        stripePaymentIntentId: charge.paymentIntentId,
+        failureReason: charge.failureReason ?? null,
+      });
+      await this.membershipPaymentsRepo.save(membershipPayment);
+
+      if (charge.status !== 'succeeded') {
+        await this.notificationsService.notifyUser(
+          vendorId,
+          NotificationType.ELITE_PAYMENT_FAILED,
+          'Elite Membership Payment Failed',
+          'We could not charge your card for the Elite membership fee. Please update your payment method and ask an admin to try again.',
+          {},
+        );
+        throw new BadRequestException(
+          `Elite membership charge failed: ${charge.failureReason ?? 'unknown error'}. Elite was not activated.`,
+        );
+      }
+    }
+
     const elitePlanExpiresAt = tier === 'ELITE' && expiresAt ? new Date(expiresAt) : null;
 
     if (profile.companyId) {
@@ -229,7 +267,7 @@ export class AdminService {
 
     await this.notificationsService.notifyUser(
       vendorId,
-      NotificationType.NEW_REQUEST,
+      tier === 'ELITE' ? NotificationType.ELITE_ACTIVATED : NotificationType.SERVICE_UPDATE,
       tier === 'ELITE' ? 'Elite Plan Activated' : 'Plan Updated',
       tier === 'ELITE'
         ? `Your account has been upgraded to the Elite plan. You can now add unlimited technicians.`

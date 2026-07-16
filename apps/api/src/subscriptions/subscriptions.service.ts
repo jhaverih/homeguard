@@ -12,6 +12,7 @@ import { UsersService } from '../users/users.service';
 import { YolinkService } from '../yolink/yolink.service';
 import { PricingService } from '../pricing/pricing.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
+import { CURRENT_CUSTOMER_TOS_VERSION } from '../common/constants/tos';
 
 @Injectable()
 export class SubscriptionsService implements OnModuleInit {
@@ -167,14 +168,25 @@ export class SubscriptionsService implements OnModuleInit {
     });
   }
 
-  async subscribe(customerId: string, planId: string): Promise<{ clientSecret: string; subscriptionId?: string; paymentIntentId?: string }> {
+  async subscribe(customerId: string, planId: string, acceptedTerms = false): Promise<{ clientSecret: string; subscriptionId?: string; paymentIntentId?: string }> {
     const ownerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
     const existing = await this.getActiveSubscription(ownerId);
     if (existing) throw new BadRequestException('Customer already has an active subscription');
     customerId = ownerId;
 
+    // Only the first-ever subscription needs a fresh acceptance — once
+    // termsAcceptedAt is set we don't re-block a customer resubscribing later.
+    const user = await this.usersService.findById(customerId);
+    if (!user.termsAcceptedAt && !acceptedTerms) {
+      throw new BadRequestException('You must accept the Terms and Conditions to subscribe.');
+    }
+
     const plan = await this.plansRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
+
+    if (!user.termsAcceptedAt) {
+      await this.usersService.acceptCustomerTerms(customerId, CURRENT_CUSTOMER_TOS_VERSION);
+    }
 
     if (plan.stripePriceId) {
       return this.subscribeViaStripe(customerId, plan);

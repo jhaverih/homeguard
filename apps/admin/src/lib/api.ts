@@ -28,6 +28,8 @@ export const pricingApi = {
   update: (id: string, data: any) => api.patch(`/pricing/${id}`, data).then((r) => r.data),
   create: (data: any) => api.post('/pricing', data).then((r) => r.data),
   remove: (id: string) => api.delete(`/pricing/${id}`),
+  bulkUpdateCategory: (ids: string[], category: string | null) =>
+    api.patch('/pricing/bulk/category', { ids, category }).then((r) => r.data),
 };
 
 export const subscriptionsApi = {
@@ -46,6 +48,8 @@ export const adminApi = {
   getCustomers: () => api.get('/admin/customers').then((r) => r.data),
   getVendors: () => api.get('/admin/vendors').then((r) => r.data),
   approveVendor: (id: string) => api.patch(`/admin/vendors/${id}/approve`).then((r) => r.data),
+  setVendorPlan: (id: string, tier: 'STANDARD' | 'ELITE', expiresAt?: string) =>
+    api.patch(`/admin/vendors/${id}/plan`, { tier, expiresAt }).then((r) => r.data),
   removeVendor: (id: string) => api.delete(`/admin/vendors/${id}`).then((r) => r.data),
   getVendorKpi: (id: string) => api.get(`/admin/vendors/${id}/kpi`).then((r) => r.data),
   getVendorReviews: (id: string) => api.get(`/reviews/vendor/${id}`).then((r) => r.data),

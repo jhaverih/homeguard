@@ -10,6 +10,7 @@ import { InspectionTaskResult } from '../inspections/entities/inspection-task-re
 import { UsersModule } from '../users/users.module';
 import { AuthModule } from '../auth/auth.module';
 import { UploadsModule } from '../uploads/uploads.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { VendorCompany } from './entities/vendor-company.entity';
 import { VendorCapability } from './entities/vendor-capability.entity';
 import { VendorCapabilitySelection } from './entities/vendor-capability-selection.entity';
@@ -27,6 +28,7 @@ import { VendorController } from './vendor.controller';
     UsersModule,
     AuthModule,
     UploadsModule,
+    NotificationsModule,
   ],
   providers: [VendorService],
   controllers: [VendorController],

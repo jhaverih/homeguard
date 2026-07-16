@@ -9,7 +9,7 @@ import { Logo } from './Logo';
 const links = [
   { href: '/', label: 'Dashboard', icon: '📊' },
   { href: '/calendar', label: 'Calendar', icon: '📅' },
-  { href: '/pricing', label: 'Pricing', icon: '💰' },
+  { href: '/pricing', label: 'Services', icon: '💰' },
   { href: '/vendors', label: 'Vendors', icon: '🔧' },
   { href: '/customers', label: 'Customers', icon: '🏠' },
   { href: '/subscriptions', label: 'Subscriptions', icon: '📋' },

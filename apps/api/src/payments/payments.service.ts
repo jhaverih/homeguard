@@ -9,6 +9,7 @@ import Stripe from 'stripe';
 import { Payment } from './entities/payment.entity';
 import { AdditionalService } from '../service-requests/entities/additional-service.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { PaymentStatus, PaymentType } from '../common/enums/role.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
@@ -28,6 +29,8 @@ export class PaymentsService {
     private additionalRepo: Repository<AdditionalService>,
     @InjectRepository(ServiceRequest)
     private requestsRepo: Repository<ServiceRequest>,
+    @InjectRepository(VendorMembershipPayment)
+    private membershipPaymentsRepo: Repository<VendorMembershipPayment>,
     private configService: ConfigService,
     private notificationsService: NotificationsService,
     private usersService: UsersService,
@@ -286,6 +289,15 @@ export class PaymentsService {
           { stripePaymentIntentId: pi.id },
           { status: PaymentStatus.SUCCEEDED, capturedAt: new Date() },
         );
+        // Elite membership fees use the same PaymentIntent type but live in
+        // their own table (see VendorMembershipPayment) — the synchronous
+        // charge result in AdminService::setVendorPlan covers the common
+        // case, this is the fallback/source-of-truth reconciliation, same
+        // role the webhook already plays for customer payments above.
+        await this.membershipPaymentsRepo.update(
+          { stripePaymentIntentId: pi.id },
+          { status: PaymentStatus.SUCCEEDED },
+        );
         break;
       }
 
@@ -294,6 +306,13 @@ export class PaymentsService {
         await this.paymentsRepo.update(
           { stripePaymentIntentId: pi.id },
           { status: PaymentStatus.FAILED },
+        );
+        await this.membershipPaymentsRepo.update(
+          { stripePaymentIntentId: pi.id },
+          {
+            status: PaymentStatus.FAILED,
+            failureReason: pi.last_payment_error?.message ?? null,
+          },
         );
         break;
       }
@@ -419,5 +438,45 @@ export class PaymentsService {
     }
     await this.stripe.paymentMethods.detach(paymentMethodId);
     return { success: true };
+  }
+
+  // Charges a vendor's saved card off-session (admin-initiated, vendor not
+  // present) — e.g. the Elite membership fee. Vendors reuse the same
+  // User.stripeCustomerId + saved-card plumbing as customers; this is
+  // unrelated to their separate Stripe Connect account (payout destination).
+  async chargeVendorMembershipFee(
+    vendorUserId: string,
+    amount: number,
+    description: string,
+  ): Promise<{ status: 'succeeded' | 'failed'; paymentIntentId?: string; failureReason?: string }> {
+    const user = await this.usersService.findById(vendorUserId);
+    const methods = user.stripeCustomerId ? await this.listPaymentMethods(vendorUserId) : [];
+    const defaultMethod = methods.find((m) => m.isDefault) ?? methods[0];
+    if (!defaultMethod) {
+      throw new BadRequestException('Vendor has no payment method on file');
+    }
+
+    try {
+      const intent = await this.stripe.paymentIntents.create({
+        customer: user.stripeCustomerId,
+        payment_method: defaultMethod.id,
+        amount: Math.round(amount * 100),
+        currency: 'usd',
+        off_session: true,
+        confirm: true,
+        description,
+      });
+      if (intent.status === 'succeeded') {
+        return { status: 'succeeded', paymentIntentId: intent.id };
+      }
+      return { status: 'failed', paymentIntentId: intent.id, failureReason: `Unexpected status: ${intent.status}` };
+    } catch (err: any) {
+      // Off-session confirmations fail fast (rather than hang) when the card
+      // requires interactive 3DS authentication — Stripe's documented
+      // behavior. Treated the same as any other decline for now; the vendor
+      // is notified to add/update a card via an on-session retry.
+      this.logger.warn(`Vendor membership charge failed for user ${vendorUserId}: ${err.message}`);
+      return { status: 'failed', failureReason: err.message };
+    }
   }
 }

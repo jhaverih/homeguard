@@ -1,16 +1,77 @@
-﻿import { useState, useCallback, useEffect } from 'react';
+﻿import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert,
+  View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet,
+  RefreshControl, ActivityIndicator, Alert, KeyboardAvoidingView,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import * as Location from 'expo-location';
 import { useAuthStore } from '../../src/store/auth.store';
-import { subscriptionsApi, requestsApi, paymentsApi } from '../../src/services/api';
+import { subscriptionsApi, requestsApi, paymentsApi, pricingApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
 import { colors } from '../../src/theme';
+
+function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollViewRef: React.RefObject<ScrollView | null> }) {
+  const [query, setQuery] = useState('');
+  const cardY = useRef(0);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return catalog
+      .filter((i) => i.name?.toLowerCase().includes(q) || i.description?.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [query, catalog]);
+
+  const selectService = (item: any) => {
+    setQuery('');
+    router.push({ pathname: '/(customer)/request', params: { preselectServicePriceId: item.id } });
+  };
+
+  return (
+    <View style={styles.searchCard} onLayout={(e) => { cardY.current = e.nativeEvent.layout.y; }}>
+      <View style={styles.searchInputRow}>
+        <Ionicons name="search" size={18} color={colors.steel} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search for a service to book…"
+          placeholderTextColor={colors.steel}
+          value={query}
+          onChangeText={setQuery}
+          // A mid-content input inside a ScrollView doesn't scroll itself
+          // into view when the keyboard opens — Android's adjustResize just
+          // shrinks the window, it doesn't scroll to the focused field.
+          onFocus={() => {
+            setTimeout(() => scrollViewRef.current?.scrollTo({ y: Math.max(0, cardY.current - 12), animated: true }), 100);
+          }}
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={() => setQuery('')}>
+            <Ionicons name="close-circle" size={18} color={colors.mistDim} />
+          </TouchableOpacity>
+        )}
+      </View>
+      {query.trim().length > 0 && (
+        <View style={styles.searchResults}>
+          {results.length === 0 ? (
+            <Text style={styles.searchNoResults}>No matching services.</Text>
+          ) : (
+            results.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.searchResultRow} onPress={() => selectService(item)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.searchResultName}>{item.name}</Text>
+                  <Text style={styles.searchResultDesc} numberOfLines={1}>{item.description}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.mistDim} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
 
 const ACTIVE_STATUSES = ['PENDING', 'PENDING_CUSTOMER_REVIEW', 'ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'];
 
@@ -115,6 +176,14 @@ export default function CustomerDashboard() {
   const [payingId, setPayingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [catalog, setCatalog] = useState<any[]>([]);
+  const dashScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    pricingApi.getAll()
+      .then((items: any) => setCatalog((items || []).filter((i: any) => i.customerRequestable !== false)))
+      .catch(() => {});
+  }, []);
 
   const load = async () => {
     try {
@@ -181,8 +250,11 @@ export default function CustomerDashboard() {
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
     <ScrollView
+      ref={dashScrollRef}
       style={styles.container}
+      keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
       <View style={styles.header}>
@@ -290,12 +362,17 @@ export default function CustomerDashboard() {
             <Ionicons name="chatbubbles" size={22} color={colors.mist} />
           </View>
           <View>
-            <Text style={styles.aiCardTitle}>AI Home Assistant</Text>
+            <Text style={styles.aiCardTitle}>
+              <Text style={{ color: colors.lantern }}>eve</Text>
+              <Text style={{ color: colors.mist }}>AI</Text>
+            </Text>
             <Text style={styles.aiCardSub}>Ask about maintenance, repairs & inspections</Text>
           </View>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.mistDim} />
       </TouchableOpacity>
+
+      <ServiceSearchCard catalog={catalog} scrollViewRef={dashScrollRef} />
 
       {pendingApprovals > 0 && (
         <TouchableOpacity style={styles.approvalsCard} onPress={() => router.push('/(customer)/approvals')}>
@@ -318,6 +395,7 @@ export default function CustomerDashboard() {
 
       <UpcomingServiceCard requests={requests} />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -363,6 +441,14 @@ const styles = StyleSheet.create({
   aiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   aiCardTitle: { fontSize: 15, fontWeight: '700', color: colors.mist },
   aiCardSub: { fontSize: 12, color: colors.mistDim, marginTop: 2 },
+  searchCard: { margin: 16, marginTop: 8, backgroundColor: '#fff', borderRadius: 16, padding: 6, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8 },
+  searchInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: colors.ink, paddingVertical: 2 },
+  searchResults: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4 },
+  searchNoResults: { fontSize: 13, color: colors.steel, padding: 12, textAlign: 'center' },
+  searchResultRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.canvas },
+  searchResultName: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  searchResultDesc: { fontSize: 12, color: colors.steel, marginTop: 1 },
   approvalsCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 0, backgroundColor: '#fff4e5', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: '#f6ad55' },
   approvalsLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   approvalsIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#feebc8', alignItems: 'center', justifyContent: 'center' },

@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Image,
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Image, Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
-import { authApi, subscriptionsApi, api } from '../../src/services/api';
+import { authApi, subscriptionsApi, api, TERMS_URL } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { colors } from '../../src/theme';
 
@@ -165,6 +165,7 @@ export default function RegisterScreen() {
   const [step, setStep] = useState<Step>('select');
   const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'VENDOR' | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [licenses, setLicenses] = useState<License[]>([]);
@@ -179,6 +180,7 @@ export default function RegisterScreen() {
 
   const [addressValidated, setAddressValidated] = useState(false);
   const [pickedAddress, setPickedAddress] = useState<AddressResult | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const { setAuth } = useAuthStore();
   const { control, handleSubmit, trigger, reset, setValue, formState: { errors } } = useForm();
@@ -201,6 +203,7 @@ export default function RegisterScreen() {
     setAdding({ licenseType: 'GENERAL_CONTRACTOR' });
     setAddressValidated(false);
     setPickedAddress(null);
+    setAcceptedTerms(false);
     reset();
   };
 
@@ -256,6 +259,10 @@ export default function RegisterScreen() {
   };
 
   const onSubmit = async (data: any) => {
+    if (selectedRole === 'CUSTOMER' && selectedPlanId && !acceptedTerms) {
+      Alert.alert('Terms Required', 'Please accept the Terms and Conditions to continue.');
+      return;
+    }
     setLoading(true);
     try {
       const payload: any = {
@@ -268,7 +275,7 @@ export default function RegisterScreen() {
       const res: any = await authApi.register(payload);
       if (selectedRole === 'CUSTOMER' && selectedPlanId) {
         try {
-          await api.post(`/subscriptions/subscribe/${selectedPlanId}`, {}, {
+          await api.post(`/subscriptions/subscribe/${selectedPlanId}`, { acceptedTerms }, {
             headers: { Authorization: `Bearer ${res.accessToken}` },
           });
         } catch {}
@@ -434,11 +441,16 @@ export default function RegisterScreen() {
               rules={{ required: 'Password is required', minLength: { value: 8, message: 'Minimum 8 characters' } }}
               render={({ field: { onChange, value } }) => (
                 <>
-                  <TextInput
-                    style={[styles.input, errors.password && styles.inputError]}
-                    placeholder="Password (min 8 chars)" placeholderTextColor={colors.steel}
-                    secureTextEntry value={value} onChangeText={onChange}
-                  />
+                  <View style={styles.passRow}>
+                    <TextInput
+                      style={[styles.input, styles.passInput, errors.password && styles.inputError]}
+                      placeholder="Password (min 8 chars)" placeholderTextColor={colors.steel}
+                      secureTextEntry={!showPass} value={value} onChangeText={onChange}
+                    />
+                    <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
+                      <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.steel} />
+                    </TouchableOpacity>
+                  </View>
                   {errors.password && <Text style={styles.errorText}>{(errors.password as any)?.message}</Text>}
                 </>
               )}
@@ -683,7 +695,25 @@ export default function RegisterScreen() {
               ))
             )}
 
-            <TouchableOpacity style={styles.button} onPress={handleSubmit(onSubmit)} disabled={loading}>
+            {selectedPlanId && (
+              <TouchableOpacity style={styles.termsRow} onPress={() => setAcceptedTerms((v) => !v)} activeOpacity={0.7}>
+                <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+                  {acceptedTerms && <Ionicons name="checkmark" size={14} color={colors.ink} />}
+                </View>
+                <Text style={styles.termsText}>
+                  I agree to the{' '}
+                  <Text style={styles.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>
+                    Terms and Conditions
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.button, selectedPlanId && !acceptedTerms && styles.buttonDisabled]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={loading || (!!selectedPlanId && !acceptedTerms)}
+            >
               {loading ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Create Account</Text>}
             </TouchableOpacity>
           </>
@@ -785,6 +815,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
     padding: 15, fontSize: 16, marginBottom: 4, color: colors.ink,
   },
+  passRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  passInput: { flex: 1 },
+  eyeBtn: { padding: 12 },
   inputError: { borderColor: colors.danger },
   errorText: { color: colors.danger, fontSize: 12, marginBottom: 8, marginLeft: 2 },
 
@@ -796,7 +829,17 @@ const styles = StyleSheet.create({
   buttonOutline: {
     backgroundColor: 'transparent', borderWidth: 2, borderColor: colors.lantern,
   },
+  buttonDisabled: { backgroundColor: colors.steel },
   buttonText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
+
+  termsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 2 },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5, marginRight: 10,
+    borderWidth: 1.5, borderColor: colors.steel, alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxChecked: { backgroundColor: colors.lantern, borderColor: colors.lanternDeep },
+  termsText: { flex: 1, fontSize: 13, color: colors.steel, lineHeight: 18 },
+  termsLink: { color: colors.lanternDeep, fontWeight: '600', textDecorationLine: 'underline' },
 
   // Licenses
   licenseList: { marginBottom: 16, gap: 10 },

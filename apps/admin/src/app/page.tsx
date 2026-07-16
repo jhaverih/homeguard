@@ -42,7 +42,7 @@ export default function DashboardPage() {
           <a href="/pricing" className="flex items-center gap-3 p-4 rounded-xl bg-canvas hover:bg-blue-50 transition-colors">
             <span className="text-2xl">💰</span>
             <div>
-              <div className="font-semibold text-sm">Manage Pricing</div>
+              <div className="font-semibold text-sm">Manage Services</div>
               <div className="text-xs text-steel">Update service prices and platform fee</div>
             </div>
           </a>

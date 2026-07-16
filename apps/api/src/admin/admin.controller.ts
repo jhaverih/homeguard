@@ -11,6 +11,7 @@ import { MinAdminLevel } from '../common/decorators/min-admin-level.decorator';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { AdminService } from './admin.service';
 import { CreateTeamUserDto } from './dto/create-team-user.dto';
+import { SetVendorPlanDto } from './dto/set-vendor-plan.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -91,10 +92,10 @@ export class AdminController {
 
   @Patch('vendors/:id/plan')
   @MinAdminLevel(AdminLevel.SUPER_USER)
-  @ApiOperation({ summary: 'Set vendor plan tier (STANDARD or ELITE) with optional expiry date' })
+  @ApiOperation({ summary: 'Set vendor plan tier (STANDARD or ELITE) with optional expiry date. Activating ELITE charges the vendor\'s saved card for the membership fee.' })
   setVendorPlan(
     @Param('id') id: string,
-    @Body() body: { tier: 'STANDARD' | 'ELITE'; expiresAt?: string },
+    @Body() body: SetVendorPlanDto,
   ) {
     return this.service.setVendorPlan(id, body.tier, body.expiresAt);
   }

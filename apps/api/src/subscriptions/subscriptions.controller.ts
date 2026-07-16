@@ -8,6 +8,7 @@ import { AdminLevelGuard } from '../common/guards/admin-level.guard';
 import { MinAdminLevel } from '../common/decorators/min-admin-level.decorator';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { SubscriptionsService } from './subscriptions.service';
+import { SubscribeDto } from './dto/subscribe.dto';
 
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
@@ -31,9 +32,9 @@ export class SubscriptionsController {
   @Post('subscribe/:planId')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Subscribe to a plan' })
-  subscribe(@Request() req, @Param('planId') planId: string) {
-    return this.service.subscribe(req.user.id, planId);
+  @ApiOperation({ summary: 'Subscribe to a plan — requires acceptedTerms: true on a customer\'s first subscription' })
+  subscribe(@Request() req, @Param('planId') planId: string, @Body() body: SubscribeDto) {
+    return this.service.subscribe(req.user.id, planId, body.acceptedTerms ?? false);
   }
 
   @Post('cancel')

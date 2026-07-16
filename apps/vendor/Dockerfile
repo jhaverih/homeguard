@@ -8,6 +8,11 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# Stripe publishable key — safe to bake into the client bundle (not secret),
+# same test-mode key already used by the mobile app's Elements/PaymentSheet.
+ARG NEXT_PUBLIC_STRIPE_PK
+ENV NEXT_PUBLIC_STRIPE_PK=$NEXT_PUBLIC_STRIPE_PK
+
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 

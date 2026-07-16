@@ -30,6 +30,12 @@ export class MaintenanceBotController {
     return this.service.getSessions(req.user.id);
   }
 
+  @Get('seasonal-tips')
+  @ApiOperation({ summary: 'Get the current season\'s maintenance tips plus year-round Tennessee-specific priorities' })
+  getSeasonalTips() {
+    return this.service.getSeasonalTips();
+  }
+
   @Get('sessions/:id')
   @ApiOperation({ summary: 'Get messages for a specific chat session' })
   getSession(@Request() req, @Param('id') id: string) {

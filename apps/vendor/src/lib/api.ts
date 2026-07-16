@@ -81,3 +81,15 @@ export const userApi = {
   getMe: () => api.get('/users/me').then((r) => r.data),
   updateProfile: (data: any) => api.patch('/users/me/profile', data).then((r) => r.data),
 };
+
+// Card-on-file management for the Elite membership fee — these endpoints
+// are role-agnostic (any authenticated user, customer or vendor); the
+// backend already reuses the same Stripe Customer plumbing for both.
+export const paymentsApi = {
+  createSetupIntent: (): Promise<{ setupIntentClientSecret: string; customerId: string }> =>
+    api.post('/payments/setup-intent').then((r) => r.data),
+  listMethods: (): Promise<{ id: string; brand: string; last4: string; isDefault: boolean }[]> =>
+    api.get('/payments/methods').then((r) => r.data),
+  setDefaultMethod: (id: string) => api.patch(`/payments/methods/${id}/default`).then((r) => r.data),
+  removeMethod: (id: string) => api.delete(`/payments/methods/${id}`).then((r) => r.data),
+};

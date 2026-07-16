@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
 import { colors } from '../../src/theme';
+import CancellationFeedbackModal from '../../src/components/CancellationFeedbackModal';
 
 import { TextInput } from 'react-native';
 
@@ -112,6 +113,7 @@ export default function RequestDetailScreen() {
   const [consultationDate, setConsultationDate] = useState(new Date());
   const [consultationBusy, setConsultationBusy] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [showCancelFeedback, setShowCancelFeedback] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -235,20 +237,20 @@ export default function RequestDetailScreen() {
       'Are you sure you want to cancel this service request?',
       [
         { text: 'Keep It', style: 'cancel' },
-        {
-          text: 'Cancel Request', style: 'destructive',
-          onPress: async () => {
-            try {
-              await requestsApi.cancel(id);
-              Alert.alert('Cancelled', 'Your service request has been cancelled.');
-              load();
-            } catch (e: any) {
-              Alert.alert('Error', e.message);
-            }
-          },
-        },
+        { text: 'Cancel Request', style: 'destructive', onPress: () => setShowCancelFeedback(true) },
       ],
     );
+  };
+
+  const finalizeCancelRequest = async () => {
+    setShowCancelFeedback(false);
+    try {
+      await requestsApi.cancel(id);
+      Alert.alert('Cancelled', 'Your service request has been cancelled.');
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
   };
 
   const approveService = async (serviceId: string) => {
@@ -759,6 +761,13 @@ export default function RequestDetailScreen() {
         </View>
       </Modal>
     </ScrollView>
+    <CancellationFeedbackModal
+      visible={showCancelFeedback}
+      type="SERVICE_REQUEST"
+      serviceRequestId={id}
+      stopTimingMessage="This request will be cancelled immediately."
+      onDone={finalizeCancelRequest}
+    />
     </SafeAreaView>
   );
 }

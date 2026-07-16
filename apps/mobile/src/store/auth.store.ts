@@ -11,6 +11,10 @@ interface User {
   roles: string[];
   activeRole: string;
   avatarUrl?: string;
+  termsAcceptedAt?: string | null;
+  tosVersion?: string | null;
+  vendorTermsAcceptedAt?: string | null;
+  vendorTosVersion?: string | null;
 }
 
 interface AuthState {

@@ -27,6 +27,7 @@ async function getBiometricLabel(): Promise<string> {
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -209,14 +210,19 @@ export default function LoginScreen() {
             name="password"
             rules={{ required: 'Password is required' }}
             render={({ field: { onChange, value } }) => (
-              <TextInput
-                style={[styles.input, errors.password && styles.inputError]}
-                placeholder="Password"
-                secureTextEntry
-                autoComplete="password"
-                value={value}
-                onChangeText={onChange}
-              />
+              <View style={styles.passRow}>
+                <TextInput
+                  style={[styles.input, styles.passInput, errors.password && styles.inputError]}
+                  placeholder="Password"
+                  secureTextEntry={!showPass}
+                  autoComplete="password"
+                  value={value}
+                  onChangeText={onChange}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
+                  <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.steel} />
+                </TouchableOpacity>
+              </View>
             )}
           />
           {errors.password && <Text style={styles.error}>{errors.password.message as string}</Text>}
@@ -269,6 +275,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, borderRadius: 14,
     padding: 16, fontSize: 16, marginBottom: 12, color: colors.ink,
   },
+  passRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  passInput: { flex: 1, marginBottom: 0 },
+  eyeBtn: { padding: 12, marginBottom: 12 },
   inputError: { borderColor: colors.danger },
   error: { color: colors.danger, fontSize: 12, marginTop: -8, marginBottom: 8, marginLeft: 4 },
   button: { borderRadius: 14, padding: 17, alignItems: 'center', marginTop: 8, marginBottom: 20 },

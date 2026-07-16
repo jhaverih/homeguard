@@ -8,6 +8,18 @@ import { userApi } from '../../src/services/api';
 import { AttenteveIcon, AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { colors } from '../../src/theme';
 
+// "eve" always renders in the lantern accent color, matching the logo's
+// wordmark rule (AttenteveLogo.tsx) — applied here since a Tabs.Screen
+// `title` string can't carry per-substring color.
+function EveAiTitle() {
+  return (
+    <Text style={{ fontSize: 17, fontWeight: '700' }}>
+      <Text style={{ color: colors.lantern }}>eve</Text>
+      <Text style={{ color: colors.mist }}>AI</Text>
+    </Text>
+  );
+}
+
 function RoleSwitcher() {
   const { user, setUser } = useAuthStore();
   if (!user?.roles.includes('VENDOR')) return null;
@@ -84,7 +96,7 @@ export default function CustomerLayout() {
       <Tabs.Screen name="payments" options={{ href: null, title: 'Payments' }} />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="assistant" options={{ href: null, title: 'Attenteve Assistant' }} />
+      <Tabs.Screen name="assistant" options={{ href: null, title: 'eveAI', headerTitle: () => <EveAiTitle /> }} />
       <Tabs.Screen name="approvals" options={{ href: null, title: 'Approvals' }} />
       <Tabs.Screen name="dispute" options={{ href: null, title: 'Dispute' }} />
       <Tabs.Screen name="inspection-report" options={{ href: null, title: 'Inspection Report' }} />

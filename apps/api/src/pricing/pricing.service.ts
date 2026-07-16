@@ -1,72 +1,175 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ServicePrice } from './entities/service-price.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
+import { PricingMethod } from '../common/enums/pricing-method.enum';
+import { UnitLabel } from '../common/enums/unit-label.enum';
+import { ServiceCategory, SERVICE_CATEGORY_META } from '../common/enums/service-category.enum';
+import { formatPriceDisplay } from './pricing.utils';
 
+// Trimmed to only what's still live — several of the original entries here
+// (Gutters Inspection & Cleaning, both Replace Bulbs variants, Drywall
+// Repair/Patching/Painting, Move Furniture, Driveway & Patio Power Wash)
+// were deliberately deleted from the catalog to be superseded by the more
+// granular, tiered-pricing services in VOLUME_PRICING_CATALOG below — not
+// re-adding them here, since this array's seed is idempotent-per-name and
+// would otherwise resurrect them on every restart.
 const NEW_CATALOG = [
   {
     name: 'Additional Inspection',
     description: 'Add-on inspection visit outside subscription plan',
     basePrice: 40,
-    priceNote: '$40',
-  },
-  {
-    name: 'Gutters Inspection & Cleaning',
-    description: 'Full gutter inspection and debris removal',
-    basePrice: 100,
-    priceNote: '$100',
-  },
-  {
-    name: 'Replace Bulbs (included in inspection)',
-    description: 'Bulb replacement during a scheduled inspection visit',
-    basePrice: 5.75,
-    priceNote: '$5.75/bulb',
-  },
-  {
-    name: 'Replace Bulbs (not included)',
-    description: 'Standalone bulb replacement — includes trip fee',
-    basePrice: 125,
-    priceNote: '$125 trip fee + $5.75/bulb',
+    pricingMethod: PricingMethod.FLAT_PRICE,
   },
   {
     name: 'HVAC Full Inspection',
     description: 'Comprehensive HVAC system inspection by certified technician',
     basePrice: 175,
-    priceNote: '$175',
+    pricingMethod: PricingMethod.FLAT_PRICE,
   },
   {
     name: 'Solar System',
     description: 'Solar panel inspection and performance review',
     basePrice: 0,
-    priceNote: 'Request Quote',
+    pricingMethod: PricingMethod.REQUEST_QUOTE,
     requiresQuote: true,
   },
   {
     name: 'Replace AC Unit',
     description: 'Full AC unit replacement — sizing and installation',
     basePrice: 0,
-    priceNote: 'Request Quote',
+    pricingMethod: PricingMethod.REQUEST_QUOTE,
     requiresQuote: true,
   },
-  {
-    name: 'Drywall Repair, Patching & Painting',
-    description: 'Drywall repair and touch-up painting',
-    basePrice: 150,
-    priceNote: '$150 trip fee + $/sqft',
-  },
-  {
-    name: 'Move Furniture',
-    description: 'Furniture moving assistance',
-    basePrice: 75,
-    priceNote: '$75/hr',
-  },
-  {
-    name: 'Driveway & Patio Power Wash',
-    description: 'High-pressure cleaning of driveway and patio surfaces',
-    basePrice: 75,
-    priceNote: '$75/hr',
-  },
+];
+
+const HANDYMAN_CATALOG: { name: string; description: string; category: ServiceCategory }[] = [
+  // Trimmed to only what's still live in the catalog — the removed entries
+  // (Drywall Work, Trim and Moldings, Weatherization, Fixture Replacement,
+  // Faucet Upgrades, Showerheads, Toilet Maintenance, Sealing Gaps, TV
+  // Mounting, Furniture Assembly, Pet Doors, Gutter Cleaning, Pressure
+  // Washing, Fencing, Deck Upkeep) were deliberately deleted from the
+  // catalog to be superseded by more granular, tiered-pricing equivalents in
+  // VOLUME_PRICING_CATALOG below. This seed is idempotent per-item (unlike
+  // seedPrices() above), so leaving a deleted name in here would resurrect
+  // it on every restart — and several of the new names collide with these,
+  // which would double-seed the same service under two different pricing
+  // models.
+  // Interior Repairs and Maintenance
+  { name: 'Wall Coverings', description: 'Hanging wallpaper, removing old wallpaper, and painting small accent walls or full rooms.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
+  { name: 'Cabinet Care', description: 'Adjusting loose cabinet hinges, installing new drawer pulls, or replacing cabinet tracks.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
+
+  // Minor Electrical Adjustments
+  { name: 'Devices', description: 'Replacing damaged or outdated wall outlets and light switches with newer models or USB ports.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS },
+  { name: 'Smart Home Devices', description: 'Mounting and configuring smart video doorbells, smart thermostats, or wireless security cameras.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS },
+  { name: 'Safety Equipment', description: 'Installing or replacing batteries in smoke detectors and carbon monoxide monitors.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS },
+
+  // Mounting and Installations
+  { name: 'Window Treatments', description: 'Hanging curtain rods, horizontal blinds, or privacy shades.', category: ServiceCategory.MOUNTING_INSTALLATIONS },
+  { name: 'Wall Decor', description: 'Hanging heavy mirrors, multi-paneled artwork, and floating display shelves securely.', category: ServiceCategory.MOUNTING_INSTALLATIONS },
+  { name: 'Safety Rails', description: 'Installing grab bars in walk-in showers and anchoring safety rails alongside entry steps.', category: ServiceCategory.MOUNTING_INSTALLATIONS },
+  { name: 'Babyproofing', description: 'Installing magnetic cabinet locks, mounting baby gates, and anchoring heavy dressers to the wall studs.', category: ServiceCategory.MOUNTING_INSTALLATIONS },
+
+  // Carpentry and Assembly
+  { name: 'Doors and Windows', description: 'Fixing sticking doors, replacing window screens, and installing new door handles or deadbolts.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
+];
+
+// The ~40-service tiered volume-discount catalog transcribed from the
+// 2026-07-16 pricing sheet. minimumQuantity is intentionally left unset for
+// all of these (sheet's own Min Qty column is 1 or blank throughout) — see
+// backfillTieredPricingDefaults() above for why that's a distinct field from
+// includeQty. volumeDiscountThreshold/volumeDiscountRate are omitted (both
+// undefined, calcTieredCost() treats missing threshold as Infinity) for the
+// handful of services with no 3rd tier in the sheet (marked N/A there).
+type VolumePricingItem = {
+  name: string;
+  description: string;
+  category: ServiceCategory;
+  quantityLabel: UnitLabel;
+  basePrice: number;
+  includeQty: number;
+  baseRateUnit: number;
+  volumeDiscountThreshold?: number;
+  volumeDiscountRate?: number;
+};
+
+const VOLUME_PRICING_CATALOG: VolumePricingItem[] = [
+  { name: 'General Handyman Visit', description: 'General repairs and punch-list work.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.HOUR, basePrice: 70, includeQty: 1, baseRateUnit: 70, volumeDiscountThreshold: 1, volumeDiscountRate: 60 },
+  { name: 'Drywall Patch (Small)', description: 'Repair nail holes, anchors, and dents up to 2 inches.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.HOLE, basePrice: 70, includeQty: 3, baseRateUnit: 23.33, volumeDiscountThreshold: 11, volumeDiscountRate: 10 },
+  { name: 'Medium Drywall Repair', description: 'Repair holes 2-8 inches — mud, sand, and prime.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.HOLE, basePrice: 80, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 5, volumeDiscountRate: 50 },
+  { name: 'Wallpaper Removal', description: 'Remove wallpaper and adhesive residue.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.SQ_FT, basePrice: 175, includeQty: 100, baseRateUnit: 1.5, volumeDiscountThreshold: 500, volumeDiscountRate: 1.35 },
+  { name: 'Baseboards & Trim', description: 'Install or replace trim and moldings.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.LINEAR_FEET, basePrice: 120, includeQty: 30, baseRateUnit: 3, volumeDiscountThreshold: 200, volumeDiscountRate: 2.70 },
+  { name: 'Weather Stripping', description: 'Replace worn seals around doors and windows.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 3, baseRateUnit: 12, volumeDiscountThreshold: 10, volumeDiscountRate: 10.8 },
+  { name: 'Hardware Replacement', description: 'Install knobs, pulls, and hinges.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 10, baseRateUnit: 5, volumeDiscountThreshold: 25, volumeDiscountRate: 4.5 },
+  { name: 'Light Fixture Replacement', description: 'Replace existing light fixture.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 1, baseRateUnit: 55, volumeDiscountThreshold: 5, volumeDiscountRate: 49.5 },
+  { name: 'Ceiling Fan Replacement', description: 'Replace existing fan.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 4, volumeDiscountRate: 67.5 },
+  { name: 'Outlet/Switch Replacement', description: 'Replace existing outlets and switches.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 4, baseRateUnit: 11, volumeDiscountThreshold: 20, volumeDiscountRate: 9.9 },
+  { name: 'Smart Device Installation', description: 'Install cameras, thermostats, and doorbells.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 5, volumeDiscountRate: 40.5 },
+  { name: 'Smoke/CO Detectors', description: 'Install replacement smoke and carbon monoxide detectors.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 4, baseRateUnit: 12, volumeDiscountThreshold: 10, volumeDiscountRate: 10.8 },
+  { name: 'Faucet Replacement', description: 'Replace existing faucet.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.UNIT, basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 3, volumeDiscountRate: 67.5 },
+  { name: 'Showerhead Installation', description: 'Replace showerhead.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 1, baseRateUnit: 25, volumeDiscountThreshold: 5, volumeDiscountRate: 22.5 },
+  { name: 'Toilet Repair', description: 'Replace internal toilet components.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 60, volumeDiscountThreshold: 3, volumeDiscountRate: 54 },
+  { name: 'TV Mounting', description: 'Install mount and hang TV.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 4, volumeDiscountRate: 67.5 },
+  { name: 'Blinds & Curtains', description: 'Install rods, blinds, and shades.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 3, baseRateUnit: 15, volumeDiscountThreshold: 10, volumeDiscountRate: 13.5 },
+  { name: 'Mirrors & Artwork', description: 'Secure mounting of décor.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 3, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
+  { name: 'Shelving Installation', description: 'Install shelving systems.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 35, volumeDiscountThreshold: 5, volumeDiscountRate: 31.5 },
+  { name: 'Grab Bars', description: 'Install safety grab bars.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 4, volumeDiscountRate: 40.5 },
+  { name: 'Door Repairs', description: 'Adjust or repair doors.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 60, volumeDiscountThreshold: 5, volumeDiscountRate: 54 },
+  { name: 'Lock Installation', description: 'Install locksets and deadbolts.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 35, volumeDiscountThreshold: 5, volumeDiscountRate: 31.5 },
+  { name: 'Window Screen Repair', description: 'Replace screen mesh or frame.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 2, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
+  { name: 'Pet Door Installation', description: 'Cut opening and install pet door.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 175, includeQty: 1, baseRateUnit: 175 },
+  { name: 'Pressure Washing', description: 'Wash surfaces using pressure equipment.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.SQ_FT, basePrice: 150, includeQty: 1000, baseRateUnit: 0.1, volumeDiscountThreshold: 5000, volumeDiscountRate: 0.09 },
+  { name: 'Fence Repairs', description: 'Replace pickets and hardware.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 120, includeQty: 5, baseRateUnit: 10, volumeDiscountThreshold: 20, volumeDiscountRate: 9 },
+  { name: 'Tile Replacement', description: 'Replace damaged tiles.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 3, baseRateUnit: 15, volumeDiscountThreshold: 20, volumeDiscountRate: 13.5 },
+  { name: 'Regrouting', description: 'Remove and replace grout.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.SQ_FT, basePrice: 150, includeQty: 100, baseRateUnit: 1, volumeDiscountThreshold: 500, volumeDiscountRate: 0.9 },
+  { name: 'Window Repairs', description: 'Repair sash balances, tracks, and hardware.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 50, volumeDiscountThreshold: 5, volumeDiscountRate: 45 },
+  { name: 'Backsplash Installation', description: 'Install tile backsplash.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.SQ_FT, basePrice: 250, includeQty: 30, baseRateUnit: 6.5, volumeDiscountThreshold: 100, volumeDiscountRate: 5.85 },
+  { name: 'Bathroom Accessories', description: 'Install towel bars, hooks, and mirrors.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 3, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
+  { name: 'Attic Ladder Replacement', description: 'Replace attic ladder.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 275, includeQty: 1, baseRateUnit: 275 },
+  { name: 'Siding Repair', description: 'Replace damaged siding panels.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 120, includeQty: 3, baseRateUnit: 20, volumeDiscountThreshold: 20, volumeDiscountRate: 18 },
+  { name: 'Soffit/Fascia Repair', description: 'Replace damaged trim boards.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 175, includeQty: 25, baseRateUnit: 5, volumeDiscountThreshold: 100, volumeDiscountRate: 4.5 },
+  { name: 'Mailbox Installation', description: 'Install mailbox and post.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 1, baseRateUnit: 150 },
+  { name: 'Porch Swing Installation', description: 'Install porch swing hardware.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 1, baseRateUnit: 150 },
+  { name: 'Exterior Light Installation', description: 'Replace exterior light fixture.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 5, volumeDiscountRate: 40.5 },
+  { name: 'Pipe Insulation', description: 'Install pipe insulation sleeves.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.LINEAR_FEET, basePrice: 80, includeQty: 25, baseRateUnit: 1.5, volumeDiscountThreshold: 100, volumeDiscountRate: 1.35 },
+  { name: 'Dryer Vent Cleaning', description: 'Clean vent and inspect airflow.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 40 },
+  { name: 'Fireplace Mantel Installation', description: 'Install decorative mantel.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 200, includeQty: 1, baseRateUnit: 200 },
+  // The 7 rows below weren't in the screenshot originally transcribed —
+  // found in the "Service prices" sheet of Service Price models.xlsx (repo
+  // root) once that source file surfaced. No 3rd tier: their sheet rows had
+  // a text placeholder ("Whole bath package", "Multi-door pricing", etc.)
+  // instead of a numeric Volume Discount Threshold.
+  { name: 'Recaulking', description: 'Remove and replace caulk.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 30 },
+  { name: 'Gutter Cleaning', description: 'Remove debris and flush downspouts.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.LINEAR_FEET, basePrice: 120, includeQty: 150, baseRateUnit: 0.4, volumeDiscountThreshold: 300, volumeDiscountRate: 0.36 },
+  { name: 'Deck Board Replacement', description: 'Replace damaged deck boards.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 3, baseRateUnit: 25 },
+  { name: 'Carpet Stretching', description: 'Re-stretch loose carpet.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 1, baseRateUnit: 80 },
+  { name: 'Garage Shelving', description: 'Install garage storage systems.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 175, includeQty: 1, baseRateUnit: 80 },
+  { name: 'Garage Door Maintenance', description: 'Lubricate and adjust door hardware.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 40 },
+  { name: 'Stair Handrail Installation', description: 'Install stair handrails.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 250, includeQty: 1, baseRateUnit: 175 },
+];
+
+// Request-a-Quote services from the same source sheet whose Base Rate/
+// Threshold columns are text placeholders ("Complexity based", "$1-1.50/SF"
+// range, etc.) rather than a single usable number — plus the entire
+// "QUoted services" sheet of the same workbook, which was Request-Quote
+// from the start. Seeded the same way seedTradeServices() seeds Solar/
+// Roofing/Masonry: basePrice 0, requiresQuote true, category-capability-gated
+// like the tiered catalog above (not a specific trade license).
+const REQUEST_QUOTE_CATALOG: { name: string; description: string; category: ServiceCategory }[] = [
+  { name: 'Large Drywall Repair', description: 'Replace drywall sections, tape, and finish.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
+  { name: 'Interior Painting', description: 'Prep and paint walls.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
+  { name: 'Furniture Assembly', description: 'Assemble customer-provided furniture.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
+  { name: 'Closet Shelving', description: 'Install closet organization systems.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
+  { name: 'Exercise Equipment Assembly', description: 'Assemble fitness equipment.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
+  { name: 'Large Deck Repairs', description: 'Structural deck repairs beyond individual board replacement.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES },
+  { name: 'Pergola Assembly', description: 'Assemble and install a pergola.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES },
+  { name: 'Gazebo Assembly', description: 'Assemble and install a gazebo.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES },
+  { name: 'Crawlspace Repairs', description: 'Crawlspace access, moisture, and structural repairs.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES },
+  { name: 'Accessibility Modifications', description: 'Home modifications for accessibility (ramps, widened doorways, rails).', category: ServiceCategory.CARPENTRY_ASSEMBLY },
+  { name: 'Wheelchair Ramp Installation', description: 'Design and install a wheelchair ramp.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
+  { name: 'Whole-House Painting', description: 'Interior or exterior painting for an entire home.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
+  { name: 'Seasonal Maintenance Package', description: 'Bundled seasonal home maintenance visit.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
 ];
 
 @Injectable()
@@ -81,9 +184,37 @@ export class PricingService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    // One-time consolidation of the five old per-X pricing methods into
+    // PER_UNIT + a separate Unit Label ran directly against the live DB
+    // during the 2026-07-16 deploy (TypeORM's own schema sync runs before
+    // onModuleInit and fails outright on rows still holding a
+    // soon-to-be-removed enum value, so this couldn't safely run as
+    // application code — it's done and verified, not reintroduced here).
+    await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { quantityLabel: UnitLabel.AC_UNIT });
     await this.seedPrices();
     await this.seedMonitoringService();
     await this.seedTradeServices();
+    await this.seedHandymanCategoryServices();
+    await this.backfillTieredPricingDefaults();
+    await this.seedVolumePricingCatalog();
+    await this.seedQuoteCatalog();
+  }
+
+  // One-time-per-row backfill: gives every pre-existing PER_UNIT service tier
+  // fields that reproduce today's flat basePrice × qty behavior exactly
+  // (includeQty=1, baseRateUnit=basePrice, no volume-discount tier), so nothing
+  // changes for them until an admin configures real tiers. Gated on
+  // includeQty IS NULL, so it only ever touches a row once.
+  private async backfillTieredPricingDefaults() {
+    const untiered = await this.pricesRepo.find({
+      where: { pricingMethod: PricingMethod.PER_UNIT, includeQty: IsNull() },
+    });
+    for (const row of untiered) {
+      await this.pricesRepo.update(row.id, { includeQty: 1, baseRateUnit: row.basePrice });
+    }
+    if (untiered.length) {
+      this.logger.log(`Backfilled tiered-pricing defaults for ${untiered.length} existing Per Unit service(s).`);
+    }
   }
 
   private async seedPrices() {
@@ -116,11 +247,11 @@ export class PricingService implements OnModuleInit {
       description: 'On-site installation and connection of Yolink home monitoring sensors (leak, temperature/humidity) per the customer\'s plan.',
       basePrice: 149,
       markupPercent: 0,
-      priceNote: '$149 one-time',
+      pricingMethod: PricingMethod.ONE_TIME_FEE,
       customerRequestable: false,
       requiredCapabilityId: capability.id,
     }));
-    this.logger.log('Seeded "Home Monitoring Setup" service ($149, Yolink-capability-gated, Houmi-triggered only).');
+    this.logger.log('Seeded "Home Monitoring Setup" service ($149, Yolink-capability-gated, Attenteve-triggered only).');
   }
 
   // Separate from seedPrices() for the same reason as seedMonitoringService() —
@@ -147,7 +278,7 @@ export class PricingService implements OnModuleInit {
         name: item.name,
         description: item.description,
         basePrice: 0,
-        priceNote: 'Request Quote',
+        pricingMethod: PricingMethod.REQUEST_QUOTE,
         requiresQuote: true,
         requiredCapabilityId: capability.id,
       }));
@@ -166,21 +297,159 @@ export class PricingService implements OnModuleInit {
     }
   }
 
-  async getAll(includeInactive = false): Promise<ServicePrice[]> {
-    return this.pricesRepo.find(includeInactive ? {} : { where: { isActive: true } });
+  // Idempotent per-item like seedTradeServices() — safe to re-run every boot.
+  // Wires each new handyman service to the matching one of the 6 dormant
+  // "Handyman broad categories" capability rows (vendor.service.ts), so
+  // requesting one of these services immediately gates on the same category
+  // a vendor already self-selects as a skill group via /vendor/me/capabilities.
+  private async seedHandymanCategoryServices() {
+    const capabilityCache = new Map<string, VendorCapability | null>();
+    const resolveCapability = async (name: string) => {
+      if (!capabilityCache.has(name)) {
+        capabilityCache.set(name, await this.capabilityRepo.findOne({ where: { name } }));
+      }
+      return capabilityCache.get(name)!;
+    };
+
+    for (const item of HANDYMAN_CATALOG) {
+      const existing = await this.pricesRepo.findOne({ where: { name: item.name } });
+      if (existing) continue;
+
+      const capabilityName = SERVICE_CATEGORY_META[item.category].capabilityName;
+      const capability = await resolveCapability(capabilityName);
+      if (!capability) {
+        this.logger.warn(`"${capabilityName}" capability not found yet — will retry seeding "${item.name}" price on next restart.`);
+        continue;
+      }
+
+      await this.pricesRepo.save(this.pricesRepo.create({
+        name: item.name,
+        description: item.description,
+        category: item.category,
+        basePrice: 85,
+        pricingMethod: PricingMethod.PER_UNIT,
+        quantityLabel: UnitLabel.HOUR,
+        requiresQuote: false,
+        requiredCapabilityId: capability.id,
+      }));
+      this.logger.log(`Seeded "${item.name}" service ($85/hr, ${capabilityName}-capability-gated, category ${item.category}).`);
+    }
+  }
+
+  // Idempotent per-item, same capability-resolution pattern as
+  // seedHandymanCategoryServices() above — seeds the ~40-service tiered
+  // volume-discount catalog from the 2026-07-16 pricing sheet.
+  private async seedVolumePricingCatalog() {
+    const capabilityCache = new Map<string, VendorCapability | null>();
+    const resolveCapability = async (name: string) => {
+      if (!capabilityCache.has(name)) {
+        capabilityCache.set(name, await this.capabilityRepo.findOne({ where: { name } }));
+      }
+      return capabilityCache.get(name)!;
+    };
+
+    for (const item of VOLUME_PRICING_CATALOG) {
+      const existing = await this.pricesRepo.findOne({ where: { name: item.name } });
+      if (existing) continue;
+
+      const capabilityName = SERVICE_CATEGORY_META[item.category].capabilityName;
+      const capability = await resolveCapability(capabilityName);
+      if (!capability) {
+        this.logger.warn(`"${capabilityName}" capability not found yet — will retry seeding "${item.name}" price on next restart.`);
+        continue;
+      }
+
+      await this.pricesRepo.save(this.pricesRepo.create({
+        name: item.name,
+        description: item.description,
+        category: item.category,
+        basePrice: item.basePrice,
+        pricingMethod: PricingMethod.PER_UNIT,
+        quantityLabel: item.quantityLabel,
+        requiresQuote: false,
+        requiredCapabilityId: capability.id,
+        includeQty: item.includeQty,
+        baseRateUnit: item.baseRateUnit,
+        volumeDiscountThreshold: item.volumeDiscountThreshold ?? null,
+        volumeDiscountRate: item.volumeDiscountRate ?? null,
+      }));
+      this.logger.log(`Seeded "${item.name}" tiered service ($${item.basePrice} payout, includes ${item.includeQty}, ${capabilityName}-capability-gated).`);
+    }
+  }
+
+  // Idempotent per-item, same pattern as seedVolumePricingCatalog() above —
+  // seeds the Request-a-Quote services from the same source workbook.
+  private async seedQuoteCatalog() {
+    const capabilityCache = new Map<string, VendorCapability | null>();
+    const resolveCapability = async (name: string) => {
+      if (!capabilityCache.has(name)) {
+        capabilityCache.set(name, await this.capabilityRepo.findOne({ where: { name } }));
+      }
+      return capabilityCache.get(name)!;
+    };
+
+    for (const item of REQUEST_QUOTE_CATALOG) {
+      const existing = await this.pricesRepo.findOne({ where: { name: item.name } });
+      if (existing) continue;
+
+      const capabilityName = SERVICE_CATEGORY_META[item.category].capabilityName;
+      const capability = await resolveCapability(capabilityName);
+      if (!capability) {
+        this.logger.warn(`"${capabilityName}" capability not found yet — will retry seeding "${item.name}" price on next restart.`);
+        continue;
+      }
+
+      await this.pricesRepo.save(this.pricesRepo.create({
+        name: item.name,
+        description: item.description,
+        category: item.category,
+        basePrice: 0,
+        pricingMethod: PricingMethod.REQUEST_QUOTE,
+        requiresQuote: true,
+        requiredCapabilityId: capability.id,
+      }));
+      this.logger.log(`Seeded "${item.name}" quote-based service (${capabilityName}-capability-gated, category ${item.category}).`);
+    }
+  }
+
+  // Attaches the derived, read-only priceDisplay string every consumer used
+  // to read off the old free-text priceNote column. Mutates the loaded
+  // instance (rather than spreading into a plain object) so it still
+  // satisfies ServicePrice's shape, including its lifecycle-hook method.
+  private withDisplay(item: ServicePrice): ServicePrice & { priceDisplay: string } {
+    return Object.assign(item, { priceDisplay: formatPriceDisplay(item) });
+  }
+
+  async getAll(includeInactive = false): Promise<(ServicePrice & { priceDisplay: string })[]> {
+    const items = await this.pricesRepo.find(includeInactive ? {} : { where: { isActive: true } });
+    return items.map((item) => this.withDisplay(item));
   }
 
   async findByName(name: string): Promise<ServicePrice | null> {
     return this.pricesRepo.findOne({ where: { name } });
   }
 
-  async update(id: string, data: Partial<ServicePrice>): Promise<ServicePrice> {
-    await this.pricesRepo.update(id, data);
-    return this.pricesRepo.findOne({ where: { id } });
+  async update(id: string, data: Partial<ServicePrice>): Promise<ServicePrice & { priceDisplay: string }> {
+    // Load-merge-save (not repo.update()) so the ServicePrice entity's
+    // @BeforeUpdate lifecycle hook actually fires — TypeORM skips entity
+    // hooks on the query-builder-style bulk .update() path.
+    const existing = await this.pricesRepo.findOneOrFail({ where: { id } });
+    this.pricesRepo.merge(existing, data);
+    const saved = await this.pricesRepo.save(existing);
+    return this.withDisplay(saved);
   }
 
-  async create(data: Partial<ServicePrice>): Promise<ServicePrice> {
-    return this.pricesRepo.save(this.pricesRepo.create(data));
+  async bulkUpdateCategory(ids: string[], category: ServiceCategory | null): Promise<(ServicePrice & { priceDisplay: string })[]> {
+    // Plain query-builder update is safe here (unlike update() above) since
+    // category isn't touched by the @BeforeUpdate quote/pricingMethod sync hook.
+    await this.pricesRepo.update({ id: In(ids) }, { category });
+    const items = await this.pricesRepo.find({ where: { id: In(ids) } });
+    return items.map((item) => this.withDisplay(item));
+  }
+
+  async create(data: Partial<ServicePrice>): Promise<ServicePrice & { priceDisplay: string }> {
+    const saved = await this.pricesRepo.save(this.pricesRepo.create(data));
+    return this.withDisplay(saved);
   }
 
   async remove(id: string): Promise<void> {

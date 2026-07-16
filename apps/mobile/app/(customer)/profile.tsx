@@ -30,6 +30,7 @@ export default function CustomerProfileScreen() {
 
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -313,9 +314,13 @@ export default function CustomerProfileScreen() {
         </TouchableOpacity>
         {showPasswordForm && (
           <View style={styles.formInner}>
-            <TextInput style={styles.input} placeholder="Current password" placeholderTextColor={colors.steel} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
-            <TextInput style={styles.input} placeholder="New password" placeholderTextColor={colors.steel} value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-            <TextInput style={styles.input} placeholder="Confirm new password" placeholderTextColor={colors.steel} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+            <TextInput style={styles.input} placeholder="Current password" placeholderTextColor={colors.steel} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry={!showPass} />
+            <TextInput style={styles.input} placeholder="New password" placeholderTextColor={colors.steel} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showPass} />
+            <TextInput style={styles.input} placeholder="Confirm new password" placeholderTextColor={colors.steel} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showPass} />
+            <TouchableOpacity style={styles.showPassToggle} onPress={() => setShowPass((v) => !v)}>
+              <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.steel} />
+              <Text style={styles.showPassToggleText}>{showPass ? 'Hide passwords' : 'Show passwords'}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.saveBtn} onPress={changePassword} disabled={saving}>
               {saving ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Update Password</Text>}
             </TouchableOpacity>
@@ -363,6 +368,8 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border },
   formInner: { paddingHorizontal: 16, paddingBottom: 16 },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 13, fontSize: 15, marginBottom: 10, backgroundColor: colors.canvas, color: colors.ink },
+  showPassToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  showPassToggleText: { fontSize: 13, color: colors.steel, fontWeight: '600' },
   saveBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center' },
   saveBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
   logoutBtn: { backgroundColor: '#fed7d7', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },

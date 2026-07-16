@@ -18,17 +18,19 @@ import { PricingModule } from '../pricing/pricing.module';
 import { VendorCompany } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification } from '../vendor/entities/vendor-certification.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
+import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { VendorSchedulerService } from './vendor-scheduler.service';
 import { EmailService } from '../common/email/email.service';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       User, VendorProfile, CustomerSubscription, Payment, ServiceRequest, Dispute, Review, Alert, CustomerProfile,
-      VendorCompany, VendorCertification, VendorCapability, YolinkHome,
+      VendorCompany, VendorCertification, VendorCapability, VendorMembershipPayment, YolinkHome,
     ]),
     NotificationsModule,
     UsersModule,
@@ -36,6 +38,7 @@ import { EmailService } from '../common/email/email.service';
     UploadsModule,
     ServiceRequestsModule,
     PricingModule,
+    PaymentsModule,
   ],
   providers: [AdminService, VendorSchedulerService, EmailService],
   controllers: [AdminController],

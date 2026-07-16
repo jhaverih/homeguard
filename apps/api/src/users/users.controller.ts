@@ -43,6 +43,11 @@ export class UsersController {
     return this.usersService.changePassword(req.user.id, body.currentPassword, body.newPassword);
   }
 
+  @Patch('me/accept-terms')
+  acceptTerms(@Request() req, @Body() body: { termsType: 'CUSTOMER' | 'VENDOR' }) {
+    return this.usersService.acceptTerms(req.user.id, body.termsType);
+  }
+
   @Get('me/team')
   getTeam(@Request() req) {
     return this.usersService.getTeamMembers(req.user.id);

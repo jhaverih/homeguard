@@ -67,6 +67,18 @@ export class User {
   @Column({ type: 'timestamptz', nullable: true })
   passwordResetExpiry: Date;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  termsAcceptedAt: Date | null;
+
+  @Column({ nullable: true })
+  tosVersion: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  vendorTermsAcceptedAt: Date | null;
+
+  @Column({ nullable: true })
+  vendorTosVersion: string | null;
+
   @OneToOne(() => VendorProfile, (profile) => profile.user, { cascade: true, eager: false })
   vendorProfile: VendorProfile;
 

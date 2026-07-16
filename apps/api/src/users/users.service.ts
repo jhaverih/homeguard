@@ -9,6 +9,7 @@ import { CustomerProfile } from './entities/customer-profile.entity';
 import { UserRole, UserStatus } from '../common/enums/role.enum';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
+import { CURRENT_CUSTOMER_TOS_VERSION, CURRENT_VENDOR_TOS_VERSION } from '../common/constants/tos';
 
 export interface CreateUserDto {
   email: string;
@@ -254,6 +255,23 @@ export class UsersService implements OnModuleInit {
 
   async updateStripeCustomerId(userId: string, stripeCustomerId: string | null): Promise<void> {
     await this.usersRepo.update(userId, { stripeCustomerId });
+  }
+
+  async acceptCustomerTerms(userId: string, tosVersion: string): Promise<void> {
+    await this.usersRepo.update(userId, { termsAcceptedAt: new Date(), tosVersion });
+  }
+
+  async acceptVendorTerms(userId: string, tosVersion: string): Promise<void> {
+    await this.usersRepo.update(userId, { vendorTermsAcceptedAt: new Date(), vendorTosVersion: tosVersion });
+  }
+
+  async acceptTerms(userId: string, termsType: 'CUSTOMER' | 'VENDOR'): Promise<User> {
+    if (termsType === 'VENDOR') {
+      await this.acceptVendorTerms(userId, CURRENT_VENDOR_TOS_VERSION);
+    } else {
+      await this.acceptCustomerTerms(userId, CURRENT_CUSTOMER_TOS_VERSION);
+    }
+    return this.findById(userId);
   }
 
   async findAvailableVendors(): Promise<User[]> {

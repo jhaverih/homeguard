@@ -1,14 +1,15 @@
 ﻿import { useCallback, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator,
+  ScrollView, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
-import { subscriptionsApi } from '../../src/services/api';
+import { subscriptionsApi, TERMS_URL } from '../../src/services/api';
 import { colors } from '../../src/theme';
+import CancellationFeedbackModal from '../../src/components/CancellationFeedbackModal';
 
 export default function SubscribeScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -18,6 +19,8 @@ export default function SubscribeScreen() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [showChangePlan, setShowChangePlan] = useState(false);
+  const [showCancelFeedback, setShowCancelFeedback] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,9 +63,13 @@ export default function SubscribeScreen() {
       Alert.alert('Select a Plan', 'Please select a plan to continue.');
       return;
     }
+    if (!acceptedTerms) {
+      Alert.alert('Terms Required', 'Please accept the Terms and Conditions to subscribe.');
+      return;
+    }
     setLoading(true);
     try {
-      const res: any = await subscriptionsApi.subscribe(selectedPlanId);
+      const res: any = await subscriptionsApi.subscribe(selectedPlanId, acceptedTerms);
       const paymentOk = await presentStripeSheet(res?.clientSecret ?? '');
       if (!paymentOk) return;
 
@@ -110,24 +117,24 @@ export default function SubscribeScreen() {
         ' and renewal will be cancelled.',
       [
         { text: 'Keep Subscription', style: 'cancel' },
-        {
-          text: 'Cancel Subscription', style: 'destructive',
-          onPress: async () => {
-            try {
-              await subscriptionsApi.cancelSubscription();
-              Alert.alert(
-                'Subscription Cancelled',
-                'Renewal cancelled. Access continues until ' +
-                  new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '.',
-              );
-              setSubscription((prev: any) => ({ ...prev, status: 'CANCELLED' }));
-            } catch (e: any) {
-              Alert.alert('Error', e.message);
-            }
-          },
-        },
+        { text: 'Cancel Subscription', style: 'destructive', onPress: () => setShowCancelFeedback(true) },
       ],
     );
+  };
+
+  const finalizeCancel = async () => {
+    setShowCancelFeedback(false);
+    try {
+      await subscriptionsApi.cancelSubscription();
+      Alert.alert(
+        'Subscription Cancelled',
+        'Renewal cancelled. Access continues until ' +
+          new Date(subscription.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '.',
+      );
+      setSubscription((prev: any) => ({ ...prev, status: 'CANCELLED' }));
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
   };
 
   if (fetching) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
@@ -137,6 +144,7 @@ export default function SubscribeScreen() {
     const isCancelled = subscription.status === 'CANCELLED';
 
     return (
+      <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.activeCard}>
           <View style={styles.activeCardTop}>
@@ -197,6 +205,14 @@ export default function SubscribeScreen() {
           </>
         )}
       </ScrollView>
+      <CancellationFeedbackModal
+        visible={showCancelFeedback}
+        type="SUBSCRIPTION"
+        subscriptionId={subscription.id}
+        stopTimingMessage={`Your access continues until ${endDate}.`}
+        onDone={finalizeCancel}
+      />
+      </>
     );
   }
 
@@ -236,10 +252,24 @@ export default function SubscribeScreen() {
         );
       })}
 
+      {!showChangePlan && (
+        <TouchableOpacity style={styles.termsRow} onPress={() => setAcceptedTerms((v) => !v)} activeOpacity={0.7}>
+          <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+            {acceptedTerms && <Ionicons name="checkmark" size={14} color={colors.ink} />}
+          </View>
+          <Text style={styles.termsText}>
+            I agree to the{' '}
+            <Text style={styles.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>
+              Terms and Conditions
+            </Text>
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity
-        style={[styles.button, !selectedPlanId && styles.buttonDisabled]}
+        style={[styles.button, (!selectedPlanId || (!showChangePlan && !acceptedTerms)) && styles.buttonDisabled]}
         onPress={showChangePlan ? changePlan : subscribe}
-        disabled={loading || !selectedPlanId}
+        disabled={loading || !selectedPlanId || (!showChangePlan && !acceptedTerms)}
       >
         {loading ? <ActivityIndicator color={colors.ink} /> : (
           <Text style={styles.buttonText}>{showChangePlan ? 'Switch Plan' : 'Subscribe & Pay'}</Text>
@@ -319,6 +349,14 @@ const styles = StyleSheet.create({
   planDesc: { fontSize: 13, color: '#666', marginBottom: 10, lineHeight: 18 },
   planFeature: { fontSize: 13, color: '#444', lineHeight: 22 },
   currentLabel: { marginTop: 8, fontSize: 12, color: colors.steel, fontStyle: 'italic' },
+  termsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 2 },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5, marginRight: 10,
+    borderWidth: 1.5, borderColor: colors.steel, alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxChecked: { backgroundColor: colors.lantern, borderColor: colors.lanternDeep },
+  termsText: { flex: 1, fontSize: 13, color: colors.steel, lineHeight: 18 },
+  termsLink: { color: colors.lanternDeep, fontWeight: '600', textDecorationLine: 'underline' },
   button: {
     backgroundColor: colors.lantern, borderRadius: 14, padding: 17,
     alignItems: 'center', marginTop: 8,

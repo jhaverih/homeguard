@@ -23,8 +23,8 @@ export default function CustomersPage() {
           <p className="text-steel text-sm">No customers yet. They register through the mobile app.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-x-hidden">
+          <table className="w-full text-sm sticky-thead">
             <thead className="bg-canvas border-b border-mist-dim">
               <tr>
                 <th className="text-left px-6 py-4 font-semibold text-steel">Name</th>

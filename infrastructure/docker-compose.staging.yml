@@ -53,6 +53,31 @@ services:
     depends_on:
       - api
 
+  # Served directly on its own port (not proxied same-origin by nginx like
+  # admin) — NEXT_PUBLIC_* values must be absolute URLs baked in at build
+  # time as a result. Was previously only added on the QNAP deploy host
+  # and had drifted out of the git-tracked compose file; kept in sync here
+  # now so a fresh deploy from this repo actually builds the vendor portal.
+  vendor:
+    build:
+      context: ../apps/vendor
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: http://192.168.86.29/api
+        NEXT_PUBLIC_STRIPE_PK: ${STRIPE_PUBLISHABLE_KEY:-}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=staging
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      - api
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped

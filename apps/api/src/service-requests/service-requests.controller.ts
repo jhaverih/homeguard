@@ -91,9 +91,9 @@ export class ServiceRequestsController {
   updateStatus(
     @Request() req,
     @Param('id') id: string,
-    @Body() body: { status: ServiceRequestStatus; completionPhotoKeys?: string[] },
+    @Body() body: { status: ServiceRequestStatus; completionPhotoKeys?: string[]; finalQuantities?: Record<string, number> },
   ) {
-    return this.service.updateStatus(id, req.user.id, body.status, body.completionPhotoKeys);
+    return this.service.updateStatus(id, req.user.id, body.status, body.completionPhotoKeys, body.finalQuantities);
   }
 
   @Patch(':id/notes')

@@ -3,6 +3,10 @@ import * as SecureStore from 'expo-secure-store';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.86.29/api';
 
+// The admin app serves static legal docs at its root domain (same host, no /api prefix).
+export const TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/customer-terms.html`;
+export const VENDOR_TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/vendor-terms.html`;
+
 export const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
@@ -52,6 +56,7 @@ export const userApi = {
   getMe: () => api.get('/users/me'),
   switchRole: (role: string) => api.patch('/users/me/role', { role }),
   updatePushToken: (token: string) => api.patch('/users/me/push-token', { token }),
+  acceptTerms: (termsType: 'CUSTOMER' | 'VENDOR') => api.patch('/users/me/accept-terms', { termsType }),
 };
 
 export const teamApi = {
@@ -63,10 +68,20 @@ export const teamApi = {
 export const subscriptionsApi = {
   getPlans: () => api.get('/subscriptions/plans'),
   getMySubscription: () => api.get('/subscriptions/my'),
-  subscribe: (planId: string): Promise<{ clientSecret: string; subscriptionId?: string }> =>
-    api.post(`/subscriptions/subscribe/${planId}`) as any,
+  subscribe: (planId: string, acceptedTerms?: boolean): Promise<{ clientSecret: string; subscriptionId?: string }> =>
+    api.post(`/subscriptions/subscribe/${planId}`, { acceptedTerms }) as any,
   cancelSubscription: () => api.post('/subscriptions/cancel'),
   changePlan: (planId: string) => api.post(`/subscriptions/change/${planId}`),
+};
+
+export const cancellationFeedbackApi = {
+  submit: (data: {
+    type: 'SUBSCRIPTION' | 'SERVICE_REQUEST';
+    subscriptionId?: string;
+    serviceRequestId?: string;
+    reasonCode: string;
+    comment?: string;
+  }) => api.post('/cancellation-feedback', data),
 };
 
 export const requestsApi = {
@@ -81,8 +96,12 @@ export const requestsApi = {
   accept: (id: string, scheduledDate: string, notes?: string) => api.post(`/service-requests/${id}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
   acceptGroup: (bookingGroupId: string, scheduledDate: string, notes?: string) =>
     api.post(`/service-requests/group/${bookingGroupId}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
-  updateStatus: (id: string, status: string, completionPhotoKeys?: string[]) =>
-    api.patch(`/service-requests/${id}/status`, { status, ...(completionPhotoKeys ? { completionPhotoKeys } : {}) }),
+  updateStatus: (id: string, status: string, completionPhotoKeys?: string[], finalQuantities?: Record<string, number>) =>
+    api.patch(`/service-requests/${id}/status`, {
+      status,
+      ...(completionPhotoKeys ? { completionPhotoKeys } : {}),
+      ...(finalQuantities && Object.keys(finalQuantities).length > 0 ? { finalQuantities } : {}),
+    }),
   addNotes: (id: string, notes: string) => api.patch(`/service-requests/${id}/notes`, { notes }),
   recommendService: (id: string, data: any) => api.post(`/service-requests/${id}/additional-services`, data),
   approveService: (serviceId: string) => api.post(`/service-requests/additional-services/${serviceId}/approve`),
@@ -163,14 +182,32 @@ aiApi.interceptors.response.use(
   },
 );
 
+export type ServiceRequestDraft = {
+  prefilledNotes?: string;
+  preselectServicePriceId?: string;
+  preferredDate?: string;
+};
+
+export type ChatResponse = {
+  reply: string;
+  sessionId: string;
+  recommendations: any[];
+  serviceRequestDraft?: ServiceRequestDraft;
+  inspectionReportLink?: { serviceRequestId: string };
+};
+
+export type SeasonalTip = { text: string; orderable: boolean };
+
 export const maintenanceBotApi = {
-  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>, sessionId?: string | null) =>
-    aiApi.post('/maintenance-bot/chat', { message, history, ...(sessionId ? { sessionId } : {}) }),
+  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>, sessionId?: string | null): Promise<ChatResponse> =>
+    aiApi.post('/maintenance-bot/chat', { message, history, ...(sessionId ? { sessionId } : {}) }) as any,
   getSessions: (): Promise<any[]> => api.get('/maintenance-bot/sessions') as any,
   getSession: (id: string): Promise<any> => api.get(`/maintenance-bot/sessions/${id}`) as any,
   deleteSession: (id: string) => api.delete(`/maintenance-bot/sessions/${id}`),
   respondToRecommendation: (id: string, status: 'ACCEPTED' | 'DECLINED') =>
     api.patch(`/maintenance-bot/recommendations/${id}`, { status }),
+  getSeasonalTips: (): Promise<{ season: string; tips: SeasonalTip[]; annualTips: SeasonalTip[] }> =>
+    api.get('/maintenance-bot/seasonal-tips') as any,
 };
 
 export const uploadsApi = {

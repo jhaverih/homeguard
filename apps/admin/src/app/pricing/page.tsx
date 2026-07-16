@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { pricingApi, subscriptionsApi, adminApi } from '@/lib/api';
 
 const STRIPE_RATE = 0.029;
@@ -11,6 +11,20 @@ function calcPricing(providerCost: number, markupPct: number) {
   const stripeFee = subtotal * STRIPE_RATE + STRIPE_FIXED;
   const customerPrice = subtotal + stripeFee;
   return { markupDollar, stripeFee, customerPrice };
+}
+
+// Mirrors apps/api/src/pricing/pricing.utils.ts calcTieredCost() — kept in
+// sync manually since this is a client-side preview, not a shared package.
+function calcTieredCost(state: EditState, qty: number): number {
+  const basePrice = parseFloat(state.basePrice) || 0;
+  if (state.pricingMethod !== 'PER_UNIT') return basePrice;
+  const include = state.includeQty !== '' ? parseFloat(state.includeQty) || 0 : 1;
+  const baseRate = state.baseRateUnit !== '' ? parseFloat(state.baseRateUnit) || 0 : basePrice;
+  const threshold = state.volumeDiscountThreshold !== '' ? parseFloat(state.volumeDiscountThreshold) || 0 : Infinity;
+  const volRate = state.volumeDiscountRate !== '' ? parseFloat(state.volumeDiscountRate) || 0 : 0;
+  const tier2Qty = Math.max(0, Math.min(qty, threshold) - include);
+  const tier3Qty = Math.max(0, qty - threshold);
+  return basePrice + tier2Qty * baseRate + tier3Qty * volRate;
 }
 
 function parseCsvLine(line: string): string[] {
@@ -32,33 +46,92 @@ function parseCsvLine(line: string): string[] {
   return values;
 }
 
+const PRICING_METHODS: { value: string; label: string }[] = [
+  { value: 'FLAT_PRICE', label: 'Flat Price' },
+  { value: 'PER_UNIT', label: 'Per Unit' },
+  { value: 'ONE_TIME_FEE', label: 'One-Time Fee' },
+  { value: 'REQUEST_QUOTE', label: 'Request Quote' },
+];
+
+const UNIT_LABELS: { value: string; label: string }[] = [
+  { value: 'HOUR', label: 'Hour' },
+  { value: 'SQ_FT', label: 'SqFt' },
+  { value: 'BULB', label: 'Bulb' },
+  { value: 'SERVICE_TRIP', label: 'Service Trip' },
+  { value: 'AC_UNIT', label: 'AC Unit' },
+  { value: 'HOLE', label: 'Hole' },
+  { value: 'LINEAR_FEET', label: 'Linear Feet' },
+  { value: 'UNIT', label: 'Unit' },
+  { value: 'NONE', label: 'None' },
+];
+
+const CATEGORIES: { value: string; label: string }[] = [
+  { value: 'INTERIOR_REPAIRS_MAINTENANCE', label: 'Interior Repairs and Maintenance' },
+  { value: 'MINOR_ELECTRICAL_ADJUSTMENTS', label: 'Minor Electrical Adjustments' },
+  { value: 'MINOR_PLUMBING_FIXES', label: 'Minor Plumbing Fixes' },
+  { value: 'MOUNTING_INSTALLATIONS', label: 'Mounting and Installations' },
+  { value: 'CARPENTRY_ASSEMBLY', label: 'Carpentry and Assembly' },
+  { value: 'EXTERIOR_OUTDOOR_SERVICES', label: 'Exterior and Outdoor Services' },
+];
+const CATEGORY_RANK = new Map(CATEGORIES.map((c, i) => [c.value, i]));
+const categoryLabel = (v: string | null) => CATEGORIES.find((c) => c.value === v)?.label ?? 'Uncategorized';
+
 type PriceRow = {
   id: string;
   name: string;
   description: string;
-  priceNote: string | null;
+  priceDisplay: string;
+  pricingMethod: string;
   requiresQuote: boolean;
   basePrice: number;
   markupPercent: number | null;
   quantityLabel: string | null;
   minimumQuantity: number | null;
+  includeQty: number | null;
+  baseRateUnit: number | null;
+  volumeDiscountThreshold: number | null;
+  volumeDiscountRate: number | null;
   isActive: boolean;
   requiredCapabilityId: string | null;
+  category: string | null;
   customerRequestable: boolean;
 };
 
 type EditState = {
   name: string;
   description: string;
-  priceNote: string;
+  pricingMethod: string;
   requiresQuote: boolean;
   basePrice: string;
   markupPercent: string;
   quantityLabel: string;
   minimumQuantity: string;
+  includeQty: string;
+  baseRateUnit: string;
+  volumeDiscountThreshold: string;
+  volumeDiscountRate: string;
   requiredCapabilityId: string;
+  category: string;
   customerRequestable: boolean;
 };
+
+// Keeps the "Quote Only" checkbox and the Pricing method dropdown from ever
+// disagreeing, matching the same sync rule enforced server-side.
+function syncQuoteFields(base: EditState, field: 'requiresQuote' | 'pricingMethod', value: any): Partial<EditState> {
+  if (field === 'requiresQuote') {
+    return value
+      ? { requiresQuote: true, pricingMethod: 'REQUEST_QUOTE' }
+      : { requiresQuote: false, pricingMethod: base.pricingMethod === 'REQUEST_QUOTE' ? 'FLAT_PRICE' : base.pricingMethod };
+  }
+  return {
+    pricingMethod: value,
+    requiresQuote: value === 'REQUEST_QUOTE',
+    // Mirrors the entity's syncUnitLabel hook: a single fixed fee never has
+    // a meaningful unit count. Per Unit / Request Quote keep whatever Unit
+    // Label is already set (independently chosen, not auto-suggested).
+    quantityLabel: (value === 'FLAT_PRICE' || value === 'ONE_TIME_FEE') ? 'NONE' : base.quantityLabel,
+  };
+}
 
 export default function PricingPage() {
   const [prices, setPrices] = useState<PriceRow[]>([]);
@@ -71,12 +144,16 @@ export default function PricingPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [addingRow, setAddingRow] = useState(false);
   const [newRow, setNewRow] = useState<EditState>({
-    name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '',
-    requiredCapabilityId: '', customerRequestable: true,
+    name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
+    includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
+    requiredCapabilityId: '', category: '', customerRequestable: true,
   });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState('');
+  const [bulkApplying, setBulkApplying] = useState(false);
 
   useEffect(() => {
     Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
@@ -95,13 +172,18 @@ export default function PricingPage() {
     return {
       name: price.name,
       description: price.description ?? '',
-      priceNote: price.priceNote ?? '',
+      pricingMethod: price.pricingMethod ?? 'FLAT_PRICE',
       requiresQuote: price.requiresQuote ?? false,
       basePrice: String(price.basePrice),
       markupPercent: price.markupPercent != null ? String(price.markupPercent) : '',
-      quantityLabel: price.quantityLabel ?? '',
+      quantityLabel: price.quantityLabel ?? 'NONE',
       minimumQuantity: price.minimumQuantity != null ? String(price.minimumQuantity) : '',
+      includeQty: price.includeQty != null ? String(price.includeQty) : '',
+      baseRateUnit: price.baseRateUnit != null ? String(price.baseRateUnit) : '',
+      volumeDiscountThreshold: price.volumeDiscountThreshold != null ? String(price.volumeDiscountThreshold) : '',
+      volumeDiscountRate: price.volumeDiscountRate != null ? String(price.volumeDiscountRate) : '',
       requiredCapabilityId: price.requiredCapabilityId ?? '',
+      category: price.category ?? '',
       customerRequestable: price.customerRequestable ?? true,
     };
   }
@@ -122,13 +204,18 @@ export default function PricingPage() {
       const updated = await pricingApi.update(id, {
         name: state.name,
         description: state.description,
-        priceNote: state.priceNote || null,
+        pricingMethod: state.pricingMethod,
         requiresQuote: state.requiresQuote,
         basePrice: parseFloat(state.basePrice) || 0,
         markupPercent: state.markupPercent !== '' ? parseFloat(state.markupPercent) : null,
-        quantityLabel: state.quantityLabel || null,
+        quantityLabel: state.quantityLabel || 'NONE',
         minimumQuantity: state.minimumQuantity !== '' ? parseFloat(state.minimumQuantity) : null,
+        includeQty: state.includeQty !== '' ? parseFloat(state.includeQty) : null,
+        baseRateUnit: state.baseRateUnit !== '' ? parseFloat(state.baseRateUnit) : null,
+        volumeDiscountThreshold: state.volumeDiscountThreshold !== '' ? parseFloat(state.volumeDiscountThreshold) : null,
+        volumeDiscountRate: state.volumeDiscountRate !== '' ? parseFloat(state.volumeDiscountRate) : null,
         requiredCapabilityId: state.requiredCapabilityId || null,
+        category: state.category || null,
         customerRequestable: state.customerRequestable,
       });
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
@@ -144,6 +231,39 @@ export default function PricingPage() {
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, isActive: !current } : p));
     } finally {
       setSaving((s) => { const n = new Set(s); n.delete(id); return n; });
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const toggleSelectAll = (ids: string[]) => {
+    setSelectedIds((prev) => (prev.size === ids.length ? new Set() : new Set(ids)));
+  };
+
+  const selectGroup = (ids: string[]) => {
+    setSelectedIds(new Set(ids));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setBulkCategory('');
+  };
+
+  const applyBulkCategory = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkApplying(true);
+    try {
+      await pricingApi.bulkUpdateCategory([...selectedIds], bulkCategory || null);
+      await reload();
+      clearSelection();
+    } finally {
+      setBulkApplying(false);
     }
   };
 
@@ -166,20 +286,26 @@ export default function PricingPage() {
       const created = await pricingApi.create({
         name: newRow.name,
         description: newRow.description,
-        priceNote: newRow.priceNote || null,
+        pricingMethod: newRow.pricingMethod,
         requiresQuote: newRow.requiresQuote,
         basePrice: parseFloat(newRow.basePrice) || 0,
         markupPercent: newRow.markupPercent !== '' ? parseFloat(newRow.markupPercent) : null,
-        quantityLabel: newRow.quantityLabel || null,
+        quantityLabel: newRow.quantityLabel || 'NONE',
         minimumQuantity: newRow.minimumQuantity !== '' ? parseFloat(newRow.minimumQuantity) : null,
+        includeQty: newRow.includeQty !== '' ? parseFloat(newRow.includeQty) : null,
+        baseRateUnit: newRow.baseRateUnit !== '' ? parseFloat(newRow.baseRateUnit) : null,
+        volumeDiscountThreshold: newRow.volumeDiscountThreshold !== '' ? parseFloat(newRow.volumeDiscountThreshold) : null,
+        volumeDiscountRate: newRow.volumeDiscountRate !== '' ? parseFloat(newRow.volumeDiscountRate) : null,
         requiredCapabilityId: newRow.requiredCapabilityId || null,
+        category: newRow.category || null,
         customerRequestable: newRow.customerRequestable,
       });
       setPrices((prev) => [...prev, created]);
       setEditStates((prev) => ({ ...prev, [created.id]: rowToEdit(created) }));
       setNewRow({
-        name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '',
-        requiredCapabilityId: '', customerRequestable: true,
+        name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
+        includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
+        requiredCapabilityId: '', category: '', customerRequestable: true,
       });
       setAddingRow(false);
     } finally {
@@ -188,25 +314,36 @@ export default function PricingPage() {
   };
 
   const updateField = (id: string, field: keyof EditState, value: any) =>
-    setEditStates((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+    setEditStates((prev) => {
+      const base = prev[id];
+      const patch = (field === 'requiresQuote' || field === 'pricingMethod')
+        ? syncQuoteFields(base, field, value)
+        : { [field]: value };
+      return { ...prev, [id]: { ...base, ...patch } };
+    });
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   const exportCsv = () => {
-    const headers = ['name', 'description', 'priceNote', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'isActive', 'customerRequestable'];
+    const headers = ['name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category'];
     const rows = prices.map((p) => {
       const s = editStates[p.id];
       const esc = (v: string) => `"${(v || '').replace(/"/g, '""')}"`;
       return [
         esc(s?.name || p.name),
         esc(s?.description || p.description || ''),
-        esc(s?.priceNote || p.priceNote || ''),
+        esc(s?.pricingMethod || p.pricingMethod || 'FLAT_PRICE'),
         s?.requiresQuote ? 'true' : 'false',
         s?.basePrice || String(p.basePrice),
         s?.markupPercent || (p.markupPercent != null ? String(p.markupPercent) : ''),
         esc(s?.quantityLabel || p.quantityLabel || ''),
         s?.minimumQuantity || (p.minimumQuantity != null ? String(p.minimumQuantity) : ''),
+        s?.includeQty || (p.includeQty != null ? String(p.includeQty) : ''),
+        s?.baseRateUnit || (p.baseRateUnit != null ? String(p.baseRateUnit) : ''),
+        s?.volumeDiscountThreshold || (p.volumeDiscountThreshold != null ? String(p.volumeDiscountThreshold) : ''),
+        s?.volumeDiscountRate || (p.volumeDiscountRate != null ? String(p.volumeDiscountRate) : ''),
         p.isActive ? 'true' : 'false',
         (s?.customerRequestable ?? p.customerRequestable) ? 'true' : 'false',
+        esc(s?.category || p.category || ''),
       ].join(',');
     });
     const csv = [headers.join(','), ...rows].join('\r\n');
@@ -241,14 +378,19 @@ export default function PricingPage() {
 
         const payload = {
           description: row.description || '',
-          priceNote: row.priceNote || null,
+          pricingMethod: row.pricingMethod || 'FLAT_PRICE',
           requiresQuote: row.requiresQuote === 'true',
           basePrice: parseFloat(row.basePrice) || 0,
           markupPercent: row.markupPercent !== '' && row.markupPercent != null ? parseFloat(row.markupPercent) : null,
           quantityLabel: row.quantityLabel || null,
           minimumQuantity: row.minimumQuantity !== '' && row.minimumQuantity != null ? parseFloat(row.minimumQuantity) : null,
+          includeQty: row.includeQty !== '' && row.includeQty != null ? parseFloat(row.includeQty) : null,
+          baseRateUnit: row.baseRateUnit !== '' && row.baseRateUnit != null ? parseFloat(row.baseRateUnit) : null,
+          volumeDiscountThreshold: row.volumeDiscountThreshold !== '' && row.volumeDiscountThreshold != null ? parseFloat(row.volumeDiscountThreshold) : null,
+          volumeDiscountRate: row.volumeDiscountRate !== '' && row.volumeDiscountRate != null ? parseFloat(row.volumeDiscountRate) : null,
           isActive: row.isActive !== 'false',
           customerRequestable: row.customerRequestable !== 'false',
+          category: row.category || null,
         };
 
         const existing = prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
@@ -277,9 +419,17 @@ export default function PricingPage() {
 
   if (loading) return <div className="text-steel p-8">Loading...</div>;
 
+  // Sorted purely for display — doesn't touch `prices` state or any
+  // edit/save logic, so a newly-added row lands at the bottom until reload.
+  const sortedPrices = [...prices].sort((a, b) => {
+    const ai = CATEGORY_RANK.get(a.category ?? '') ?? CATEGORIES.length;
+    const bi = CATEGORY_RANK.get(b.category ?? '') ?? CATEGORIES.length;
+    return ai - bi;
+  });
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-lantern-deep mb-2">Pricing Management</h1>
+      <h1 className="text-2xl font-bold text-lantern-deep mb-2">Services Management</h1>
       <p className="text-steel mb-8">Edit service names, descriptions, pricing notes, and rates. Changes save on blur.</p>
 
       {/* Subscription Plans */}
@@ -344,6 +494,36 @@ export default function PricingPage() {
           </div>
         </div>
 
+        {/* Bulk category action bar */}
+        {selectedIds.size > 0 && (
+          <div className="mx-6 mt-4 bg-mist border border-lantern rounded-xl p-4 flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-semibold text-ink">{selectedIds.size} selected</span>
+            <select
+              value={bulkCategory}
+              onChange={(e) => setBulkCategory(e.target.value)}
+              className="border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+            >
+              <option value="">Uncategorized</option>
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={applyBulkCategory}
+              disabled={bulkApplying}
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep hover:text-white transition-colors disabled:opacity-50"
+            >
+              {bulkApplying ? 'Applying…' : 'Apply Category'}
+            </button>
+            <button
+              onClick={clearSelection}
+              className="text-steel text-sm font-semibold px-3 py-2 hover:text-ink transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* Import result */}
         {importResult && (
           <div className="mx-6 mt-4 bg-canvas border border-border rounded-xl p-4">
@@ -355,19 +535,33 @@ export default function PricingPage() {
         )}
 
         <div className="overflow-x-auto mt-2">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm sticky-thead">
             <thead>
               <tr className="border-b border-mist-dim bg-canvas/70">
+                <th className="px-3 py-3 text-center font-semibold text-steel w-10">
+                  <input
+                    type="checkbox"
+                    checked={sortedPrices.length > 0 && selectedIds.size === sortedPrices.length}
+                    onChange={() => toggleSelectAll(sortedPrices.map((p) => p.id))}
+                    className="w-4 h-4 rounded cursor-pointer accent-lantern"
+                    title="Select all"
+                  />
+                </th>
                 <th className="px-3 py-3 text-left font-semibold text-steel w-16">Active</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[160px]">Name</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[200px]">Description</th>
-                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[130px]">Price Note</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[150px]">Pricing Method</th>
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Quote Only</th>
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Customer Requestable</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel w-40">Required Capability</th>
-                <th className="px-4 py-3 text-left font-semibold text-steel w-28">Qty Label</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">Category</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel w-32">Unit Label</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24">Min. Qty</th>
-                <th className="px-4 py-3 text-right font-semibold text-steel w-28">Base Price</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-28">Provider Price</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — units covered by Provider Price before per-unit tiering starts">Includes Up To</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — per-unit rate for quantity between Includes Up To and Discount Threshold">Base Rate/Unit</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — quantity at which the discounted rate kicks in; leave blank for no volume discount tier">Discount Threshold</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — per-unit rate beyond Discount Threshold">Discount Rate</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24">Markup %</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Customer Price</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Global Markup</th>
@@ -375,20 +569,54 @@ export default function PricingPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-canvas">
-              {prices.map((price) => {
+              {sortedPrices.map((price, idx) => {
                 const state = editStates[price.id];
                 if (!state) return null;
-                const providerCost = parseFloat(state.basePrice) || 0;
                 const effectivePct = state.markupPercent !== ''
                   ? (parseFloat(state.markupPercent) || 0)
                   : (parseFloat(globalMarkup) || 0);
-                const { customerPrice } = calcPricing(providerCost, effectivePct);
+                // Preview at the effective minimum quantity for Per Unit services, so
+                // editing Min. Qty actually moves the displayed Customer Price. Cost
+                // itself runs through the same tiered formula the server uses.
+                const previewQty = state.pricingMethod === 'PER_UNIT'
+                  ? Math.max(1, parseFloat(state.minimumQuantity) || 1)
+                  : 1;
+                const previewCost = calcTieredCost(state, previewQty);
+                const { customerPrice } = calcPricing(previewCost, effectivePct);
                 const isSaving = saving.has(price.id);
                 const isDeleting = deletingId === price.id;
                 const inactive = !price.isActive;
+                const showDivider = idx === 0 || sortedPrices[idx - 1].category !== price.category;
 
                 return (
-                  <tr key={price.id} className={`hover:bg-canvas/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
+                  <Fragment key={price.id}>
+                  {showDivider && (
+                    <tr className="bg-canvas/70">
+                      <td colSpan={20} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-steel">
+                        <div className="flex items-center gap-3">
+                          <span>{categoryLabel(price.category)}</span>
+                          <button
+                            onClick={() => selectGroup(
+                              sortedPrices.filter((p) => p.category === price.category).map((p) => p.id)
+                            )}
+                            className="normal-case font-semibold text-lantern-deep hover:underline"
+                          >
+                            Select all
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  <tr className={`hover:bg-canvas/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
+                    {/* Row select */}
+                    <td className="px-3 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(price.id)}
+                        onChange={() => toggleSelect(price.id)}
+                        className="w-4 h-4 rounded cursor-pointer accent-lantern"
+                      />
+                    </td>
                     {/* Active toggle */}
                     <td className="px-3 py-3 text-center">
                       <button
@@ -419,16 +647,21 @@ export default function PricingPage() {
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-xs text-steel focus:border-lantern outline-none resize-none"
                       />
                     </td>
-                    {/* Price Note */}
+                    {/* Pricing Method */}
                     <td className="px-4 py-3">
-                      <input
-                        type="text"
-                        value={state.priceNote}
-                        onChange={(e) => updateField(price.id, 'priceNote', e.target.value)}
-                        onBlur={() => savePrice(price.id)}
-                        placeholder="e.g. $75/hr"
-                        className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
-                      />
+                      <select
+                        value={state.pricingMethod}
+                        disabled={state.requiresQuote}
+                        onChange={(e) => {
+                          updateField(price.id, 'pricingMethod', e.target.value);
+                          setTimeout(() => savePrice(price.id), 0);
+                        }}
+                        className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {PRICING_METHODS.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
                     </td>
                     {/* Requires Quote */}
                     <td className="px-4 py-3 text-center">
@@ -471,16 +704,36 @@ export default function PricingPage() {
                         ))}
                       </select>
                     </td>
-                    {/* Quantity Label */}
+                    {/* Category */}
                     <td className="px-4 py-3">
-                      <input
-                        type="text"
-                        value={state.quantityLabel}
-                        onChange={(e) => updateField(price.id, 'quantityLabel', e.target.value)}
-                        onBlur={() => savePrice(price.id)}
-                        placeholder="e.g. sq ft"
+                      <select
+                        value={state.category}
+                        onChange={(e) => {
+                          updateField(price.id, 'category', e.target.value);
+                          setTimeout(() => savePrice(price.id), 0);
+                        }}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
-                      />
+                      >
+                        <option value="">Uncategorized</option>
+                        {CATEGORIES.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    {/* Unit Label */}
+                    <td className="px-4 py-3">
+                      <select
+                        value={state.quantityLabel || 'NONE'}
+                        onChange={(e) => {
+                          updateField(price.id, 'quantityLabel', e.target.value);
+                          setTimeout(() => savePrice(price.id), 0);
+                        }}
+                        className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
+                      >
+                        {UNIT_LABELS.map((u) => (
+                          <option key={u.value} value={u.value}>{u.label}</option>
+                        ))}
+                      </select>
                     </td>
                     {/* Minimum Quantity */}
                     <td className="px-4 py-3">
@@ -494,7 +747,7 @@ export default function PricingPage() {
                         min="0"
                       />
                     </td>
-                    {/* Base Price */}
+                    {/* Provider Price */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <span className="text-steel text-xs">$</span>
@@ -502,6 +755,58 @@ export default function PricingPage() {
                           type="number"
                           value={state.basePrice}
                           onChange={(e) => updateField(price.id, 'basePrice', e.target.value)}
+                          onBlur={() => savePrice(price.id)}
+                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                          min="0" step="0.01"
+                        />
+                      </div>
+                    </td>
+                    {/* Includes Up To */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        value={state.includeQty}
+                        onChange={(e) => updateField(price.id, 'includeQty', e.target.value)}
+                        onBlur={() => savePrice(price.id)}
+                        placeholder="1"
+                        className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        min="0" step="0.01"
+                      />
+                    </td>
+                    {/* Base Rate/Unit */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-steel text-xs">$</span>
+                        <input
+                          type="number"
+                          value={state.baseRateUnit}
+                          onChange={(e) => updateField(price.id, 'baseRateUnit', e.target.value)}
+                          onBlur={() => savePrice(price.id)}
+                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                          min="0" step="0.01"
+                        />
+                      </div>
+                    </td>
+                    {/* Discount Threshold */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        value={state.volumeDiscountThreshold}
+                        onChange={(e) => updateField(price.id, 'volumeDiscountThreshold', e.target.value)}
+                        onBlur={() => savePrice(price.id)}
+                        placeholder="None"
+                        className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        min="0" step="0.01"
+                      />
+                    </td>
+                    {/* Discount Rate */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-steel text-xs">$</span>
+                        <input
+                          type="number"
+                          value={state.volumeDiscountRate}
+                          onChange={(e) => updateField(price.id, 'volumeDiscountRate', e.target.value)}
                           onBlur={() => savePrice(price.id)}
                           className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                           min="0" step="0.01"
@@ -560,12 +865,14 @@ export default function PricingPage() {
                       )}
                     </td>
                   </tr>
+                  </Fragment>
                 );
               })}
 
               {/* Add new row */}
               {addingRow && (
                 <tr className="bg-mist-dim/30 border-t-2 border-lantern">
+                  <td className="px-3 py-3" />
                   <td className="px-3 py-3" />
                   <td className="px-4 py-3">
                     <input
@@ -587,19 +894,22 @@ export default function PricingPage() {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <input
-                      type="text"
-                      value={newRow.priceNote}
-                      onChange={(e) => setNewRow((p) => ({ ...p, priceNote: e.target.value }))}
-                      placeholder="e.g. $75/hr"
-                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
-                    />
+                    <select
+                      value={newRow.pricingMethod}
+                      disabled={newRow.requiresQuote}
+                      onChange={(e) => setNewRow((p) => ({ ...p, ...syncQuoteFields(p, 'pricingMethod', e.target.value) }))}
+                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {PRICING_METHODS.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <input
                       type="checkbox"
                       checked={newRow.requiresQuote}
-                      onChange={(e) => setNewRow((p) => ({ ...p, requiresQuote: e.target.checked }))}
+                      onChange={(e) => setNewRow((p) => ({ ...p, ...syncQuoteFields(p, 'requiresQuote', e.target.checked) }))}
                       className="w-4 h-4 rounded cursor-pointer accent-lantern"
                     />
                   </td>
@@ -624,13 +934,27 @@ export default function PricingPage() {
                     </select>
                   </td>
                   <td className="px-4 py-3">
-                    <input
-                      type="text"
-                      value={newRow.quantityLabel}
-                      onChange={(e) => setNewRow((p) => ({ ...p, quantityLabel: e.target.value }))}
-                      placeholder="e.g. sq ft"
+                    <select
+                      value={newRow.category}
+                      onChange={(e) => setNewRow((p) => ({ ...p, category: e.target.value }))}
                       className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
-                    />
+                    >
+                      <option value="">Uncategorized</option>
+                      {CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={newRow.quantityLabel || 'NONE'}
+                      onChange={(e) => setNewRow((p) => ({ ...p, quantityLabel: e.target.value }))}
+                      className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
+                    >
+                      {UNIT_LABELS.map((u) => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-4 py-3">
                     <input
@@ -655,6 +979,50 @@ export default function PricingPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      value={newRow.includeQty}
+                      onChange={(e) => setNewRow((p) => ({ ...p, includeQty: e.target.value }))}
+                      placeholder="1"
+                      className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                      min="0" step="0.01"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <span className="text-steel text-xs">$</span>
+                      <input
+                        type="number"
+                        value={newRow.baseRateUnit}
+                        onChange={(e) => setNewRow((p) => ({ ...p, baseRateUnit: e.target.value }))}
+                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        min="0" step="0.01"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      value={newRow.volumeDiscountThreshold}
+                      onChange={(e) => setNewRow((p) => ({ ...p, volumeDiscountThreshold: e.target.value }))}
+                      placeholder="None"
+                      className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                      min="0" step="0.01"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <span className="text-steel text-xs">$</span>
+                      <input
+                        type="number"
+                        value={newRow.volumeDiscountRate}
+                        onChange={(e) => setNewRow((p) => ({ ...p, volumeDiscountRate: e.target.value }))}
+                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        min="0" step="0.01"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <input
                         type="number"
@@ -671,7 +1039,7 @@ export default function PricingPage() {
                   <td className="pr-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', priceNote: '', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: '', minimumQuantity: '', requiredCapabilityId: '', customerRequestable: true }); }}
+                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', customerRequestable: true }); }}
                         className="text-steel hover:text-ink text-sm px-2 py-1"
                       >
                         Cancel
@@ -700,7 +1068,7 @@ export default function PricingPage() {
         {/* CSV format hint */}
         <div className="p-4 border-t border-mist-dim">
           <p className="text-xs text-steel">
-            <strong>CSV format:</strong> name, description, priceNote, requiresQuote (true/false), basePrice, markupPercent, quantityLabel, minimumQuantity, isActive (true/false), customerRequestable (true/false) — existing rows matched by name, new names are created. Required Capability isn&apos;t part of CSV — set it per-row in the table above.
+            <strong>CSV format:</strong> name, description, pricingMethod (FLAT_PRICE/PER_UNIT/ONE_TIME_FEE/REQUEST_QUOTE), requiresQuote (true/false), basePrice, markupPercent, quantityLabel (HOUR/SQ_FT/BULB/SERVICE_TRIP/AC_UNIT/HOLE/LINEAR_FEET/UNIT/NONE — the Unit Label), minimumQuantity, includeQty, baseRateUnit, volumeDiscountThreshold, volumeDiscountRate, isActive (true/false), customerRequestable (true/false), category (INTERIOR_REPAIRS_MAINTENANCE/MINOR_ELECTRICAL_ADJUSTMENTS/MINOR_PLUMBING_FIXES/MOUNTING_INSTALLATIONS/CARPENTRY_ASSEMBLY/EXTERIOR_OUTDOOR_SERVICES, or blank) — existing rows matched by name, new names are created. includeQty/baseRateUnit/volumeDiscountThreshold/volumeDiscountRate only apply to Per Unit services (blank = flat qty × basePrice, matching pre-tiered behavior). Required Capability isn&apos;t part of CSV — set it per-row in the table above.
           </p>
         </div>
       </div>

@@ -5,13 +5,14 @@ import { PaymentsController } from './payments.controller';
 import { Payment } from './entities/payment.entity';
 import { AdditionalService } from '../service-requests/entities/additional-service.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
+import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, AdditionalService, ServiceRequest]),
+    TypeOrmModule.forFeature([Payment, AdditionalService, ServiceRequest, VendorMembershipPayment]),
     NotificationsModule,
     UsersModule,
     SubscriptionsModule,

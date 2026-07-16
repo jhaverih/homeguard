@@ -18,6 +18,7 @@ import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../co
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { emailEquals } from '../common/utils/email.util';
 
 const CAPABILITY_SEED: {
@@ -81,6 +82,7 @@ export class VendorService implements OnModuleInit {
     private usersService: UsersService,
     private authService: AuthService,
     private uploadsService: UploadsService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async onModuleInit() {
@@ -278,7 +280,16 @@ export class VendorService implements OnModuleInit {
     const company = await this.requireCompany(userId);
     if (company.planTier === 'ELITE') return company;
     company.eliteRequestedAt = new Date();
-    return this.companyRepo.save(company);
+    const saved = await this.companyRepo.save(company);
+
+    await this.notificationsService.notifyAdmins(
+      NotificationType.ELITE_REQUESTED,
+      'Elite Plan Requested',
+      `${company.name} has requested an upgrade to the Elite plan.`,
+      { vendorCompanyId: company.id },
+    );
+
+    return saved;
   }
 
   async retractEliteRequest(userId: string) {

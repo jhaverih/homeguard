@@ -89,13 +89,36 @@ export class NotificationsService {
     body: string,
     data?: Record<string, unknown>,
   ): Promise<void> {
+    await this.notifyUsers(vendors, type, title, body, data);
+  }
+
+  // Fans a notification out to every active ADMIN-role user — there was
+  // previously no admin-broadcast mechanism at all (company applications
+  // and certifications rely on an admin manually visiting the review page).
+  async notifyAdmins(
+    type: NotificationType,
+    title: string,
+    body: string,
+    data?: Record<string, unknown>,
+  ): Promise<void> {
+    const admins = await this.usersService.findAdminTeamUsers();
+    await this.notifyUsers(admins, type, title, body, data);
+  }
+
+  private async notifyUsers(
+    users: User[],
+    type: NotificationType,
+    title: string,
+    body: string,
+    data?: Record<string, unknown>,
+  ): Promise<void> {
     const tokens: string[] = [];
 
-    for (const vendor of vendors) {
-      const notification = this.notificationsRepo.create({ userId: vendor.id, type, title, body, data });
+    for (const user of users) {
+      const notification = this.notificationsRepo.create({ userId: user.id, type, title, body, data });
       await this.notificationsRepo.save(notification);
-      if (vendor.expoPushToken && Expo.isExpoPushToken(vendor.expoPushToken)) {
-        tokens.push(vendor.expoPushToken);
+      if (user.expoPushToken && Expo.isExpoPushToken(user.expoPushToken)) {
+        tokens.push(user.expoPushToken);
       }
     }
 
@@ -127,20 +150,20 @@ export class NotificationsService {
   async sendEmail(to: string, firstName: string, subject: string, text: string): Promise<void> {
     if (!this.mailer) return;
 
-    const fromName = this.configService.get<string>('SMTP_FROM_NAME') ?? 'Houmi';
+    const fromName = this.configService.get<string>('SMTP_FROM_NAME') ?? 'Attenteve';
     const fromAddr = this.configService.get<string>('SMTP_USER') ?? '';
 
     const html = `
       <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">
-        <div style="background:#0B4A45;border-radius:12px 12px 0 0;padding:20px 24px">
-          <h1 style="color:#fff;margin:0;font-size:22px">Houmi</h1>
+        <div style="background:#12181C;border-radius:12px 12px 0 0;padding:20px 24px">
+          <h1 style="color:#EDF1F0;margin:0;font-size:22px">Attenteve</h1>
         </div>
-        <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px">
+        <div style="background:#fff;border:1px solid #DEE6E4;border-top:none;border-radius:0 0 12px 12px;padding:24px">
           <p style="margin-top:0">Hi ${firstName},</p>
-          <p style="font-size:16px;font-weight:600;color:#1e293b">${subject}</p>
-          <p style="color:#475569">${text}</p>
-          <p style="color:#94a3b8;font-size:12px;margin-top:32px">
-            You received this because you're a Houmi subscriber. Open the Houmi app to view and manage your alerts.
+          <p style="font-size:16px;font-weight:600;color:#12181C">${subject}</p>
+          <p style="color:#5B6B70">${text}</p>
+          <p style="color:#5B6B70;font-size:12px;margin-top:32px">
+            You received this because you're an Attenteve subscriber. Open the Attenteve app to view and manage your alerts.
           </p>
         </div>
       </div>`;

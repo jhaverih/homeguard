@@ -48,6 +48,31 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 }
 
 /**
+ * Schedule a local, on-device reminder — no push infra/Firebase involved.
+ * Used for "remind me about my next inspection" style features. Requests
+ * notification permission if not already granted (separate from the push
+ * permission requested in registerForPushNotificationsAsync).
+ */
+export async function scheduleLocalReminder(date: Date, title: string, body: string): Promise<string | null> {
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  if (finalStatus !== 'granted') return null;
+
+  const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000; // 24h before
+  const triggerDate = new Date(date.getTime() - REMINDER_LEAD_MS);
+  if (triggerDate.getTime() <= Date.now()) return null;
+
+  return Notifications.scheduleNotificationAsync({
+    content: { title, body },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+  });
+}
+
+/**
  * Set up listeners for the app session.
  * - Foreground alerts are shown automatically by setNotificationHandler above.
  * - onIncrement: called when a notification arrives in foreground (bumps badge count).

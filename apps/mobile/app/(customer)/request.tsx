@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Modal, Platform, KeyboardAvoidingView,
@@ -7,6 +7,7 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, userApi, subscriptionsApi, pricingApi, standaloneServiceApi } from '../../src/services/api';
+import { scheduleLocalReminder } from '../../src/services/notifications';
 import { fmtUSD } from '../../src/utils/currency';
 import { colors } from '../../src/theme';
 
@@ -68,6 +69,24 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
   );
 }
 
+const CATEGORY_ORDER = ['INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUSTMENTS', 'MINOR_PLUMBING_FIXES', 'MOUNTING_INSTALLATIONS', 'CARPENTRY_ASSEMBLY', 'EXTERIOR_OUTDOOR_SERVICES'];
+const CATEGORY_LABELS: Record<string, string> = {
+  INTERIOR_REPAIRS_MAINTENANCE: 'Interior Repairs and Maintenance',
+  MINOR_ELECTRICAL_ADJUSTMENTS: 'Minor Electrical Adjustments',
+  MINOR_PLUMBING_FIXES: 'Minor Plumbing Fixes',
+  MOUNTING_INSTALLATIONS: 'Mounting and Installations',
+  CARPENTRY_ASSEMBLY: 'Carpentry and Assembly',
+  EXTERIOR_OUTDOOR_SERVICES: 'Exterior and Outdoor Services',
+};
+
+// Unit Label is now a fixed enum on the backend (not free text), so this
+// maps the stored key to its display string instead of naively capitalizing.
+const UNIT_LABEL_DISPLAY: Record<string, string> = {
+  HOUR: 'Hour', SQ_FT: 'SqFt', BULB: 'Bulb', SERVICE_TRIP: 'Service Trip', AC_UNIT: 'AC Unit', NONE: 'None',
+};
+const unitLabelDisplay = (key: string | null | undefined) => (key ? UNIT_LABEL_DISPLAY[key] ?? key : '');
+const hasUnitLabel = (item: any) => !!item?.quantityLabel && item.quantityLabel !== 'NONE';
+
 export default function RequestScreen() {
   const [tab, setTab] = useState<'inspection' | 'service'>('inspection');
   const [loading, setLoading] = useState(false);
@@ -77,6 +96,12 @@ export default function RequestScreen() {
   // Catalog for service tab
   const [catalog, setCatalog] = useState<any[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  // Derived, display-only ordering — doesn't touch `catalog` itself, which
+  // other logic (preselect matching, fetch guard) reads independent of order.
+  const sortedCatalog = useMemo(() => {
+    const rank = (c: string | null) => { const i = CATEGORY_ORDER.indexOf(c || ''); return i === -1 ? CATEGORY_ORDER.length : i; };
+    return [...catalog].sort((a, b) => rank(a.category) - rank(b.category));
+  }, [catalog]);
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [serviceQuantities, setServiceQuantities] = useState<Record<string, string>>({});
   const [serviceConfirmModal, setServiceConfirmModal] = useState(false);
@@ -86,7 +111,7 @@ export default function RequestScreen() {
   tomorrow.setHours(9, 0, 0, 0);
   const [preferredDate, setPreferredDate] = useState(tomorrow);
   const [serviceDate, setServiceDate] = useState(new Date(tomorrow));
-  const { prefilledNotes, preselectServicePriceId } = useLocalSearchParams<{ prefilledNotes?: string; preselectServicePriceId?: string }>();
+  const { prefilledNotes, preselectServicePriceId, preferredDate: preferredDateParam } = useLocalSearchParams<{ prefilledNotes?: string; preselectServicePriceId?: string; preferredDate?: string }>();
   const [notes, setNotes] = useState('');
   const [serviceNotes, setServiceNotes] = useState('');
   const [solarMonthlyBill, setSolarMonthlyBill] = useState('');
@@ -96,6 +121,23 @@ export default function RequestScreen() {
   // Profile address — loaded silently, not shown to customer
   const [profileAddress, setProfileAddress] = useState<{ address: string; city: string; state: string; zipCode: string } | null>(null);
 
+  // Auto-scroll to a preselected (e.g. AI-recommended or search-selected)
+  // service so the customer sees exactly what they're booking, instead of
+  // having to scroll down and find it themselves. Tracked via each row's own
+  // onLayout (its y is already relative to the ScrollView's content, since
+  // the rows are direct children with no wrapping View in between) rather
+  // than measureLayout, which depends on TouchableOpacity's ref reliably
+  // exposing a measurable native handle — onLayout doesn't have that risk.
+  const scrollViewRef = useRef<ScrollView>(null);
+  const serviceRowY = useRef<Map<string, number>>(new Map());
+  // Tracks the last preselectServicePriceId this screen has already acted
+  // on, so a genuinely new "Book Now"/search tap starts a fresh booking
+  // draft instead of silently merging with whatever's left over from an
+  // earlier, possibly-abandoned selection (this screen stays mounted across
+  // visits, so component state otherwise persists indefinitely). Reset to
+  // null on Cancel so retapping the same recommendation still re-selects it.
+  const lastPreselectedId = useRef<string | null>(null);
+
   useEffect(() => {
     if (prefilledNotes) setNotes(prefilledNotes);
   }, [prefilledNotes]);
@@ -103,6 +145,15 @@ export default function RequestScreen() {
   useEffect(() => {
     if (preselectServicePriceId) setTab('service');
   }, [preselectServicePriceId]);
+
+  useEffect(() => {
+    if (!preferredDateParam) return;
+    const d = new Date(preferredDateParam);
+    if (!isNaN(d.getTime())) {
+      setPreferredDate(d);
+      setServiceDate(d);
+    }
+  }, [preferredDateParam]);
 
   useEffect(() => {
     userApi.getMe().then((res: any) => {
@@ -119,17 +170,65 @@ export default function RequestScreen() {
       setCatalogLoading(true);
       pricingApi.getAll()
         .then((items: any) => {
-          const filtered = (items || []).filter((i: any) => i.customerRequestable !== false);
-          setCatalog(filtered);
-          if (preselectServicePriceId) {
-            const match = filtered.find((i: any) => i.id === preselectServicePriceId);
-            if (match) setSelectedServices((prev) => (prev.some((s) => s.id === match.id) ? prev : [...prev, match]));
-          }
+          setCatalog((items || []).filter((i: any) => i.customerRequestable !== false));
         })
         .catch(() => {})
         .finally(() => setCatalogLoading(false));
     }
   }, [tab]);
+
+  // Re-runs on every new "Book Now"/search tap (not just the first catalog
+  // fetch), so selection stays in sync with the scroll effect below even
+  // when this screen is already mounted with a populated catalog from an
+  // earlier visit. Replaces (not adds to) the current selection when the
+  // preselect id genuinely changes — each Book Now/search tap represents a
+  // fresh, decisive booking intent, not an incremental cart-add — so a
+  // stale, cancelled-but-never-cleared selection can't linger and merge
+  // with it. Manually checking multiple catalog cards still works exactly
+  // as before via toggleService, unaffected by this.
+  useEffect(() => {
+    if (!preselectServicePriceId || catalog.length === 0) return;
+    if (lastPreselectedId.current === preselectServicePriceId) return;
+    const match = catalog.find((i: any) => i.id === preselectServicePriceId);
+    if (!match) return;
+    lastPreselectedId.current = preselectServicePriceId;
+    setSelectedServices([match]);
+    setServiceQuantities({});
+    setServiceNotes('');
+  }, [preselectServicePriceId, catalog]);
+
+  useEffect(() => {
+    if (!preselectServicePriceId || catalog.length === 0) return;
+    // The row's onLayout only fires after it — and any conditional content
+    // it renders, e.g. the solar fields — has actually been laid out, so
+    // retry until that Y is recorded rather than assuming one frame is enough.
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tryScroll = () => {
+      const y = serviceRowY.current.get(preselectServicePriceId);
+      if (y != null) {
+        scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
+      } else if (attempt++ < 10) {
+        timer = setTimeout(tryScroll, 120);
+      }
+    };
+    timer = setTimeout(tryScroll, 80);
+    return () => clearTimeout(timer);
+  }, [catalog, preselectServicePriceId]);
+
+  // Fully abandons the current service-request draft — used by every
+  // "Cancel" path (the plain link below the form and the confirm modal's
+  // Cancel button) plus after a successful submission, since this screen
+  // stays mounted across visits and nothing else would otherwise clear it.
+  const resetServiceDraft = () => {
+    setSelectedServices([]);
+    setServiceQuantities({});
+    setServiceNotes('');
+    setSolarMonthlyBill('');
+    setSolarInterest('solar_only');
+    setSolarCoverage('whole_home');
+    lastPreselectedId.current = null;
+  };
 
   const inspectionsRemaining = subscription
     ? Math.max(0, (subscription.plan?.inspectionsPerYear ?? 0) - (subscription.inspectionsUsed ?? 0))
@@ -139,22 +238,45 @@ export default function RequestScreen() {
     ? parseFloat(subscription.plan.addonInspectionPrice)
     : 79;
 
-  const customerPrice = (item: any, qty = 1) => {
+  // Mirrors apps/api/src/pricing/pricing.utils.ts calcTieredCost() — kept in
+  // sync manually so the shown estimate matches what the server will charge.
+  const tieredCost = (item: any, qty: number) => {
     const base = parseFloat(item.basePrice);
+    if (item.pricingMethod !== 'PER_UNIT') return base;
+    const include = item.includeQty != null ? parseFloat(item.includeQty) : 1;
+    const baseRate = item.baseRateUnit != null ? parseFloat(item.baseRateUnit) : base;
+    const threshold = item.volumeDiscountThreshold != null ? parseFloat(item.volumeDiscountThreshold) : Infinity;
+    const volRate = item.volumeDiscountRate != null ? parseFloat(item.volumeDiscountRate) : 0;
+    const tier2Qty = Math.max(0, Math.min(qty, threshold) - include);
+    const tier3Qty = Math.max(0, qty - threshold);
+    return base + tier2Qty * baseRate + tier3Qty * volRate;
+  };
+
+  const customerPrice = (item: any, qty = 1) => {
+    const cost = tieredCost(item, qty);
     const markup = item.markupPercent != null ? parseFloat(item.markupPercent) : 15;
-    return Math.ceil(base * qty * (1 + markup / 100) * 1.029 + 0.30);
+    return Math.ceil(cost * (1 + markup / 100) * 1.029 + 0.30);
+  };
+
+  // Per Unit pricing floors the billed quantity at minimumQuantity (when
+  // set) so the shown estimate always matches what will actually be
+  // charged — the minimum is disclosed up front, not silently applied.
+  const billedQtyFor = (item: any) => {
+    if (!hasUnitLabel(item) || item.pricingMethod !== 'PER_UNIT') return 1;
+    const entered = parseFloat(serviceQuantities[item.id] || '1') || 1;
+    const minQty = item.minimumQuantity ? parseFloat(item.minimumQuantity) : 0;
+    return minQty > 0 ? Math.max(entered, minQty) : entered;
   };
 
   const totalServicePrice = selectedServices.reduce((sum, item) => {
     if (item.requiresQuote) return sum;
-    const qty = item.quantityLabel ? (parseFloat(serviceQuantities[item.id] || '1') || 1) : 1;
-    return sum + customerPrice(item, qty);
+    return sum + customerPrice(item, billedQtyFor(item));
   }, 0);
 
   const toggleService = (item: any) => {
     setSelectedServices((prev) => {
       if (prev.some((s) => s.id === item.id)) return prev.filter((s) => s.id !== item.id);
-      if (item.quantityLabel) {
+      if (hasUnitLabel(item)) {
         const minQty = item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '';
         setServiceQuantities((q) => ({ ...q, [item.id]: q[item.id] || minQty }));
       }
@@ -184,6 +306,11 @@ export default function RequestScreen() {
         ...addr,
         isPaidAddon,
       });
+      scheduleLocalReminder(
+        preferredDate,
+        'Upcoming Inspection',
+        `Your Attenteve inspection is coming up on ${preferredDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`,
+      ).catch(() => {});
       Alert.alert(
         'Request Sent!',
         isPaidAddon
@@ -208,17 +335,14 @@ export default function RequestScreen() {
   };
 
   const doSubmitServices = async () => {
-    // Validate quantity minimums
+    // A unit count must be entered — the minimum itself is disclosed up
+    // front (see the qty row's copy) and applied automatically below rather
+    // than blocking submission.
     for (const svc of selectedServices) {
-      if (svc.quantityLabel) {
+      if (hasUnitLabel(svc)) {
         const qty = parseFloat(serviceQuantities[svc.id] || '0');
-        const minQty = svc.minimumQuantity ? parseFloat(svc.minimumQuantity) : 0;
         if (!qty || qty <= 0) {
-          Alert.alert('Quantity Required', `Please enter the number of ${svc.quantityLabel} for ${svc.name}.`);
-          return;
-        }
-        if (minQty > 0 && qty < minQty) {
-          Alert.alert('Minimum Quantity', `The minimum for ${svc.name} is ${minQty} ${svc.quantityLabel}.`);
+          Alert.alert('Quantity Required', `Please enter the number of ${unitLabelDisplay(svc.quantityLabel)} for ${svc.name}.`);
           return;
         }
       }
@@ -234,8 +358,15 @@ export default function RequestScreen() {
       : undefined;
     try {
       for (const svc of selectedServices) {
-        const qty = svc.quantityLabel ? parseFloat(serviceQuantities[svc.id] || '0') : undefined;
-        let notes = qty ? `${qty} ${svc.quantityLabel}${serviceNotes ? ` — ${serviceNotes}` : ''}` : serviceNotes;
+        const enteredQty = hasUnitLabel(svc) ? parseFloat(serviceQuantities[svc.id] || '0') : undefined;
+        // Floors the billed quantity at the disclosed minimum for Per Unit
+        // services; quote-based services with a unit label (e.g. HVAC) just
+        // pass the raw entered count through as quote context.
+        const billedQty = enteredQty && svc.pricingMethod === 'PER_UNIT'
+          ? Math.max(enteredQty, svc.minimumQuantity ? parseFloat(svc.minimumQuantity) : 0)
+          : enteredQty;
+        const unitLabel = unitLabelDisplay(svc.quantityLabel);
+        let notes = billedQty ? `${billedQty} ${unitLabel}${serviceNotes ? ` — ${serviceNotes}` : ''}` : serviceNotes;
         if (svc.name?.toLowerCase().includes('solar') && solarMonthlyBill) {
           const interestLabel = solarInterest === 'solar_battery' ? `Solar + Battery (${solarCoverage === 'whole_home' ? 'Whole Home' : 'Partial Backup'})` : 'Solar Only';
           notes = `Monthly Bill: $${solarMonthlyBill}\nInterest: ${interestLabel}${notes ? `\n${notes}` : ''}`;
@@ -244,15 +375,22 @@ export default function RequestScreen() {
           servicePriceId: svc.id,
           preferredDate: serviceDate.toISOString(),
           customerNotes: notes,
+          ...(billedQty ? { quantity: billedQty } : {}),
           ...(bookingGroupId ? { bookingGroupId } : {}),
           ...addr,
         });
       }
+      const submittedCount = selectedServices.length;
+      const submittedName = selectedServices[0]?.name;
+      // Clear the draft now that it's been submitted — otherwise the
+      // just-booked service(s) would still show as "selected" if the
+      // customer returns to this screen later without a fresh preselect.
+      resetServiceDraft();
       Alert.alert(
         'Service Requested!',
-        selectedServices.length === 1
-          ? `Your request for ${selectedServices[0].name} has been sent.`
-          : `${selectedServices.length} service requests have been sent. You will be notified when vendors accept.`,
+        submittedCount === 1
+          ? `Your request for ${submittedName} has been sent.`
+          : `${submittedCount} service requests have been sent. You will be notified when vendors accept.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e: any) {
@@ -286,7 +424,7 @@ export default function RequestScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Request a Service</Text>
 
         {/* Tab switcher */}
@@ -355,7 +493,7 @@ export default function RequestScreen() {
             <View style={styles.noShowNotice}>
               <Ionicons name="information-circle-outline" size={16} color="#92400e" />
               <Text style={styles.noShowText}>
-                You must be home when the vendor arrives. A missed appointment forfeits the inspection visit. Service calls may incur a truck roll fee.
+                You must be home when the vendor arrives. Cancelling less than 24 hours before your appointment incurs a $25 fee; a no-show is charged the full price of the service.
               </Text>
             </View>
 
@@ -380,12 +518,18 @@ export default function RequestScreen() {
             {catalogLoading ? (
               <ActivityIndicator color={colors.lanternDeep} style={{ marginVertical: 24 }} />
             ) : (
-              catalog.map((item) => {
+              sortedCatalog.map((item, idx) => {
                 const price = customerPrice(item);
                 const isSelected = selectedServices.some((s) => s.id === item.id);
+                const prevCategory = idx > 0 ? sortedCatalog[idx - 1].category : undefined;
+                const showHeader = item.category && item.category !== prevCategory;
                 return (
+                  <Fragment key={item.id}>
+                  {showHeader && (
+                    <Text style={styles.categoryHeader}>{CATEGORY_LABELS[item.category] ?? item.category}</Text>
+                  )}
                   <TouchableOpacity
-                    key={item.id}
+                    onLayout={(e) => { serviceRowY.current.set(item.id, e.nativeEvent.layout.y); }}
                     style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
                     onPress={() => toggleService(item)}
                     activeOpacity={0.85}
@@ -404,25 +548,32 @@ export default function RequestScreen() {
                         )}
                       </View>
                     </View>
-                    {item.priceNote && !item.requiresQuote && (
-                      <Text style={styles.priceNote}>{item.priceNote}</Text>
+                    {item.priceDisplay && !item.requiresQuote && (
+                      <Text style={styles.priceNote}>{item.priceDisplay}</Text>
                     )}
-                    {isSelected && item.quantityLabel && (
-                      <View style={styles.qtyRow}>
-                        <Text style={styles.qtyLabel}>
-                          {item.quantityLabel.charAt(0).toUpperCase() + item.quantityLabel.slice(1)}
-                          {item.minimumQuantity ? ` (min ${item.minimumQuantity})` : ''}
-                        </Text>
-                        <TextInput
-                          style={styles.qtyInput}
-                          placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
-                          placeholderTextColor={colors.steel}
-                          keyboardType="number-pad"
-                          value={serviceQuantities[item.id] || ''}
-                          onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
-                          onPress={(e) => e.stopPropagation?.()}
-                        />
-                      </View>
+                    {isSelected && hasUnitLabel(item) && (
+                      <>
+                        <View style={styles.qtyRow}>
+                          <Text style={styles.qtyLabel}>{unitLabelDisplay(item.quantityLabel)}</Text>
+                          <TextInput
+                            style={styles.qtyInput}
+                            placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
+                            placeholderTextColor={colors.steel}
+                            keyboardType="number-pad"
+                            value={serviceQuantities[item.id] || ''}
+                            onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
+                            onPress={(e) => e.stopPropagation?.()}
+                          />
+                        </View>
+                        {item.pricingMethod === 'PER_UNIT' && item.minimumQuantity > 0 && (
+                          <View style={styles.minQtyNotice}>
+                            <Ionicons name="information-circle-outline" size={14} color="#92400e" />
+                            <Text style={styles.minQtyNoticeText}>
+                              Minimum {Math.ceil(item.minimumQuantity)} {unitLabelDisplay(item.quantityLabel)}{Math.ceil(item.minimumQuantity) !== 1 ? 's' : ''} will apply.
+                            </Text>
+                          </View>
+                        )}
+                      </>
                     )}
                     {isSelected && item.name?.toLowerCase().includes('solar') && (
                       <View style={styles.solarFields}>
@@ -479,6 +630,7 @@ export default function RequestScreen() {
                       </View>
                     )}
                   </TouchableOpacity>
+                  </Fragment>
                 );
               })
             )}
@@ -501,7 +653,7 @@ export default function RequestScreen() {
                 <View style={styles.noShowNotice}>
                   <Ionicons name="information-circle-outline" size={16} color="#92400e" />
                   <Text style={styles.noShowText}>
-                    You must be home when the vendor arrives. No-shows for service calls incur a truck roll fee.
+                    You must be home when the vendor arrives. Cancelling less than 24 hours before your appointment incurs a $25 fee; a no-show is charged the full price of the service.
                   </Text>
                 </View>
 
@@ -551,7 +703,10 @@ export default function RequestScreen() {
           </>
         )}
 
-        <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
+        <TouchableOpacity
+          onPress={() => { resetServiceDraft(); router.back(); }}
+          style={styles.cancelBtn}
+        >
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
 
@@ -592,10 +747,10 @@ export default function RequestScreen() {
               {selectedServices.map((svc) => (
                 <View key={svc.id} style={styles.addonPriceRow}>
                   <Text style={styles.addonPriceLabel}>
-                    {svc.name}{svc.quantityLabel && serviceQuantities[svc.id] ? ` (${serviceQuantities[svc.id]} ${svc.quantityLabel})` : ''}
+                    {svc.name}{hasUnitLabel(svc) && serviceQuantities[svc.id] ? ` (${serviceQuantities[svc.id]} ${unitLabelDisplay(svc.quantityLabel)})` : ''}
                   </Text>
                   <Text style={styles.addonPrice}>
-                    {svc.requiresQuote ? 'Quote' : `$${Number(customerPrice(svc)).toLocaleString('en-US')}`}
+                    {svc.requiresQuote ? 'Quote' : `$${Number(customerPrice(svc, billedQtyFor(svc))).toLocaleString('en-US')}`}
                   </Text>
                 </View>
               ))}
@@ -609,7 +764,10 @@ export default function RequestScreen() {
               <TouchableOpacity style={styles.addonConfirmBtn} onPress={doSubmitServices}>
                 <Text style={styles.addonConfirmText}>Confirm Request</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.addonCancelBtn} onPress={() => setServiceConfirmModal(false)}>
+              <TouchableOpacity
+                style={styles.addonCancelBtn}
+                onPress={() => { setServiceConfirmModal(false); resetServiceDraft(); }}
+              >
                 <Text style={styles.addonCancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -657,6 +815,7 @@ const styles = StyleSheet.create({
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   doneBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
   doneBtnText: { color: colors.ink, fontWeight: '700', fontSize: 16 },
+  categoryHeader: { fontSize: 13, fontWeight: '700', color: colors.steel, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 16, marginBottom: 8 },
   serviceCard: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 10 },
   serviceCardSelected: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   serviceCardRow: { flexDirection: 'row', alignItems: 'center' },
@@ -669,6 +828,8 @@ const styles = StyleSheet.create({
   qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, backgroundColor: colors.mist, borderRadius: 8, padding: 10 },
   qtyLabel: { fontSize: 13, color: colors.lanternDeep, fontWeight: '600', flex: 1 },
   qtyInput: { width: 80, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, fontSize: 14, color: colors.ink, textAlign: 'right' },
+  minQtyNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 6, paddingHorizontal: 2 },
+  minQtyNoticeText: { fontSize: 12, color: '#92400e', lineHeight: 16, flex: 1 },
   totalBar: { backgroundColor: colors.ink, borderRadius: 14, padding: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel: { fontSize: 14, fontWeight: '700', color: colors.mist, marginBottom: 2 },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', maxWidth: 220 },

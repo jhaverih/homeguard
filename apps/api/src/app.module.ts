@@ -20,6 +20,7 @@ import { MaintenanceBotModule } from './maintenance-bot/maintenance-bot.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { YolinkModule } from './yolink/yolink.module';
 import { VendorModule } from './vendor/vendor.module';
+import { CancellationFeedbackModule } from './cancellation-feedback/cancellation-feedback.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { VendorModule } from './vendor/vendor.module';
     AlertsModule,
     YolinkModule,
     VendorModule,
+    CancellationFeedbackModule,
   ],
 })
 export class AppModule {}

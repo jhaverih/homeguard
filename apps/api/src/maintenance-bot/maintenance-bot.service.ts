@@ -1,8 +1,9 @@
 import { Injectable, OnModuleInit, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as chrono from 'chrono-node';
 import { InspectionNote } from '../inspections/entities/inspection.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { ServiceRequestStatus } from '../common/enums/role.enum';
@@ -10,65 +11,39 @@ import { ChatSession } from './entities/chat-session.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { AiRecommendation, AiRecommendationStatus } from './entities/ai-recommendation.entity';
 import { PricingService } from '../pricing/pricing.service';
+import { InspectionsService } from '../inspections/inspections.service';
+import { SEASONAL_TIPS, getCurrentSeason, SeasonGroup } from './seasonal-tips.data';
+import { matchDiyTopicsFromText } from './diy-topics.data';
 
-type Season = 'winter' | 'spring' | 'summer' | 'fall';
-
-const SEASONAL_TASKS: Record<Season, string[]> = {
-  spring: [
-    'Inspect roof and gutters for winter damage',
-    'Service the AC system before cooling season',
-    'Check exterior drainage and grading after snowmelt/spring rain',
-    'Inspect and repair exterior caulking and weatherstripping',
-    'Test sump pump ahead of spring rains',
-    'Power wash siding, deck, and driveway',
-  ],
-  summer: [
-    'Change or clean HVAC filters monthly during heavy use',
-    'Inspect deck and fencing for warping or rot',
-    'Check irrigation system and outdoor faucets for leaks',
-    'Inspect attic ventilation and insulation before peak heat',
-    'Service exterior paint and touch up peeling areas',
-  ],
-  fall: [
-    'Heating system tune-up and filter replacement',
-    'Chimney and fireplace inspection',
-    'Roof, gutters, and shingle inspection before leaf season',
-    'Weatherstripping and door seal check',
-    'Smoke and CO detector battery replacement',
-    'Drain and store outdoor hoses before first freeze',
-  ],
-  winter: [
-    'Inspect for ice dams and roof snow load',
-    'Check pipe insulation in unheated spaces to prevent freezing',
-    'Test heating system regularly during heavy use',
-    'Inspect weatherstripping around doors and windows for drafts',
-    'Check attic and crawlspace for pest entry points',
-  ],
-};
-
-function getCurrentSeason(date = new Date()): Season {
-  const month = date.getMonth(); // 0-11
-  if (month >= 2 && month <= 4) return 'spring';
-  if (month >= 5 && month <= 7) return 'summer';
-  if (month >= 8 && month <= 10) return 'fall';
-  return 'winter';
-}
-
-const SYSTEM_PROMPT = `You are Houmi's AI maintenance assistant. Houmi is a home-services platform that connects homeowners with vetted vendors for inspections and maintenance. You are embedded inside the Houmi mobile app and are speaking directly to a Houmi customer.
+const SYSTEM_PROMPT = `You are eveAI, the maintenance assistant built into the Attenteve app. Attenteve is a home-services platform that connects homeowners with vetted vendors for inspections and maintenance. You are speaking directly to an Attenteve customer.
 
 Your role:
 - Help homeowners understand their inspection results and plan home maintenance
 - Answer questions about home upkeep, common issues, and when to call a professional
-- When a customer wants to book an inspection or a service, tell them to tap "Request a Service" in the app (the wrench icon in the bottom navigation). You cannot book for them, but the button is right there in the app.
-- Do not suggest contacting HomeGuard through any other channel — all booking happens inside this app.
+- When a customer wants to book an inspection or a service, tell them to tap "Request a Service" in the app (the wrench icon in the bottom navigation), or use the request button that may appear in this chat. You cannot book for them — the customer always has to review and submit the request themselves.
+- Do not suggest contacting anyone through any channel outside this app — all booking happens inside Attenteve.
+
+Stay tightly focused on what the customer actually asked. Do not proactively bring up past inspections, seasonal maintenance, or open issues unless the customer's message is about them, or unless the context below is explicitly about this turn's question. Only state facts that are explicitly present in the context provided to you below — never guess, assume, or fill in gaps about the customer's home, past service history, or an inspection you don't have data for. If you don't have the information needed to answer, say so plainly and ask a clarifying question instead of guessing.
+
+Any information below about past inspections or open issues was recorded by a vendor and may be out of date. If the customer's own words — in this message or earlier in this conversation — say something different (an issue is already fixed, was about a different area, etc.), always treat what the customer says as more current and correct than the recorded data, for the rest of this conversation. Don't repeat or re-assert a detail the customer has already corrected.
 
 What a handyman CAN do (no trade license needed): drywall patching/repair, trim and molding work, cabinet repair, weatherproofing/caulking, replacing existing light fixtures/switches/outlets/smart-home devices (not new wiring or breaker panel work), replacing faucets/showerheads, toilet maintenance, sealing minor gaps (not main water lines, sewage, or gas lines), mounting TVs/shelving/window treatments/safety rails, furniture assembly, door and pet-door installation, gutter cleaning, pressure washing, fencing, and deck upkeep.
 
-What REQUIRES a licensed professional: HVAC work, electrical wiring/panel work, plumbing beyond fixture swaps, roofing, general contracting/renovation projects, and solar installation. Always tell the customer these need a licensed, certified vendor — Houmi already gates these to certified pros, so just let them know to request the service and a qualified vendor will be matched.
+What REQUIRES a licensed professional: HVAC work, electrical wiring/panel work, plumbing beyond fixture swaps, roofing, general contracting/renovation projects, and solar installation. Always tell the customer these need a licensed, certified vendor — Attenteve already gates these to certified pros, so just let them know to request the service and a qualified vendor will be matched.
+
+When sharing DIY guidance (see any DIY guidance provided in context below), present it strictly as educational steps for the homeowner to do themselves. Never suggest hiring, calling, or contacting any other company or contractor — Attenteve is the only service this app connects the customer to. Do not offer, in the same reply, to have Attenteve perform that same task as a booked service — DIY guidance and booking are separate. Only mention Attenteve's booking flow if the issue goes beyond DIY scope (e.g., needs a licensed trade).
 
 Keep responses concise and practical — 2-5 sentences unless a detailed list is genuinely needed.
 Always be friendly and reassuring.
 Do not provide legal or structural engineering advice; recommend a licensed professional for those.`;
+
+type ChatHistoryEntry = { role: 'user' | 'assistant'; content: string };
+type LastInspectionSummary = Awaited<ReturnType<InspectionsService['getLastInspectionSummary']>>;
+export type ServiceRequestDraft = {
+  prefilledNotes?: string;
+  preselectServicePriceId?: string;
+  preferredDate?: string;
+};
 
 @Injectable()
 export class MaintenanceBotService implements OnModuleInit {
@@ -88,6 +63,7 @@ export class MaintenanceBotService implements OnModuleInit {
     @InjectRepository(AiRecommendation)
     private recommendationsRepo: Repository<AiRecommendation>,
     private pricingService: PricingService,
+    private inspectionsService: InspectionsService,
     private config: ConfigService,
   ) {
     this.ollamaUrl = this.config.get('OLLAMA_URL', 'http://172.29.20.1:11434');
@@ -107,43 +83,102 @@ export class MaintenanceBotService implements OnModuleInit {
     });
   }
 
-  private async buildContext(customerId: string): Promise<string> {
-    const recentRequests = await this.requestsRepo.find({
-      where: { customerId, status: ServiceRequestStatus.COMPLETED },
-      order: { completedAt: 'DESC' },
-      take: 5,
-    });
+  // Deterministic gate on whether to spend context tokens on the customer's
+  // history at all — keeps the model from pivoting every reply toward
+  // inspection talk when the customer asked about something unrelated.
+  private static readonly HISTORY_RELEVANCE_KEYWORDS = [
+    'inspection', 'report', 'found', 'issue', 'problem', 'last time',
+    'you said', 'fix', 'still', 'again', 'recommend', 'pending', 'history', 'vendor',
+  ];
 
-    if (recentRequests.length === 0) return '';
+  private isHistoryRelevant(message: string): boolean {
+    const lower = message.toLowerCase();
+    return MaintenanceBotService.HISTORY_RELEVANCE_KEYWORDS.some((k) => lower.includes(k));
+  }
 
-    const requestIds = recentRequests.map((r) => r.id);
-    const notes = await this.notesRepo
-      .createQueryBuilder('n')
-      .where('n.serviceRequestId IN (:...ids)', { ids: requestIds })
-      .orderBy('n.createdAt', 'DESC')
-      .take(10)
-      .getMany();
+  private async buildContext(
+    customerId: string,
+    message: string,
+    history: ChatHistoryEntry[],
+    lastReportSummary: LastInspectionSummary | null,
+  ): Promise<string> {
+    const lines: string[] = [];
+    const wantsLastReport = lastReportSummary !== null;
+    const relevant = history.length === 0 || wantsLastReport || this.isHistoryRelevant(message);
 
-    const lines: string[] = ['\n\nCustomer inspection history:'];
-    for (const req of recentRequests) {
-      const date = req.completedAt
-        ? new Date(req.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        : 'Unknown date';
-      lines.push(`\nInspection on ${date} at ${req.address}, ${req.city}, ${req.state}:`);
-      if (req.vendorNotes) lines.push(`  Vendor notes: ${req.vendorNotes}`);
-      const reqNotes = notes.filter((n) => n.serviceRequestId === req.id);
-      for (const n of reqNotes) lines.push(`  ${n.title}: ${n.content}`);
+    if (wantsLastReport) {
+      if (lastReportSummary!.found) {
+        lines.push(
+          "\n\nThe customer is asking about their last inspection report. Here are the facts — give a brief, "
+          + 'high-level explanation using only this information, then mention they can view the full report in the app:',
+        );
+        lines.push(lastReportSummary!.summary);
+      } else {
+        lines.push(
+          '\n\nThe customer is asking about their last inspection report, but they have no completed '
+          + 'inspection on file. Tell them plainly that there is no inspection report yet.',
+        );
+      }
+    } else if (relevant) {
+      const [recentRequest] = await this.requestsRepo.find({
+        where: { customerId, status: ServiceRequestStatus.COMPLETED },
+        order: { completedAt: 'DESC' },
+        take: 1,
+      });
+      if (recentRequest) {
+        const notes = await this.notesRepo
+          .createQueryBuilder('n')
+          .where('n.serviceRequestId = :id', { id: recentRequest.id })
+          .orderBy('n.createdAt', 'DESC')
+          .take(10)
+          .getMany();
+        const date = recentRequest.completedAt
+          ? new Date(recentRequest.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : 'Unknown date';
+        lines.push('\n\nMost recent completed inspection:');
+        lines.push(`Inspection on ${date} at ${recentRequest.address}, ${recentRequest.city}, ${recentRequest.state}:`);
+        if (recentRequest.vendorNotes) lines.push(`  Vendor notes: ${recentRequest.vendorNotes}`);
+        for (const n of notes) lines.push(`  ${n.title}: ${n.content}`);
+      }
     }
 
-    return lines.join('\n') + (await this.buildSeasonalAndCatalogContext());
+    if (relevant) {
+      const openIssues = await this.inspectionsService.getOpenIssuesForCustomer(customerId);
+      if (openIssues.length > 0) {
+        lines.push('\n\nOpen issues from past inspections (not yet resolved):');
+        for (const issue of openIssues) {
+          lines.push(`  - ${issue.label} (${issue.status}): ${issue.findings ?? issue.recommendation ?? 'flagged, no further detail recorded'}`);
+        }
+      }
+    }
+
+    lines.push(await this.buildSeasonalAndCatalogContext());
+
+    const diyContext = this.buildDiyContext(message);
+    if (diyContext) lines.push(diyContext);
+
+    return lines.join('\n');
+  }
+
+  private buildDiyContext(message: string): string {
+    const matches = matchDiyTopicsFromText(message);
+    if (matches.length === 0) return '';
+    const lines = ['\n\nRelevant DIY guidance available (only use if the customer is asking how to do this themselves):'];
+    for (const topic of matches) {
+      lines.push(`  - ${topic.title}: ${topic.guidance}`);
+    }
+    return lines.join('\n');
   }
 
   private async buildSeasonalAndCatalogContext(): Promise<string> {
     const season = getCurrentSeason();
-    const tasks = SEASONAL_TASKS[season];
+    const seasonTips = SEASONAL_TIPS[season as SeasonGroup];
+    const annualTips = SEASONAL_TIPS.annual;
     const lines: string[] = [
       `\n\nCurrent season: ${season}. Recommended seasonal maintenance for this time of year:`,
-      ...tasks.map((t) => `  - ${t}`),
+      ...seasonTips.map((t) => `  - ${t.text}`),
+      '\n\nYear-round Tennessee-specific priorities:',
+      ...annualTips.map((t) => `  - ${t.text}`),
     ];
 
     const catalog = await this.pricingService.getAll();
@@ -170,14 +205,17 @@ export class MaintenanceBotService implements OnModuleInit {
   private async callOllama(
     customerId: string,
     message: string,
-    history: Array<{ role: 'user' | 'assistant'; content: string }>,
+    history: ChatHistoryEntry[],
+    lastReportSummary: LastInspectionSummary | null,
   ): Promise<{ reply: string; recommendedName: string | null }> {
-    const context = await this.buildContext(customerId);
+    const context = await this.buildContext(customerId, message, history, lastReportSummary);
     const systemContent = SYSTEM_PROMPT + context;
 
     const messages = [
       { role: 'system', content: systemContent },
-      ...history.slice(-6),
+      // Widened from a 6-message window — a customer correction made earlier
+      // in a longer conversation was silently falling out of context.
+      ...history.slice(-16),
       { role: 'user', content: message },
     ];
 
@@ -194,17 +232,61 @@ export class MaintenanceBotService implements OnModuleInit {
     // pull it out and keep it out of what the customer actually reads.
     const match = raw.match(/\n?RECOMMEND:\s*(.+?)\s*$/i);
     const recommendedName = match ? match[1].trim() : null;
-    const reply = match ? raw.slice(0, match.index).trim() : raw;
+    let reply = match ? raw.slice(0, match.index).trim() : raw;
+
+    // The model sometimes echoes the injected "IMPORTANT — before you
+    // answer..." instruction block verbatim instead of following it. We
+    // control that exact injected text, so strip anything from that point
+    // on rather than showing scaffolding meant for the model to the customer.
+    const leakIdx = reply.search(/IMPORTANT\s*[—-]\s*before you answer/i);
+    if (leakIdx !== -1) reply = reply.slice(0, leakIdx).trim();
+    if (!reply) reply = "Let me look into that — could you tell me a bit more about what's going on?";
 
     return { reply, recommendedName };
   }
 
+  // ── Booking-intent / date-intent detection (deterministic — see the
+  // matchCatalogFromText comment below for why a 1B local model can't be
+  // trusted to reliably emit a second structured marker) ────────────────────
+
+  private static readonly BOOKING_INTENT_RE = /\b(book|request|schedule|hire|sign me up|set (this|that) up|arrange)\b/i;
+
+  private detectBookingIntent(userMessage: string, bookable: any[]): ServiceRequestDraft | null {
+    if (!MaintenanceBotService.BOOKING_INTENT_RE.test(userMessage)) return null;
+    const matches = this.matchCatalogFromText(userMessage, bookable);
+    if (matches.length === 1) return { preselectServicePriceId: matches[0].id };
+    if (matches.length === 0 && /inspection/i.test(userMessage)) return { prefilledNotes: userMessage };
+    return null;
+  }
+
+  private static readonly SCHEDULING_CONTEXT_RE = /\b(inspection|schedule|next visit|appointment)\b/i;
+
+  private extractInspectionDateIntent(userMessage: string, history: ChatHistoryEntry[]): string | null {
+    const lastAssistant = [...history].reverse().find((h) => h.role === 'assistant');
+    const contextual = MaintenanceBotService.SCHEDULING_CONTEXT_RE.test(userMessage)
+      || (lastAssistant ? MaintenanceBotService.SCHEDULING_CONTEXT_RE.test(lastAssistant.content) : false);
+    if (!contextual) return null;
+
+    const parsed = chrono.parseDate(userMessage, new Date());
+    if (!parsed || parsed.getTime() <= Date.now()) return null;
+    return parsed.toISOString();
+  }
+
+  private static readonly LAST_REPORT_RE = /\blast (inspection|report)\b|\binspection report\b/i;
+  private static readonly OPEN_ISSUES_RE = /\bopen issues?\b|\bstill pending\b|\bpending issues?\b/i;
+
   async chat(
     customerId: string,
     message: string,
-    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    history: ChatHistoryEntry[] = [],
     sessionId?: string,
-  ): Promise<{ reply: string; sessionId: string; recommendations: any[] }> {
+  ): Promise<{
+    reply: string;
+    sessionId: string;
+    recommendations: any[];
+    serviceRequestDraft?: ServiceRequestDraft;
+    inspectionReportLink?: { serviceRequestId: string };
+  }> {
     // Find or create session
     let session: ChatSession | null = null;
     if (sessionId) {
@@ -220,7 +302,23 @@ export class MaintenanceBotService implements OnModuleInit {
       this.messagesRepo.create({ sessionId: session.id, role: 'user', content: message }),
     );
 
-    const { reply, recommendedName } = await this.callOllama(customerId, message, history);
+    // Deterministic, no-LLM path: a small local model can't be trusted to
+    // faithfully enumerate a list of open issues without dropping items.
+    if (MaintenanceBotService.OPEN_ISSUES_RE.test(message)) {
+      const openIssues = await this.inspectionsService.getOpenIssuesForCustomer(customerId);
+      const reply = openIssues.length === 0
+        ? "You don't have any open issues from past inspections right now — everything flagged has been addressed."
+        : `Here's what's still open from past inspections:\n\n${openIssues.map((i) => `• ${i.label}: ${i.findings ?? i.recommendation ?? 'flagged for follow-up'}`).join('\n')}`;
+      await this.messagesRepo.save(
+        this.messagesRepo.create({ sessionId: session.id, role: 'assistant', content: reply }),
+      );
+      return { reply, sessionId: session.id, recommendations: [] };
+    }
+
+    const wantsLastReport = MaintenanceBotService.LAST_REPORT_RE.test(message);
+    const lastReportSummary = wantsLastReport ? await this.inspectionsService.getLastInspectionSummary(customerId) : null;
+
+    const { reply, recommendedName } = await this.callOllama(customerId, message, history, lastReportSummary);
 
     // Persist assistant reply (the visible, marker-stripped text)
     const savedReply = await this.messagesRepo.save(
@@ -229,7 +327,22 @@ export class MaintenanceBotService implements OnModuleInit {
 
     const recommendations = await this.extractRecommendations(customerId, session.id, savedReply.id, recommendedName, message);
 
-    return { reply, sessionId: session.id, recommendations };
+    const catalog = await this.pricingService.getAll();
+    const bookable = catalog.filter((c) => c.isActive && c.customerRequestable !== false);
+
+    const bookingDraft = this.detectBookingIntent(message, bookable);
+    const dateIso = this.extractInspectionDateIntent(message, history);
+
+    let serviceRequestDraft: ServiceRequestDraft | undefined;
+    if (bookingDraft || dateIso) {
+      serviceRequestDraft = { ...(bookingDraft ?? {}), ...(dateIso ? { preferredDate: dateIso } : {}) };
+    }
+
+    const inspectionReportLink = lastReportSummary?.found
+      ? { serviceRequestId: lastReportSummary.serviceRequestId }
+      : undefined;
+
+    return { reply, sessionId: session.id, recommendations, serviceRequestDraft, inspectionReportLink };
   }
 
   // Includes generic words that recur across multiple, unrelated catalog
@@ -305,7 +418,7 @@ export class MaintenanceBotService implements OnModuleInit {
         servicePriceId: r.servicePriceId,
         name: item?.name,
         description: item?.description,
-        priceNote: item?.priceNote,
+        priceDisplay: item?.priceDisplay,
       };
     });
   }
@@ -363,5 +476,10 @@ export class MaintenanceBotService implements OnModuleInit {
     if (!session) throw new NotFoundException('Session not found');
     await this.sessionsRepo.remove(session);
     return { success: true };
+  }
+
+  async getSeasonalTips(): Promise<{ season: string; tips: typeof SEASONAL_TIPS['spring']; annualTips: typeof SEASONAL_TIPS['annual'] }> {
+    const season = getCurrentSeason();
+    return { season, tips: SEASONAL_TIPS[season as SeasonGroup], annualTips: SEASONAL_TIPS.annual };
   }
 }

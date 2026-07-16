@@ -8,11 +8,13 @@ import { AiRecommendation } from './entities/ai-recommendation.entity';
 import { MaintenanceBotService } from './maintenance-bot.service';
 import { MaintenanceBotController } from './maintenance-bot.controller';
 import { PricingModule } from '../pricing/pricing.module';
+import { InspectionsModule } from '../inspections/inspections.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([InspectionNote, ServiceRequest, ChatSession, ChatMessage, AiRecommendation]),
     PricingModule,
+    InspectionsModule,
   ],
   providers: [MaintenanceBotService],
   controllers: [MaintenanceBotController],

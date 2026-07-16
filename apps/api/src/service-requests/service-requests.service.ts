@@ -24,6 +24,8 @@ import { VendorCapability, CertificationType } from '../vendor/entities/vendor-c
 import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
+import { calcTieredCost } from '../pricing/pricing.utils';
+import { PricingMethod } from '../common/enums/pricing-method.enum';
 
 @Injectable()
 export class ServiceRequestsService {
@@ -157,6 +159,7 @@ export class ServiceRequestsService {
     state: string;
     zipCode: string;
     bookingGroupId?: string;
+    quantity?: number;
   }): Promise<ServiceRequest> {
     const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
     const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
@@ -166,8 +169,19 @@ export class ServiceRequestsService {
     const servicePrice = prices.find((p) => p.id === dto.servicePriceId);
     if (!servicePrice) throw new BadRequestException('Service not found');
 
+    // PER_UNIT bills a tiered cost (see calcTieredCost) at the billed
+    // quantity, floored at minimumQuantity (if set) so the charge always
+    // reflects at least the disclosed minimum. Other methods (Flat Price,
+    // One-Time Fee, Request Quote) ignore quantity entirely — a single fixed
+    // fee has no unit count.
+    const isPerUnit = servicePrice.pricingMethod === PricingMethod.PER_UNIT;
+    const enteredQty = isPerUnit ? (dto.quantity ?? 1) : 1;
+    const minQty = servicePrice.minimumQuantity ? Number(servicePrice.minimumQuantity) : 0;
+    const billedQty = isPerUnit && minQty > 0 ? Math.max(enteredQty, minQty) : enteredQty;
+
     const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
-    const customerPrice = Math.round(Number(servicePrice.basePrice) * (1 + markup / 100) * 100) / 100;
+    const cost = calcTieredCost(servicePrice, billedQty);
+    const customerPrice = Math.round(cost * (1 + markup / 100) * 100) / 100;
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
@@ -193,6 +207,8 @@ export class ServiceRequestsService {
       name: servicePrice.name,
       description: servicePrice.description,
       price: customerPrice,
+      servicePriceId: servicePrice.id,
+      quantity: isPerUnit ? billedQty : null,
       approved: true,
       approvedAt: new Date(),
     }));
@@ -354,6 +370,7 @@ export class ServiceRequestsService {
     vendorId: string,
     status: ServiceRequestStatus,
     completionPhotoKeys?: string[],
+    finalQuantities?: Record<string, number>,
   ): Promise<ServiceRequest> {
     const request = await this.findById(requestId);
     if (request.vendorId !== vendorId) throw new ForbiddenException();
@@ -376,6 +393,33 @@ export class ServiceRequestsService {
       const approvedServices = await this.additionalRepo.find({
         where: { serviceRequestId: requestId, approved: true },
       });
+
+      // Apply any vendor-entered final quantities BEFORE the hold-creation
+      // loop below reads svc.price — Stripe manual-capture holds can't be
+      // increased once created, so this only works cleanly because no hold
+      // exists yet at this point. Never decreases price: the customer was
+      // already floored at the service's minimum quantity at booking time.
+      let priceIncreased = false;
+      if (finalQuantities) {
+        const prices = await this.pricingService.getAll(true);
+        for (const svc of approvedServices) {
+          const finalQty = finalQuantities[svc.id];
+          if (finalQty == null || svc.quantity == null || finalQty <= Number(svc.quantity)) continue;
+          const servicePrice = svc.servicePriceId ? prices.find((p) => p.id === svc.servicePriceId) : null;
+          if (!servicePrice) continue;
+          const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
+          const newCost = calcTieredCost(servicePrice, finalQty);
+          const newPrice = Math.round(newCost * (1 + markup / 100) * 100) / 100;
+          await this.additionalRepo.update(svc.id, { finalQuantity: finalQty, price: newPrice });
+          svc.price = newPrice;
+          priceIncreased = true;
+        }
+        if (priceIncreased) {
+          const newTotal = approvedServices.reduce((sum, s) => sum + Number(s.price), 0);
+          request.addonPrice = newTotal;
+        }
+      }
+
       for (const svc of approvedServices) {
         try {
           await this.paymentsService.createAuthHold(
@@ -389,6 +433,16 @@ export class ServiceRequestsService {
         } catch (err) {
           // Don't block job completion if payment hold fails
         }
+      }
+
+      if (priceIncreased) {
+        await this.notificationsService.notifyUser(
+          request.customerId,
+          NotificationType.SERVICE_UPDATE,
+          'Final Price Updated',
+          `Your vendor confirmed a larger quantity than originally estimated for "${request.ticketNumber}" — your final charge has been updated accordingly.`,
+          { serviceRequestId: request.id },
+        );
       }
     }
 

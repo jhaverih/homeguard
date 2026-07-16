@@ -7,13 +7,15 @@ import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { Newsreader_500Medium, Newsreader_600SemiBold } from '@expo-google-fonts/newsreader';
 import { Karla_400Regular, Karla_700Bold } from '@expo-google-fonts/karla';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useAuthStore } from '../src/store/auth.store';
 import { useAlertsStore } from '../src/store/alerts.store';
 import {
   registerForPushNotificationsAsync,
   setupNotificationListeners,
 } from '../src/services/notifications';
+import { userApi } from '../src/services/api';
+import TermsGateModal from '../src/components/TermsGateModal';
 import { colors } from '../src/theme';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PK || '';
@@ -80,10 +82,26 @@ export default function RootLayout() {
     Karla_400Regular,
     Karla_700Bold,
   });
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const { increment, setUnreadCount } = useAlertsStore();
   const router = useRouter();
   const [alertPopup, setAlertPopup] = useState<{ title: string; body: string; severity: string } | null>(null);
+  const [acceptingTerms, setAcceptingTerms] = useState(false);
+
+  const isVendorActive = user?.activeRole === 'VENDOR';
+  const needsTerms = !!user && (isVendorActive ? !user.vendorTermsAcceptedAt : !user.termsAcceptedAt);
+
+  const handleAcceptTerms = async () => {
+    setAcceptingTerms(true);
+    try {
+      const updated: any = await userApi.acceptTerms(isVendorActive ? 'VENDOR' : 'CUSTOMER');
+      setUser(updated);
+    } catch {
+      Alert.alert('Error', 'Could not save your acceptance. Please try again.');
+    } finally {
+      setAcceptingTerms(false);
+    }
+  };
 
   // Register push token when user logs in
   useEffect(() => {
@@ -122,6 +140,13 @@ export default function RootLayout() {
         <StatusBar style="auto" />
         <AuthRedirect />
         <Stack screenOptions={{ headerShown: false }} />
+
+        <TermsGateModal
+          visible={needsTerms}
+          termsType={isVendorActive ? 'VENDOR' : 'CUSTOMER'}
+          onAccept={handleAcceptTerms}
+          loading={acceptingTerms}
+        />
 
         {/* In-app alert popup */}
         <Modal

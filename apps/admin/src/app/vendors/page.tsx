@@ -60,18 +60,19 @@ export default function VendorsPage() {
           <p className="text-steel text-sm">No vendors yet. They register through the mobile app.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-x-hidden">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm sticky-thead">
             <thead className="bg-canvas border-b border-mist-dim">
               <tr>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Name</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Company</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Email</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Status</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Stripe</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Reviews</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Joined</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Action</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Name</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Company</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Email</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel min-w-[170px]">Status</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Stripe</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Reviews</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Joined</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel min-w-[190px]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-canvas">
@@ -83,15 +84,25 @@ export default function VendorsPage() {
                   <td className="px-6 py-4 text-steel">{v.companyName ?? <span className="text-steel text-xs">—</span>}</td>
                   <td className="px-6 py-4 text-steel">{v.email}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
-                      v.status === 'ACTIVE'
-                        ? 'bg-green-50 text-green-700'
-                        : v.status === 'PENDING_APPROVAL'
-                        ? 'bg-yellow-50 text-yellow-700'
-                        : 'bg-red-50 text-red-700'
-                    }`}>
-                      {v.status === 'PENDING_APPROVAL' ? 'Pending' : v.status}
-                    </span>
+                    <div className="flex flex-col gap-1 items-start">
+                      <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+                        v.status === 'ACTIVE'
+                          ? 'bg-green-50 text-green-700'
+                          : v.status === 'PENDING_APPROVAL'
+                          ? 'bg-yellow-50 text-yellow-700'
+                          : 'bg-red-50 text-red-700'
+                      }`}>
+                        {v.status === 'PENDING_APPROVAL' ? 'Pending' : v.status}
+                      </span>
+                      {v.eliteRequestedAt && (
+                        <span
+                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 whitespace-nowrap"
+                          title={`Requested ${new Date(v.eliteRequestedAt).toLocaleDateString()}`}
+                        >
+                          ⭐ Elite requested
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     {v.stripeConnected ? (
@@ -137,6 +148,7 @@ export default function VendorsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

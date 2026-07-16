@@ -1,68 +1,42 @@
-﻿import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, KeyboardAvoidingView, ActivityIndicator,
-  SafeAreaView, Keyboard, Modal, Alert,
+  SafeAreaView, Keyboard, Modal, Alert, Pressable, ScrollView, Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { maintenanceBotApi } from '../../src/services/api';
+import { maintenanceBotApi, ServiceRequestDraft, SeasonalTip } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
-type Message = { id: string; role: 'user' | 'assistant'; content: string; recommendations?: any[] };
+type Message = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  recommendations?: any[];
+  serviceRequestDraft?: ServiceRequestDraft;
+  inspectionReportLink?: { serviceRequestId: string };
+};
 
+// Tapping any of these sends immediately — each is a single, unambiguous
+// action rather than a starting point for editing.
 const QUICK_PROMPTS = [
-  'What needs attention in my home?',
-  'When should I schedule my next inspection?',
-  'What maintenance should I do this season?',
-  'Explain my last inspection results',
+  'Set my next inspection date',
+  'Explain my last inspection report',
+  'Which open issues are still pending?',
 ];
 
-function getCurrentSeason(): 'spring' | 'summer' | 'fall' | 'winter' {
-  const m = new Date().getMonth();
-  if (m >= 2 && m <= 4) return 'spring';
-  if (m >= 5 && m <= 7) return 'summer';
-  if (m >= 8 && m <= 10) return 'fall';
-  return 'winter';
-}
-
-const SEASON_META = {
+const SEASON_META: Record<string, { label: string; emoji: string }> = {
   spring: { label: 'Spring', emoji: '🌸' },
   summer: { label: 'Summer', emoji: '☀️' },
-  fall:   { label: 'Fall',   emoji: '🍂' },
+  fall: { label: 'Fall', emoji: '🍂' },
   winter: { label: 'Winter', emoji: '❄️' },
 };
 
-const SEASONAL_TASKS: Record<string, string[]> = {
-  spring: [
-    'AC filter replacement & system inspection',
-    'Gutter cleaning & downspout check',
-    'Exterior siding & paint inspection',
-    'Window & door weatherseal check',
-    'Pest prevention inspection',
-  ],
-  summer: [
-    'AC performance & efficiency check',
-    'Ceiling fan inspection & cleaning',
-    'Refrigerator coil & drain cleaning',
-    'Deck, patio & outdoor structure inspection',
-    'Irrigation & sprinkler system check',
-  ],
-  fall: [
-    'Heating system tune-up & filter replacement',
-    'Chimney & fireplace inspection',
-    'Roof, gutters & shingle inspection',
-    'Weatherstripping & door seal check',
-    'Smoke & CO detector battery replacement',
-  ],
-  winter: [
-    'Pipe insulation & freeze prevention check',
-    'Water heater inspection & flush',
-    'Heating efficiency & thermostat check',
-    'Indoor air quality & humidity check',
-    'Electrical panel & safety inspection',
-  ],
-};
+// Season + annual tips together can run to 16+ rows — bound the expanded
+// list to a fraction of screen height and let it scroll internally, rather
+// than overflowing past the input bar off the bottom of the screen.
+const SEASONAL_LIST_MAX_HEIGHT = Math.round(Dimensions.get('window').height * 0.42);
 
 let msgId = 0;
 const uid = () => String(++msgId);
@@ -70,26 +44,35 @@ const uid = () => String(++msgId);
 const INITIAL_MESSAGE: Message = {
   id: uid(),
   role: 'assistant',
-  content: "Hi! I'm your Attenteve AI assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
+  content: "Hi! I'm eveAI, your Attenteve maintenance assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
 };
 
-export default function AssistantScreen() {
-  const season = getCurrentSeason();
-  const tasks = SEASONAL_TASKS[season];
-  const { emoji, label } = SEASON_META[season];
+type ActivePanel = 'seasonal' | 'prompts' | null;
 
+export default function AssistantScreen() {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const listRef = useRef<FlatList>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [seasonExpanded, setSeasonExpanded] = useState(true);
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [checkedTasks, setCheckedTasks] = useState<Set<number>>(new Set());
+
+  const [seasonalData, setSeasonalData] = useState<{ season: string; tips: SeasonalTip[]; annualTips: SeasonalTip[] } | null>(null);
 
   // History modal
   const [showHistory, setShowHistory] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    maintenanceBotApi.getSeasonalTips().then(setSeasonalData).catch(() => setSeasonalData(null));
+  }, []);
+
+  const allTips = useMemo<SeasonalTip[]>(
+    () => (seasonalData ? [...seasonalData.tips, ...seasonalData.annualTips] : []),
+    [seasonalData],
+  );
 
   const toggleTask = (i: number) => {
     setCheckedTasks((prev) => {
@@ -100,9 +83,11 @@ export default function AssistantScreen() {
   };
 
   const requestSeasonalService = () => {
-    if (checkedTasks.size === 0) return;
-    const lines = [...checkedTasks].sort().map((i) => `• ${tasks[i]}`).join('\n');
+    if (checkedTasks.size === 0 || !seasonalData) return;
+    const label = SEASON_META[seasonalData.season]?.label ?? seasonalData.season;
+    const lines = [...checkedTasks].sort((a, b) => a - b).map((i) => `• ${allTips[i].text}`).join('\n');
     const notes = `${label} maintenance requested:\n${lines}`;
+    setActivePanel(null);
     router.push({ pathname: '/(customer)/request', params: { prefilledNotes: notes } });
   };
 
@@ -110,6 +95,7 @@ export default function AssistantScreen() {
     setMessages([INITIAL_MESSAGE]);
     setSessionId(null);
     setCheckedTasks(new Set());
+    setActivePanel(null);
   };
 
   const openHistory = async () => {
@@ -177,6 +163,7 @@ export default function AssistantScreen() {
     const userText = text.trim();
     if (!userText || loading) return;
     setInput('');
+    setActivePanel(null);
 
     const userMsg: Message = { id: uid(), role: 'user', content: userText };
     setMessages((prev) => [...prev, userMsg]);
@@ -187,8 +174,15 @@ export default function AssistantScreen() {
       .map((m) => ({ role: m.role, content: m.content }));
 
     try {
-      const res: any = await maintenanceBotApi.chat(userText, history, sessionId);
-      const botMsg: Message = { id: uid(), role: 'assistant', content: res.reply, recommendations: res.recommendations };
+      const res = await maintenanceBotApi.chat(userText, history, sessionId);
+      const botMsg: Message = {
+        id: uid(),
+        role: 'assistant',
+        content: res.reply,
+        recommendations: res.recommendations,
+        serviceRequestDraft: res.serviceRequestDraft,
+        inspectionReportLink: res.inspectionReportLink,
+      };
       setMessages((prev) => [...prev, botMsg]);
       if (res.sessionId && !sessionId) setSessionId(res.sessionId);
     } catch (e: any) {
@@ -243,7 +237,7 @@ export default function AssistantScreen() {
         {pendingRecs.map((rec: any) => (
           <View key={rec.id} style={styles.recCard}>
             <Text style={styles.recCardTitle}>💡 {rec.name}</Text>
-            {rec.priceNote && <Text style={styles.recCardPrice}>{rec.priceNote}</Text>}
+            {rec.priceDisplay && <Text style={styles.recCardPrice}>{rec.priceDisplay}</Text>}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
               <TouchableOpacity style={styles.recDeclineBtn} onPress={() => respondToRecommendation(rec, 'DECLINED')}>
                 <Text style={styles.recDeclineText}>Not now</Text>
@@ -254,12 +248,32 @@ export default function AssistantScreen() {
             </View>
           </View>
         ))}
+        {item.serviceRequestDraft && (
+          <TouchableOpacity
+            style={styles.draftCta}
+            onPress={() => router.push({ pathname: '/(customer)/request', params: item.serviceRequestDraft as any })}
+          >
+            <Ionicons name="calendar-outline" size={15} color={colors.ink} />
+            <Text style={styles.draftCtaText}>Request This Service</Text>
+          </TouchableOpacity>
+        )}
+        {item.inspectionReportLink && (
+          <TouchableOpacity
+            style={styles.reportLinkBtn}
+            onPress={() => router.push(`/(customer)/inspection-report?id=${item.inspectionReportLink!.serviceRequestId}`)}
+          >
+            <Ionicons name="document-text-outline" size={15} color={colors.lanternDeep} />
+            <Text style={styles.reportLinkText}>View Full Report</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
 
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  const seasonMeta = seasonalData ? SEASON_META[seasonalData.season] : null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -283,6 +297,7 @@ export default function AssistantScreen() {
         keyboardVerticalOffset={90}
       >
         <FlatList
+          style={{ flex: 1 }}
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
@@ -297,39 +312,51 @@ export default function AssistantScreen() {
                 </View>
                 <View style={styles.typingBubble}>
                   <ActivityIndicator size="small" color={colors.steel} />
-                  <Text style={styles.typingText}>AI thinking… (takes a few mins)</Text>
+                  <Text style={styles.typingText}>eveAI is thinking… (takes a few mins)</Text>
                 </View>
               </View>
             ) : null
           }
         />
 
-        {/* Seasonal maintenance checklist */}
-        {!loading && (
+        {/* Backdrop — only present while a panel is open, so it never
+            interferes with normal chat scrolling. Sits on top of the chat
+            area (dismissing on tap) but under the panel/input bar below,
+            which render after it and stay fully interactive. */}
+        {activePanel !== null && (
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setActivePanel(null)} />
+        )}
+
+        {/* Seasonal Tips — collapsed by default, opened via the header tap */}
+        {!loading && seasonMeta && (
           <View style={styles.seasonCard}>
             <TouchableOpacity
               style={styles.seasonHeader}
-              onPress={() => setSeasonExpanded((e) => !e)}
+              onPress={() => setActivePanel((p) => (p === 'seasonal' ? null : 'seasonal'))}
               activeOpacity={0.7}
             >
-              <Text style={styles.seasonTitle}>{emoji} {label} Maintenance</Text>
-              <Ionicons name={seasonExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.lanternDeep} />
+              <Text style={styles.seasonTitle}>{seasonMeta.emoji} Seasonal Tips</Text>
+              <Ionicons name={activePanel === 'seasonal' ? 'chevron-up' : 'chevron-down'} size={16} color={colors.lanternDeep} />
             </TouchableOpacity>
 
-            {seasonExpanded && (
+            {activePanel === 'seasonal' && (
               <>
-                {tasks.map((task, i) => (
-                  <TouchableOpacity key={i} style={styles.taskRow} onPress={() => toggleTask(i)} activeOpacity={0.7}>
-                    <Ionicons
-                      name={checkedTasks.has(i) ? 'checkbox' : 'square-outline'}
-                      size={20}
-                      color={checkedTasks.has(i) ? colors.lanternDeep : colors.steel}
-                    />
-                    <Text style={[styles.taskText, checkedTasks.has(i) && styles.taskTextChecked]}>
-                      {task}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <ScrollView
+                  style={{ maxHeight: SEASONAL_LIST_MAX_HEIGHT }}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator
+                >
+                  {seasonalData!.tips.map((tip, i) => (
+                    <SeasonalTipRow key={i} tip={tip} checked={checkedTasks.has(i)} onToggle={() => toggleTask(i)} />
+                  ))}
+                  <View style={styles.annualDivider}>
+                    <Text style={styles.annualDividerText}>Annual — Tennessee-Specific Priorities</Text>
+                  </View>
+                  {seasonalData!.annualTips.map((tip, i) => {
+                    const idx = seasonalData!.tips.length + i;
+                    return <SeasonalTipRow key={idx} tip={tip} checked={checkedTasks.has(idx)} onToggle={() => toggleTask(idx)} />;
+                  })}
+                </ScrollView>
                 {checkedTasks.size > 0 && (
                   <TouchableOpacity style={styles.requestBtn} onPress={requestSeasonalService}>
                     <Ionicons name="calendar-outline" size={15} color={colors.ink} />
@@ -343,8 +370,8 @@ export default function AssistantScreen() {
           </View>
         )}
 
-        {/* Quick prompts */}
-        {!loading && (
+        {/* Quick prompts — hidden until the toggle button is tapped */}
+        {!loading && activePanel === 'prompts' && (
           <View style={styles.quickPrompts}>
             {QUICK_PROMPTS.map((q) => (
               <TouchableOpacity key={q} style={styles.chip} onPress={() => sendMessage(q)}>
@@ -355,6 +382,12 @@ export default function AssistantScreen() {
         )}
 
         <View style={styles.inputBar}>
+          <TouchableOpacity
+            style={styles.promptsToggleBtn}
+            onPress={() => setActivePanel((p) => (p === 'prompts' ? null : 'prompts'))}
+          >
+            <Ionicons name="bulb-outline" size={22} color={colors.lanternDeep} />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             placeholder="Ask about your home…"
@@ -427,6 +460,29 @@ export default function AssistantScreen() {
   );
 }
 
+function SeasonalTipRow({ tip, checked, onToggle }: { tip: SeasonalTip; checked: boolean; onToggle: () => void }) {
+  if (!tip.orderable) {
+    return (
+      <View style={styles.tipRowInfo}>
+        <View style={styles.tipDot} />
+        <Text style={styles.tipTextInfo}>{tip.text}</Text>
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity style={styles.taskRow} onPress={onToggle} activeOpacity={0.7}>
+      <Ionicons
+        name={checked ? 'checkbox' : 'square-outline'}
+        size={20}
+        color={checked ? colors.lanternDeep : colors.steel}
+      />
+      <Text style={[styles.taskText, checked && styles.taskTextChecked]}>
+        {tip.text}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.canvas },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: '#fff', gap: 8 },
@@ -456,6 +512,11 @@ const styles = StyleSheet.create({
   recDeclineText: { fontSize: 13, fontWeight: '600', color: colors.steel },
   recAcceptBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, backgroundColor: colors.lantern },
   recAcceptText: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  // Service-request draft / report-link CTAs
+  draftCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.lantern, borderRadius: 10, paddingVertical: 10, marginLeft: 36, marginRight: 40, marginBottom: 12, marginTop: -4 },
+  draftCtaText: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  reportLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 10, marginLeft: 36, marginRight: 40, marginBottom: 12, marginTop: -4 },
+  reportLinkText: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep },
   // Seasonal card
   seasonCard: { backgroundColor: '#fff', marginHorizontal: 12, marginBottom: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   seasonHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10 },
@@ -463,6 +524,11 @@ const styles = StyleSheet.create({
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border },
   taskText: { flex: 1, fontSize: 13, color: colors.steel },
   taskTextChecked: { color: colors.lanternDeep, fontWeight: '600' },
+  tipRowInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  tipDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.border, marginTop: 7 },
+  tipTextInfo: { flex: 1, fontSize: 13, color: colors.steel, opacity: 0.75 },
+  annualDivider: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, borderTopWidth: 1, borderTopColor: colors.border },
+  annualDividerText: { fontSize: 11, fontWeight: '700', color: colors.steel, textTransform: 'uppercase', letterSpacing: 0.4 },
   requestBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.lantern, margin: 10, borderRadius: 10, paddingVertical: 10 },
   requestBtnText: { fontSize: 13, fontWeight: '700', color: colors.ink },
   // Quick prompts
@@ -471,6 +537,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, color: colors.lanternDeep, fontWeight: '500' },
   // Input bar
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.border, gap: 10 },
+  promptsToggleBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.mist },
   input: { flex: 1, backgroundColor: colors.border, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: colors.ink, maxHeight: 100 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.lantern, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: colors.steel },

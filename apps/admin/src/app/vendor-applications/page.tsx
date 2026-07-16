@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { adminApi } from '@/lib/api';
+import { adminApi, userApi } from '@/lib/api';
 
-type ViewKey = 'applications' | 'certifications';
+type ViewKey = 'applications' | 'certifications' | 'elite';
 
 const APPLICATION_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'NEEDS_INFO'] as const;
 const CERTIFICATION_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const;
@@ -49,21 +49,50 @@ export default function VendorApplicationsPage() {
   const [form, setForm] = useState<{ decision: string; note: string }>({ decision: '', note: '' });
   const [formError, setFormError] = useState('');
 
+  // Elite membership requests — vendors already exist and are just requesting
+  // an upgrade, so this reuses adminApi.getVendors() (filtered client-side)
+  // rather than needing a dedicated backend endpoint.
+  const [eliteVendors, setEliteVendors] = useState<any[]>([]);
+  const [isSuperUser, setIsSuperUser] = useState(false);
+  const [confirmingEliteId, setConfirmingEliteId] = useState<string | null>(null);
+  const [approvingEliteId, setApprovingEliteId] = useState<string | null>(null);
+  const [eliteError, setEliteError] = useState<string | null>(null);
+
   const load = () => {
     setLoading(true);
-    return Promise.all([adminApi.getVendorApplications(), adminApi.getVendorCertifications()])
-      .then(([apps, certs]) => {
+    return Promise.all([adminApi.getVendorApplications(), adminApi.getVendorCertifications(), adminApi.getVendors()])
+      .then(([apps, certs, vendors]) => {
         setApplications(apps);
         setCertifications(certs);
+        setEliteVendors((vendors || []).filter((v: any) => v.eliteRequestedAt));
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
+  }, []);
+
+  const approveElite = async (vendorId: string) => {
+    setApprovingEliteId(vendorId);
+    setEliteError(null);
+    try {
+      await adminApi.setVendorPlan(vendorId, 'ELITE');
+      setEliteVendors((prev) => prev.filter((v) => v.id !== vendorId));
+      setConfirmingEliteId(null);
+    } catch (err: any) {
+      setEliteError(err.response?.data?.message || 'Could not activate Elite for this vendor.');
+    } finally {
+      setApprovingEliteId(null);
+    }
+  };
 
   useEffect(() => {
     setStatusFilter('ALL');
     setExpanded(null);
+    setConfirmingEliteId(null);
+    setEliteError(null);
   }, [view]);
 
   const statuses = view === 'applications' ? APPLICATION_STATUSES : CERTIFICATION_STATUSES;
@@ -137,8 +166,16 @@ export default function VendorApplicationsPage() {
         >
           Certifications
         </button>
+        <button
+          onClick={() => setView('elite')}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'elite' ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
+        >
+          Elite Requests
+          {eliteVendors.length > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${view === 'elite' ? 'bg-lantern text-ink' : 'bg-border text-steel'}`}>{eliteVendors.length}</span>}
+        </button>
       </div>
 
+      {view !== 'elite' && (
       <div className="flex gap-1 bg-mist-dim p-1 rounded-lg w-fit mb-6">
         <button
           onClick={() => setStatusFilter('ALL')}
@@ -158,8 +195,66 @@ export default function VendorApplicationsPage() {
           </button>
         ))}
       </div>
+      )}
 
-      {loading ? (
+      {view === 'elite' ? (
+        loading ? (
+          <div className="text-steel text-sm">Loading...</div>
+        ) : eliteVendors.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
+            <div className="text-4xl mb-4">⭐</div>
+            <p className="text-steel text-sm">No pending Elite membership requests.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
+            {eliteVendors.map((v, idx) => (
+              <div key={v.id} className={`px-6 py-4 ${idx !== 0 ? 'border-t border-mist-dim' : ''}`}>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink">{v.name}</p>
+                    <p className="text-xs text-steel">
+                      {v.companyName ? `${v.companyName} · ` : ''}Requested {new Date(v.eliteRequestedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  {isSuperUser ? (
+                    confirmingEliteId === v.id ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-steel">Charges the vendor's card immediately —</span>
+                        <button
+                          onClick={() => approveElite(v.id)}
+                          disabled={approvingEliteId === v.id}
+                          className="bg-lantern text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        >
+                          {approvingEliteId === v.id ? 'Charging…' : 'Confirm Charge & Activate'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmingEliteId(null)}
+                          disabled={approvingEliteId === v.id}
+                          className="bg-white text-steel border border-border text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-canvas disabled:opacity-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setConfirmingEliteId(v.id); setEliteError(null); }}
+                        className="shrink-0 bg-lantern text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
+                      >
+                        Approve Elite
+                      </button>
+                    )
+                  ) : (
+                    <span className="text-xs text-steel">Requires Super User to approve</span>
+                  )}
+                </div>
+                {confirmingEliteId === v.id && eliteError && (
+                  <p className="text-xs text-red-500 mt-2">{eliteError}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <div className="text-steel text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { vendorApi } from '@/lib/api';
 import { usePermissions } from '@/lib/permissions';
+import PaymentMethodCard from '@/components/PaymentMethodCard';
 
 export default function StatusPage() {
   const { isCompanyAdmin } = usePermissions();
@@ -10,6 +11,7 @@ export default function StatusPage() {
   const [requesting, setRequesting] = useState(false);
   const [retracting, setRetracting] = useState(false);
   const [savingMode, setSavingMode] = useState(false);
+  const [hasPaymentMethod, setHasPaymentMethod] = useState<boolean | null>(null);
 
   const load = () => vendorApi.getStatus().then(setStatus);
 
@@ -73,7 +75,7 @@ export default function StatusPage() {
                   {retracting ? 'Retracting…' : 'Retract'}
                 </button>
               </div>
-            ) : (
+            ) : hasPaymentMethod ? (
               <button
                 onClick={requestElite}
                 disabled={requesting}
@@ -81,14 +83,23 @@ export default function StatusPage() {
               >
                 {requesting ? 'Requesting…' : 'Request Elite'}
               </button>
+            ) : (
+              <span className="text-xs text-steel max-w-[220px] text-right">Add a payment method below to request Elite.</span>
             )
           )}
         </div>
         <p className="text-xs text-steel mt-4">
           Elite is required (along with an approved certification) for trade jobs — HVAC, Electrical, and Plumbing work.
-          Elite also gives priority visibility on other jobs you already qualify for.
+          Elite also gives priority visibility on other jobs you already qualify for. A one-time membership fee is
+          charged to your saved card when an admin activates Elite.
         </p>
       </div>
+
+      {isCompanyAdmin && status.planTier !== 'ELITE' && (
+        <div className="mb-6">
+          <PaymentMethodCard onMethodsChange={(methods) => setHasPaymentMethod(methods.length > 0)} />
+        </div>
+      )}
 
       {isCompanyAdmin && (
         <div className="bg-white rounded-2xl border border-mist-dim p-6">

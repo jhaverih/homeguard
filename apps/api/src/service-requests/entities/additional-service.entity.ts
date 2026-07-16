@@ -25,6 +25,23 @@ export class AdditionalService {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price: number;
 
+  // Nullable — only set when this row was created from a catalog ServicePrice
+  // (createStandaloneService); ad-hoc vendor upsells with a custom price have
+  // no catalog backing and leave this null.
+  @Column({ nullable: true })
+  servicePriceId: string | null;
+
+  // The quantity actually billed at booking time (Qty floored at
+  // minimumQuantity), for Per Unit services. Persisted so job completion can
+  // compare against a vendor-entered final quantity.
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  quantity: number | null;
+
+  // Vendor-entered/confirmed quantity at job completion, if it differs from
+  // `quantity` — see ServiceRequestsService.updateStatus.
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  finalQuantity: number | null;
+
   @Column({ default: false })
   approved: boolean;
 

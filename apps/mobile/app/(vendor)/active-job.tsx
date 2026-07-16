@@ -409,6 +409,11 @@ export default function ActiveJobScreen() {
   // Completion
   const [completionPhotos, setCompletionPhotos] = useState<{ uri: string; key?: string }[]>([]);
   const [completingJob, setCompletingJob] = useState(false);
+  // Final quantity confirmation for Per Unit additional services — keyed by
+  // AdditionalService id. Pre-filled from svc.quantity (what the customer
+  // was billed at booking); if the vendor raises it, the customer's final
+  // price increases accordingly when the job is marked complete.
+  const [finalQuantities, setFinalQuantities] = useState<Record<string, string>>({});
 
   // General vendor notes (non-inspection jobs)
   const [generalNotes, setGeneralNotes] = useState('');
@@ -454,6 +459,19 @@ export default function ActiveJobScreen() {
     setJob(data);
     setGeneralNotes(data?.vendorNotes || '');
     setLoading(false);
+    // Pre-fill (without clobbering any in-progress edit) the final-quantity
+    // input for each Per Unit additional service with what the customer was
+    // originally billed for.
+    const perUnitServices = (data?.additionalServices || []).filter((s: any) => s.approved && s.quantity != null);
+    if (perUnitServices.length > 0) {
+      setFinalQuantities((prev) => {
+        const next = { ...prev };
+        for (const svc of perUnitServices) {
+          if (next[svc.id] == null) next[svc.id] = String(svc.quantity);
+        }
+        return next;
+      });
+    }
     if (data?.type === 'ADDITIONAL_SERVICE') {
       const svcName = (data.additionalServices?.[0]?.name || '').toLowerCase();
       if (svcName.includes('solar')) {
@@ -756,7 +774,12 @@ export default function ActiveJobScreen() {
           onPress: async () => {
             setCompletingJob(true);
             try {
-              await requestsApi.updateStatus(id, 'COMPLETED', keys);
+              const finalQtyPayload: Record<string, number> = {};
+              for (const [svcId, val] of Object.entries(finalQuantities)) {
+                const n = parseFloat(val);
+                if (!isNaN(n)) finalQtyPayload[svcId] = n;
+              }
+              await requestsApi.updateStatus(id, 'COMPLETED', keys, finalQtyPayload);
               loadJob(); loadChecklistData();
             } catch (e: any) {
               Alert.alert('Error', e.message);
@@ -1092,6 +1115,32 @@ export default function ActiveJobScreen() {
                     ? 'All items done. Attach a completion photo and close the job.'
                     : `Complete all ${totalCount - completedCount} remaining checklist items first.`}
                 </Text>
+
+                {job.additionalServices?.filter((s: any) => s.approved && s.quantity != null).length > 0 && (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.photoLabel}>Confirm final quantity</Text>
+                    <Text style={styles.sectionHint}>
+                      Enter the actual quantity/hours for each service below. Raising it above what the customer was originally billed increases their final charge.
+                    </Text>
+                    {job.additionalServices
+                      .filter((s: any) => s.approved && s.quantity != null)
+                      .map((svc: any) => (
+                        <View key={svc.id} style={styles.qtyConfirmRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.qtyConfirmName}>{svc.name}</Text>
+                            <Text style={styles.qtyConfirmHint}>Originally billed: {svc.quantity}</Text>
+                          </View>
+                          <TextInput
+                            style={styles.qtyConfirmInput}
+                            keyboardType="decimal-pad"
+                            value={finalQuantities[svc.id] ?? String(svc.quantity)}
+                            onChangeText={(v) => setFinalQuantities((prev) => ({ ...prev, [svc.id]: v }))}
+                          />
+                        </View>
+                      ))}
+                  </View>
+                )}
+
                 <Text style={styles.photoLabel}>Completion photos <Text style={styles.required}>* min 1</Text></Text>
                 <PhotoStrip
                   photos={completionPhotos}
@@ -1929,7 +1978,7 @@ export default function ActiveJobScreen() {
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.recOptionName}>{item.name}</Text>
-                      <Text style={styles.recOptionPrices}>{item.priceNote || fmtUSD(item.basePrice)}</Text>
+                      <Text style={styles.recOptionPrices}>{item.priceDisplay || fmtUSD(item.basePrice)}</Text>
                     </View>
                     {upsellSelectedId === item.id && <Ionicons name="checkmark-circle" size={20} color={colors.lanternDeep} />}
                   </TouchableOpacity>
@@ -2067,6 +2116,17 @@ const styles = StyleSheet.create({
   completeSeparator: { height: 1, backgroundColor: colors.border, marginVertical: 20 },
   completeBtn: { flexDirection: 'row', backgroundColor: '#059669', borderRadius: 14, padding: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   completeBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  qtyConfirmRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  qtyConfirmName: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  qtyConfirmHint: { fontSize: 12, color: colors.steel, marginTop: 2 },
+  qtyConfirmInput: {
+    width: 70, backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 8, padding: 10, fontSize: 15, color: colors.ink, textAlign: 'center',
+  },
   sentSvcCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1.5 },
   sentSvcApproved: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
   sentSvcPending: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
