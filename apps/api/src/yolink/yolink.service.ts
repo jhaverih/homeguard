@@ -12,6 +12,11 @@ const YOLINK_TOKEN_URL = 'https://api.yosmart.com/open/yolink/token';
 const YOLINK_API_URL  = 'https://api.yosmart.com/open/yolink/v2/api';
 const MQTT_BROKER     = 'mqtt://mqtt.api.yosmart.com:8003';
 
+// Yolink devices report temperature in Celsius regardless of the device's own
+// display mode — convert to Fahrenheit here so alert text matches what the
+// customer sees in the Yolink app itself.
+const celsiusToFahrenheit = (c: number): number => Math.round((c * 9 / 5 + 32) * 10) / 10;
+
 const EVENT_CONFIG: Record<string, { severity: AlertSeverity; message: (d: any, name: string) => string }> = {
   'DoorSensor.Alert':        { severity: AlertSeverity.MEDIUM,   message: (d, n) => `${n}: Door/window ${d?.state === 'open' ? 'opened' : 'closed'}` },
   'DoorSensor.StatusChange': { severity: AlertSeverity.LOW,      message: (d, n) => `${n}: ${d?.state === 'open' ? 'Opened' : 'Closed'}` },
@@ -20,7 +25,23 @@ const EVENT_CONFIG: Record<string, { severity: AlertSeverity; message: (d: any, 
   'MotionSensor.Alert':      { severity: AlertSeverity.MEDIUM,   message: (_d, n) => `${n}: Motion detected` },
   'SmokeDetector.Alert':     { severity: AlertSeverity.CRITICAL, message: (_d, n) => `${n}: Smoke detected! Check immediately.` },
   'COAlarm.Alert':           { severity: AlertSeverity.CRITICAL, message: (_d, n) => `${n}: CO alarm triggered! Evacuate immediately.` },
-  'THSensor.Alert':          { severity: AlertSeverity.LOW,      message: (d, n) => `${n}: Temp ${d?.temperature ?? '?'}°C, Humidity ${d?.humidity ?? '?'}%` },
+  // Yolink's THSensor.Alert payload carries a `data.alarm` object flagging
+  // exactly which threshold tripped (lowTemp/highTemp/lowHumidity/highHumidity/
+  // lowBattery) — branch on that instead of always dumping both raw readings,
+  // so the message states the actual reason like Yolink's own app does.
+  'THSensor.Alert': {
+    severity: AlertSeverity.LOW,
+    message: (d, n) => {
+      const alarm = d?.alarm ?? {};
+      const tempF = typeof d?.temperature === 'number' ? celsiusToFahrenheit(d.temperature) : undefined;
+      if (alarm.lowTemp) return `${n}: Low temperature detected (${tempF ?? '?'}°F)`;
+      if (alarm.highTemp) return `${n}: High temperature detected (${tempF ?? '?'}°F)`;
+      if (alarm.lowHumidity) return `${n}: Low humidity detected (${d?.humidity ?? '?'}%)`;
+      if (alarm.highHumidity) return `${n}: High humidity detected (${d?.humidity ?? '?'}%)`;
+      if (alarm.lowBattery) return `${n}: Low battery`;
+      return `${n}: Temp ${tempF ?? '?'}°F, Humidity ${d?.humidity ?? '?'}%`;
+    },
+  },
   'VibrationSensor.Alert':   { severity: AlertSeverity.MEDIUM,   message: (_d, n) => `${n}: Vibration detected` },
   'Siren.Alert':             { severity: AlertSeverity.HIGH,     message: (_d, n) => `${n}: Siren activated` },
 };
@@ -36,6 +57,10 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
   // instance fields.
   private tokenCache = new Map<string, TokenEntry>();
   private mqttClients = new Map<string, mqtt.MqttClient>();
+  // Live MQTT event payloads carry no device name/type — only deviceId — so
+  // alert text needs the customer's own device labels (e.g. "2nd Floor")
+  // fetched separately via Home.getDeviceList. Keyed by home.id, then deviceId.
+  private deviceNameCache = new Map<string, Map<string, string>>();
   // The MQTT client authenticates with a snapshot of the OAuth token at connect
   // time and never re-authenticates on its own — once that token expires
   // (~2h), a stale-token reconnect fails silently. This timer proactively
@@ -99,6 +124,27 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     return res.data.data;
   }
 
+  // ── Device name cache (per home) ─────────────────────────────────────────────
+
+  private cacheDeviceNames(homeId: string, devices: any[]): void {
+    const map = new Map<string, string>();
+    for (const dev of devices) {
+      if (dev?.deviceId && dev?.name) map.set(dev.deviceId, dev.name);
+    }
+    this.deviceNameCache.set(homeId, map);
+  }
+
+  private async refreshDeviceNames(home: Pick<YolinkHome, 'id' | 'homeName' | 'yolinkUAID' | 'yolinkSecretKey'>, yolinkHomeId: string): Promise<void> {
+    try {
+      const deviceData = await this.yolinkRequest(home, 'Home.getDeviceList', { homeId: yolinkHomeId });
+      this.cacheDeviceNames(home.id, deviceData?.devices ?? []);
+    } catch (err: any) {
+      // Non-fatal — alert messages just fall back to the device type/generic
+      // label until the next successful refresh (e.g. on the next reconnect).
+      this.logger.warn(`Could not refresh Yolink device names for "${home.homeName}": ${err.message}`);
+    }
+  }
+
   // ── MQTT connection (one per linked home) ────────────────────────────────────
 
   private async connectMqtt(home: YolinkHome) {
@@ -117,6 +163,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       const yolinkHomeId: string = homeData?.id ?? homeData?.homeId ?? home.yolinkUAID;
       this.logger.log(`Yolink homeId resolved for "${home.homeName}": ${yolinkHomeId}`);
       await this.homesRepo.update(home.id, { yolinkHomeId });
+      await this.refreshDeviceNames(home, yolinkHomeId);
 
       const topic = `yl-home/${yolinkHomeId}/+/report`;
 
@@ -212,7 +259,10 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const deviceName = data?.name ?? deviceType ?? 'Device';
+    // Live report/alert payloads carry no device name — only deviceId — so the
+    // customer's own label (e.g. "2nd Floor") has to come from the cache
+    // populated via Home.getDeviceList, not the event itself.
+    const deviceName = this.deviceNameCache.get(home.id)?.get(deviceId) ?? data?.name ?? deviceType ?? 'Device';
     const message = config.message(data, deviceName);
 
     await this.alertsService.createAlert({
@@ -281,6 +331,10 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       }));
     }
 
+    // Seed the name cache immediately from the list already fetched above —
+    // connectMqtt() below refreshes it too, but there's no reason to make the
+    // customer wait on a second network round-trip for names to appear.
+    this.cacheDeviceNames(saved.id, devices);
     await this.connectMqtt(saved);
     return { home: saved, devices };
   }
@@ -296,6 +350,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     this.mqttClients.get(homeId)?.end(true);
     this.mqttClients.delete(homeId);
     this.tokenCache.delete(homeId);
+    this.deviceNameCache.delete(homeId);
     clearTimeout(this.refreshTimers.get(homeId));
     this.refreshTimers.delete(homeId);
   }
@@ -308,11 +363,20 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`simulateAlert: no linked/connected home for customer ${customerId}`);
       return;
     }
+    const deviceType = eventType.split('.')[0];
+    const data: any = { state: 'open', name: 'Test Sensor' };
+    if (deviceType === 'THSensor') {
+      // Exercise the alarm-flag branching in EVENT_CONFIG — 15°C ≈ 59°F, a
+      // plausible "low temperature" reading rather than an arbitrary number.
+      data.temperature = 15;
+      data.humidity = 45;
+      data.alarm = { lowTemp: true, highTemp: false, lowHumidity: false, highHumidity: false, lowBattery: false, period: false };
+    }
     await this.processEventByHomeId(home.yolinkHomeId, {
       event: eventType,
       deviceId: 'test-device',
-      deviceType: eventType.split('.')[0],
-      data: { state: 'open', name: 'Test Sensor' },
+      deviceType,
+      data,
     });
   }
 }
