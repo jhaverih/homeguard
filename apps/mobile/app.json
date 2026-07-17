@@ -28,6 +28,7 @@
         "backgroundColor": "#1B2529"
       },
       "package": "com.homeguard.app",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "usesCleartextTraffic": true,
       "permissions": [

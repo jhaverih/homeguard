@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "705450184787",
+    "project_id": "attenteveapp",
+    "storage_bucket": "attenteveapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:705450184787:android:e0107631b265e0f185b6a6",
+        "android_client_info": {
+          "package_name": "com.homeguard.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeaiPuUeZ_xOfQ9uvFKpNfoT9tg-kqp9M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

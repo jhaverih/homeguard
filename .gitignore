@@ -43,3 +43,8 @@ ios/
 # Test coverage
 coverage/
 infrastructure/.env
+
+# Firebase service account keys — sensitive, never commit (google-services.json
+# itself is fine to commit, it's public identifiers only per Expo's own docs)
+firebase-service-account*.json
+apps/mobile/firebase-adminsdk*.json
