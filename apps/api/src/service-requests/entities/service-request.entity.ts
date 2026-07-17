@@ -6,6 +6,7 @@ import { User } from '../../users/entities/user.entity';
 import { CustomerSubscription } from '../../subscriptions/entities/customer-subscription.entity';
 import { AdditionalService } from './additional-service.entity';
 import { ServiceRequestStatus } from '../../common/enums/role.enum';
+import { getZipCentroid, haversineMiles } from '../../common/utils/geo.utils';
 
 export enum ServiceType {
   SCHEDULED_INSPECTION = 'SCHEDULED_INSPECTION',
@@ -104,6 +105,21 @@ export class ServiceRequest {
   // scope the vendor app's Yolink connect card to that one job, not every ticket.
   get isMonitoringSetupJob(): boolean {
     return (this.additionalServices ?? []).some((s) => s.name === 'Home Monitoring Setup');
+  }
+
+  // Distance from the vendor's live GPS position to the service address's ZIP
+  // centroid — not the customer's own device location, which may be anywhere
+  // (work, another room of the house) and isn't a meaningful reference point
+  // for "how far is the vendor from the property." Reuses the same free,
+  // static ZIP-centroid lookup already built for service-area radius matching.
+  get etaMinutes(): number | null {
+    if (this.status !== ServiceRequestStatus.VENDOR_EN_ROUTE) return null;
+    if (this.vendorLatitude == null || this.vendorLongitude == null) return null;
+    const dest = getZipCentroid(this.zipCode);
+    if (!dest) return null;
+    const distanceMiles = haversineMiles(Number(this.vendorLatitude), Number(this.vendorLongitude), dest.lat, dest.lng);
+    const avgSpeedMph = 25; // matches the assumption used by the old client-side calc
+    return Math.round((distanceMiles / avgSpeedMph) * 60);
   }
 
   // MinIO object keys uploaded by vendor as proof of completion (min 1 required)

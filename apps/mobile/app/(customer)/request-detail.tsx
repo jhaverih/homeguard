@@ -1,10 +1,9 @@
-﻿import { useState, useCallback, useEffect } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Modal, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Location from 'expo-location';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -159,34 +158,13 @@ export default function RequestDetailScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Compute vendor ETA when en route
-  useEffect(() => {
-    if (!request || request.status !== 'VENDOR_EN_ROUTE') return;
-    if (!request.vendorLatitude || !request.vendorLongitude) return;
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const lat1 = loc.coords.latitude;
-        const lon1 = loc.coords.longitude;
-        const lat2 = parseFloat(request.vendorLatitude);
-        const lon2 = parseFloat(request.vendorLongitude);
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2 +
-          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-        const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const speedKmh = 40; // ~25 mph average
-        const mins = Math.round((distKm / speedKmh) * 60);
-        setEtaMinutes(mins);
-      } catch {}
-    })();
-  }, [request?.status, request?.vendorLatitude, request?.vendorLongitude]);
+  // ETA is computed server-side from the vendor's live location to the
+  // service address's ZIP centroid (see ServiceRequest.etaMinutes) — not the
+  // customer's own device location, which isn't a meaningful reference point
+  // since the customer may not be physically at the property.
+  const etaMinutes: number | null = request?.etaMinutes ?? null;
 
   const [scheduleBusy, setScheduleBusy] = useState(false);
-  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
 
   const confirmSchedule = async () => {
     setScheduleBusy(true);
