@@ -789,7 +789,17 @@ export class ServiceRequestsService {
         this.uploadsService.getSignedUrl(key).catch(() => null),
       ),
     );
-    return { ...req, completionPhotoUrls: completionPhotoUrls.filter(Boolean) };
+    // Getters on the TypeORM entity don't survive JSON serialization — attach
+    // explicitly, same as the plain findOne() endpoint. This is the endpoint
+    // the customer app's request-detail screen actually calls, so etaMinutes
+    // silently vanishing here (while present on the other endpoint) is what
+    // caused the vendor-en-route ETA to never show up.
+    return {
+      ...req,
+      completionPhotoUrls: completionPhotoUrls.filter(Boolean),
+      isMonitoringSetupJob: req.isMonitoringSetupJob,
+      etaMinutes: req.etaMinutes,
+    };
   }
 
   async findByIdForUser(id: string, userId: string): Promise<ServiceRequest> {
