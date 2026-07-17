@@ -226,4 +226,11 @@ export class AdminController {
   requestMonitoringConnection(@Param('customerId') customerId: string) {
     return this.service.requestMonitoringConnection(customerId);
   }
+
+  @Get('waitlist')
+  @MinAdminLevel(AdminLevel.VIEW_ONLY)
+  @ApiOperation({ summary: 'Leads captured from the public "check your area" widget where coverage wasn\'t available yet' })
+  getWaitlist() {
+    return this.service.getWaitlist();
+  }
 }

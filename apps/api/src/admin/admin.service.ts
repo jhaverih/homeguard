@@ -24,6 +24,7 @@ import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendo
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { VendorCapability, CertificationType } from '../vendor/entities/vendor-capability.entity';
 import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
+import { WaitlistSignup } from '../service-area/entities/waitlist-signup.entity';
 import { emailEquals } from '../common/utils/email.util';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from '../payments/payments.service';
@@ -45,6 +46,7 @@ export class AdminService {
     @InjectRepository(VendorCapability) private vendorCapabilityRepo: Repository<VendorCapability>,
     @InjectRepository(VendorMembershipPayment) private membershipPaymentsRepo: Repository<VendorMembershipPayment>,
     @InjectRepository(YolinkHome) private yolinkHomesRepo: Repository<YolinkHome>,
+    @InjectRepository(WaitlistSignup) private waitlistRepo: Repository<WaitlistSignup>,
     private notificationsService: NotificationsService,
     private usersService: UsersService,
     private uploadsService: UploadsService,
@@ -948,5 +950,9 @@ export class AdminService {
       zipCode: profile.zipCode,
       customerNotes: 'Home monitoring setup — requested by Houmi',
     });
+  }
+
+  async getWaitlist() {
+    return this.waitlistRepo.find({ order: { createdAt: 'DESC' } });
   }
 }

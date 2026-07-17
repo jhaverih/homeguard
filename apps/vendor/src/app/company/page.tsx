@@ -12,6 +12,9 @@ export default function CompanyPage() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [baseZipCode, setBaseZipCode] = useState('');
+  const [serviceRadiusMiles, setServiceRadiusMiles] = useState('25');
+  const [savingServiceArea, setSavingServiceArea] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [appForm, setAppForm] = useState({
     ein: '', businessTaxLicenseState: '', coiExpirationDate: '',
@@ -21,7 +24,12 @@ export default function CompanyPage() {
   });
   const [submittingApp, setSubmittingApp] = useState(false);
 
-  const load = () => vendorApi.getCompany().then((c) => { setCompany(c); setName(c.name); });
+  const load = () => vendorApi.getCompany().then((c) => {
+    setCompany(c);
+    setName(c.name);
+    setBaseZipCode(c.baseZipCode ?? '');
+    setServiceRadiusMiles(c.serviceRadiusMiles != null ? String(c.serviceRadiusMiles) : '25');
+  });
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
 
@@ -32,6 +40,19 @@ export default function CompanyPage() {
       setCompany((prev: any) => ({ ...prev, ...updated }));
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const saveServiceArea = async () => {
+    setSavingServiceArea(true);
+    try {
+      const updated = await vendorApi.updateCompany({
+        baseZipCode: baseZipCode.trim(),
+        serviceRadiusMiles: parseInt(serviceRadiusMiles, 10) || 25,
+      });
+      setCompany((prev: any) => ({ ...prev, ...updated }));
+    } finally {
+      setSavingServiceArea(false);
     }
   };
 
@@ -105,6 +126,40 @@ export default function CompanyPage() {
             className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
           >
             Save
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
+        <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Service Area</h2>
+        <p className="text-xs text-steel mb-4">Where you're based and how far you'll travel — this determines whether customers near you can request your services.</p>
+        <div className="flex items-end gap-4">
+          <div>
+            <label className="block text-xs font-medium text-steel mb-1">Base ZIP code</label>
+            <input
+              value={baseZipCode}
+              onChange={(e) => setBaseZipCode(e.target.value)}
+              placeholder="e.g. 78701"
+              maxLength={5}
+              className="w-32 border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-steel mb-1">Service radius (miles)</label>
+            <input
+              type="number"
+              value={serviceRadiusMiles}
+              onChange={(e) => setServiceRadiusMiles(e.target.value)}
+              min="1"
+              className="w-32 border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+            />
+          </div>
+          <button
+            onClick={saveServiceArea}
+            disabled={savingServiceArea || (baseZipCode === (company.baseZipCode ?? '') && serviceRadiusMiles === String(company.serviceRadiusMiles ?? 25))}
+            className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+          >
+            {savingServiceArea ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
@@ -21,6 +22,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { YolinkModule } from './yolink/yolink.module';
 import { VendorModule } from './vendor/vendor.module';
 import { CancellationFeedbackModule } from './cancellation-feedback/cancellation-feedback.module';
+import { ServiceAreaModule } from './service-area/service-area.module';
 
 @Module({
   imports: [
@@ -59,6 +61,10 @@ import { CancellationFeedbackModule } from './cancellation-feedback/cancellation
 
     ScheduleModule.forRoot(),
 
+    // Only applied to the public service-area endpoints (ThrottlerGuard is
+    // scoped there, not global) — everything else is unaffected.
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
+
     HealthModule,
     AdminModule,
     AuthModule,
@@ -77,6 +83,7 @@ import { CancellationFeedbackModule } from './cancellation-feedback/cancellation
     YolinkModule,
     VendorModule,
     CancellationFeedbackModule,
+    ServiceAreaModule,
   ],
 })
 export class AppModule {}

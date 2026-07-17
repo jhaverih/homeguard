@@ -313,10 +313,12 @@ export class VendorService implements OnModuleInit {
     return { ...company, logoUrl };
   }
 
-  async updateCompany(userId: string, data: { name?: string; logoKey?: string }) {
+  async updateCompany(userId: string, data: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number }) {
     const company = await this.requireCompany(userId);
     if (data.name !== undefined) company.name = data.name;
     if (data.logoKey !== undefined) company.logoKey = data.logoKey;
+    if (data.baseZipCode !== undefined) company.baseZipCode = data.baseZipCode;
+    if (data.serviceRadiusMiles !== undefined) company.serviceRadiusMiles = data.serviceRadiusMiles;
     const saved = await this.companyRepo.save(company);
     // Keep the legacy per-profile companyName in sync for old read sites.
     await this.vendorProfileRepo.update({ companyId: company.id }, { companyName: saved.name });

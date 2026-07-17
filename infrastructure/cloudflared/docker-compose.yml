@@ -1,0 +1,46 @@
+# Cloudflare Tunnel — makes api.attenteve.com/public/service-area/* reachable
+# from the public internet WITHOUT opening any inbound port on the router,
+# and without exposing anything else on this QNAP. Runs as an outbound-only
+# connection to Cloudflare's edge; Cloudflare terminates public TLS.
+#
+# ── One-time setup required (cannot be done by an agent — needs your
+#    Cloudflare account + wherever attenteve.com's DNS is managed today,
+#    which looks like Squarespace Domains) ──────────────────────────────────
+# 1. Add attenteve.com to a (free) Cloudflare account: dash.cloudflare.com →
+#    Add a site → attenteve.com. Cloudflare will give you 2 nameservers.
+# 2. Point attenteve.com's nameservers at those Cloudflare nameservers,
+#    wherever the domain is currently registered (Squarespace Domains, most
+#    likely). This moves DNS management to Cloudflare — the site itself
+#    stays hosted on Squarespace, you're just changing who answers DNS
+#    queries for the domain.
+# 3. In Cloudflare's DNS tab, recreate the existing records so the live
+#    Squarespace site keeps working: the same A records Squarespace gave you
+#    for `@` and `www` (currently 198.185.159.144/145, 198.49.23.144/145 —
+#    verify against Squarespace's own instructions before copying, they can
+#    change). Set these to "DNS only" (grey cloud), not proxied.
+# 4. Zero Trust → Networks → Tunnels → Create a tunnel → Docker. Name it
+#    e.g. "attenteve-api". Cloudflare shows a `docker run` command containing
+#    a long token — copy just the token value into CLOUDFLARE_TUNNEL_TOKEN
+#    below (or into infrastructure/.env, not committed).
+# 5. In the tunnel's "Public Hostname" tab, add: hostname api.attenteve.com,
+#    service http://nginx:80, with an HTTP Host header override of
+#    api.attenteve.com (Additional application settings → HTTP Host Header)
+#    so nginx's server_name matching in nginx.conf routes it correctly.
+#
+# Once that's done, `docker compose -f infrastructure/cloudflared/docker-compose.yml up -d`
+# on the QNAP starts the tunnel; api.attenteve.com/public/service-area/check
+# should resolve within a minute or two.
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - infrastructure_default
+
+networks:
+  infrastructure_default:
+    external: true

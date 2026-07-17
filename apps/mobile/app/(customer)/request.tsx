@@ -268,6 +268,14 @@ export default function RequestScreen() {
     return minQty > 0 ? Math.max(entered, minQty) : entered;
   };
 
+  const adjustQty = (itemId: string, delta: number) => {
+    setServiceQuantities((q) => {
+      const current = parseFloat(q[itemId] || '1') || 1;
+      const next = Math.max(1, current + delta);
+      return { ...q, [itemId]: String(next) };
+    });
+  };
+
   const totalServicePrice = selectedServices.reduce((sum, item) => {
     if (item.requiresQuote) return sum;
     return sum + customerPrice(item, billedQtyFor(item));
@@ -555,15 +563,29 @@ export default function RequestScreen() {
                       <>
                         <View style={styles.qtyRow}>
                           <Text style={styles.qtyLabel}>{unitLabelDisplay(item.quantityLabel)}</Text>
-                          <TextInput
-                            style={styles.qtyInput}
-                            placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
-                            placeholderTextColor={colors.steel}
-                            keyboardType="number-pad"
-                            value={serviceQuantities[item.id] || ''}
-                            onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
-                            onPress={(e) => e.stopPropagation?.()}
-                          />
+                          <View style={styles.qtyStepper}>
+                            <TouchableOpacity
+                              onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, -1); }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Ionicons name="remove-circle-outline" size={26} color={colors.lanternDeep} />
+                            </TouchableOpacity>
+                            <TextInput
+                              style={styles.qtyInput}
+                              placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
+                              placeholderTextColor={colors.steel}
+                              keyboardType="number-pad"
+                              value={serviceQuantities[item.id] || ''}
+                              onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
+                              onPress={(e) => e.stopPropagation?.()}
+                            />
+                            <TouchableOpacity
+                              onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, 1); }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Ionicons name="add-circle-outline" size={26} color={colors.lanternDeep} />
+                            </TouchableOpacity>
+                          </View>
                         </View>
                         {item.pricingMethod === 'PER_UNIT' && item.minimumQuantity > 0 && (
                           <View style={styles.minQtyNotice}>
@@ -827,7 +849,8 @@ const styles = StyleSheet.create({
   priceNote: { fontSize: 12, color: colors.steel, marginTop: 6 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, backgroundColor: colors.mist, borderRadius: 8, padding: 10 },
   qtyLabel: { fontSize: 13, color: colors.lanternDeep, fontWeight: '600', flex: 1 },
-  qtyInput: { width: 80, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, fontSize: 14, color: colors.ink, textAlign: 'right' },
+  qtyStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  qtyInput: { width: 56, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, fontSize: 14, color: colors.ink, textAlign: 'center' },
   minQtyNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 6, paddingHorizontal: 2 },
   minQtyNoticeText: { fontSize: 12, color: '#92400e', lineHeight: 16, flex: 1 },
   totalBar: { backgroundColor: colors.ink, borderRadius: 14, padding: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

@@ -99,7 +99,7 @@ export class VendorController {
   @Patch('company')
   @VendorAdminOnly()
   @ApiOperation({ summary: 'Vendor Admin: update company name/logo' })
-  updateCompany(@Request() req, @Body() body: { name?: string; logoKey?: string }) {
+  updateCompany(@Request() req, @Body() body: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number }) {
     return this.service.updateCompany(req.user.id, body);
   }
 

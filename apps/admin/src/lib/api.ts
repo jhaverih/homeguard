@@ -81,6 +81,7 @@ export const adminApi = {
     api.post(`/admin/monitoring-setup-requests/${customerId}/request`).then((r) => r.data),
   linkYolinkHome: (data: { customerId: string; yolinkUAID: string; yolinkSecretKey: string; homeName: string; address?: string }) =>
     api.post('/yolink/link', data).then((r) => r.data),
+  getWaitlist: () => api.get('/admin/waitlist').then((r) => r.data),
 };
 
 export const userApi = {

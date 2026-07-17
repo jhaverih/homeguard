@@ -68,6 +68,16 @@ export class VendorCompany {
   @Column({ nullable: true, type: 'text' })
   reviewNotes: string;
 
+  // Company's home-base ZIP + how far out they'll travel — the entire
+  // service-area coverage model. Matched against zip-centroids.json via
+  // haversineMiles() (common/utils/geo.utils.ts); no lat/long stored here
+  // directly so there's a single source of truth for coordinates.
+  @Column({ nullable: true })
+  baseZipCode: string | null;
+
+  @Column({ type: 'int', nullable: true, default: 25 })
+  serviceRadiusMiles: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

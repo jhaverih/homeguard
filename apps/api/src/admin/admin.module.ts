@@ -20,6 +20,7 @@ import { VendorCertification } from '../vendor/entities/vendor-certification.ent
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { YolinkHome } from '../yolink/entities/yolink-home.entity';
+import { WaitlistSignup } from '../service-area/entities/waitlist-signup.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { VendorSchedulerService } from './vendor-scheduler.service';
@@ -30,7 +31,7 @@ import { PaymentsModule } from '../payments/payments.module';
   imports: [
     TypeOrmModule.forFeature([
       User, VendorProfile, CustomerSubscription, Payment, ServiceRequest, Dispute, Review, Alert, CustomerProfile,
-      VendorCompany, VendorCertification, VendorCapability, VendorMembershipPayment, YolinkHome,
+      VendorCompany, VendorCertification, VendorCapability, VendorMembershipPayment, YolinkHome, WaitlistSignup,
     ]),
     NotificationsModule,
     UsersModule,
