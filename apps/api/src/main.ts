@@ -1,10 +1,27 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Standard security headers (X-Content-Type-Options, X-Frame-Options,
+  // etc.) — CSP left at helmet's permissive default rather than a strict
+  // custom policy, since the admin/vendor Next.js apps aren't served by
+  // this app and a strict CSP here isn't the API's job.
+  app.use(helmet());
+
+  // Traffic path is client -> Cloudflare -> Tunnel -> nginx -> here. nginx
+  // is the only proxy hop Express itself sees (it already resolves the
+  // real client IP from Cloudflare's CF-Connecting-IP header before
+  // forwarding — see nginx.conf's real_ip config), so trusting exactly one
+  // hop lets req.ip resolve to the actual client instead of nginx's own
+  // container IP. Matters for the service-area endpoint's rate limiter,
+  // which keys on req.ip.
+  app.set('trust proxy', 1);
 
   app.setGlobalPrefix('api');
 
@@ -16,8 +33,13 @@ async function bootstrap() {
     }),
   );
 
+  // No wildcard fallback outside plain local development — api.attenteve.com
+  // is now genuinely public, so an unset ALLOWED_ORIGINS in staging/production
+  // should fail closed (empty allow-list) rather than silently open CORS to
+  // every origin.
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+    origin: process.env.ALLOWED_ORIGINS?.split(',')
+      ?? (process.env.NODE_ENV === 'development' ? '*' : []),
     credentials: true,
   });
 
