@@ -8,7 +8,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
-import { authApi, subscriptionsApi, api, TERMS_URL } from '../../src/services/api';
+import { authApi, subscriptionsApi, api, TERMS_URL, API_URL } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { colors } from '../../src/theme';
 
@@ -287,7 +287,7 @@ export default function RegisterScreen() {
     } catch (e: any) {
       Alert.alert(
         e.message === 'NETWORK_ERROR' ? 'Cannot Connect to Server' : 'Registration Failed',
-        e.message === 'NETWORK_ERROR' ? 'Make sure your phone is on your home WiFi.\n\nServer: 192.168.86.29' : e.message,
+        e.message === 'NETWORK_ERROR' ? `Check your internet connection and try again.\n\nServer: ${API_URL}` : e.message,
       );
     } finally {
       setLoading(false);

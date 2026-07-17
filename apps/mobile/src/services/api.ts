@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.86.29/api';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.86.29/api';
 
 // The admin app serves static legal docs at its root domain (same host, no /api prefix).
 export const TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/customer-terms.html`;

@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AttenteveLogo, AttenteveIcon } from '../../src/components/AttenteveLogo';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
-import { authApi } from '../../src/services/api';
+import { authApi, API_URL } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { colors } from '../../src/theme';
 
@@ -77,7 +77,7 @@ export default function LoginScreen() {
       if (e.message === 'NETWORK_ERROR') {
         Alert.alert(
           'Cannot Connect to Server',
-          'Make sure your phone is on your home WiFi (not cellular data).\n\nServer: 192.168.86.29',
+          `Check your internet connection and try again.\n\nServer: ${API_URL}`,
         );
       } else {
         Alert.alert('Login Failed', 'Incorrect email or password. Please try again.');
