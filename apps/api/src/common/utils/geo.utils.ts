@@ -1,6 +1,11 @@
-import zipCentroids from '../data/zip-centroids.json';
+// Namespace import (not default) deliberately — this repo doesn't set
+// esModuleInterop, so a default import compiles to `require(...).default`,
+// which is undefined for a plain JSON require() and breaks at runtime even
+// though it type-checks fine. `import * as` compiles straight to
+// `require(...)`, which is what a JSON module actually returns.
+import * as zipCentroids from '../data/zip-centroids.json';
 
-const ZIP_CENTROIDS: Record<string, number[]> = zipCentroids;
+const ZIP_CENTROIDS: Record<string, number[]> = zipCentroids as unknown as Record<string, number[]>;
 
 export function getZipCentroid(zip: string): { lat: number; lng: number } | null {
   const normalized = zip?.trim().slice(0, 5);
