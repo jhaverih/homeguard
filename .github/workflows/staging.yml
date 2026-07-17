@@ -33,9 +33,9 @@ jobs:
           set -a; source /share/Container/homeguard/.env 2>/dev/null || true; set +a
 
           # Build admin first with --no-cache (takes 8-12 min) — do it before stopping services
-          # to minimise downtime. api/nginx build with cache after.
+          # to minimise downtime. api/nginx/vendor build with cache after.
           docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin
-          docker compose -f infrastructure/docker-compose.staging.yml build api nginx
+          docker compose -f infrastructure/docker-compose.staging.yml build api nginx vendor
 
           # Stop containers (not down — down removes the network which causes QNAP dnsmasq NAT errors)
           docker compose -f infrastructure/docker-compose.staging.yml stop || true
@@ -58,10 +58,13 @@ jobs:
             "sed -i 's/trust/scram-sha-256/g' /var/lib/postgresql/data/pg_hba.conf \
              && kill -HUP \$(head -1 /var/lib/postgresql/data/postmaster.pid)" || true
 
-          # Force-recreate only app containers (api, admin, nginx) — never data containers.
+          # Force-recreate only app containers (api, admin, nginx, vendor) — never data containers.
           # postgres/redis/minio stay running with their volumes untouched.
+          # vendor added 2026-07-17: it was previously excluded from this list, which meant
+          # every deploy's `stop` step above stopped it without ever bringing it back, and
+          # its absence could crash-loop nginx entirely (see nginx.conf's resolver comment).
           docker compose -f infrastructure/docker-compose.staging.yml up --force-recreate --remove-orphans -d \
-            api admin nginx
+            api admin nginx vendor
           docker compose -f infrastructure/docker-compose.staging.yml ps
 
       - name: Wait for API health check
@@ -89,6 +92,8 @@ jobs:
           docker compose -f infrastructure/docker-compose.staging.yml logs admin --tail=60
           echo "=== Nginx logs ==="
           docker compose -f infrastructure/docker-compose.staging.yml logs nginx --tail=20
+          echo "=== Vendor logs ==="
+          docker compose -f infrastructure/docker-compose.staging.yml logs vendor --tail=40
 
       - name: Clean up old images
         run: docker image prune -f
