@@ -27,8 +27,12 @@ export class ServiceRequestsController {
 
   @Get('my')
   @ApiOperation({ summary: 'Get my service requests (customer view)' })
-  getMyRequests(@Request() req) {
-    return this.service.getCustomerRequests(req.user.id);
+  async getMyRequests(@Request() req) {
+    const requests = await this.service.getCustomerRequests(req.user.id);
+    // Getters on the TypeORM entity don't survive JSON serialization — attach
+    // explicitly, same as the single-request endpoints. Needed here because
+    // the dashboard's "next appointment" card reads etaMinutes from this list.
+    return requests.map((r) => ({ ...r, isMonitoringSetupJob: r.isMonitoringSetupJob, etaMinutes: r.etaMinutes }));
   }
 
   @Get('vendor/my')

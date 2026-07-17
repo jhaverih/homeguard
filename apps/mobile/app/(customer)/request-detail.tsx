@@ -9,6 +9,7 @@ import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { formatRelativeAge } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
 import CancellationFeedbackModal from '../../src/components/CancellationFeedbackModal';
 
@@ -365,6 +366,9 @@ export default function RequestDetailScreen() {
                 ? `Estimated arrival: ~${etaMinutes} min`
                 : 'Please make sure to be home when they arrive.'}
             </Text>
+            {request.vendorLocationAt && (
+              <Text style={styles.enRouteMeta}>{formatRelativeAge(request.vendorLocationAt)}</Text>
+            )}
           </View>
         </View>
       )}
@@ -810,6 +814,7 @@ const styles = StyleSheet.create({
   enRouteBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#fffbeb', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 2, borderColor: '#f59e0b' },
   enRouteTitle: { fontSize: 15, fontWeight: '800', color: '#92400e', marginBottom: 2 },
   enRouteBody: { fontSize: 13, color: '#78350f', lineHeight: 20 },
+  enRouteMeta: { fontSize: 11, color: '#b45309', marginTop: 2 },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
   vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: colors.border },
   vendorName: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep },

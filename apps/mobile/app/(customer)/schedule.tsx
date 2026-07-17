@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, PanResponder,
 } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { router, useFocusEffect } from 'expo-router';
 import { requestsApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
@@ -77,12 +78,29 @@ export default function CustomerSchedule() {
   const _vmRef = useRef(viewMode);
   _vmRef.current = viewMode;
 
+  // The date numbers swap instantly on swipe with no visual cue — this slide
+  // + fade makes the change unmistakable without porting PanResponder to a
+  // full gesture-handler Pan (no live drag-following, just a release-triggered
+  // transition, which is enough to make the swap noticeable).
+  const slideX = useSharedValue(0);
+  const slideOpacity = useSharedValue(1);
+  const gridAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slideX.value }],
+    opacity: slideOpacity.value,
+  }));
+  const triggerSlideAnim = (direction: 'left' | 'right') => {
+    slideX.value = direction === 'left' ? 24 : -24;
+    slideOpacity.value = 0.4;
+    slideX.value = withTiming(0, { duration: 200 });
+    slideOpacity.value = withTiming(1, { duration: 200 });
+  };
+
   const swipe = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, { dx, dy }) => Math.abs(dx) > Math.abs(dy) + 8 && Math.abs(dx) > 12,
       onPanResponderRelease: (_, { dx }) => {
-        if (dx < -60) { _vmRef.current === 'week' ? nextWeek() : nextMonth(); }
-        else if (dx > 60) { _vmRef.current === 'week' ? prevWeek() : prevMonth(); }
+        if (dx < -60) { _vmRef.current === 'week' ? nextWeek() : nextMonth(); triggerSlideAnim('left'); }
+        else if (dx > 60) { _vmRef.current === 'week' ? prevWeek() : prevMonth(); triggerSlideAnim('right'); }
       },
     }),
   ).current;
@@ -143,6 +161,7 @@ export default function CustomerSchedule() {
           </TouchableOpacity>
         </View>
 
+        <Animated.View style={gridAnimatedStyle}>
         {viewMode === 'week' ? (
           <View style={styles.weekDays}>
             {weekDays.map((d, i) => {
@@ -185,6 +204,7 @@ export default function CustomerSchedule() {
             })}
           </View>
         )}
+        </Animated.View>
       </View>
 
       {/* Selected day */}

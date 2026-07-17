@@ -102,6 +102,36 @@ export default function RequestScreen() {
     const rank = (c: string | null) => { const i = CATEGORY_ORDER.indexOf(c || ''); return i === -1 ? CATEGORY_ORDER.length : i; };
     return [...catalog].sort((a, b) => rank(a.category) - rank(b.category));
   }, [catalog]);
+  // Grouped by category so the list can collapse — ~70 items across 6
+  // categories otherwise renders fully flat/open every time. Uncategorized
+  // items (Roofing, Solar, etc.) get their own trailing "Other Services"
+  // group instead of floating headerless at the end.
+  const groupedCatalog = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    for (const item of sortedCatalog) {
+      const key = item.category || 'OTHER';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
+    }
+    const orderedKeys = [...CATEGORY_ORDER.filter((k) => groups.has(k)), ...(groups.has('OTHER') ? ['OTHER'] : [])];
+    return orderedKeys.map((key) => ({
+      key,
+      label: key === 'OTHER' ? 'Other Services' : (CATEGORY_LABELS[key] ?? key),
+      items: groups.get(key)!,
+    }));
+  }, [sortedCatalog]);
+  // Collapsed by default except the first category — combined with the
+  // dashboard search (which deep-links straight to a service), this keeps
+  // the page short for browsing without needing per-customer personalization
+  // data, which doesn't exist anywhere in the backend today.
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set([CATEGORY_ORDER[0]]));
+  const toggleCategory = (key: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [serviceQuantities, setServiceQuantities] = useState<Record<string, string>>({});
   const [serviceConfirmModal, setServiceConfirmModal] = useState(false);
@@ -195,6 +225,16 @@ export default function RequestScreen() {
     setSelectedServices([match]);
     setServiceQuantities({});
     setServiceNotes('');
+  }, [preselectServicePriceId, catalog]);
+
+  // A preselected item's category may be collapsed by default — expand it,
+  // otherwise its row never lays out and the scroll-to-item effect below
+  // silently retries forever without ever finding a Y position.
+  useEffect(() => {
+    if (!preselectServicePriceId || catalog.length === 0) return;
+    const match = catalog.find((i: any) => i.id === preselectServicePriceId);
+    const key = match?.category || 'OTHER';
+    setExpandedCategories((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
   }, [preselectServicePriceId, catalog]);
 
   useEffect(() => {
@@ -526,17 +566,23 @@ export default function RequestScreen() {
             {catalogLoading ? (
               <ActivityIndicator color={colors.lanternDeep} style={{ marginVertical: 24 }} />
             ) : (
-              sortedCatalog.map((item, idx) => {
-                const price = customerPrice(item, billedQtyFor(item));
-                const isSelected = selectedServices.some((s) => s.id === item.id);
-                const prevCategory = idx > 0 ? sortedCatalog[idx - 1].category : undefined;
-                const showHeader = item.category && item.category !== prevCategory;
+              groupedCatalog.map((group) => {
+                const isExpanded = expandedCategories.has(group.key);
                 return (
-                  <Fragment key={item.id}>
-                  {showHeader && (
-                    <Text style={styles.categoryHeader}>{CATEGORY_LABELS[item.category] ?? item.category}</Text>
-                  )}
-                  <TouchableOpacity
+                  <View key={group.key} style={styles.categoryGroup}>
+                    <TouchableOpacity style={styles.categoryHeaderRow} onPress={() => toggleCategory(group.key)} activeOpacity={0.7}>
+                      <Text style={styles.categoryHeader}>{group.label}</Text>
+                      <View style={styles.categoryHeaderRight}>
+                        <Text style={styles.categoryCount}>{group.items.length}</Text>
+                        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.steel} />
+                      </View>
+                    </TouchableOpacity>
+                    {isExpanded && group.items.map((item) => {
+                      const price = customerPrice(item, billedQtyFor(item));
+                      const isSelected = selectedServices.some((s) => s.id === item.id);
+                      return (
+                        <Fragment key={item.id}>
+                        <TouchableOpacity
                     onLayout={(e) => { serviceRowY.current.set(item.id, e.nativeEvent.layout.y); }}
                     style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
                     onPress={() => toggleService(item)}
@@ -651,8 +697,11 @@ export default function RequestScreen() {
                         )}
                       </View>
                     )}
-                  </TouchableOpacity>
-                  </Fragment>
+                        </TouchableOpacity>
+                        </Fragment>
+                      );
+                    })}
+                  </View>
                 );
               })
             )}
@@ -837,7 +886,11 @@ const styles = StyleSheet.create({
   pickerCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
   doneBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 12 },
   doneBtnText: { color: colors.ink, fontWeight: '700', fontSize: 16 },
-  categoryHeader: { fontSize: 13, fontWeight: '700', color: colors.steel, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 16, marginBottom: 8 },
+  categoryGroup: { marginTop: 8 },
+  categoryHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+  categoryHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  categoryCount: { fontSize: 12, fontWeight: '600', color: colors.steel },
+  categoryHeader: { fontSize: 13, fontWeight: '700', color: colors.steel, textTransform: 'uppercase', letterSpacing: 0.4 },
   serviceCard: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 14, padding: 16, marginBottom: 10 },
   serviceCardSelected: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   serviceCardRow: { flexDirection: 'row', alignItems: 'center' },

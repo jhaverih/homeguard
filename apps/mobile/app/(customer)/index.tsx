@@ -6,10 +6,10 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
-import * as Location from 'expo-location';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi, paymentsApi, pricingApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
+import { formatRelativeAge } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
 
 function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollViewRef: React.RefObject<ScrollView | null> }) {
@@ -78,7 +78,6 @@ const ACTIVE_STATUSES = ['PENDING', 'PENDING_CUSTOMER_REVIEW', 'ACCEPTED', 'VEND
 
 function UpcomingServiceCard({ requests }: { requests: any[] }) {
   const active = requests.filter((r) => ACTIVE_STATUSES.includes(r.status));
-  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
 
   const upcoming = active.sort((a, b) => {
     const aT = a.scheduledDate ? new Date(a.scheduledDate).getTime() : Infinity;
@@ -88,42 +87,22 @@ function UpcomingServiceCard({ requests }: { requests: any[] }) {
 
   const isEnRoute = upcoming?.status === 'VENDOR_EN_ROUTE';
 
-  useEffect(() => {
-    if (!isEnRoute || !upcoming?.vendorLatitude || !upcoming?.vendorLongitude) return;
-    const ageMin = upcoming.vendorLocationAt
-      ? (Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000
-      : 999;
-    if (ageMin > 15) return;
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const lat2 = parseFloat(upcoming.vendorLatitude);
-        const lon2 = parseFloat(upcoming.vendorLongitude);
-        const R = 6371;
-        const dLat = (lat2 - loc.coords.latitude) * Math.PI / 180;
-        const dLon = (lon2 - loc.coords.longitude) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2 +
-          Math.cos(loc.coords.latitude * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-        const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        setEtaMinutes(Math.max(1, Math.round((distKm / 40) * 60)));
-      } catch {}
-    })();
-  }, [isEnRoute, upcoming?.vendorLatitude, upcoming?.vendorLongitude, upcoming?.vendorLocationAt]);
-
   if (active.length === 0) return null;
 
   const isToday = upcoming.scheduledDate
     ? new Date(upcoming.scheduledDate).toDateString() === new Date().toDateString()
     : false;
 
-  const etaLabel = etaMinutes != null
-    ? `~${etaMinutes} min away`
-    : (isEnRoute && upcoming.vendorLocationAt &&
-      (Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000 < 15)
-      ? `Location updated ${Math.round((Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000)} min ago`
-      : '';
+  // etaMinutes comes from the server (ServiceRequest.etaMinutes, computed from
+  // the vendor's live location vs. the property's ZIP centroid) — not the
+  // customer's own device location. A location reading older than 15 min is
+  // treated as too stale to present as a live ETA, same cutoff the fallback
+  // text already used before this was server-computed.
+  const locationAgeMin = upcoming.vendorLocationAt
+    ? (Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000
+    : null;
+  const etaIsFresh = locationAgeMin != null && locationAgeMin <= 15;
+  const etaLabel = (upcoming.etaMinutes != null && etaIsFresh) ? `~${upcoming.etaMinutes} min away` : '';
 
   return (
     <TouchableOpacity
@@ -154,12 +133,17 @@ function UpcomingServiceCard({ requests }: { requests: any[] }) {
         </Text>
       )}
       {isEnRoute && (
-        <View style={styles.enRoutePill}>
-          <Ionicons name="radio-button-on" size={10} color="#7c3aed" />
-          <Text style={styles.enRoutePillText}>
-            {etaLabel || 'Vendor is heading to your location'}
-          </Text>
-        </View>
+        <>
+          <View style={styles.enRoutePill}>
+            <Ionicons name="radio-button-on" size={10} color="#7c3aed" />
+            <Text style={styles.enRoutePillText}>
+              {etaLabel || 'Vendor is heading to your location'}
+            </Text>
+          </View>
+          {upcoming.vendorLocationAt && (
+            <Text style={styles.upcomingEtaMeta}>{formatRelativeAge(upcoming.vendorLocationAt)}</Text>
+          )}
+        </>
       )}
       <Text style={styles.upcomingCta}>Tap to view details →</Text>
     </TouchableOpacity>
@@ -262,6 +246,26 @@ export default function CustomerDashboard() {
         <Text style={styles.subtitle}>Your home is in good hands.</Text>
       </View>
 
+      <UpcomingServiceCard requests={requests} />
+
+      <TouchableOpacity style={styles.aiCard} onPress={() => router.push('/(customer)/assistant')}>
+        <View style={styles.aiCardLeft}>
+          <View style={styles.aiIcon}>
+            <Ionicons name="chatbubbles" size={22} color={colors.mist} />
+          </View>
+          <View>
+            <Text style={styles.aiCardTitle}>
+              <Text style={{ color: colors.lantern }}>eve</Text>
+              <Text style={{ color: colors.mist }}>AI</Text>
+            </Text>
+            <Text style={styles.aiCardSub}>Ask about maintenance, repairs & inspections</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.mistDim} />
+      </TouchableOpacity>
+
+      <ServiceSearchCard catalog={catalog} scrollViewRef={dashScrollRef} />
+
       {subscription ? (
         <View style={styles.subCard}>
           <View style={styles.subHeader}>
@@ -356,24 +360,6 @@ export default function CustomerDashboard() {
         );
       })}
 
-      <TouchableOpacity style={styles.aiCard} onPress={() => router.push('/(customer)/assistant')}>
-        <View style={styles.aiCardLeft}>
-          <View style={styles.aiIcon}>
-            <Ionicons name="chatbubbles" size={22} color={colors.mist} />
-          </View>
-          <View>
-            <Text style={styles.aiCardTitle}>
-              <Text style={{ color: colors.lantern }}>eve</Text>
-              <Text style={{ color: colors.mist }}>AI</Text>
-            </Text>
-            <Text style={styles.aiCardSub}>Ask about maintenance, repairs & inspections</Text>
-          </View>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.mistDim} />
-      </TouchableOpacity>
-
-      <ServiceSearchCard catalog={catalog} scrollViewRef={dashScrollRef} />
-
       {pendingApprovals > 0 && (
         <TouchableOpacity style={styles.approvalsCard} onPress={() => router.push('/(customer)/approvals')}>
           <View style={styles.approvalsLeft}>
@@ -392,8 +378,6 @@ export default function CustomerDashboard() {
           </View>
         </TouchableOpacity>
       )}
-
-      <UpcomingServiceCard requests={requests} />
     </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -464,5 +448,6 @@ const styles = StyleSheet.create({
   upcomingDate: { fontSize: 14, fontWeight: '600', color: colors.ink, marginBottom: 8 },
   enRoutePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f5f3ff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginBottom: 8 },
   enRoutePillText: { fontSize: 12, color: '#7c3aed', fontWeight: '600' },
+  upcomingEtaMeta: { fontSize: 11, color: '#8b5cf6', marginBottom: 8, marginTop: -2 },
   upcomingCta: { fontSize: 12, color: colors.steel, fontWeight: '600' },
 });
