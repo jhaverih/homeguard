@@ -64,7 +64,7 @@ services:
       dockerfile: Dockerfile
       target: runner
       args:
-        NEXT_PUBLIC_API_URL: http://192.168.86.29/api
+        NEXT_PUBLIC_API_URL: https://api.attenteve.com/api
         NEXT_PUBLIC_STRIPE_PK: ${STRIPE_PUBLISHABLE_KEY:-}
     restart: unless-stopped
     init: true
