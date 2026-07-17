@@ -418,7 +418,7 @@ export class MaintenanceBotService implements OnModuleInit {
         servicePriceId: r.servicePriceId,
         name: item?.name,
         description: item?.description,
-        priceDisplay: item?.priceDisplay,
+        customerPriceDisplay: item?.customerPriceDisplay,
       };
     });
   }

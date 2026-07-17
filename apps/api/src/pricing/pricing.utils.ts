@@ -40,3 +40,26 @@ export function formatPriceDisplay(item: ServicePrice): string {
   const suffix = PRICING_METHOD_META[item.pricingMethod]?.suffix ?? '';
   return `$${formatted}${suffix}`;
 }
+
+// Customer-facing equivalent of formatPriceDisplay() — same shape/wording,
+// but built from the markup-adjusted price (same formula as the real
+// charge in service-requests.service.ts), never the raw vendor basePrice.
+export function formatCustomerPriceDisplay(item: ServicePrice): string {
+  if (item.requiresQuote) return 'Request a Quote';
+  const qty = item.pricingMethod === PricingMethod.PER_UNIT && item.includeQty != null ? Number(item.includeQty) : 1;
+  const cost = calcTieredCost(item, qty);
+  const markup = item.markupPercent != null ? Number(item.markupPercent) : 15;
+  const amount = cost * (1 + markup / 100);
+  const formatted = Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2);
+  if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== UnitLabel.NONE) {
+    const unitLabel = UNIT_LABEL_META[item.quantityLabel as UnitLabel]?.label ?? '';
+    if (item.includeQty != null) {
+      const include = Number(item.includeQty);
+      const plural = include !== 1 ? 's' : '';
+      return `$${formatted} (includes up to ${include} ${unitLabel}${plural})`;
+    }
+    return `$${formatted} Per ${unitLabel}`;
+  }
+  const suffix = PRICING_METHOD_META[item.pricingMethod]?.suffix ?? '';
+  return `$${formatted}${suffix}`;
+}

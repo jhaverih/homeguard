@@ -255,7 +255,7 @@ export default function RequestScreen() {
   const customerPrice = (item: any, qty = 1) => {
     const cost = tieredCost(item, qty);
     const markup = item.markupPercent != null ? parseFloat(item.markupPercent) : 15;
-    return Math.ceil(cost * (1 + markup / 100) * 1.029 + 0.30);
+    return Math.ceil(cost * (1 + markup / 100));
   };
 
   // Per Unit pricing floors the billed quantity at minimumQuantity (when
@@ -519,7 +519,7 @@ export default function RequestScreen() {
               <ActivityIndicator color={colors.lanternDeep} style={{ marginVertical: 24 }} />
             ) : (
               sortedCatalog.map((item, idx) => {
-                const price = customerPrice(item);
+                const price = customerPrice(item, billedQtyFor(item));
                 const isSelected = selectedServices.some((s) => s.id === item.id);
                 const prevCategory = idx > 0 ? sortedCatalog[idx - 1].category : undefined;
                 const showHeader = item.category && item.category !== prevCategory;
@@ -548,8 +548,8 @@ export default function RequestScreen() {
                         )}
                       </View>
                     </View>
-                    {item.priceDisplay && !item.requiresQuote && (
-                      <Text style={styles.priceNote}>{item.priceDisplay}</Text>
+                    {item.customerPriceDisplay && !item.requiresQuote && (
+                      <Text style={styles.priceNote}>{item.customerPriceDisplay}</Text>
                     )}
                     {isSelected && hasUnitLabel(item) && (
                       <>

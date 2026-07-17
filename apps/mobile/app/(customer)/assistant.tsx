@@ -237,7 +237,7 @@ export default function AssistantScreen() {
         {pendingRecs.map((rec: any) => (
           <View key={rec.id} style={styles.recCard}>
             <Text style={styles.recCardTitle}>💡 {rec.name}</Text>
-            {rec.priceDisplay && <Text style={styles.recCardPrice}>{rec.priceDisplay}</Text>}
+            {rec.customerPriceDisplay && <Text style={styles.recCardPrice}>{rec.customerPriceDisplay}</Text>}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
               <TouchableOpacity style={styles.recDeclineBtn} onPress={() => respondToRecommendation(rec, 'DECLINED')}>
                 <Text style={styles.recDeclineText}>Not now</Text>

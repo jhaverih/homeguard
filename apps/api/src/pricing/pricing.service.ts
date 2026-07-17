@@ -6,7 +6,7 @@ import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { UnitLabel } from '../common/enums/unit-label.enum';
 import { ServiceCategory, SERVICE_CATEGORY_META } from '../common/enums/service-category.enum';
-import { formatPriceDisplay } from './pricing.utils';
+import { formatPriceDisplay, formatCustomerPriceDisplay } from './pricing.utils';
 
 // Trimmed to only what's still live — several of the original entries here
 // (Gutters Inspection & Cleaning, both Replace Bulbs variants, Drywall
@@ -416,8 +416,8 @@ export class PricingService implements OnModuleInit {
   // to read off the old free-text priceNote column. Mutates the loaded
   // instance (rather than spreading into a plain object) so it still
   // satisfies ServicePrice's shape, including its lifecycle-hook method.
-  private withDisplay(item: ServicePrice): ServicePrice & { priceDisplay: string } {
-    return Object.assign(item, { priceDisplay: formatPriceDisplay(item) });
+  private withDisplay(item: ServicePrice): ServicePrice & { priceDisplay: string; customerPriceDisplay: string } {
+    return Object.assign(item, { priceDisplay: formatPriceDisplay(item), customerPriceDisplay: formatCustomerPriceDisplay(item) });
   }
 
   async getAll(includeInactive = false): Promise<(ServicePrice & { priceDisplay: string })[]> {
