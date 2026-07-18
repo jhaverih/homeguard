@@ -12,6 +12,7 @@ import { AdminLevel } from '../common/enums/admin-level.enum';
 import { AdminService } from './admin.service';
 import { CreateTeamUserDto } from './dto/create-team-user.dto';
 import { SetVendorPlanDto } from './dto/set-vendor-plan.dto';
+import { UpdateVendorServiceAreaDto } from './dto/update-vendor-service-area.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -76,6 +77,13 @@ export class AdminController {
   @ApiOperation({ summary: 'Remove (deactivate) a vendor' })
   removeVendor(@Param('id') id: string) {
     return this.service.removeVendor(id);
+  }
+
+  @Patch('vendors/:id/service-area')
+  @MinAdminLevel(AdminLevel.SUPER_USER)
+  @ApiOperation({ summary: "View/correct a vendor's address and service-area coverage radius" })
+  updateVendorServiceArea(@Param('id') id: string, @Body() body: UpdateVendorServiceAreaDto) {
+    return this.service.updateVendorServiceArea(id, body);
   }
 
   @Get('schedule')

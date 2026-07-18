@@ -170,6 +170,11 @@ export class AdminService {
         elitePlanExpiresAt: company?.elitePlanExpiresAt ?? u.vendorProfile?.elitePlanExpiresAt ?? null,
         eliteRequestedAt: company?.eliteRequestedAt ?? null,
         isCompanyAdmin: u.vendorProfile?.isCompanyAdmin ?? false,
+        address: company?.address ?? null,
+        city: company?.city ?? null,
+        state: company?.state ?? null,
+        baseZipCode: company?.baseZipCode ?? null,
+        serviceRadiusMiles: company?.serviceRadiusMiles ?? null,
       };
     });
   }
@@ -182,6 +187,28 @@ export class AdminService {
   async removeVendor(vendorId: string) {
     await this.usersRepo.update(vendorId, { status: UserStatus.SUSPENDED });
     return { success: true };
+  }
+
+  // Lets platform admin view/correct a vendor's location and coverage-area
+  // radius directly — previously only that vendor's own Company Admin could
+  // set this (VendorService.updateCompany), and it was never populated at
+  // signup at all, so real vendors had no service area and the public zip
+  // checker always reported "not covered."
+  async updateVendorServiceArea(
+    vendorId: string,
+    data: { address?: string; city?: string; state?: string; baseZipCode?: string; serviceRadiusMiles?: number },
+  ) {
+    const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
+    if (!profile?.companyId) throw new NotFoundException('Vendor company not found');
+
+    await this.vendorCompanyRepo.update(profile.companyId, {
+      ...(data.address !== undefined ? { address: data.address } : {}),
+      ...(data.city !== undefined ? { city: data.city } : {}),
+      ...(data.state !== undefined ? { state: data.state } : {}),
+      ...(data.baseZipCode !== undefined ? { baseZipCode: data.baseZipCode } : {}),
+      ...(data.serviceRadiusMiles !== undefined ? { serviceRadiusMiles: data.serviceRadiusMiles } : {}),
+    });
+    return this.vendorCompanyRepo.findOne({ where: { id: profile.companyId } });
   }
 
   async removeCustomer(customerId: string) {
@@ -345,6 +372,10 @@ export class AdminService {
     });
     if (!vendor) throw new NotFoundException('Vendor not found');
 
+    const company = vendor.vendorProfile?.companyId
+      ? await this.vendorCompanyRepo.findOne({ where: { id: vendor.vendorProfile.companyId } })
+      : null;
+
     const allJobs = await this.requestsRepo.find({ where: { vendorId } });
     const completed = allJobs.filter((j) => j.status === ServiceRequestStatus.COMPLETED);
     const cancelled = allJobs.filter((j) => j.status === ServiceRequestStatus.CANCELLED);
@@ -400,6 +431,11 @@ export class AdminService {
         email: vendor.email,
         companyName: vendor.vendorProfile?.companyName,
         joinedAt: vendor.createdAt,
+        address: company?.address ?? null,
+        city: company?.city ?? null,
+        state: company?.state ?? null,
+        baseZipCode: company?.baseZipCode ?? null,
+        serviceRadiusMiles: company?.serviceRadiusMiles ?? null,
       },
       jobs: {
         total: allJobs.length,

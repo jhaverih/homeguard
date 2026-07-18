@@ -68,6 +68,18 @@ export class VendorCompany {
   @Column({ nullable: true, type: 'text' })
   reviewNotes: string;
 
+  // Full mailing address — captured at vendor registration (see RegisterDto),
+  // displayed in the admin portal. Distinct from baseZipCode below: this is
+  // just for display/records, baseZipCode is what coverage-matching uses.
+  @Column({ nullable: true })
+  address: string | null;
+
+  @Column({ nullable: true })
+  city: string | null;
+
+  @Column({ nullable: true })
+  state: string | null;
+
   // Company's home-base ZIP + how far out they'll travel — the entire
   // service-area coverage model. Matched against zip-centroids.json via
   // haversineMiles() (common/utils/geo.utils.ts); no lat/long stored here

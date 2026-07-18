@@ -69,6 +69,7 @@ export default function VendorsPage() {
               <tr>
                 <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Name</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Company</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Location</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Email</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel min-w-[170px]">Status</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel whitespace-nowrap">Stripe</th>
@@ -84,6 +85,18 @@ export default function VendorsPage() {
                     <Link href={`/vendors/${v.id}`} className="text-lantern-deep hover:underline">{v.name}</Link>
                   </td>
                   <td className="px-6 py-4 text-steel">{v.companyName ?? <span className="text-steel text-xs">—</span>}</td>
+                  <td className="px-6 py-4">
+                    {v.baseZipCode ? (
+                      <span className="text-steel">
+                        {v.city && v.state ? `${v.city}, ${v.state}` : v.baseZipCode}
+                        <span className="text-steel text-xs ml-1">({v.serviceRadiusMiles ?? 25}mi)</span>
+                      </span>
+                    ) : (
+                      <span className="text-red-500 text-xs font-medium" title="No coverage area set — this vendor won't match any zip on the public checker">
+                        ⚠ No address set
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-steel">{v.email}</td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1 items-start">

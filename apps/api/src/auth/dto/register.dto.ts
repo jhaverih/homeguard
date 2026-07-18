@@ -60,4 +60,29 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   ein?: string;
+
+  // Vendor company address, collected at vendor registration — distinct from
+  // address/city/state/zipCode above, which are the CustomerProfile fields.
+  // Previously the mobile form sent these but nothing declared them here, so
+  // the global whitelist ValidationPipe silently stripped them before this
+  // DTO was even constructed.
+  @ApiProperty({ example: '456 Business Ave', required: false })
+  @IsOptional()
+  @IsString()
+  companyAddress?: string;
+
+  @ApiProperty({ example: 'Nashville', required: false })
+  @IsOptional()
+  @IsString()
+  companyCity?: string;
+
+  @ApiProperty({ example: 'TN', required: false })
+  @IsOptional()
+  @IsString()
+  companyState?: string;
+
+  @ApiProperty({ example: '37201', required: false })
+  @IsOptional()
+  @IsString()
+  companyZip?: string;
 }

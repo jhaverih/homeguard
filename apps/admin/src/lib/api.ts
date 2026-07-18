@@ -52,6 +52,8 @@ export const adminApi = {
     api.patch(`/admin/vendors/${id}/plan`, { tier, expiresAt }).then((r) => r.data),
   removeVendor: (id: string) => api.delete(`/admin/vendors/${id}`).then((r) => r.data),
   getVendorKpi: (id: string) => api.get(`/admin/vendors/${id}/kpi`).then((r) => r.data),
+  updateVendorServiceArea: (id: string, data: { address?: string; city?: string; state?: string; baseZipCode?: string; serviceRadiusMiles?: number }) =>
+    api.patch(`/admin/vendors/${id}/service-area`, data).then((r) => r.data),
   getVendorReviews: (id: string) => api.get(`/reviews/vendor/${id}`).then((r) => r.data),
   getCustomerActivity: (id: string) => api.get(`/admin/customers/${id}/activity`).then((r) => r.data),
   getVendorActivity: (id: string) => api.get(`/admin/vendors/${id}/activity`).then((r) => r.data),

@@ -24,6 +24,10 @@ export interface CreateUserDto {
   zipCode?: string;
   companyName?: string;
   ein?: string;
+  companyAddress?: string;
+  companyCity?: string;
+  companyState?: string;
+  companyZip?: string;
   // Set by VendorService.createTechnician — the caller assigns companyId/isCompanyAdmin
   // itself afterward, so create() should not also spin up a brand new company.
   skipCompanyCreation?: boolean;
@@ -172,13 +176,13 @@ export class UsersService implements OnModuleInit {
             ...(dto.companyName ? { companyName: dto.companyName } : {}),
           }),
         );
-        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein);
+        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState, dto.companyZip);
       }
 
       return saved;
     }
 
-    const { skipCompanyCreation, ein, ...userFields } = dto;
+    const { skipCompanyCreation, ein, companyAddress, companyCity, companyState, companyZip, ...userFields } = dto;
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = this.usersRepo.create({
       ...userFields,
@@ -206,7 +210,7 @@ export class UsersService implements OnModuleInit {
           ...(dto.companyName ? { companyName: dto.companyName } : {}),
         }),
       );
-      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein);
+      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState, dto.companyZip);
     }
 
     return saved;
@@ -216,12 +220,28 @@ export class UsersService implements OnModuleInit {
   // existing team) gets their own company, starting in PENDING_REVIEW — unlike the
   // one-time backfill for pre-existing accounts, new registrations are not
   // grandfathered and must go through the document review queue.
-  private async createCompanyForNewVendor(profile: VendorProfile, user: User, companyName?: string, ein?: string) {
+  private async createCompanyForNewVendor(
+    profile: VendorProfile,
+    user: User,
+    companyName?: string,
+    ein?: string,
+    companyAddress?: string,
+    companyCity?: string,
+    companyState?: string,
+    companyZip?: string,
+  ) {
     const company = await this.vendorCompanyRepo.save(
       this.vendorCompanyRepo.create({
         name: companyName || `${user.firstName} ${user.lastName}`.trim(),
         applicationStatus: VendorApplicationStatus.PENDING_REVIEW,
         ...(ein ? { ein } : {}),
+        ...(companyAddress ? { address: companyAddress } : {}),
+        ...(companyCity ? { city: companyCity } : {}),
+        ...(companyState ? { state: companyState } : {}),
+        // The mobile registration form already required this field, so a new
+        // vendor is immediately coverage-matchable — no separate manual step
+        // in the vendor portal's Service Area card needed just to get started.
+        ...(companyZip ? { baseZipCode: companyZip } : {}),
       }),
     );
     await this.vendorProfileRepo.update(profile.id, { companyId: company.id, isCompanyAdmin: true });
