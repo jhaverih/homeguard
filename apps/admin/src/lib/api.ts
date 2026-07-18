@@ -30,6 +30,8 @@ export const pricingApi = {
   remove: (id: string) => api.delete(`/pricing/${id}`),
   bulkUpdateCategory: (ids: string[], category: string | null) =>
     api.patch('/pricing/bulk/category', { ids, category }).then((r) => r.data),
+  listBackups: () => api.get('/pricing/backups').then((r) => r.data),
+  downloadBackupCsv: (id: string) => api.get(`/pricing/backups/${id}/csv`, { responseType: 'blob' }),
 };
 
 export const subscriptionsApi = {

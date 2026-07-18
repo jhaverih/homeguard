@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, UseGuards, HttpCode } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -21,6 +22,29 @@ export class PricingController {
   @ApiOperation({ summary: 'List the additional service catalog (public)' })
   getAll(@Query('all') all?: string) {
     return this.service.getAll(all === 'true');
+  }
+
+  @Get('backups')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: list recent full-catalog backup snapshots' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  listBackups() {
+    return this.service.listBackups();
+  }
+
+  @Get('backups/:id/csv')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: download a backup snapshot as CSV' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  async downloadBackupCsv(@Param('id') id: string, @Res() res: Response) {
+    const csv = await this.service.getBackupCsv(id);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="pricing-backup-${id}.csv"`);
+    res.send(csv);
   }
 
   @Post()

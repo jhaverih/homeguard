@@ -178,6 +178,9 @@ export default function PricingPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkCategory, setBulkCategory] = useState('');
   const [bulkApplying, setBulkApplying] = useState(false);
+  const [backups, setBackups] = useState<any[]>([]);
+  const [backupsOpen, setBackupsOpen] = useState(false);
+  const [backupsLoading, setBackupsLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
@@ -293,6 +296,33 @@ export default function PricingPage() {
     } finally {
       setBulkApplying(false);
     }
+  };
+
+  const loadBackups = async () => {
+    setBackupsLoading(true);
+    try {
+      setBackups(await pricingApi.listBackups());
+    } finally {
+      setBackupsLoading(false);
+    }
+  };
+
+  const toggleBackups = () => {
+    setBackupsOpen((open) => {
+      const next = !open;
+      if (next && backups.length === 0) loadBackups();
+      return next;
+    });
+  };
+
+  const downloadBackup = async (id: string, createdAt: string) => {
+    const res = await pricingApi.downloadBackupCsv(id);
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pricing-backup-${new Date(createdAt).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const deletePrice = async (id: string, name: string) => {
@@ -476,6 +506,46 @@ export default function PricingPage() {
     <div>
       <h1 className="text-2xl font-bold text-lantern-deep mb-2">Services Management</h1>
       <p className="text-steel mb-8">Edit service names, descriptions, pricing notes, and rates. Changes save on blur.</p>
+
+      {/* Automatic Backups */}
+      <div className="bg-white rounded-2xl border border-mist-dim mb-8">
+        <button type="button" onClick={toggleBackups} className="w-full p-6 flex items-center justify-between text-left">
+          <div>
+            <h2 className="text-lg font-bold text-lantern-deep">Automatic Backups</h2>
+            <p className="text-sm text-steel mt-1">A full snapshot saves every time the catalog changes — download one to recover from a mistake.</p>
+          </div>
+          <span className="text-steel text-sm font-semibold flex-shrink-0 ml-4">{backupsOpen ? 'Hide ▲' : 'Show ▼'}</span>
+        </button>
+        {backupsOpen && (
+          <div className="border-t border-mist-dim divide-y divide-canvas max-h-96 overflow-y-auto">
+            {backupsLoading ? (
+              <div className="p-6 text-steel text-sm">Loading…</div>
+            ) : backups.length === 0 ? (
+              <div className="p-6 text-steel text-sm">No backups yet — one is saved the next time you edit, add, delete, or import a service.</div>
+            ) : (
+              backups.map((b) => (
+                <div key={b.id} className="p-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-ink truncate">
+                      {new Date(b.createdAt).toLocaleString()} <span className="text-steel font-normal">— {b.reason.replace('-', ' ')}</span>
+                    </div>
+                    <div className="text-xs text-steel mt-0.5 truncate">
+                      {b.detail ? `${b.detail} · ` : ''}{b.itemCount} service{b.itemCount === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => downloadBackup(b.id, b.createdAt)}
+                    className="text-sm font-semibold text-lantern-deep hover:underline flex-shrink-0"
+                  >
+                    Download CSV
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Subscription Plans */}
       <div className="bg-white rounded-2xl border border-mist-dim mb-8">

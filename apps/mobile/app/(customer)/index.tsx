@@ -287,34 +287,37 @@ export default function CustomerDashboard() {
   const dashScrollRef = useRef<ScrollView>(null);
 
   const load = async () => {
-    // Refetched on every focus (folded into the same load() this screen
-    // already reruns on focus below) so an admin-side catalog edit shows up
-    // without requiring a full app restart.
-    try {
-      const items: any = await pricingApi.getAll();
-      setCatalog((items || []).filter((i: any) => i.customerRequestable !== false));
-    } catch (e) {}
-    try {
-      const sub: any = await subscriptionsApi.getMySubscription();
-      setSubscription(sub);
-    } catch (e) {}
-    try {
-      const reqs: any = await requestsApi.getMyRequests();
-      setRequests(reqs || []);
-    } catch (e) {}
-    try {
-      const approvals: any = await requestsApi.getPendingAdditionalServices();
-      setPendingApprovals((approvals || []).length);
-    } catch (e) {}
-    try {
-      const payments = await paymentsApi.getPending();
-      setPendingPayments(payments || []);
-    } catch (e) {}
+    // Fired in parallel (not one-at-a-time) — this used to be 4 sequential
+    // awaits and is now 5 since the pricing catalog fetch was folded in
+    // (so an admin-side catalog edit shows up without a full app restart).
+    // Running them one after another stretched out how long this screen
+    // renders content mid-focus-transition, which made it easy to land in a
+    // React Native ScrollView layout race on the tab-return from the
+    // service-selection screen: content was there, but the ScrollView
+    // hadn't recomputed its layout, so it rendered blank until something
+    // (like pull-to-refresh) forced a fresh measure pass.
+    await Promise.all([
+      pricingApi.getAll()
+        .then((items: any) => setCatalog((items || []).filter((i: any) => i.customerRequestable !== false)))
+        .catch(() => {}),
+      subscriptionsApi.getMySubscription().then((sub: any) => setSubscription(sub)).catch(() => {}),
+      requestsApi.getMyRequests().then((reqs: any) => setRequests(reqs || [])).catch(() => {}),
+      requestsApi.getPendingAdditionalServices()
+        .then((approvals: any) => setPendingApprovals((approvals || []).length))
+        .catch(() => {}),
+      paymentsApi.getPending().then((payments: any) => setPendingPayments(payments || [])).catch(() => {}),
+    ]);
     setLoading(false);
     setRefreshing(false);
   };
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  useFocusEffect(useCallback(() => {
+    load();
+    // Belt-and-suspenders for the same layout race — resets scroll position
+    // and forces the ScrollView to redo its layout pass every time this tab
+    // regains focus, rather than relying on it to redraw correctly on its own.
+    dashScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []));
 
   const handlePayNow = async (payment: any) => {
     if (!payment.stripeClientSecret) {

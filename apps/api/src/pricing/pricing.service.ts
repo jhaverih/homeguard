@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository, DataSource } from 'typeorm';
 import { ServicePrice } from './entities/service-price.entity';
+import { PricingCatalogBackup } from './entities/pricing-catalog-backup.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { UnitLabel } from '../common/enums/unit-label.enum';
@@ -179,6 +180,8 @@ export class PricingService implements OnModuleInit {
   constructor(
     @InjectRepository(ServicePrice)
     private pricesRepo: Repository<ServicePrice>,
+    @InjectRepository(PricingCatalogBackup)
+    private backupRepo: Repository<PricingCatalogBackup>,
     @InjectRepository(VendorCapability)
     private capabilityRepo: Repository<VendorCapability>,
     private dataSource: DataSource,
@@ -449,6 +452,7 @@ export class PricingService implements OnModuleInit {
     const existing = await this.pricesRepo.findOneOrFail({ where: { id } });
     this.pricesRepo.merge(existing, data);
     const saved = await this.pricesRepo.save(existing);
+    await this.recordBackup('update', saved.name);
     return this.withDisplay(saved);
   }
 
@@ -457,15 +461,75 @@ export class PricingService implements OnModuleInit {
     // category isn't touched by the @BeforeUpdate quote/pricingMethod sync hook.
     await this.pricesRepo.update({ id: In(ids) }, { category });
     const items = await this.pricesRepo.find({ where: { id: In(ids) } });
+    await this.recordBackup('bulk-category', `${ids.length} item${ids.length === 1 ? '' : 's'} → ${category ?? 'Uncategorized'}`);
     return items.map((item) => this.withDisplay(item));
   }
 
   async create(data: Partial<ServicePrice>): Promise<ServicePrice & { priceDisplay: string }> {
     const saved = await this.pricesRepo.save(this.pricesRepo.create(data));
+    await this.recordBackup('create', saved.name);
     return this.withDisplay(saved);
   }
 
   async remove(id: string): Promise<void> {
+    const existing = await this.pricesRepo.findOne({ where: { id } });
     await this.pricesRepo.delete(id);
+    await this.recordBackup('delete', existing?.name ?? id);
+  }
+
+  // Full-catalog snapshot taken after every mutation above (including CSV
+  // imports, which go through create()/update() same as manual edits) — see
+  // PricingCatalogBackup. A failure here must never block the pricing write
+  // it's recording, hence the swallow-and-log rather than propagating.
+  private async recordBackup(reason: string, detail?: string | null): Promise<void> {
+    try {
+      const items = await this.pricesRepo.find();
+      await this.backupRepo.save(this.backupRepo.create({
+        reason,
+        detail: detail ?? null,
+        itemCount: items.length,
+        snapshot: items,
+      }));
+    } catch (err: any) {
+      this.logger.warn(`Failed to record pricing catalog backup (${reason}): ${err.message}`);
+    }
+  }
+
+  async listBackups(): Promise<Omit<PricingCatalogBackup, 'snapshot'>[]> {
+    return this.backupRepo.find({
+      select: ['id', 'reason', 'detail', 'itemCount', 'createdAt'],
+      order: { createdAt: 'DESC' },
+      take: 100,
+    });
+  }
+
+  // Mirrors the admin Pricing page's client-side exportCsv() column-for-column
+  // so a downloaded backup can be re-imported through the existing CSV import
+  // flow unchanged (including matching by id to update rows in place).
+  async getBackupCsv(id: string): Promise<string> {
+    const backup = await this.backupRepo.findOneOrFail({ where: { id } });
+    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection'];
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = (backup.snapshot as ServicePrice[]).map((p) => [
+      esc(p.id),
+      esc(p.name),
+      esc(p.description),
+      esc(p.pricingMethod),
+      p.requiresQuote ? 'true' : 'false',
+      p.basePrice,
+      p.markupPercent ?? '',
+      esc(p.quantityLabel ?? ''),
+      p.minimumQuantity ?? '',
+      p.includeQty ?? '',
+      p.baseRateUnit ?? '',
+      p.volumeDiscountThreshold ?? '',
+      p.volumeDiscountRate ?? '',
+      p.isActive ? 'true' : 'false',
+      p.customerRequestable ? 'true' : 'false',
+      esc(p.category ?? ''),
+      esc((p.serviceGroups ?? []).join(',')),
+      p.isQuotaInspection ? 'true' : 'false',
+    ].join(','));
+    return [headers.join(','), ...rows].join('\r\n');
   }
 }
