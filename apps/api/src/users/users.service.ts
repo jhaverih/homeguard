@@ -318,6 +318,18 @@ export class UsersService implements OnModuleInit {
       .getMany();
   }
 
+  // All active vendor accounts regardless of the isAvailable toggle — for
+  // announcements every vendor should see (e.g. a new capability being
+  // added), not just ones currently marked available for jobs right now.
+  // findAvailableVendors() above is deliberately narrower (job-matching).
+  async findAllActiveVendors(): Promise<User[]> {
+    return this.usersRepo
+      .createQueryBuilder('user')
+      .where('user.status = :status', { status: UserStatus.ACTIVE })
+      .andWhere('user.roles LIKE :role', { role: `%${UserRole.VENDOR}%` })
+      .getMany();
+  }
+
   async findAdminTeamUsers(): Promise<User[]> {
     return this.usersRepo
       .createQueryBuilder('user')

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull, LessThanOrEqual, In } from 'typeorm';
+import { Repository, Not, IsNull, LessThanOrEqual, In, DeepPartial } from 'typeorm';
 import * as crypto from 'crypto';
 import { User } from '../users/entities/user.entity';
 import { VendorProfile } from '../users/entities/vendor-profile.entity';
@@ -903,8 +903,24 @@ export class AdminService {
     return cert;
   }
 
-  async createCapability(data: { name: string; requiredCertificationType: string }) {
-    return this.vendorCapabilityRepo.save(this.vendorCapabilityRepo.create(data as any));
+  async createCapability(data: { name: string; requiredCertificationType: string }): Promise<VendorCapability> {
+    const entity: DeepPartial<VendorCapability> = { name: data.name, requiredCertificationType: data.requiredCertificationType as CertificationType };
+    const saved = await this.vendorCapabilityRepo.save(this.vendorCapabilityRepo.create(entity));
+
+    // Every active vendor, not just ones currently marked available for jobs
+    // — this is an announcement, not a job-matching notification.
+    const vendors = await this.usersService.findAllActiveVendors();
+    if (vendors.length > 0) {
+      await this.notificationsService.notifyVendors(
+        vendors,
+        NotificationType.NEW_CAPABILITY_AVAILABLE,
+        'New Capability Available',
+        `"${saved.name}" has been added — update your profile if you'd like to offer it.`,
+        { screen: 'capabilities' },
+      ).catch(() => {});
+    }
+
+    return saved;
   }
 
   async updateCapability(id: string, data: Partial<{ name: string; requiredCertificationType: string; isActive: boolean }>) {

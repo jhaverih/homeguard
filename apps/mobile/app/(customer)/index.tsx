@@ -13,8 +13,15 @@ import { formatRelativeAge } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
 import { InspectIcon, RepairIcon, ImproveIcon, MaintainIcon, InstallIcon } from '../../src/components/ServiceGroupIcons';
 
-function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollViewRef: React.RefObject<ScrollView | null> }) {
+// A service with no requiredCapabilityId is open to any vendor — always
+// available. 'all' means the availability fetch hasn't resolved (or the
+// customer has no zip on file) — fail open, don't hide/flag anything.
+const isServiceAvailable = (item: any, availableCapabilityIds: Set<string> | 'all') =>
+  !item.requiredCapabilityId || availableCapabilityIds === 'all' || availableCapabilityIds.has(item.requiredCapabilityId);
+
+function ServiceSearchCard({ catalog, availableCapabilityIds, scrollViewRef }: { catalog: any[]; availableCapabilityIds: Set<string> | 'all'; scrollViewRef: React.RefObject<ScrollView | null> }) {
   const [query, setQuery] = useState('');
+  const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set());
   const cardY = useRef(0);
 
   const results = useMemo(() => {
@@ -28,6 +35,17 @@ function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollV
   const selectService = (item: any) => {
     setQuery('');
     router.push({ pathname: '/(customer)/request', params: { preselectServicePriceId: item.id } });
+  };
+
+  const notifyMe = async (item: any) => {
+    setNotifiedIds((prev) => new Set(prev).add(item.id));
+    try {
+      await pricingApi.notifyMe(item.id);
+      Alert.alert('You\'re on the list', "We'll let you know when this is available near you.");
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not save that — please try again.');
+      setNotifiedIds((prev) => { const next = new Set(prev); next.delete(item.id); return next; });
+    }
   };
 
   return (
@@ -58,15 +76,32 @@ function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollV
           {results.length === 0 ? (
             <Text style={styles.searchNoResults}>No matching services.</Text>
           ) : (
-            results.map((item) => (
-              <TouchableOpacity key={item.id} style={styles.searchResultRow} onPress={() => selectService(item)}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.searchResultName}>{item.name}</Text>
-                  <Text style={styles.searchResultDesc} numberOfLines={1}>{item.description}</Text>
+            results.map((item) => {
+              const available = isServiceAvailable(item, availableCapabilityIds);
+              if (available) {
+                return (
+                  <TouchableOpacity key={item.id} style={styles.searchResultRow} onPress={() => selectService(item)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.searchResultName}>{item.name}</Text>
+                      <Text style={styles.searchResultDesc} numberOfLines={1}>{item.description}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={colors.mistDim} />
+                  </TouchableOpacity>
+                );
+              }
+              const notified = notifiedIds.has(item.id);
+              return (
+                <View key={item.id} style={[styles.searchResultRow, styles.searchResultRowDisabled]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.searchResultName, styles.searchResultNameDisabled]}>{item.name}</Text>
+                    <Text style={styles.searchResultUnavailable}>Not available in your area yet</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => !notified && notifyMe(item)} disabled={notified} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.notifyMeLink}>{notified ? 'We\'ll notify you' : 'Notify Me'}</Text>
+                  </TouchableOpacity>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.mistDim} />
-              </TouchableOpacity>
-            ))
+              );
+            })
           )}
         </View>
       )}
@@ -100,7 +135,7 @@ const GROUP_META = [
 // of every group's filtered list — since only one group is expanded at a
 // time this also means it won't reappear if the customer switches groups —
 // and reappears only as a removable chip in the selection summary below.
-function ServiceGroupsCard({ catalog, subscription }: { catalog: any[]; subscription: any }) {
+function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription }: { catalog: any[]; availableCapabilityIds: Set<string> | 'all'; subscription: any }) {
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -114,12 +149,15 @@ function ServiceGroupsCard({ catalog, subscription }: { catalog: any[]; subscrip
     });
   };
 
+  // Unavailable services (no nearby vendor can perform them) are left out of
+  // this browse view entirely — search (ServiceSearchCard) is where a
+  // customer sees the "not available in your area yet" state instead.
   const groupItems = useMemo(() => {
     if (!activeGroup) return [];
     return catalog
-      .filter((i) => i.serviceGroups?.includes(activeGroup) && !selectedIds.has(i.id))
+      .filter((i) => i.serviceGroups?.includes(activeGroup) && !selectedIds.has(i.id) && isServiceAvailable(i, availableCapabilityIds))
       .sort((a, b) => inspectionRank(a.name) - inspectionRank(b.name));
-  }, [activeGroup, catalog, selectedIds]);
+  }, [activeGroup, catalog, selectedIds, availableCapabilityIds]);
 
   const selectedItems = useMemo(
     () => catalog.filter((i) => selectedIds.has(i.id)),
@@ -170,8 +208,10 @@ function ServiceGroupsCard({ catalog, subscription }: { catalog: any[]; subscrip
         <View style={styles.groupList}>
           {groupItems.length === 0 ? (
             <Text style={styles.groupEmpty}>
-              {catalog.some((i) => i.serviceGroups?.includes(activeGroup))
+              {catalog.some((i) => i.serviceGroups?.includes(activeGroup) && selectedIds.has(i.id))
                 ? 'All services in this group are already selected below.'
+                : catalog.some((i) => i.serviceGroups?.includes(activeGroup))
+                ? 'Not available in your area yet.'
                 : 'No services tagged for this group yet.'}
             </Text>
           ) : (
@@ -297,6 +337,12 @@ export default function CustomerDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [catalog, setCatalog] = useState<any[]>([]);
+  // Which requiredCapabilityId values have a vendor near this customer who
+  // can actually perform them — 'all' means don't filter (no zip on file
+  // yet, or the fetch hasn't resolved). Drives which catalog items the
+  // group-picker shows; ServiceSearchCard uses it to flag a match as
+  // unavailable instead of hiding it outright.
+  const [availableCapabilityIds, setAvailableCapabilityIds] = useState<Set<string> | 'all'>('all');
   const dashScrollRef = useRef<ScrollView>(null);
 
   const load = async () => {
@@ -313,6 +359,9 @@ export default function CustomerDashboard() {
       pricingApi.getAll()
         .then((items: any) => setCatalog((items || []).filter((i: any) => i.customerRequestable !== false)))
         .catch(() => {}),
+      pricingApi.getAvailability()
+        .then((res: any) => setAvailableCapabilityIds(res.all ? 'all' : new Set(res.capabilityIds)))
+        .catch(() => setAvailableCapabilityIds('all')),
       subscriptionsApi.getMySubscription().then((sub: any) => setSubscription(sub)).catch(() => {}),
       requestsApi.getMyRequests().then((reqs: any) => setRequests(reqs || [])).catch(() => {}),
       requestsApi.getPendingAdditionalServices()
@@ -405,10 +454,10 @@ export default function CustomerDashboard() {
         <Ionicons name="chevron-forward" size={20} color={colors.mistDim} />
       </TouchableOpacity>
 
-      <ServiceSearchCard catalog={catalog} scrollViewRef={dashScrollRef} />
+      <ServiceSearchCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} scrollViewRef={dashScrollRef} />
 
       {subscription ? (
-        <ServiceGroupsCard catalog={catalog} subscription={subscription} />
+        <ServiceGroupsCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} subscription={subscription} />
       ) : (
         <TouchableOpacity style={styles.noSubCard} onPress={() => router.push('/(customer)/subscribe')}>
           <Text style={styles.noSubTitle}>No Active Subscription</Text>
@@ -555,8 +604,12 @@ const styles = StyleSheet.create({
   searchResults: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4 },
   searchNoResults: { fontSize: 13, color: colors.steel, padding: 12, textAlign: 'center' },
   searchResultRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.canvas },
+  searchResultRowDisabled: { opacity: 0.85 },
   searchResultName: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  searchResultNameDisabled: { color: colors.steel },
   searchResultDesc: { fontSize: 12, color: colors.steel, marginTop: 1 },
+  searchResultUnavailable: { fontSize: 12, color: colors.steel, marginTop: 1, fontStyle: 'italic' },
+  notifyMeLink: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep },
   approvalsCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 0, backgroundColor: '#fff4e5', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: '#f6ad55' },
   approvalsLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   approvalsIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#feebc8', alignItems: 'center', justifyContent: 'center' },

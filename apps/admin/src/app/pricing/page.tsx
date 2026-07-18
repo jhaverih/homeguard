@@ -76,6 +76,18 @@ const CATEGORIES: { value: string; label: string }[] = [
 const CATEGORY_RANK = new Map(CATEGORIES.map((c, i) => [c.value, i]));
 const categoryLabel = (v: string | null) => CATEGORIES.find((c) => c.value === v)?.label ?? 'Uncategorized';
 
+// Mirrors apps/api/src/vendor/entities/vendor-capability.entity.ts's CertificationType enum.
+const CERTIFICATION_TYPES: { value: string; label: string }[] = [
+  { value: 'NONE', label: 'None' },
+  { value: 'HVAC', label: 'HVAC' },
+  { value: 'ELECTRICAL', label: 'Electrical' },
+  { value: 'PLUMBING', label: 'Plumbing' },
+  { value: 'ROOFING', label: 'Roofing' },
+  { value: 'GENERAL_CONTRACTOR', label: 'General Contractor' },
+  { value: 'NABCEP', label: 'NABCEP (Solar)' },
+];
+const ADD_NEW_CAPABILITY = '__add_new__';
+
 // Additive, multi-valued lifecycle-stage tagging — orthogonal to CATEGORIES
 // above (trade/domain). A service can carry one or more of these.
 const SERVICE_GROUPS: { value: string; label: string }[] = [
@@ -161,6 +173,13 @@ export default function PricingPage() {
   const [prices, setPrices] = useState<PriceRow[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [capabilities, setCapabilities] = useState<any[]>([]);
+  // Inline "add a new capability" flow, triggered from either
+  // requiredCapabilityId <select> (a price row's id, or 'new' for the
+  // add-row form) — null means the modal is closed.
+  const [newCapabilityTarget, setNewCapabilityTarget] = useState<string | null>(null);
+  const [newCapabilityName, setNewCapabilityName] = useState('');
+  const [newCapabilityCertType, setNewCapabilityCertType] = useState('NONE');
+  const [savingCapability, setSavingCapability] = useState(false);
   const [loading, setLoading] = useState(true);
   const [globalMarkup, setGlobalMarkup] = useState('15');
   const [editStates, setEditStates] = useState<Record<string, EditState>>({});
@@ -381,6 +400,40 @@ export default function PricingPage() {
         : { [field]: value };
       return { ...prev, [id]: { ...base, ...patch } };
     });
+
+  // Shared by both requiredCapabilityId <select>s (a price row's id, or
+  // 'new' for the add-row form) — opens the inline "add a new capability"
+  // form instead of assigning the sentinel value when that option is picked.
+  const selectCapability = (target: string, value: string) => {
+    if (value === ADD_NEW_CAPABILITY) {
+      setNewCapabilityTarget(target);
+      setNewCapabilityName('');
+      setNewCapabilityCertType('NONE');
+      return;
+    }
+    if (target === 'new') {
+      setNewRow((p) => ({ ...p, requiredCapabilityId: value }));
+    } else {
+      updateField(target, 'requiredCapabilityId', value);
+      setTimeout(() => savePrice(target), 0);
+    }
+  };
+
+  const submitNewCapability = async () => {
+    if (!newCapabilityName.trim() || !newCapabilityTarget) return;
+    setSavingCapability(true);
+    try {
+      const created = await adminApi.createCapability({
+        name: newCapabilityName.trim(),
+        requiredCertificationType: newCapabilityCertType,
+      });
+      setCapabilities((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      selectCapability(newCapabilityTarget, created.id);
+      setNewCapabilityTarget(null);
+    } finally {
+      setSavingCapability(false);
+    }
+  };
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   const exportCsv = () => {
@@ -822,16 +875,14 @@ export default function PricingPage() {
                     <td className="px-4 py-3">
                       <select
                         value={state.requiredCapabilityId}
-                        onChange={(e) => {
-                          updateField(price.id, 'requiredCapabilityId', e.target.value);
-                          setTimeout(() => savePrice(price.id), 0);
-                        }}
+                        onChange={(e) => selectCapability(price.id, e.target.value)}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
                       >
                         <option value="">Any vendor</option>
                         {capabilities.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
+                        <option value={ADD_NEW_CAPABILITY}>+ Add New Capability…</option>
                       </select>
                     </td>
                     {/* Category */}
@@ -1087,13 +1138,14 @@ export default function PricingPage() {
                   <td className="px-4 py-3">
                     <select
                       value={newRow.requiredCapabilityId}
-                      onChange={(e) => setNewRow((p) => ({ ...p, requiredCapabilityId: e.target.value }))}
+                      onChange={(e) => selectCapability('new', e.target.value)}
                       className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
                     >
                       <option value="">Any vendor</option>
                       {capabilities.map((c) => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
+                      <option value={ADD_NEW_CAPABILITY}>+ Add New Capability…</option>
                     </select>
                   </td>
                   <td className="px-4 py-3">
@@ -1258,6 +1310,64 @@ export default function PricingPage() {
           </p>
         </div>
       </div>
+
+      {/* Inline "add a new capability" modal — triggered from either
+          requiredCapabilityId <select>. Every active vendor gets notified
+          once this saves (apps/api AdminService.createCapability). */}
+      {newCapabilityTarget !== null && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setNewCapabilityTarget(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-lantern-deep">Add New Capability</h2>
+            <p className="text-sm text-steel">
+              Every active vendor will be notified so they can add it to their profile if they offer it.
+            </p>
+            <div>
+              <label className="block text-sm font-semibold text-ink mb-1.5">Name</label>
+              <input
+                autoFocus
+                value={newCapabilityName}
+                onChange={(e) => setNewCapabilityName(e.target.value)}
+                placeholder="e.g. Fence Installation"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink mb-1.5">Required Certification</label>
+              <select
+                value={newCapabilityCertType}
+                onChange={(e) => setNewCapabilityCertType(e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+              >
+                {CERTIFICATION_TYPES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-steel mt-1">Leave as None unless this trade requires an approved license on file.</p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={submitNewCapability}
+                disabled={savingCapability || !newCapabilityName.trim()}
+                className="flex-1 bg-lantern text-ink px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+              >
+                {savingCapability ? 'Adding…' : 'Add Capability'}
+              </button>
+              <button
+                onClick={() => setNewCapabilityTarget(null)}
+                className="text-steel hover:text-ink px-4 py-2.5"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

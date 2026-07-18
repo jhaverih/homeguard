@@ -1,8 +1,9 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { notificationsApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
@@ -26,7 +27,11 @@ export default function VendorNotificationsScreen() {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, readAt: new Date() } : n));
   };
 
-  useEffect(() => { load(); }, []);
+  // Refetches every time this screen regains focus (not just on mount) —
+  // matches the sibling capabilities screen's existing fix, so a new
+  // notification (e.g. a new capability announcement) reliably shows up
+  // without needing a manual pull-to-refresh.
+  useFocusEffect(useCallback(() => { load(); }, []));
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (

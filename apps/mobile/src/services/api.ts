@@ -137,6 +137,11 @@ export const inspectionsApi = {
 
 export const pricingApi = {
   getAll: () => api.get('/pricing'),
+  // Which requiredCapabilityId values have a vendor near the customer who
+  // can actually perform them — not a filtered catalog, see the backend
+  // controller for why. `{ all: true }` means don't filter anything.
+  getAvailability: () => api.get('/pricing/availability'),
+  notifyMe: (servicePriceId: string) => api.post(`/pricing/${servicePriceId}/notify-me`),
 };
 
 export const standaloneServiceApi = {

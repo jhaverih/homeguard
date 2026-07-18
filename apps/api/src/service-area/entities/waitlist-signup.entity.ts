@@ -16,6 +16,13 @@ export class WaitlistSignup {
   @Column()
   zipCode: string;
 
+  // Null for the anonymous marketing-site "check your zip" widget signups
+  // (unchanged, general "notify me about this area" intent). Set when a
+  // logged-in customer taps "Notify me" on a specific service the coverage
+  // filter hid from them — see ServiceAreaService.notifyForService.
+  @Column({ nullable: true })
+  servicePriceId: string | null;
+
   @Column({ default: false })
   notified: boolean;
 

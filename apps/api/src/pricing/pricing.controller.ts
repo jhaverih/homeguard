@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, Request, UseGuards, HttpCode } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -9,6 +9,7 @@ import { AdminLevelGuard } from '../common/guards/admin-level.guard';
 import { MinAdminLevel } from '../common/decorators/min-admin-level.decorator';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { PricingService } from './pricing.service';
+import { ServiceAreaService } from '../service-area/service-area.service';
 import { CreatePricingDto } from './dto/create-pricing.dto';
 import { UpdatePricingDto } from './dto/update-pricing.dto';
 import { BulkUpdateCategoryDto } from './dto/bulk-update-category.dto';
@@ -16,12 +17,40 @@ import { BulkUpdateCategoryDto } from './dto/bulk-update-category.dto';
 @ApiTags('Pricing')
 @Controller('pricing')
 export class PricingController {
-  constructor(private readonly service: PricingService) {}
+  constructor(
+    private readonly service: PricingService,
+    private readonly serviceAreaService: ServiceAreaService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List the additional service catalog (public)' })
   getAll(@Query('all') all?: string) {
     return this.service.getAll(all === 'true');
+  }
+
+  // Returns which requiredCapabilityId values have a vendor near the caller
+  // who can actually perform them — not a filtered catalog. Kept separate
+  // from GET / so the client can still search/display the full catalog
+  // (e.g. showing a "not available in your area yet" state for a match)
+  // while using this to decide what to show in ordinary browse lists.
+  // { all: true } means no filtering should happen at all (customer has no
+  // zip on file yet — fail open, same reasoning as ServiceAreaService).
+  @Get('availability')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: which requiredCapabilityId values have coverage near them' })
+  async getAvailability(@Request() req) {
+    const result = await this.serviceAreaService.getAvailableCapabilityIdsForCustomer(req.user.id);
+    if (result === 'all') return { all: true, capabilityIds: [] };
+    return { all: false, capabilityIds: [...result] };
+  }
+
+  @Post(':id/notify-me')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: ask to be notified when this service becomes available in their area' })
+  notifyMe(@Param('id') id: string, @Request() req) {
+    return this.serviceAreaService.notifyForService(req.user.id, id);
   }
 
   @Get('backups')

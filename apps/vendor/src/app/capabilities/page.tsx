@@ -18,7 +18,16 @@ export default function MyCapabilitiesPage() {
   const load = () => Promise.all([vendorApi.getCapabilities(), vendorApi.getMyCapabilities(), vendorApi.getMyCertifications()])
     .then(([cat, mine_, certs]) => { setCatalog(cat); setMine(mine_); setCertifications(certs); });
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    load().finally(() => setLoading(false));
+    // Refetch when the tab/window regains focus (Next.js has no
+    // useFocusEffect equivalent) so a capability an admin adds while this
+    // tab is already open shows up without a manual reload — same fix
+    // already applied to the equivalent mobile screen.
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
 
   const mineIds = new Set(mine.map((m: any) => m.id));
 

@@ -107,15 +107,25 @@ export default function RequestScreen() {
   // Catalog for service tab
   const [catalog, setCatalog] = useState<any[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
-  // Derived, display-only ordering — doesn't touch `catalog` itself, which
-  // other logic (preselect matching, fetch guard) reads independent of order.
+  // Which requiredCapabilityId values have a vendor near this customer who
+  // can actually perform them — 'all' means don't filter (no zip on file
+  // yet, or the fetch hasn't resolved). Only affects the browse display
+  // below, not `catalog` itself — preselect matching (from the dashboard's
+  // search/group picker) reads `catalog` directly and shouldn't break just
+  // because this screen's own availability fetch is briefly still pending.
+  const [availableCapabilityIds, setAvailableCapabilityIds] = useState<Set<string> | 'all'>('all');
+  // Derived, display-only ordering/filtering — doesn't touch `catalog`
+  // itself, which other logic (preselect matching, fetch guard) reads
+  // independent of order or availability.
   const sortedCatalog = useMemo(() => {
     const rank = (c: string | null) => { const i = CATEGORY_ORDER.indexOf(c || ''); return i === -1 ? CATEGORY_ORDER.length : i; };
-    return [...catalog].sort((a, b) => {
-      const catDiff = rank(a.category) - rank(b.category);
-      return catDiff !== 0 ? catDiff : inspectionRank(a.name) - inspectionRank(b.name);
-    });
-  }, [catalog]);
+    return catalog
+      .filter((i) => !i.requiredCapabilityId || availableCapabilityIds === 'all' || availableCapabilityIds.has(i.requiredCapabilityId))
+      .sort((a, b) => {
+        const catDiff = rank(a.category) - rank(b.category);
+        return catDiff !== 0 ? catDiff : inspectionRank(a.name) - inspectionRank(b.name);
+      });
+  }, [catalog, availableCapabilityIds]);
   // Grouped by category so the list can collapse — ~70 items across 6
   // categories otherwise renders fully flat/open every time. Uncategorized
   // items (Roofing, Solar, etc.) get their own trailing "Other Services"
@@ -246,6 +256,9 @@ export default function RequestScreen() {
     useCallback(() => {
       if (tab !== 'service') return;
       if (!catalogLoadedOnce.current) setCatalogLoading(true);
+      pricingApi.getAvailability()
+        .then((res: any) => setAvailableCapabilityIds(res.all ? 'all' : new Set(res.capabilityIds)))
+        .catch(() => setAvailableCapabilityIds('all'));
       pricingApi.getAll()
         .then((items: any) => {
           const fresh = (items || []).filter((i: any) => i.customerRequestable !== false);

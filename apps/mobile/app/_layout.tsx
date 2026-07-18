@@ -33,6 +33,8 @@ function resolveNotificationRoute(screen: string | undefined, role: string | und
       return '/(customer)/my-services';
     case 'my-jobs':
       return '/(vendor)/my-jobs';
+    case 'capabilities':
+      return isVendor ? '/(vendor)/capabilities' : '/(customer)/notifications';
     case 'notifications':
     default:
       return isVendor ? '/(vendor)/notifications' : '/(customer)/notifications';
