@@ -72,4 +72,8 @@ export class CreatePricingDto {
   @IsBoolean()
   @IsOptional()
   customerRequestable?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isQuotaInspection?: boolean;
 }

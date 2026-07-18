@@ -105,6 +105,48 @@ export class ServiceRequestsService {
     throw new Error('Failed to generate a unique ticket number after multiple attempts');
   }
 
+  // Shared quota pool for both booking flows: the built-in Inspection tab
+  // (SCHEDULED_INSPECTION requests) and any catalog item flagged
+  // isQuotaInspection booked through the Additional Services flow
+  // (ADDITIONAL_SERVICE requests with an isQuotaCovered line item) draw down
+  // the same subscription.plan.inspectionsPerYear allowance, so a customer
+  // can't get e.g. 2 free via the tab and 2 more free via the catalog.
+  // Counts pending (not yet completed/cancelled) requests from both flows in
+  // addition to the already-completed inspectionsUsed count, so a burst of
+  // simultaneous bookings can't overshoot the limit before any of them complete.
+  private async getInspectionsRemaining(subscription: {
+    id: string;
+    inspectionsUsed: number;
+    plan: { inspectionsPerYear: number };
+  }): Promise<number> {
+    const pendingInspections = await this.requestsRepo.count({
+      where: {
+        subscriptionId: subscription.id,
+        type: ServiceType.SCHEDULED_INSPECTION,
+        status: Not(In([ServiceRequestStatus.COMPLETED, ServiceRequestStatus.CANCELLED])),
+      },
+    });
+
+    const pendingAdditionalServiceRequests = await this.requestsRepo.find({
+      where: {
+        subscriptionId: subscription.id,
+        type: ServiceType.ADDITIONAL_SERVICE,
+        status: Not(In([ServiceRequestStatus.COMPLETED, ServiceRequestStatus.CANCELLED])),
+      },
+      select: ['id'],
+    });
+    const pendingQuotaAddons = pendingAdditionalServiceRequests.length
+      ? await this.additionalRepo.count({
+          where: { serviceRequestId: In(pendingAdditionalServiceRequests.map((r) => r.id)), isQuotaCovered: true },
+        })
+      : 0;
+
+    return Math.max(
+      0,
+      subscription.plan.inspectionsPerYear - subscription.inspectionsUsed - pendingInspections - pendingQuotaAddons,
+    );
+  }
+
   async create(customerId: string, dto: {
     preferredDate: string;
     customerNotes?: string;
@@ -119,13 +161,7 @@ export class ServiceRequestsService {
     const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
     if (!subscription) throw new BadRequestException('No active subscription found');
 
-    const pendingCount = await this.requestsRepo.count({
-      where: {
-        subscriptionId: subscription.id,
-        status: Not(In([ServiceRequestStatus.COMPLETED, ServiceRequestStatus.CANCELLED])),
-      },
-    });
-    const limitReached = subscription.inspectionsUsed + pendingCount >= subscription.plan.inspectionsPerYear;
+    const limitReached = (await this.getInspectionsRemaining(subscription)) <= 0;
     if (limitReached && !dto.isPaidAddon) {
       throw new BadRequestException('No inspections remaining on your subscription');
     }
@@ -193,9 +229,14 @@ export class ServiceRequestsService {
     const minQty = servicePrice.minimumQuantity ? Number(servicePrice.minimumQuantity) : 0;
     const billedQty = isPerUnit && minQty > 0 ? Math.max(enteredQty, minQty) : enteredQty;
 
+    // The one catalog item flagged isQuotaInspection (expected: "General
+    // Inspection") is free while the plan's shared inspection allowance
+    // remains — see getInspectionsRemaining — and charges its normal
+    // tiered/markup price once that allowance is used up.
+    const isQuotaCovered = servicePrice.isQuotaInspection && (await this.getInspectionsRemaining(subscription)) > 0;
     const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
     const cost = calcTieredCost(servicePrice, billedQty);
-    const customerPrice = Math.round(cost * (1 + markup / 100) * 100) / 100;
+    const customerPrice = isQuotaCovered ? 0 : Math.round(cost * (1 + markup / 100) * 100) / 100;
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
@@ -225,6 +266,7 @@ export class ServiceRequestsService {
       quantity: isPerUnit ? billedQty : null,
       approved: true,
       approvedAt: new Date(),
+      isQuotaCovered,
     }));
 
     const vendors = await this.usersService.findAvailableVendors();
@@ -393,20 +435,33 @@ export class ServiceRequestsService {
       if (!completionPhotoKeys || completionPhotoKeys.length === 0) {
         throw new BadRequestException('At least one completion photo is required to mark a job complete');
       }
+
+      // Fetched up-front (rather than only for the auth-hold loop below, as
+      // before) so a quota-covered line item's completion here can also
+      // increment inspectionsUsed, same as a Flow A inspection does.
+      const approvedServices = await this.additionalRepo.find({
+        where: { serviceRequestId: requestId, approved: true },
+      });
+      const quotaCoveredCount = approvedServices.filter((s) => s.isQuotaCovered).length;
+
       if (request.type !== ServiceType.ADDITIONAL_SERVICE) {
         const checklistDone = await this.inspectionsService.isChecklistComplete(requestId);
         if (!checklistDone) {
           throw new BadRequestException('All inspection checklist items must be completed before closing the job');
         }
         await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
+      } else if (quotaCoveredCount > 0) {
+        for (let i = 0; i < quotaCoveredCount; i++) {
+          // Best-effort — a narrow race (concurrent quota-covered bookings
+          // each cleared at their own booking-time check) shouldn't block
+          // this job from closing out, matching the auth-hold loop below.
+          await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, false).catch((err) =>
+            this.logger.warn(`Failed to increment inspectionsUsed for quota-covered request ${requestId}: ${err.message}`),
+          );
+        }
       }
       request.completionPhotoKeys = completionPhotoKeys;
       request.completedAt = new Date();
-
-      // Create auth holds for any approved additional services
-      const approvedServices = await this.additionalRepo.find({
-        where: { serviceRequestId: requestId, approved: true },
-      });
 
       // Apply any vendor-entered final quantities BEFORE the hold-creation
       // loop below reads svc.price — Stripe manual-capture holds can't be
@@ -417,6 +472,7 @@ export class ServiceRequestsService {
       if (finalQuantities) {
         const prices = await this.pricingService.getAll(true);
         for (const svc of approvedServices) {
+          if (svc.isQuotaCovered) continue; // stays free regardless of final quantity
           const finalQty = finalQuantities[svc.id];
           if (finalQty == null || svc.quantity == null || finalQty <= Number(svc.quantity)) continue;
           const servicePrice = svc.servicePriceId ? prices.find((p) => p.id === svc.servicePriceId) : null;
@@ -435,6 +491,7 @@ export class ServiceRequestsService {
       }
 
       for (const svc of approvedServices) {
+        if (svc.isQuotaCovered) continue; // covered by the plan — nothing to charge
         try {
           await this.paymentsService.createAuthHold(
             requestId,

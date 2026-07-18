@@ -45,6 +45,13 @@ export class AdditionalService {
   @Column({ default: false })
   approved: boolean;
 
+  // True when this line item was booked against the plan's included
+  // inspection quota (its source ServicePrice.isQuotaInspection was true and
+  // quota remained at booking time) — price is 0 and no charge/auth-hold is
+  // created for it at completion; see ServiceRequestsService.updateStatus.
+  @Column({ default: false })
+  isQuotaCovered: boolean;
+
   @Column({ type: 'timestamp', nullable: true })
   approvedAt: Date;
 

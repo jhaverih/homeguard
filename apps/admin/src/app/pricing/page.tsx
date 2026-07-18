@@ -116,6 +116,7 @@ type PriceRow = {
   category: string | null;
   serviceGroups: string[] | null;
   customerRequestable: boolean;
+  isQuotaInspection: boolean;
 };
 
 type EditState = {
@@ -135,6 +136,7 @@ type EditState = {
   category: string;
   serviceGroups: string[];
   customerRequestable: boolean;
+  isQuotaInspection: boolean;
 };
 
 // Keeps the "Quote Only" checkbox and the Pricing method dropdown from ever
@@ -168,7 +170,7 @@ export default function PricingPage() {
   const [newRow, setNewRow] = useState<EditState>({
     name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
     includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
-    requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true,
+    requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false,
   });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -208,6 +210,7 @@ export default function PricingPage() {
       category: price.category ?? '',
       serviceGroups: price.serviceGroups ?? [],
       customerRequestable: price.customerRequestable ?? true,
+      isQuotaInspection: price.isQuotaInspection ?? false,
     };
   }
 
@@ -241,6 +244,7 @@ export default function PricingPage() {
         category: state.category || null,
         serviceGroups: state.serviceGroups.length ? state.serviceGroups : null,
         customerRequestable: state.customerRequestable,
+        isQuotaInspection: state.isQuotaInspection,
       });
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
     } finally {
@@ -324,13 +328,14 @@ export default function PricingPage() {
         category: newRow.category || null,
         serviceGroups: newRow.serviceGroups.length ? newRow.serviceGroups : null,
         customerRequestable: newRow.customerRequestable,
+        isQuotaInspection: newRow.isQuotaInspection,
       });
       setPrices((prev) => [...prev, created]);
       setEditStates((prev) => ({ ...prev, [created.id]: rowToEdit(created) }));
       setNewRow({
         name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
         includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
-        requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true,
+        requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false,
       });
       setAddingRow(false);
     } finally {
@@ -349,11 +354,12 @@ export default function PricingPage() {
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   const exportCsv = () => {
-    const headers = ['name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service'];
+    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection'];
     const rows = prices.map((p) => {
       const s = editStates[p.id];
       const esc = (v: string) => `"${(v || '').replace(/"/g, '""')}"`;
       return [
+        esc(p.id),
         esc(s?.name || p.name),
         esc(s?.description || p.description || ''),
         esc(s?.pricingMethod || p.pricingMethod || 'FLAT_PRICE'),
@@ -370,6 +376,7 @@ export default function PricingPage() {
         (s?.customerRequestable ?? p.customerRequestable) ? 'true' : 'false',
         esc(s?.category || p.category || ''),
         esc((s?.serviceGroups || p.serviceGroups || []).join(',')),
+        (s?.isQuotaInspection ?? p.isQuotaInspection) ? 'true' : 'false',
       ].join(',');
     });
     const csv = [headers.join(','), ...rows].join('\r\n');
@@ -421,12 +428,20 @@ export default function PricingPage() {
             const groups = parseServiceGroups(row['Type of Service'] || '');
             return groups.length ? groups : null;
           })(),
+          isQuotaInspection: row.isQuotaInspection === 'true',
         };
 
-        const existing = prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
+        // Match by id when the CSV carries one (a re-imported export) so a
+        // renamed row updates in place; only fall back to name-matching for
+        // rows with no id (e.g. new rows added by hand to the CSV) — matching
+        // by name alone meant renaming a service via CSV silently created a
+        // duplicate row instead of updating the original.
+        const existing = row.id
+          ? prices.find((p) => p.id === row.id)
+          : prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
         try {
           if (existing) {
-            await pricingApi.update(existing.id, payload);
+            await pricingApi.update(existing.id, { name: row.name, ...payload });
             results.push(`✓ Updated: ${row.name}`);
           } else {
             await pricingApi.create({ name: row.name, ...payload });
@@ -583,6 +598,7 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[150px]">Pricing Method</th>
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Quote Only</th>
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Customer Requestable</th>
+                <th className="px-4 py-3 text-center font-semibold text-steel w-24" title="Draws from the plan's included inspections (subscription.inspectionsPerYear) instead of always charging its listed price — expected on exactly one row">Quota Inspection</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel w-40">Required Capability</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">Category</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[220px]">Type of Service</th>
@@ -716,6 +732,19 @@ export default function PricingPage() {
                           setTimeout(() => savePrice(price.id), 0);
                         }}
                         title="Uncheck for services only Attenteve triggers (e.g. Home Monitoring Setup) — hidden from the customer's own request list"
+                        className="w-4 h-4 rounded cursor-pointer accent-lantern"
+                      />
+                    </td>
+                    {/* Quota Inspection */}
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={state.isQuotaInspection}
+                        onChange={(e) => {
+                          updateField(price.id, 'isQuotaInspection', e.target.checked);
+                          setTimeout(() => savePrice(price.id), 0);
+                        }}
+                        title="Draws from the plan's included inspections instead of always charging its listed price — expected on exactly one row"
                         className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
                     </td>
@@ -977,6 +1006,14 @@ export default function PricingPage() {
                       className="w-4 h-4 rounded cursor-pointer accent-lantern"
                     />
                   </td>
+                  <td className="px-4 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={newRow.isQuotaInspection}
+                      onChange={(e) => setNewRow((p) => ({ ...p, isQuotaInspection: e.target.checked }))}
+                      className="w-4 h-4 rounded cursor-pointer accent-lantern"
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <select
                       value={newRow.requiredCapabilityId}
@@ -1118,7 +1155,7 @@ export default function PricingPage() {
                   <td className="pr-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true }); }}
+                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false }); }}
                         className="text-steel hover:text-ink text-sm px-2 py-1"
                       >
                         Cancel

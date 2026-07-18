@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, userApi, subscriptionsApi, pricingApi, standaloneServiceApi } from '../../src/services/api';
 import { scheduleLocalReminder } from '../../src/services/notifications';
@@ -141,7 +141,13 @@ export default function RequestScreen() {
   tomorrow.setHours(9, 0, 0, 0);
   const [preferredDate, setPreferredDate] = useState(tomorrow);
   const [serviceDate, setServiceDate] = useState(new Date(tomorrow));
-  const { prefilledNotes, preselectServicePriceId, preferredDate: preferredDateParam } = useLocalSearchParams<{ prefilledNotes?: string; preselectServicePriceId?: string; preferredDate?: string }>();
+  const { prefilledNotes, preselectServicePriceId, preselectServicePriceIds, preferredDate: preferredDateParam } = useLocalSearchParams<{ prefilledNotes?: string; preselectServicePriceId?: string; preselectServicePriceIds?: string; preferredDate?: string }>();
+  // True only for the dashboard ServiceGroupsCard's multi-select handoff —
+  // skips the tab switcher and full category browse below in favor of a
+  // view of just the already-picked services. The single-item
+  // preselectServicePriceId flow (search bar, AI recommendations) is
+  // untouched and still lands in the full browse list, scrolled to that item.
+  const isPreselectedFlow = !!preselectServicePriceIds;
   const [notes, setNotes] = useState('');
   const [serviceNotes, setServiceNotes] = useState('');
   const [solarMonthlyBill, setSolarMonthlyBill] = useState('');
@@ -167,14 +173,19 @@ export default function RequestScreen() {
   // visits, so component state otherwise persists indefinitely). Reset to
   // null on Cancel so retapping the same recommendation still re-selects it.
   const lastPreselectedId = useRef<string | null>(null);
+  // Same purpose as lastPreselectedId above, but for the multi-select
+  // handoff from the dashboard's ServiceGroupsCard — keyed on the raw
+  // comma-separated param so a genuinely new "Request N Services" tap
+  // replaces the draft, matching lastPreselectedId's single-item behavior.
+  const lastPreselectedIdsKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (prefilledNotes) setNotes(prefilledNotes);
   }, [prefilledNotes]);
 
   useEffect(() => {
-    if (preselectServicePriceId) setTab('service');
-  }, [preselectServicePriceId]);
+    if (preselectServicePriceId || preselectServicePriceIds) setTab('service');
+  }, [preselectServicePriceId, preselectServicePriceIds]);
 
   useEffect(() => {
     if (!preferredDateParam) return;
@@ -195,17 +206,29 @@ export default function RequestScreen() {
     subscriptionsApi.getMySubscription().then((s: any) => setSubscription(s)).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (tab === 'service' && catalog.length === 0) {
-      setCatalogLoading(true);
+  // Refetches every time the Additional Services tab regains focus (not just
+  // once per mount) so an admin-side catalog edit — a rename, a price
+  // change, a newly-flagged isQuotaInspection item — shows up without
+  // requiring a full app restart. The spinner only shows on the very first
+  // load; later refetches update the list quietly in the background.
+  const catalogLoadedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (tab !== 'service') return;
+      if (!catalogLoadedOnce.current) setCatalogLoading(true);
       pricingApi.getAll()
         .then((items: any) => {
-          setCatalog((items || []).filter((i: any) => i.customerRequestable !== false));
+          const fresh = (items || []).filter((i: any) => i.customerRequestable !== false);
+          setCatalog(fresh);
+          // Keep an in-progress selection's entered quantities, just refresh
+          // the underlying item data (name/price/flags) against the latest catalog.
+          setSelectedServices((prev) => prev.map((s) => fresh.find((f: any) => f.id === s.id) || s));
+          catalogLoadedOnce.current = true;
         })
         .catch(() => {})
         .finally(() => setCatalogLoading(false));
-    }
-  }, [tab]);
+    }, [tab]),
+  );
 
   // Re-runs on every new "Book Now"/search tap (not just the first catalog
   // fetch), so selection stays in sync with the scroll effect below even
@@ -236,6 +259,41 @@ export default function RequestScreen() {
     const key = match?.category || 'OTHER';
     setExpandedCategories((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
   }, [preselectServicePriceId, catalog]);
+
+  // Multi-item counterpart of the single-preselect effect above, used when
+  // arriving from ServiceGroupsCard's "Request N Services" button. Replaces
+  // (not merges with) the current selection, same reasoning as the
+  // single-item case — a fresh submit tap is a decisive new booking intent.
+  useEffect(() => {
+    if (!preselectServicePriceIds || catalog.length === 0) return;
+    if (lastPreselectedIdsKey.current === preselectServicePriceIds) return;
+    const ids = preselectServicePriceIds.split(',').filter(Boolean);
+    const matches = catalog.filter((i: any) => ids.includes(i.id));
+    if (matches.length === 0) return;
+    lastPreselectedIdsKey.current = preselectServicePriceIds;
+    setSelectedServices(matches);
+    setServiceQuantities({});
+    setServiceNotes('');
+  }, [preselectServicePriceIds, catalog]);
+
+  // Expands every category containing a multi-preselected item, same reason
+  // as the single-item version below — a collapsed category never lays out
+  // its rows, which would otherwise leave those items invisibly selected.
+  useEffect(() => {
+    if (!preselectServicePriceIds || catalog.length === 0) return;
+    const ids = preselectServicePriceIds.split(',').filter(Boolean);
+    const matches = catalog.filter((i: any) => ids.includes(i.id));
+    if (matches.length === 0) return;
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const m of matches) {
+        const key = m.category || 'OTHER';
+        if (!next.has(key)) { next.add(key); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [preselectServicePriceIds, catalog]);
 
   useEffect(() => {
     if (!preselectServicePriceId || catalog.length === 0) return;
@@ -268,6 +326,7 @@ export default function RequestScreen() {
     setSolarInterest('solar_only');
     setSolarCoverage('whole_home');
     lastPreselectedId.current = null;
+    lastPreselectedIdsKey.current = null;
   };
 
   const inspectionsRemaining = subscription
@@ -298,6 +357,14 @@ export default function RequestScreen() {
     return Math.ceil(cost * (1 + markup / 100));
   };
 
+  // The one catalog item flagged isQuotaInspection (see admin Pricing page)
+  // is free while the plan's shared inspection allowance remains — mirrors
+  // ServiceRequestsService.createStandaloneService on the backend, which is
+  // what actually decides the charge; this only keeps the displayed
+  // estimate honest.
+  const isQuotaFree = (item: any) => !!item.isQuotaInspection && (inspectionsRemaining ?? 0) > 0;
+  const displayPrice = (item: any, qty = 1) => (isQuotaFree(item) ? 0 : customerPrice(item, qty));
+
   // Per Unit pricing floors the billed quantity at minimumQuantity (when
   // set) so the shown estimate always matches what will actually be
   // charged — the minimum is disclosed up front, not silently applied.
@@ -318,7 +385,7 @@ export default function RequestScreen() {
 
   const totalServicePrice = selectedServices.reduce((sum, item) => {
     if (item.requiresQuote) return sum;
-    return sum + customerPrice(item, billedQtyFor(item));
+    return sum + displayPrice(item, billedQtyFor(item));
   }, 0);
 
   const toggleService = (item: any) => {
@@ -330,6 +397,151 @@ export default function RequestScreen() {
       }
       return [...prev, item];
     });
+  };
+
+  // Shared per-item card renderer — used by both the full category-browse
+  // list below and the preselected-only view (see isPreselectedFlow) so a
+  // customer arriving with services already picked from the dashboard's
+  // ServiceGroupsCard keeps the exact same quantity-stepper/solar-field
+  // interactivity as browsing the full catalog.
+  const renderServiceCard = (item: any) => {
+    const price = displayPrice(item, billedQtyFor(item));
+    const isSelected = selectedServices.some((s) => s.id === item.id);
+    const quotaFree = isQuotaFree(item);
+    return (
+      <Fragment key={item.id}>
+        <TouchableOpacity
+          onLayout={(e) => { serviceRowY.current.set(item.id, e.nativeEvent.layout.y); }}
+          style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
+          onPress={() => toggleService(item)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.serviceCardRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.serviceName, isSelected && styles.serviceNameSelected]}>{item.name}</Text>
+              <Text style={styles.serviceDesc}>{item.description}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 12 }}>
+              <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>
+                {item.requiresQuote ? 'Request a Quote' : quotaFree ? 'Included' : `$${Number(price).toLocaleString('en-US')}`}
+              </Text>
+              {isSelected && (
+                <Ionicons name="checkmark-circle" size={22} color={colors.lanternDeep} />
+              )}
+            </View>
+          </View>
+          {item.customerPriceDisplay && !item.requiresQuote && !quotaFree && (
+            <Text style={styles.priceNote}>{item.customerPriceDisplay}</Text>
+          )}
+          {item.isQuotaInspection && subscription && (
+            <View style={[styles.quotaPill, !quotaFree && styles.quotaPillWarn]}>
+              <Ionicons
+                name={quotaFree ? 'checkmark-circle-outline' : 'information-circle-outline'}
+                size={13}
+                color={quotaFree ? '#065f46' : '#92400e'}
+              />
+              <Text style={[styles.quotaPillText, !quotaFree && styles.quotaPillTextWarn]}>
+                {quotaFree
+                  ? `Included — ${subscription.inspectionsUsed ?? 0} of ${subscription.plan?.inspectionsPerYear ?? 0} used this year`
+                  : `Plan's ${subscription.plan?.inspectionsPerYear ?? 0} included inspections used — normal price applies`}
+              </Text>
+            </View>
+          )}
+          {isSelected && hasUnitLabel(item) && (
+            <>
+              <View style={styles.qtyRow}>
+                <Text style={styles.qtyLabel}>{unitLabelDisplay(item.quantityLabel)}</Text>
+                <View style={styles.qtyStepper}>
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, -1); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="remove-circle-outline" size={26} color={colors.lanternDeep} />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.qtyInput}
+                    placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
+                    placeholderTextColor={colors.steel}
+                    keyboardType="number-pad"
+                    value={serviceQuantities[item.id] || ''}
+                    onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
+                    onPress={(e) => e.stopPropagation?.()}
+                  />
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, 1); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="add-circle-outline" size={26} color={colors.lanternDeep} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {item.pricingMethod === 'PER_UNIT' && item.minimumQuantity > 0 && (
+                <View style={styles.minQtyNotice}>
+                  <Ionicons name="information-circle-outline" size={14} color="#92400e" />
+                  <Text style={styles.minQtyNoticeText}>
+                    Minimum {Math.ceil(item.minimumQuantity)} {unitLabelDisplay(item.quantityLabel)}{Math.ceil(item.minimumQuantity) !== 1 ? 's' : ''} will apply.
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+          {isSelected && item.name?.toLowerCase().includes('solar') && (
+            <View style={styles.solarFields}>
+              <Text style={styles.solarFieldsTitle}>Tell us about your energy needs</Text>
+
+              <Text style={styles.label}>Average Monthly Electric Bill</Text>
+              <View style={styles.billInputRow}>
+                <Text style={styles.billDollar}>$</Text>
+                <TextInput
+                  style={styles.billInput}
+                  keyboardType="number-pad"
+                  placeholder="e.g. 250"
+                  placeholderTextColor={colors.steel}
+                  value={solarMonthlyBill}
+                  onChangeText={setSolarMonthlyBill}
+                />
+              </View>
+
+              <Text style={styles.label}>What are you interested in?</Text>
+              <View style={styles.choiceRow}>
+                <TouchableOpacity
+                  style={[styles.choiceBtn, solarInterest === 'solar_only' && styles.choiceBtnActive]}
+                  onPress={() => setSolarInterest('solar_only')}
+                >
+                  <Text style={[styles.choiceBtnText, solarInterest === 'solar_only' && styles.choiceBtnTextActive]}>Solar Only</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.choiceBtn, solarInterest === 'solar_battery' && styles.choiceBtnActive]}
+                  onPress={() => setSolarInterest('solar_battery')}
+                >
+                  <Text style={[styles.choiceBtnText, solarInterest === 'solar_battery' && styles.choiceBtnTextActive]}>Solar + Battery</Text>
+                </TouchableOpacity>
+              </View>
+
+              {solarInterest === 'solar_battery' && (
+                <>
+                  <Text style={styles.label}>Backup Coverage</Text>
+                  <View style={styles.choiceRow}>
+                    <TouchableOpacity
+                      style={[styles.choiceBtn, solarCoverage === 'whole_home' && styles.choiceBtnActive]}
+                      onPress={() => setSolarCoverage('whole_home')}
+                    >
+                      <Text style={[styles.choiceBtnText, solarCoverage === 'whole_home' && styles.choiceBtnTextActive]}>Whole Home</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.choiceBtn, solarCoverage === 'partial' && styles.choiceBtnActive]}
+                      onPress={() => setSolarCoverage('partial')}
+                    >
+                      <Text style={[styles.choiceBtnText, solarCoverage === 'partial' && styles.choiceBtnTextActive]}>Partial Backup</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          )}
+        </TouchableOpacity>
+      </Fragment>
+    );
   };
 
   const getAddress = () => profileAddress || { address: '', city: '', state: '', zipCode: '' };
@@ -475,23 +687,25 @@ export default function RequestScreen() {
       <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Request a Service</Text>
 
-        {/* Tab switcher */}
-        <View style={styles.tabRow}>
-          <TouchableOpacity
-            style={[styles.tabBtn, tab === 'inspection' && styles.tabBtnActive]}
-            onPress={() => setTab('inspection')}
-          >
-            <Ionicons name="clipboard-outline" size={16} color={tab === 'inspection' ? colors.ink : colors.lanternDeep} />
-            <Text style={[styles.tabBtnText, tab === 'inspection' && styles.tabBtnTextActive]}>Inspection</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabBtn, tab === 'service' && styles.tabBtnActive]}
-            onPress={() => setTab('service')}
-          >
-            <Ionicons name="construct-outline" size={16} color={tab === 'service' ? colors.ink : colors.lanternDeep} />
-            <Text style={[styles.tabBtnText, tab === 'service' && styles.tabBtnTextActive]}>Additional Services</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Tab switcher — hidden when arriving with a decided multi-selection */}
+        {!isPreselectedFlow && (
+          <View style={styles.tabRow}>
+            <TouchableOpacity
+              style={[styles.tabBtn, tab === 'inspection' && styles.tabBtnActive]}
+              onPress={() => setTab('inspection')}
+            >
+              <Ionicons name="clipboard-outline" size={16} color={tab === 'inspection' ? colors.ink : colors.lanternDeep} />
+              <Text style={[styles.tabBtnText, tab === 'inspection' && styles.tabBtnTextActive]}>Inspection</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabBtn, tab === 'service' && styles.tabBtnActive]}
+              onPress={() => setTab('service')}
+            >
+              <Ionicons name="construct-outline" size={16} color={tab === 'service' ? colors.ink : colors.lanternDeep} />
+              <Text style={[styles.tabBtnText, tab === 'service' && styles.tabBtnTextActive]}>Additional Services</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ─── INSPECTION TAB ─── */}
         {tab === 'inspection' && (
@@ -560,11 +774,15 @@ export default function RequestScreen() {
         {tab === 'service' && (
           <>
             <Text style={styles.subtitle}>
-              Select one or more services. A vendor will come to your home on the requested date.
+              {isPreselectedFlow
+                ? 'Review your selected services below.'
+                : 'Select one or more services. A vendor will come to your home on the requested date.'}
             </Text>
 
             {catalogLoading ? (
               <ActivityIndicator color={colors.lanternDeep} style={{ marginVertical: 24 }} />
+            ) : isPreselectedFlow ? (
+              selectedServices.map((item) => renderServiceCard(item))
             ) : (
               groupedCatalog.map((group) => {
                 const isExpanded = expandedCategories.has(group.key);
@@ -577,130 +795,7 @@ export default function RequestScreen() {
                         <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.steel} />
                       </View>
                     </TouchableOpacity>
-                    {isExpanded && group.items.map((item) => {
-                      const price = customerPrice(item, billedQtyFor(item));
-                      const isSelected = selectedServices.some((s) => s.id === item.id);
-                      return (
-                        <Fragment key={item.id}>
-                        <TouchableOpacity
-                    onLayout={(e) => { serviceRowY.current.set(item.id, e.nativeEvent.layout.y); }}
-                    style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
-                    onPress={() => toggleService(item)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.serviceCardRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.serviceName, isSelected && styles.serviceNameSelected]}>{item.name}</Text>
-                        <Text style={styles.serviceDesc}>{item.description}</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 12 }}>
-                        <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>
-                          {item.requiresQuote ? 'Request a Quote' : `$${Number(price).toLocaleString('en-US')}`}
-                        </Text>
-                        {isSelected && (
-                          <Ionicons name="checkmark-circle" size={22} color={colors.lanternDeep} />
-                        )}
-                      </View>
-                    </View>
-                    {item.customerPriceDisplay && !item.requiresQuote && (
-                      <Text style={styles.priceNote}>{item.customerPriceDisplay}</Text>
-                    )}
-                    {isSelected && hasUnitLabel(item) && (
-                      <>
-                        <View style={styles.qtyRow}>
-                          <Text style={styles.qtyLabel}>{unitLabelDisplay(item.quantityLabel)}</Text>
-                          <View style={styles.qtyStepper}>
-                            <TouchableOpacity
-                              onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, -1); }}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            >
-                              <Ionicons name="remove-circle-outline" size={26} color={colors.lanternDeep} />
-                            </TouchableOpacity>
-                            <TextInput
-                              style={styles.qtyInput}
-                              placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
-                              placeholderTextColor={colors.steel}
-                              keyboardType="number-pad"
-                              value={serviceQuantities[item.id] || ''}
-                              onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
-                              onPress={(e) => e.stopPropagation?.()}
-                            />
-                            <TouchableOpacity
-                              onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, 1); }}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            >
-                              <Ionicons name="add-circle-outline" size={26} color={colors.lanternDeep} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                        {item.pricingMethod === 'PER_UNIT' && item.minimumQuantity > 0 && (
-                          <View style={styles.minQtyNotice}>
-                            <Ionicons name="information-circle-outline" size={14} color="#92400e" />
-                            <Text style={styles.minQtyNoticeText}>
-                              Minimum {Math.ceil(item.minimumQuantity)} {unitLabelDisplay(item.quantityLabel)}{Math.ceil(item.minimumQuantity) !== 1 ? 's' : ''} will apply.
-                            </Text>
-                          </View>
-                        )}
-                      </>
-                    )}
-                    {isSelected && item.name?.toLowerCase().includes('solar') && (
-                      <View style={styles.solarFields}>
-                        <Text style={styles.solarFieldsTitle}>Tell us about your energy needs</Text>
-
-                        <Text style={styles.label}>Average Monthly Electric Bill</Text>
-                        <View style={styles.billInputRow}>
-                          <Text style={styles.billDollar}>$</Text>
-                          <TextInput
-                            style={styles.billInput}
-                            keyboardType="number-pad"
-                            placeholder="e.g. 250"
-                            placeholderTextColor={colors.steel}
-                            value={solarMonthlyBill}
-                            onChangeText={setSolarMonthlyBill}
-                          />
-                        </View>
-
-                        <Text style={styles.label}>What are you interested in?</Text>
-                        <View style={styles.choiceRow}>
-                          <TouchableOpacity
-                            style={[styles.choiceBtn, solarInterest === 'solar_only' && styles.choiceBtnActive]}
-                            onPress={() => setSolarInterest('solar_only')}
-                          >
-                            <Text style={[styles.choiceBtnText, solarInterest === 'solar_only' && styles.choiceBtnTextActive]}>Solar Only</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.choiceBtn, solarInterest === 'solar_battery' && styles.choiceBtnActive]}
-                            onPress={() => setSolarInterest('solar_battery')}
-                          >
-                            <Text style={[styles.choiceBtnText, solarInterest === 'solar_battery' && styles.choiceBtnTextActive]}>Solar + Battery</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {solarInterest === 'solar_battery' && (
-                          <>
-                            <Text style={styles.label}>Backup Coverage</Text>
-                            <View style={styles.choiceRow}>
-                              <TouchableOpacity
-                                style={[styles.choiceBtn, solarCoverage === 'whole_home' && styles.choiceBtnActive]}
-                                onPress={() => setSolarCoverage('whole_home')}
-                              >
-                                <Text style={[styles.choiceBtnText, solarCoverage === 'whole_home' && styles.choiceBtnTextActive]}>Whole Home</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[styles.choiceBtn, solarCoverage === 'partial' && styles.choiceBtnActive]}
-                                onPress={() => setSolarCoverage('partial')}
-                              >
-                                <Text style={[styles.choiceBtnText, solarCoverage === 'partial' && styles.choiceBtnTextActive]}>Partial Backup</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </>
-                        )}
-                      </View>
-                    )}
-                        </TouchableOpacity>
-                        </Fragment>
-                      );
-                    })}
+                    {isExpanded && group.items.map((item) => renderServiceCard(item))}
                   </View>
                 );
               })
@@ -821,7 +916,7 @@ export default function RequestScreen() {
                     {svc.name}{hasUnitLabel(svc) && serviceQuantities[svc.id] ? ` (${serviceQuantities[svc.id]} ${unitLabelDisplay(svc.quantityLabel)})` : ''}
                   </Text>
                   <Text style={styles.addonPrice}>
-                    {svc.requiresQuote ? 'Quote' : `$${Number(customerPrice(svc, billedQtyFor(svc))).toLocaleString('en-US')}`}
+                    {svc.requiresQuote ? 'Quote' : isQuotaFree(svc) ? 'Included' : `$${Number(displayPrice(svc, billedQtyFor(svc))).toLocaleString('en-US')}`}
                   </Text>
                 </View>
               ))}
@@ -900,6 +995,10 @@ const styles = StyleSheet.create({
   servicePrice: { fontSize: 15, fontWeight: '700', color: colors.steel },
   servicePriceSelected: { color: colors.lanternDeep },
   priceNote: { fontSize: 12, color: colors.steel, marginTop: 6 },
+  quotaPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#ecfdf5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, marginTop: 8, alignSelf: 'flex-start' },
+  quotaPillWarn: { backgroundColor: '#fffbeb' },
+  quotaPillText: { fontSize: 11, color: '#065f46', fontWeight: '600', flexShrink: 1 },
+  quotaPillTextWarn: { color: '#92400e' },
   qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, backgroundColor: colors.mist, borderRadius: 8, padding: 10 },
   qtyLabel: { fontSize: 13, color: colors.lanternDeep, fontWeight: '600', flex: 1 },
   qtyStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },

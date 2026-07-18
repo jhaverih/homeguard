@@ -73,6 +73,129 @@ function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollV
   );
 }
 
+const GROUP_META = [
+  { key: 'INSPECT', label: 'Inspect', icon: 'home-outline' },
+  { key: 'REPAIR', label: 'Repair', icon: 'construct-outline' },
+  { key: 'IMPROVE', label: 'Improve', icon: 'sparkles-outline' },
+  { key: 'MAINTAIN', label: 'Maintain', icon: 'refresh-outline' },
+  { key: 'INSTALL', label: 'Install', icon: 'cube-outline' },
+];
+
+// Replaces the old Plan/+Request Service card. Tapping a group icon filters
+// the catalog to that group below it; tapping a service adds it to a running
+// selection (mirroring request.tsx's toggleService picker) rather than
+// navigating away immediately, so a customer can pick services across
+// multiple groups before submitting them together. A selected item drops out
+// of every group's filtered list — since only one group is expanded at a
+// time this also means it won't reappear if the customer switches groups —
+// and reappears only as a removable chip in the selection summary below.
+function ServiceGroupsCard({ catalog, subscription }: { catalog: any[]; subscription: any }) {
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => setActiveGroup((prev) => (prev === key ? null : key));
+
+  const toggleService = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const groupItems = useMemo(() => {
+    if (!activeGroup) return [];
+    return catalog.filter((i) => i.serviceGroups?.includes(activeGroup) && !selectedIds.has(i.id));
+  }, [activeGroup, catalog, selectedIds]);
+
+  const selectedItems = useMemo(
+    () => catalog.filter((i) => selectedIds.has(i.id)),
+    [catalog, selectedIds],
+  );
+
+  const handleRequest = () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setSelectedIds(new Set());
+    setActiveGroup(null);
+    router.push({ pathname: '/(customer)/request', params: { preselectServicePriceIds: ids.join(',') } });
+  };
+
+  return (
+    <View style={styles.groupsCard}>
+      <View style={styles.groupsHeader}>
+        <Text style={styles.groupsTitle}>What does your home need?</Text>
+        {subscription && (
+          <View style={styles.planPill}>
+            <Text style={styles.planPillText}>{subscription.plan?.name?.toUpperCase()}</Text>
+            <View style={styles.planPillDot} />
+            <Text style={styles.planPillStatus}>Active</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.groupGrid}>
+        {GROUP_META.map((g) => {
+          const isActive = activeGroup === g.key;
+          return (
+            <TouchableOpacity
+              key={g.key}
+              style={styles.groupTile}
+              onPress={() => toggleGroup(g.key)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.groupIconWrap, isActive && styles.groupIconWrapActive]}>
+                <Ionicons name={g.icon as any} size={22} color={isActive ? colors.ink : colors.lanternDeep} />
+              </View>
+              <Text style={[styles.groupLabel, isActive && styles.groupLabelActive]}>{g.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {activeGroup && (
+        <View style={styles.groupList}>
+          {groupItems.length === 0 ? (
+            <Text style={styles.groupEmpty}>
+              {catalog.some((i) => i.serviceGroups?.includes(activeGroup))
+                ? 'All services in this group are already selected below.'
+                : 'No services tagged for this group yet.'}
+            </Text>
+          ) : (
+            groupItems.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.groupItemRow} onPress={() => toggleService(item.id)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.groupItemName}>{item.name}</Text>
+                  {!!item.description && <Text style={styles.groupItemDesc} numberOfLines={1}>{item.description}</Text>}
+                </View>
+                <Ionicons name="add-circle-outline" size={22} color={colors.lanternDeep} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      )}
+
+      {selectedItems.length > 0 && (
+        <>
+          <View style={styles.selectedChipsRow}>
+            {selectedItems.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.selectedChip} onPress={() => toggleService(item.id)}>
+                <Text style={styles.selectedChipText} numberOfLines={1}>{item.name}</Text>
+                <Ionicons name="close" size={14} color={colors.ink} />
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={[styles.requestBtn, { marginTop: 12 }]} onPress={handleRequest}>
+            <Text style={styles.requestBtnText}>
+              Request {selectedItems.length} Service{selectedItems.length !== 1 ? 's' : ''}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+}
+
 const ACTIVE_STATUSES = ['PENDING', 'PENDING_CUSTOMER_REVIEW', 'ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'];
 
 
@@ -163,13 +286,14 @@ export default function CustomerDashboard() {
   const [catalog, setCatalog] = useState<any[]>([]);
   const dashScrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    pricingApi.getAll()
-      .then((items: any) => setCatalog((items || []).filter((i: any) => i.customerRequestable !== false)))
-      .catch(() => {});
-  }, []);
-
   const load = async () => {
+    // Refetched on every focus (folded into the same load() this screen
+    // already reruns on focus below) so an admin-side catalog edit shows up
+    // without requiring a full app restart.
+    try {
+      const items: any = await pricingApi.getAll();
+      setCatalog((items || []).filter((i: any) => i.customerRequestable !== false));
+    } catch (e) {}
     try {
       const sub: any = await subscriptionsApi.getMySubscription();
       setSubscription(sub);
@@ -267,36 +391,7 @@ export default function CustomerDashboard() {
       <ServiceSearchCard catalog={catalog} scrollViewRef={dashScrollRef} />
 
       {subscription ? (
-        <View style={styles.subCard}>
-          <View style={styles.subHeader}>
-            <Text style={styles.subTitle}>{subscription.plan?.name}</Text>
-            <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>Active</Text>
-            </View>
-          </View>
-          <View style={styles.subStats}>
-            <View style={styles.stat}>
-              <Text style={styles.statNum}>
-                {Math.max(0, subscription.plan?.inspectionsPerYear - subscription.inspectionsUsed -
-                  requests.filter((r: any) => !['COMPLETED', 'CANCELLED'].includes(r.status)).length)}
-              </Text>
-              <Text style={styles.statLabel}>Left</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statNum}>
-                {requests.filter((r: any) => !['COMPLETED', 'CANCELLED'].includes(r.status)).length}
-              </Text>
-              <Text style={styles.statLabel}>Pending</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statNum}>{subscription.inspectionsUsed}</Text>
-              <Text style={styles.statLabel}>Completed</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.requestBtn} onPress={() => router.push('/(customer)/request')}>
-            <Text style={styles.requestBtnText}>+ Request Service</Text>
-          </TouchableOpacity>
-        </View>
+        <ServiceGroupsCard catalog={catalog} subscription={subscription} />
       ) : (
         <TouchableOpacity style={styles.noSubCard} onPress={() => router.push('/(customer)/subscribe')}>
           <Text style={styles.noSubTitle}>No Active Subscription</Text>
@@ -388,17 +483,29 @@ const styles = StyleSheet.create({
   header: { backgroundColor: colors.ink, padding: 24, paddingTop: 16 },
   greeting: { fontSize: 24, fontWeight: '700', color: colors.mist },
   subtitle: { fontSize: 14, color: colors.mistDim, marginTop: 4 },
-  subCard: { margin: 16, backgroundColor: '#fff', borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8 },
-  subHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  subTitle: { fontSize: 18, fontWeight: '700', color: colors.lanternDeep },
-  activeBadge: { backgroundColor: '#c6f6d5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
-  activeBadgeText: { color: '#059669', fontSize: 12, fontWeight: '600' },
-  subStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
-  stat: { alignItems: 'center' },
-  statNum: { fontSize: 24, fontWeight: '800', color: colors.lanternDeep },
-  statLabel: { fontSize: 12, color: colors.steel, marginTop: 2 },
   requestBtn: { backgroundColor: colors.lantern, borderRadius: 10, padding: 14, alignItems: 'center' },
   requestBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
+  groupsCard: { margin: 16, backgroundColor: '#fff', borderRadius: 16, padding: 18, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8 },
+  groupsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  groupsTitle: { fontSize: 16, fontWeight: '700', color: colors.ink, flex: 1, marginRight: 8 },
+  planPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.mist, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
+  planPillText: { fontSize: 10, fontWeight: '800', color: colors.lanternDeep, letterSpacing: 0.4 },
+  planPillDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#059669' },
+  planPillStatus: { fontSize: 10, fontWeight: '700', color: '#059669' },
+  groupGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+  groupTile: { alignItems: 'center', width: '18%' },
+  groupIconWrap: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.mist, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  groupIconWrapActive: { backgroundColor: colors.lantern },
+  groupLabel: { fontSize: 11, fontWeight: '600', color: colors.steel, textAlign: 'center' },
+  groupLabelActive: { color: colors.lanternDeep },
+  groupList: { marginTop: 16, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
+  groupEmpty: { fontSize: 13, color: colors.steel, textAlign: 'center', paddingVertical: 16 },
+  groupItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.canvas },
+  groupItemName: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  groupItemDesc: { fontSize: 12, color: colors.steel, marginTop: 1 },
+  selectedChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  selectedChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.mist, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, maxWidth: '100%' },
+  selectedChipText: { fontSize: 12, fontWeight: '600', color: colors.ink, maxWidth: 160 },
   noSubCard: { margin: 16, backgroundColor: '#fff4e5', borderRadius: 16, padding: 20, borderWidth: 2, borderColor: '#f6ad55' },
   noSubTitle: { fontSize: 16, fontWeight: '700', color: '#c05621', marginBottom: 4 },
   noSubText: { color: '#744210', fontSize: 14 },

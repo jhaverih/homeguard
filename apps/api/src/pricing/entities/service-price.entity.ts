@@ -75,6 +75,13 @@ export class ServicePrice {
   @Column({ default: true })
   customerRequestable: boolean;
 
+  // Marks the catalog row (expected: exactly one, "General Inspection") that
+  // draws from the same subscription.inspectionsPerYear pool as the built-in
+  // Inspection tab, instead of always charging its listed price — see
+  // ServiceRequestsService.getInspectionsRemaining().
+  @Column({ default: false })
+  isQuotaInspection: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
