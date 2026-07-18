@@ -431,14 +431,14 @@ export default function PricingPage() {
           isQuotaInspection: row.isQuotaInspection === 'true',
         };
 
-        // Match by id when the CSV carries one (a re-imported export) so a
-        // renamed row updates in place; only fall back to name-matching for
-        // rows with no id (e.g. new rows added by hand to the CSV) — matching
-        // by name alone meant renaming a service via CSV silently created a
+        // Match by id when the CSV carries one AND it still exists (a
+        // re-imported export) so a renamed row updates in place; fall back to
+        // name-matching whenever there's no id, or the id is stale (e.g. the
+        // catalog was rebuilt since the CSV was exported) — matching by name
+        // alone meant renaming a service via CSV silently created a
         // duplicate row instead of updating the original.
-        const existing = row.id
-          ? prices.find((p) => p.id === row.id)
-          : prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
+        const existing = (row.id && prices.find((p) => p.id === row.id))
+          || prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
         try {
           if (existing) {
             await pricingApi.update(existing.id, { name: row.name, ...payload });

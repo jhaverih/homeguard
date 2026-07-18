@@ -218,9 +218,17 @@ export class PricingService implements OnModuleInit {
     }
   }
 
+  // Guards the one-time bootstrap seed on whether the table has ANY rows at
+  // all, not a specific row's name — name-matching here previously meant
+  // renaming "Additional Inspection" (e.g. to "General Inspection") made
+  // this look like a never-seeded database on the next restart, silently
+  // wiping and reseeding the ENTIRE catalog (losing every admin edit,
+  // including all serviceGroups tagging) from the small hardcoded list
+  // below. Confirmed as the cause of a real data-loss incident 2026-07-18 —
+  // count() is immune to admin renames since it doesn't care which rows exist.
   private async seedPrices() {
-    const existing = await this.pricesRepo.findOne({ where: { name: 'Additional Inspection' } });
-    if (existing) return;
+    const count = await this.pricesRepo.count();
+    if (count > 0) return;
 
     // Wrapped in a transaction — a mid-loop failure previously left the
     // catalog wiped (old rows already deleted, new ones only partially
