@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, In } from 'typeorm';
+import { Repository, LessThan, MoreThan, In, IsNull } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import Stripe from 'stripe';
@@ -136,6 +136,120 @@ export class PaymentsService {
     return { clientSecret: paymentIntent.client_secret, paymentId: saved.id };
   }
 
+  // Called the moment a job is marked COMPLETED — charges the customer's
+  // saved default card immediately (off-session, no app interaction
+  // required) so vendor payout doesn't depend on the customer ever opening
+  // the app. Falls back to a normal client-confirmable PaymentIntent (same
+  // shape as createAuthHold, but automatic capture) when there's no saved
+  // card or the off-session attempt fails (e.g. requires interactive 3DS) —
+  // that fallback is what surfaces as the "Pay Now" card, resolved via
+  // authorizePayment above.
+  async chargeForCompletedService(
+    serviceRequestId: string,
+    customerId: string,
+    vendorId: string,
+    amount: number,
+    description: string,
+    type: PaymentType = PaymentType.ADDITIONAL_SERVICE,
+  ): Promise<Payment> {
+    const { accountId: vendorAccountId } = await this.usersService.getCompanyStripeAccount(vendorId);
+
+    const platformFeePercent = Number(this.configService.get('PLATFORM_FEE_PERCENT', '15'));
+    const amountInCents = Math.round(amount * 100);
+    const platformFeeInCents = Math.round(amountInCents * (platformFeePercent / 100));
+    const stripeFee = Math.round(amountInCents * 0.029 + 30);
+    const vendorAmountInCents = amountInCents - platformFeeInCents - stripeFee;
+
+    const transferParams: Partial<Stripe.PaymentIntentCreateParams> = vendorAccountId
+      ? { application_fee_amount: platformFeeInCents, transfer_data: { destination: vendorAccountId } }
+      : {};
+
+    const basePayment = {
+      serviceRequestId,
+      customerId,
+      vendorId,
+      type,
+      description,
+      amount,
+      platformFee: platformFeeInCents / 100,
+      stripeFee: stripeFee / 100,
+      vendorAmount: vendorAmountInCents / 100,
+      currency: 'usd',
+    };
+
+    const customer = await this.usersService.findById(customerId);
+    const methods = customer.stripeCustomerId ? await this.listPaymentMethods(customerId) : [];
+    const defaultMethod = methods.find((m) => m.isDefault) ?? methods[0];
+
+    if (defaultMethod) {
+      try {
+        const intent = await this.stripe.paymentIntents.create({
+          customer: customer.stripeCustomerId,
+          payment_method: defaultMethod.id,
+          amount: amountInCents,
+          currency: 'usd',
+          off_session: true,
+          confirm: true,
+          description,
+          metadata: { serviceRequestId, customerId, vendorId, paymentType: type },
+          ...transferParams,
+        });
+        if (intent.status === 'succeeded') {
+          const payment = this.paymentsRepo.create({
+            ...basePayment,
+            status: PaymentStatus.SUCCEEDED,
+            stripePaymentIntentId: intent.id,
+            capturedAt: new Date(),
+            disputeWindowExpiresAt: this.disputeDeadline(),
+          });
+          return this.paymentsRepo.save(payment);
+        }
+      } catch (err: any) {
+        // Off-session confirmations fail fast (rather than hang) when the
+        // card requires interactive 3DS authentication — Stripe's
+        // documented behavior — or is simply declined. Either way, fall
+        // through to the client-confirmable PaymentIntent below.
+        this.logger.warn(`Automatic charge failed for service request ${serviceRequestId}: ${err.message}`);
+      }
+    }
+
+    const intentParams: Stripe.PaymentIntentCreateParams = {
+      amount: amountInCents,
+      currency: 'usd',
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      metadata: { serviceRequestId, customerId, vendorId, paymentType: type },
+      description,
+      ...transferParams,
+    };
+    if (customer.stripeCustomerId) intentParams.customer = customer.stripeCustomerId;
+
+    const fallbackIntent = await this.stripe.paymentIntents.create(intentParams);
+    const payment = this.paymentsRepo.create({
+      ...basePayment,
+      status: PaymentStatus.PENDING,
+      stripePaymentIntentId: fallbackIntent.id,
+      stripeClientSecret: fallbackIntent.client_secret,
+    });
+    const saved = await this.paymentsRepo.save(payment);
+
+    await this.notificationsService.notifyUser(
+      customerId,
+      NotificationType.PAYMENT_PROCESSED,
+      'Payment Needs Your Attention',
+      `We couldn't automatically charge your card for "${description}" ($${amount}). Open the app to complete payment.`,
+      { paymentId: saved.id },
+    ).catch(() => {});
+
+    return saved;
+  }
+
+  // Reached only via the "Pay Now" fallback card — the automatic off-session
+  // charge in chargeForCompletedService already failed (no saved card, or
+  // the card needed interactive 3DS the app can now provide). The
+  // PaymentIntent behind that card was created with the default automatic
+  // capture_method, so the customer completing Stripe's payment sheet
+  // client-side already captured it — this just confirms that and starts
+  // the dispute-eligibility window, same as the automatic path does.
   async authorizePayment(paymentId: string, customerId: string): Promise<Payment> {
     const payment = await this.paymentsRepo.findOne({ where: { id: paymentId } });
     if (!payment) throw new NotFoundException('Payment not found');
@@ -147,32 +261,78 @@ export class PaymentsService {
     }
 
     const pi = await this.stripe.paymentIntents.retrieve(payment.stripePaymentIntentId);
-    if (pi.status !== 'requires_capture') {
-      throw new BadRequestException('Payment has not been authorized yet');
+    if (pi.status !== 'succeeded') {
+      throw new BadRequestException('Payment has not completed yet');
     }
 
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + DISPUTE_WINDOW_HOURS);
-
-    payment.status = PaymentStatus.AUTHORIZED;
-    payment.disputeWindowExpiresAt = expiresAt;
+    payment.status = PaymentStatus.SUCCEEDED;
+    payment.capturedAt = new Date();
+    payment.disputeWindowExpiresAt = this.disputeDeadline();
     const saved = await this.paymentsRepo.save(payment);
 
     await this.notificationsService.notifyUser(
       customerId,
       NotificationType.PAYMENT_PROCESSED,
-      'Payment Authorized',
-      `$${payment.amount} authorized. If no dispute is raised, it will be released in ${DISPUTE_WINDOW_HOURS} hours.`,
+      'Payment Processed',
+      `$${payment.amount} charged for "${payment.description}". You have ${DISPUTE_WINDOW_HOURS} hours to report an issue if something's wrong.`,
       { paymentId: saved.id },
     );
 
     return saved;
   }
 
+  private disputeDeadline(): Date {
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + DISPUTE_WINDOW_HOURS);
+    return expiresAt;
+  }
+
+  // Lets DisputesService check dispute-window eligibility (see openDispute)
+  // without needing its own direct repository access to payments.
+  async findByStripePaymentIntentId(stripePaymentIntentId: string): Promise<Payment | null> {
+    return this.paymentsRepo.findOne({ where: { stripePaymentIntentId } });
+  }
+
+  // Called by DisputesService.resolve() when a dispute is resolved in the
+  // customer's favor — the job is charged immediately at completion now
+  // (see chargeForCompletedService), so "the customer wins the dispute"
+  // means reversing money that's already moved, not voiding a hold.
+  // reverse_transfer pulls the vendor's already-transferred portion back
+  // out of their Connect account too, not just Attenteve's platform fee —
+  // Stripe's standard semantics for refunding a Connect destination charge.
+  async refundForDispute(stripePaymentIntentId: string): Promise<void> {
+    const payment = await this.paymentsRepo.findOne({ where: { stripePaymentIntentId } });
+    if (!payment) {
+      this.logger.warn(`No payment found for disputed PaymentIntent ${stripePaymentIntentId} — nothing to refund`);
+      return;
+    }
+    if (payment.status !== PaymentStatus.SUCCEEDED) {
+      this.logger.warn(`Payment ${payment.id} is ${payment.status}, not SUCCEEDED — skipping refund`);
+      return;
+    }
+
+    await this.stripe.refunds.create({
+      payment_intent: stripePaymentIntentId,
+      reverse_transfer: true,
+    });
+
+    payment.status = PaymentStatus.REFUNDED;
+    await this.paymentsRepo.save(payment);
+  }
+
+  // Also surfaces recently-SUCCEEDED payments still inside their dispute
+  // window — the dashboard uses this same list to show "Charged $XXX" as a
+  // completion confirmation with a chance to report an issue, not just
+  // payments still awaiting the (now-rare) Pay Now fallback. It naturally
+  // drops out of this list once disputeWindowExpiresAt passes, no separate
+  // "dismiss" step needed.
   async getPendingPayments(customerId: string): Promise<Payment[]> {
     const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     return this.paymentsRepo.find({
-      where: { customerId: In(relatedIds), status: In([PaymentStatus.PENDING, PaymentStatus.AUTHORIZED]) },
+      where: [
+        { customerId: In(relatedIds), status: In([PaymentStatus.PENDING, PaymentStatus.AUTHORIZED]) },
+        { customerId: In(relatedIds), status: PaymentStatus.SUCCEEDED, disputeWindowExpiresAt: MoreThan(new Date()) },
+      ],
       order: { createdAt: 'DESC' },
     });
   }
@@ -226,43 +386,37 @@ export class PaymentsService {
     return this.paymentsRepo.find({ where: { vendorId: userId }, order: { createdAt: 'DESC' } });
   }
 
+  // Was a delayed-capture trigger back when payments were held for 48h
+  // before release. Both charging paths (chargeForCompletedService,
+  // authorizePayment) now capture immediately, so there's nothing left to
+  // capture on a timer — repurposed as a safety net that alerts admins
+  // about any payment still stuck PENDING (the automatic attempt failed
+  // AND the customer hasn't completed the "Pay Now" fallback) for longer
+  // than a business day, rather than letting it silently sit forever.
   @Cron(CronExpression.EVERY_HOUR)
-  async autoCaptureExpiredHolds(): Promise<void> {
-    const expired = await this.paymentsRepo.find({
+  async alertStalePendingPayments(): Promise<void> {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const stale = await this.paymentsRepo.find({
       where: {
-        status: PaymentStatus.AUTHORIZED,
-        disputeWindowExpiresAt: LessThan(new Date()),
+        status: PaymentStatus.PENDING,
+        createdAt: LessThan(cutoff),
+        stalePaymentAlertSentAt: IsNull(),
       },
     });
 
-    for (const payment of expired) {
-      try {
-        await this.stripe.paymentIntents.capture(payment.stripePaymentIntentId);
-        payment.status = PaymentStatus.SUCCEEDED;
-        payment.capturedAt = new Date();
-        await this.paymentsRepo.save(payment);
+    for (const payment of stale) {
+      payment.stalePaymentAlertSentAt = new Date();
+      await this.paymentsRepo.save(payment);
+      await this.notificationsService.notifyAdmins(
+        NotificationType.PAYMENT_COLLECTION_FAILED,
+        'Payment Still Uncollected',
+        `Payment for "${payment.description}" ($${payment.amount}) has been pending for over 24 hours — may need manual follow-up.`,
+        { paymentId: payment.id },
+      ).catch((err) => this.logger.warn(`Failed to notify admins about stale payment ${payment.id}: ${err.message}`));
+    }
 
-        await this.notificationsService.notifyUser(
-          payment.customerId,
-          NotificationType.PAYMENT_PROCESSED,
-          'Payment Processed',
-          `Your payment of $${payment.amount} for "${payment.description}" has been processed.`,
-          { paymentId: payment.id },
-        );
-
-        if (payment.vendorId) {
-          await this.notificationsService.notifyUser(
-            payment.vendorId,
-            NotificationType.PAYMENT_PROCESSED,
-            'Payment Released',
-            `Payment of $${payment.vendorAmount} for "${payment.description}" has been released.`,
-            { paymentId: payment.id },
-          );
-        }
-        this.logger.log(`Auto-captured payment ${payment.id}`);
-      } catch (err) {
-        this.logger.error(`Auto-capture failed for payment ${payment.id}: ${err.message}`);
-      }
+    if (stale.length > 0) {
+      this.logger.warn(`Flagged ${stale.length} payment(s) stuck PENDING past 24h`);
     }
   }
 

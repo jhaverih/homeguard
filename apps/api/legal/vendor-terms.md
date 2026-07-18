@@ -42,6 +42,8 @@ To keep this policy fair to customers, arrive at the scheduled time and make a g
 
 Payouts for completed jobs, and for the cancellation/no-show compensation described in Section 4, are issued on Attenteve's standard payout cycle to the payout account you connect (e.g. via Stripe Connect). Attenteve's standard platform fee applies to completed-job revenue as disclosed in the app at the time you accept a job; it does not apply to cancellation or no-show compensation, which you receive in full.
 
+*[Draft — to be finalized with counsel.]* For a standalone service request, the customer is charged and your payout is issued promptly upon marking the job complete. The customer has 48 hours from that point to dispute the charge in the app. If Attenteve resolves a dispute in the customer's favor, your payout for that job will be reversed accordingly, and Attenteve will notify you of the outcome.
+
 ## 6. Non-Solicitation / Non-Circumvention
 
 For customers you are introduced to through the Attenteve platform, you agree not to solicit that customer to book or pay for services outside the platform in order to avoid Attenteve's platform fee, for as long as your relationship with that customer originated through Attenteve. This restriction does not apply to customers you had an independent relationship with before using Attenteve.

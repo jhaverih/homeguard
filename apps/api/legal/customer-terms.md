@@ -40,7 +40,9 @@ Cancellation fees and no-show charges are billed to the payment method on file f
 
 ## 6. Payment Terms
 
-You authorize Attenteve to charge your payment method on file for subscription fees, standalone service requests, cancellation fees, and no-show charges as described in these Terms. All fees are shown to you before you confirm a booking, except where a service is explicitly marked as requiring a quote. If you believe a charge was made in error, you may dispute it in the app; Attenteve will review disputes in good faith, but the outcome of any specific dispute is not guaranteed.
+You authorize Attenteve to charge your payment method on file for subscription fees, standalone service requests, cancellation fees, and no-show charges as described in these Terms. All fees are shown to you before you confirm a booking, except where a service is explicitly marked as requiring a quote.
+
+*[Draft — to be finalized with counsel.]* For standalone service requests, your payment method is charged automatically as soon as the Vendor marks the service complete — you do not need to take any action for the charge to be processed. If you believe a charge was made in error, you have 48 hours from the time of completion to dispute it in the app; Attenteve will review disputes in good faith, but the outcome of any specific dispute is not guaranteed. Disputes raised after this 48-hour window has closed cannot be submitted through the app. A dispute resolved in your favor results in a refund of the disputed charge.
 
 ## 7. No Guarantee of Matching or Response Time
 

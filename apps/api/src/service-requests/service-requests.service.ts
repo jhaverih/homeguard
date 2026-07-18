@@ -493,7 +493,11 @@ export class ServiceRequestsService {
       for (const svc of approvedServices) {
         if (svc.isQuotaCovered) continue; // covered by the plan — nothing to charge
         try {
-          await this.paymentsService.createAuthHold(
+          // Charges the customer immediately (off-session where possible,
+          // falling back to a "Pay Now" card only if that fails) rather than
+          // waiting on the customer to open the app — see
+          // PaymentsService.chargeForCompletedService.
+          await this.paymentsService.chargeForCompletedService(
             requestId,
             request.customerId,
             vendorId,
@@ -502,7 +506,7 @@ export class ServiceRequestsService {
             PaymentType.ADDITIONAL_SERVICE,
           );
         } catch (err) {
-          // Don't block job completion if payment hold fails
+          // Don't block job completion if payment fails
         }
       }
 

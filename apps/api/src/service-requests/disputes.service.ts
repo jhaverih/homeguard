@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Dispute } from './entities/dispute.entity';
@@ -7,6 +7,7 @@ import { DisputeCategory, DisputeStatus } from '../common/enums/role.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { UsersService } from '../users/users.service';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class DisputesService {
@@ -18,6 +19,8 @@ export class DisputesService {
     private notificationsService: NotificationsService,
     private uploadsService: UploadsService,
     private usersService: UsersService,
+    @Inject(forwardRef(() => PaymentsService))
+    private paymentsService: PaymentsService,
   ) {}
 
   async openDispute(
@@ -46,6 +49,19 @@ export class DisputesService {
       where: { serviceRequestId: dto.serviceRequestId, customerId: In(relatedIds), status: DisputeStatus.OPEN },
     });
     if (existing) throw new BadRequestException('A dispute is already open for this job');
+
+    // Payment is charged immediately at completion now (see
+    // PaymentsService.chargeForCompletedService) — disputeWindowExpiresAt is
+    // the hard 48-hour deadline to report an issue, not a capture delay.
+    // Previously unenforced: filing a dispute after this window had already
+    // passed was silently accepted with no effect on the (already-released)
+    // payment.
+    if (dto.stripePaymentIntentId) {
+      const payment = await this.paymentsService.findByStripePaymentIntentId(dto.stripePaymentIntentId);
+      if (payment?.disputeWindowExpiresAt && payment.disputeWindowExpiresAt < new Date()) {
+        throw new BadRequestException('The 48-hour window to dispute this charge has passed');
+      }
+    }
 
     const dispute = this.disputesRepo.create({
       serviceRequestId: dto.serviceRequestId,
@@ -98,17 +114,27 @@ export class DisputesService {
       throw new BadRequestException('Dispute is already resolved');
     }
 
+    // The job was charged immediately at completion, so resolving in the
+    // customer's favor means actually reversing money already paid to the
+    // vendor — not voiding a hold that was never captured. Previously this
+    // only sent notification text ("the charge has been voided") without
+    // ever calling Stripe, which was harmless under the old delayed-capture
+    // model but would just be false under this one.
+    if (resolution === DisputeStatus.RESOLVED_CUSTOMER && dispute.stripePaymentIntentId) {
+      await this.paymentsService.refundForDispute(dispute.stripePaymentIntentId);
+    }
+
     dispute.status = resolution;
     dispute.resolution = note;
     dispute.resolvedAt = new Date();
     const saved = await this.disputesRepo.save(dispute);
 
     const customerMsg = resolution === DisputeStatus.RESOLVED_CUSTOMER
-      ? 'Your dispute has been resolved in your favor. The charge has been voided.'
-      : 'HomeGuard has reviewed your dispute. The payment has been released to your vendor.';
+      ? 'Your dispute has been resolved in your favor. You have been refunded.'
+      : 'HomeGuard has reviewed your dispute and found the charge was correct. No refund will be issued.';
     const vendorMsg = resolution === DisputeStatus.RESOLVED_VENDOR
-      ? 'The customer dispute has been resolved in your favor. Payment will be released shortly.'
-      : 'HomeGuard has reviewed the dispute and voided the charge for this job.';
+      ? 'The customer dispute has been resolved in your favor. Your payment for this job stands — no action needed.'
+      : 'HomeGuard has reviewed the dispute in the customer\'s favor. Your payout for this job has been reversed.';
 
     await Promise.all([
       this.notificationsService.notifyUser(

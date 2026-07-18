@@ -56,6 +56,12 @@ export class Payment {
   @Column({ nullable: true })
   capturedAt: Date;
 
+  // Set once the stale-PENDING admin alert has fired for this payment (see
+  // PaymentsService.alertStalePendingPayments) so it doesn't re-alert every
+  // hour for the same still-uncollected payment.
+  @Column({ nullable: true })
+  stalePaymentAlertSentAt: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 }

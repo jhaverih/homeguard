@@ -403,36 +403,44 @@ export default function CustomerDashboard() {
       )}
 
       {/* Pending payments requiring authorization */}
+      {/* Charged jobs are charged automatically at completion (see
+          PaymentsService.chargeForCompletedService on the backend) — this
+          card is now mostly a "you were charged" confirmation with a
+          low-key way to flag a problem, not a payment-approval prompt. It
+          only asks for action (Pay Now) in the rare case the automatic
+          charge failed. It disappears on its own once the 48h dispute
+          window closes (backend query, not client-side filtering). */}
       {pendingPayments.map((payment) => {
-        const isAuthorized = payment.status === 'AUTHORIZED';
+        const isCharged = payment.status === 'SUCCEEDED';
         const isPaying = payingId === payment.id;
 
         return (
-          <View key={payment.id} style={styles.paymentCard}>
+          <View key={payment.id} style={[styles.paymentCard, isCharged && styles.paymentCardCharged]}>
             <View style={styles.paymentCardTop}>
-              <View style={styles.paymentIcon}>
-                <Ionicons name="card" size={20} color="#c05621" />
+              <View style={[styles.paymentIcon, isCharged && styles.paymentIconCharged]}>
+                <Ionicons name={isCharged ? 'checkmark-circle' : 'card'} size={20} color={isCharged ? colors.lanternDeep : '#c05621'} />
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.paymentTitle}>{payment.description}</Text>
+                <Text style={styles.paymentTitle}>
+                  {isCharged ? `Service completed — ${fmtUSD(payment.amount)} charged` : payment.description}
+                </Text>
                 <Text style={styles.paymentSub}>
-                  {isAuthorized ? 'Payment authorized — dispute window open' : 'Payment pending your approval'}
+                  {isCharged ? payment.description : 'Payment needs your attention'}
                 </Text>
               </View>
-              <Text style={styles.paymentAmount}>{fmtUSD(payment.amount)}</Text>
+              {!isCharged && <Text style={styles.paymentAmount}>{fmtUSD(payment.amount)}</Text>}
             </View>
 
-            {isAuthorized ? (
-              <View style={styles.authorizedNote}>
-                <Ionicons name="time-outline" size={14} color={colors.lanternDeep} />
-                <Text style={styles.authorizedNoteText}>
-                  Funds release {new Date(payment.disputeWindowExpiresAt).toLocaleDateString()} unless disputed
-                </Text>
-              </View>
-            ) : null}
-
             <View style={styles.paymentActions}>
-              {!isAuthorized && (
+              {isCharged ? (
+                <TouchableOpacity
+                  onPress={() => router.push(
+                    `/(customer)/dispute?serviceRequestId=${payment.serviceRequestId}&vendorId=${payment.vendorId}&stripePaymentIntentId=${payment.stripePaymentIntentId}&amount=${payment.amount}`
+                  )}
+                >
+                  <Text style={styles.reportIssueLink}>Report an issue</Text>
+                </TouchableOpacity>
+              ) : (
                 <TouchableOpacity
                   style={[styles.payNowBtn, isPaying && styles.payNowBtnDisabled]}
                   onPress={() => handlePayNow(payment)}
@@ -444,15 +452,6 @@ export default function CustomerDashboard() {
                   }
                 </TouchableOpacity>
               )}
-              <TouchableOpacity
-                style={styles.disputeBtn}
-                onPress={() => router.push(
-                  `/(customer)/dispute?serviceRequestId=${payment.serviceRequestId}&vendorId=${payment.vendorId}&stripePaymentIntentId=${payment.stripePaymentIntentId}&amount=${payment.amount}`
-                )}
-              >
-                <Ionicons name="shield-half-outline" size={15} color="#c53030" />
-                <Text style={styles.disputeBtnText}> Dispute</Text>
-              </TouchableOpacity>
             </View>
           </View>
         );
@@ -517,19 +516,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderRadius: 14, padding: 16,
     borderWidth: 2, borderColor: '#fed7d7',
   },
+  // Neutral/positive framing for the now-default "already charged" state —
+  // the red warning border is reserved for the rare Pay Now fallback above.
+  paymentCardCharged: { borderColor: colors.border },
   paymentCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   paymentIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff5f5', alignItems: 'center', justifyContent: 'center' },
+  paymentIconCharged: { backgroundColor: colors.mist },
   paymentTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
   paymentSub: { fontSize: 12, color: colors.steel, marginTop: 2 },
   paymentAmount: { fontSize: 18, fontWeight: '800', color: '#c05621' },
-  authorizedNote: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', borderRadius: 8, padding: 8, marginBottom: 8 },
-  authorizedNoteText: { fontSize: 12, color: colors.lanternDeep, flex: 1 },
   paymentActions: { flexDirection: 'row', gap: 8 },
   payNowBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.lantern, borderRadius: 10, padding: 12 },
   payNowBtnDisabled: { backgroundColor: colors.steel },
   payNowBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
-  disputeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fed7d7', borderRadius: 10, padding: 12, paddingHorizontal: 16 },
-  disputeBtnText: { color: '#c53030', fontWeight: '700', fontSize: 14 },
+  reportIssueLink: { color: colors.steel, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline', padding: 4 },
   aiCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 16, marginTop: 8, backgroundColor: colors.ink, borderRadius: 14, padding: 16 },
   aiCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   aiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },

@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
 import { paymentsApi } from '../../src/services/api';
@@ -199,7 +199,10 @@ export default function PaymentsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Pending payments */}
+      {/* Pending payments — getPending() now also returns recently-charged
+          payments still inside their dispute window (see
+          PaymentsService.getPendingPayments), so this branches on status
+          instead of treating every entry as needing a Pay button. */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Payments Due</Text>
         {pending.length === 0 ? (
@@ -208,36 +211,52 @@ export default function PaymentsScreen() {
             <Text style={styles.emptyText}>No payments due</Text>
           </View>
         ) : (
-          pending.map((p) => (
-            <View key={p.id} style={[styles.card, styles.cardPending]}>
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardDesc}>{p.description || p.serviceType || 'Service'}</Text>
-                  {p.vendorName && <Text style={styles.cardSub}>Vendor: {p.vendorName}</Text>}
-                  {p.serviceDate && (
-                    <Text style={styles.cardSub}>
-                      Service date: {new Date(p.serviceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          pending.map((p) => {
+            const isCharged = p.status === 'SUCCEEDED';
+            return (
+              <View key={p.id} style={[styles.card, !isCharged && styles.cardPending]}>
+                <View style={styles.cardTop}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardDesc}>
+                      {isCharged ? `Service completed — ${fmt(p.amount)} charged` : (p.description || p.serviceType || 'Service')}
                     </Text>
-                  )}
+                    {isCharged && <Text style={styles.cardSub}>{p.description || p.serviceType || 'Service'}</Text>}
+                    {p.vendorName && <Text style={styles.cardSub}>Vendor: {p.vendorName}</Text>}
+                    {p.serviceDate && (
+                      <Text style={styles.cardSub}>
+                        Service date: {new Date(p.serviceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Text>
+                    )}
+                  </View>
+                  {!isCharged && <Text style={styles.amountDue}>{fmt(p.amount)}</Text>}
                 </View>
-                <Text style={styles.amountDue}>{fmt(p.amount)}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.payBtn, paying === p.id && styles.payBtnLoading]}
-                onPress={() => handlePay(p)}
-                disabled={paying === p.id}
-              >
-                {paying === p.id ? (
-                  <ActivityIndicator size="small" color={colors.ink} />
+                {isCharged ? (
+                  <TouchableOpacity
+                    onPress={() => router.push(
+                      `/(customer)/dispute?serviceRequestId=${p.serviceRequestId}&vendorId=${p.vendorId}&stripePaymentIntentId=${p.stripePaymentIntentId}&amount=${p.amount}`
+                    )}
+                  >
+                    <Text style={styles.reportIssueLink}>Report an issue</Text>
+                  </TouchableOpacity>
                 ) : (
-                  <>
-                    <Ionicons name="card" size={16} color={colors.ink} />
-                    <Text style={styles.payBtnText}>Pay {fmt(p.amount)}</Text>
-                  </>
+                  <TouchableOpacity
+                    style={[styles.payBtn, paying === p.id && styles.payBtnLoading]}
+                    onPress={() => handlePay(p)}
+                    disabled={paying === p.id}
+                  >
+                    {paying === p.id ? (
+                      <ActivityIndicator size="small" color={colors.ink} />
+                    ) : (
+                      <>
+                        <Ionicons name="card" size={16} color={colors.ink} />
+                        <Text style={styles.payBtnText}>Pay {fmt(p.amount)}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
-            </View>
-          ))
+              </View>
+            );
+          })
         )}
       </View>
 
@@ -294,6 +313,7 @@ const styles = StyleSheet.create({
   payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.lantern, borderRadius: 10, padding: 13 },
   payBtnLoading: { opacity: 0.7 },
   payBtnText: { color: colors.ink, fontWeight: '700', fontSize: 15 },
+  reportIssueLink: { color: colors.steel, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline', padding: 4, alignSelf: 'flex-start' },
   statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   statusText: { fontSize: 11, fontWeight: '700' },
   emptyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 24, alignItems: 'center', gap: 8, marginBottom: 12 },
