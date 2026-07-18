@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import { User } from '../users/entities/user.entity';
 import { VendorProfile } from '../users/entities/vendor-profile.entity';
@@ -83,6 +83,7 @@ export class VendorService implements OnModuleInit {
     private authService: AuthService,
     private uploadsService: UploadsService,
     private notificationsService: NotificationsService,
+    private dataSource: DataSource,
   ) {}
 
   async onModuleInit() {
@@ -428,6 +429,11 @@ export class VendorService implements OnModuleInit {
   }
 
   async setMyCapabilities(userId: string, capabilityIds: string[]) {
+    // Defensive — a malformed client payload (e.g. a stray null/undefined
+    // entry) should fail cleanly, not crash the insert with an unhandled
+    // NOT NULL violation surfaced to the user as a raw 500.
+    capabilityIds = (capabilityIds ?? []).filter((id): id is string => !!id);
+
     if (capabilityIds.length) {
       const capabilities = await this.capabilityRepo.find({ where: { id: In(capabilityIds) } });
       const needingAck = capabilities.filter((c) => c.requiresAcknowledgment);
@@ -443,10 +449,18 @@ export class VendorService implements OnModuleInit {
       }
     }
 
-    await this.selectionRepo.delete({ userId });
-    if (capabilityIds.length) {
-      await this.selectionRepo.save(capabilityIds.map((capabilityId) => this.selectionRepo.create({ userId, capabilityId })));
-    }
+    // Wrapped in a transaction — previously the delete committed immediately
+    // and the insert was a separate statement, so a failed insert (e.g. the
+    // NOT NULL crash this was fixed alongside) left the vendor with their
+    // prior selections wiped and nothing in their place.
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(VendorCapabilitySelection, { userId });
+      if (capabilityIds.length) {
+        await manager.save(
+          capabilityIds.map((capabilityId) => manager.create(VendorCapabilitySelection, { userId, capabilityId })),
+        );
+      }
+    });
     return this.getMyCapabilities(userId);
   }
 

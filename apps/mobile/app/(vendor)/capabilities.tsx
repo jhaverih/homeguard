@@ -29,7 +29,12 @@ export default function CapabilitiesScreen() {
         vendorApi.getMyCapabilities(),
       ]);
       setCatalog(all || []);
-      setSelectedIds(new Set((mine || []).map((s: any) => s.capabilityId)));
+      // getMyCapabilities() returns resolved Capability entities (shaped
+      // { id, name, ... }), not the raw selection join-rows — .capabilityId
+      // doesn't exist on this shape and was always undefined, which
+      // serialized to null and blew up the save's NOT NULL constraint
+      // whenever the vendor already had any prior selection.
+      setSelectedIds(new Set((mine || []).map((s: any) => s.id)));
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
