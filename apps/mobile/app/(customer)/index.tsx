@@ -11,6 +11,7 @@ import { subscriptionsApi, requestsApi, paymentsApi, pricingApi } from '../../sr
 import { fmtUSD } from '../../src/utils/currency';
 import { formatRelativeAge } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
+import { InspectIcon, RepairIcon, ImproveIcon, MaintainIcon, InstallIcon } from '../../src/components/ServiceGroupIcons';
 
 function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollViewRef: React.RefObject<ScrollView | null> }) {
   const [query, setQuery] = useState('');
@@ -84,11 +85,11 @@ const INSPECTION_ORDER: Record<string, number> = {
 const inspectionRank = (name: string) => INSPECTION_ORDER[name] ?? Infinity;
 
 const GROUP_META = [
-  { key: 'INSPECT', label: 'Inspect', icon: 'home-outline' },
-  { key: 'REPAIR', label: 'Repair', icon: 'construct-outline' },
-  { key: 'IMPROVE', label: 'Improve', icon: 'sparkles-outline' },
-  { key: 'MAINTAIN', label: 'Maintain', icon: 'refresh-outline' },
-  { key: 'INSTALL', label: 'Install', icon: 'cube-outline' },
+  { key: 'INSPECT', label: 'Inspect', Icon: InspectIcon },
+  { key: 'REPAIR', label: 'Repair', Icon: RepairIcon },
+  { key: 'IMPROVE', label: 'Improve', Icon: ImproveIcon },
+  { key: 'MAINTAIN', label: 'Maintain', Icon: MaintainIcon },
+  { key: 'INSTALL', label: 'Install', Icon: InstallIcon },
 ];
 
 // Replaces the old Plan/+Request Service card. Tapping a group icon filters
@@ -157,7 +158,7 @@ function ServiceGroupsCard({ catalog, subscription }: { catalog: any[]; subscrip
               activeOpacity={0.75}
             >
               <View style={[styles.groupIconWrap, isActive && styles.groupIconWrapActive]}>
-                <Ionicons name={g.icon as any} size={22} color={isActive ? colors.ink : colors.lanternDeep} />
+                <g.Icon size={22} color={isActive ? colors.ink : colors.lanternDeep} />
               </View>
               <Text style={[styles.groupLabel, isActive && styles.groupLabelActive]}>{g.label}</Text>
             </TouchableOpacity>
@@ -332,36 +333,37 @@ export default function CustomerDashboard() {
   }, []));
 
   const handlePayNow = async (payment: any) => {
-    if (!payment.stripeClientSecret) {
-      Alert.alert('Error', 'Payment details unavailable. Please contact support.');
-      return;
-    }
-
     setPayingId(payment.id);
     try {
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: payment.stripeClientSecret,
-        merchantDisplayName: 'Attenteve',
-      });
-      if (initError) {
-        Alert.alert('Payment Setup Failed', initError.message);
-        return;
-      }
+      // Ask the backend first instead of opening Stripe's payment sheet
+      // directly against the stored client secret — that secret can point
+      // at a PaymentIntent that's already past requires_payment_method (a
+      // legacy authorized-but-never-captured hold, or a previous attempt
+      // that didn't finish), which the sheet refuses to open at all.
+      let result: any = await paymentsApi.authorize(payment.id);
 
-      const { error: presentError } = await presentPaymentSheet();
-      if (presentError) {
-        if (presentError.code !== 'Canceled') {
-          Alert.alert('Payment Failed', presentError.message);
+      if (result.status === 'NEEDS_CLIENT_ACTION') {
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: result.clientSecret,
+          merchantDisplayName: 'Attenteve',
+        });
+        if (initError) {
+          Alert.alert('Payment Setup Failed', initError.message);
+          return;
         }
-        return;
+
+        const { error: presentError } = await presentPaymentSheet();
+        if (presentError) {
+          if (presentError.code !== 'Canceled') {
+            Alert.alert('Payment Failed', presentError.message);
+          }
+          return;
+        }
+
+        result = await paymentsApi.authorize(payment.id);
       }
 
-      // Notify backend that payment was authorized
-      await paymentsApi.authorize(payment.id);
-      Alert.alert(
-        'Payment Authorized',
-        `${fmtUSD(payment.amount)} authorized. Funds will be released in 48 hours unless a dispute is raised.`,
-      );
+      Alert.alert('Payment Processed', `${fmtUSD(payment.amount)} charged. Thank you!`);
       await load();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Could not process payment.');

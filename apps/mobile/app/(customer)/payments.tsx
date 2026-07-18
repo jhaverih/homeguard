@@ -116,8 +116,12 @@ export default function PaymentsScreen() {
           onPress: async () => {
             setPaying(payment.id);
             try {
-              const res = await paymentsApi.authorize(payment.id);
-              if (res?.clientSecret) {
+              // Ask the backend first — it decides whether a payment sheet
+              // is even needed (a stale/legacy client secret can point at a
+              // PaymentIntent already past requires_payment_method, which
+              // Stripe's sheet refuses to open at all).
+              let res: any = await paymentsApi.authorize(payment.id);
+              if (res.status === 'NEEDS_CLIENT_ACTION') {
                 const { error: initErr } = await initPaymentSheet({
                   paymentIntentClientSecret: res.clientSecret,
                   merchantDisplayName: 'Attenteve',
@@ -128,6 +132,7 @@ export default function PaymentsScreen() {
                   if (presentErr.code !== 'Canceled') Alert.alert('Payment Failed', presentErr.message);
                   return;
                 }
+                res = await paymentsApi.authorize(payment.id);
               }
               Alert.alert('Payment Successful', 'Thank you! Your payment has been processed.');
               load();

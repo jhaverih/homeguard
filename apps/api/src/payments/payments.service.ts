@@ -243,26 +243,46 @@ export class PaymentsService {
     return saved;
   }
 
-  // Reached only via the "Pay Now" fallback card — the automatic off-session
-  // charge in chargeForCompletedService already failed (no saved card, or
-  // the card needed interactive 3DS the app can now provide). The
-  // PaymentIntent behind that card was created with the default automatic
-  // capture_method, so the customer completing Stripe's payment sheet
-  // client-side already captured it — this just confirms that and starts
-  // the dispute-eligibility window, same as the automatic path does.
-  async authorizePayment(paymentId: string, customerId: string): Promise<Payment> {
+  // Reached via the "Pay Now" fallback card — either the automatic
+  // off-session charge in chargeForCompletedService already failed (no
+  // saved card, or the card needed interactive 3DS the app can now
+  // provide), or this is a legacy AUTHORIZED payment from before this
+  // charge-at-completion redesign (created under the old manual-capture
+  // hold flow, confirmed by the customer at the time but never captured —
+  // the cron that used to auto-capture those was repurposed into an
+  // alert-only job when capture moved to happen immediately everywhere
+  // else, orphaning any that were already sitting in that state).
+  //
+  // The mobile client calls this BEFORE ever opening Stripe's payment
+  // sheet now (not after) — Stripe's SDK refuses to initialize a sheet
+  // against a PaymentIntent already past requires_payment_method (that's
+  // exactly what a stuck legacy AUTHORIZED row looks like from the client's
+  // side), so the decision of whether a sheet is even needed has to be made
+  // here first.
+  async authorizePayment(paymentId: string, customerId: string): Promise<
+    { status: 'SUCCEEDED'; payment: Payment } | { status: 'NEEDS_CLIENT_ACTION'; clientSecret: string }
+  > {
     const payment = await this.paymentsRepo.findOne({ where: { id: paymentId } });
     if (!payment) throw new NotFoundException('Payment not found');
     // Any family member can authorize a shared household payment — "same rights".
     const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     if (!relatedIds.includes(payment.customerId)) throw new ForbiddenException();
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException('Payment is not in a pending state');
+    if (payment.status !== PaymentStatus.PENDING && payment.status !== PaymentStatus.AUTHORIZED) {
+      throw new BadRequestException('Payment is not in a payable state');
     }
 
     const pi = await this.stripe.paymentIntents.retrieve(payment.stripePaymentIntentId);
-    if (pi.status !== 'succeeded') {
-      throw new BadRequestException('Payment has not completed yet');
+
+    if (pi.status === 'requires_capture') {
+      // Already confirmed (this legacy case, or a customer who completed
+      // the sheet on an earlier attempt that didn't finish this call) —
+      // just capture it. No further client interaction needed.
+      await this.stripe.paymentIntents.capture(payment.stripePaymentIntentId);
+    } else if (pi.status !== 'succeeded') {
+      // Genuinely needs the customer to complete Stripe's payment sheet —
+      // hand back the client secret instead of erroring, so the caller can
+      // open it and then call this same endpoint again once it succeeds.
+      return { status: 'NEEDS_CLIENT_ACTION', clientSecret: payment.stripeClientSecret };
     }
 
     payment.status = PaymentStatus.SUCCEEDED;
@@ -278,7 +298,7 @@ export class PaymentsService {
       { paymentId: saved.id },
     );
 
-    return saved;
+    return { status: 'SUCCEEDED', payment: saved };
   }
 
   private disputeDeadline(): Date {
