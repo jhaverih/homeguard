@@ -73,6 +73,16 @@ function ServiceSearchCard({ catalog, scrollViewRef }: { catalog: any[]; scrollV
   );
 }
 
+// Explicit display order for the 3 inspection-named catalog items — see the
+// matching constant in request.tsx. Only ever reorders these; everything
+// else keeps its existing relative order (stable sort, ranks Infinity).
+const INSPECTION_ORDER: Record<string, number> = {
+  'General Inspection': 0,
+  'Comprehensive Home Inspection': 1,
+  'HVAC Full Inspection': 2,
+};
+const inspectionRank = (name: string) => INSPECTION_ORDER[name] ?? Infinity;
+
 const GROUP_META = [
   { key: 'INSPECT', label: 'Inspect', icon: 'home-outline' },
   { key: 'REPAIR', label: 'Repair', icon: 'construct-outline' },
@@ -105,7 +115,9 @@ function ServiceGroupsCard({ catalog, subscription }: { catalog: any[]; subscrip
 
   const groupItems = useMemo(() => {
     if (!activeGroup) return [];
-    return catalog.filter((i) => i.serviceGroups?.includes(activeGroup) && !selectedIds.has(i.id));
+    return catalog
+      .filter((i) => i.serviceGroups?.includes(activeGroup) && !selectedIds.has(i.id))
+      .sort((a, b) => inspectionRank(a.name) - inspectionRank(b.name));
   }, [activeGroup, catalog, selectedIds]);
 
   const selectedItems = useMemo(

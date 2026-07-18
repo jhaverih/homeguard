@@ -70,6 +70,17 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
 }
 
 const CATEGORY_ORDER = ['INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUSTMENTS', 'MINOR_PLUMBING_FIXES', 'MOUNTING_INSTALLATIONS', 'CARPENTRY_ASSEMBLY', 'EXTERIOR_OUTDOOR_SERVICES'];
+
+// Explicit display order for the 3 inspection-named catalog items, which all
+// carry category: null (so they'd otherwise just follow catalog/creation
+// order in the trailing "Other Services" group). Only ever reorders these —
+// everything else keeps its existing relative order (stable sort, ranks Infinity).
+const INSPECTION_ORDER: Record<string, number> = {
+  'General Inspection': 0,
+  'Comprehensive Home Inspection': 1,
+  'HVAC Full Inspection': 2,
+};
+const inspectionRank = (name: string) => INSPECTION_ORDER[name] ?? Infinity;
 const CATEGORY_LABELS: Record<string, string> = {
   INTERIOR_REPAIRS_MAINTENANCE: 'Interior Repairs and Maintenance',
   MINOR_ELECTRICAL_ADJUSTMENTS: 'Minor Electrical Adjustments',
@@ -100,7 +111,10 @@ export default function RequestScreen() {
   // other logic (preselect matching, fetch guard) reads independent of order.
   const sortedCatalog = useMemo(() => {
     const rank = (c: string | null) => { const i = CATEGORY_ORDER.indexOf(c || ''); return i === -1 ? CATEGORY_ORDER.length : i; };
-    return [...catalog].sort((a, b) => rank(a.category) - rank(b.category));
+    return [...catalog].sort((a, b) => {
+      const catDiff = rank(a.category) - rank(b.category);
+      return catDiff !== 0 ? catDiff : inspectionRank(a.name) - inspectionRank(b.name);
+    });
   }, [catalog]);
   // Grouped by category so the list can collapse — ~70 items across 6
   // categories otherwise renders fully flat/open every time. Uncategorized
@@ -205,6 +219,22 @@ export default function RequestScreen() {
     }).catch(() => {});
     subscriptionsApi.getMySubscription().then((s: any) => setSubscription(s)).catch(() => {});
   }, []);
+
+  // Accurate used+pending breakdown against the plan's shared inspection
+  // allowance (apps/api/.../getInspectionsQuota) — subscription.inspectionsUsed
+  // alone only reflects *completed* inspections, so it never moved when a
+  // General Inspection (or a built-in-tab inspection) was booked-but-pending,
+  // and never moved back down when one was cancelled either. Refetched on
+  // every focus (not just mount) so returning here after cancelling a
+  // pending booking elsewhere shows the real, updated count.
+  const [inspectionsQuota, setInspectionsQuota] = useState<{ used: number; pending: number; perYear: number; remaining: number } | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      requestsApi.getInspectionsRemaining()
+        .then((q: any) => setInspectionsQuota(q))
+        .catch(() => {});
+    }, []),
+  );
 
   // Refetches every time the Additional Services tab regains focus (not just
   // once per mount) so an admin-side catalog edit — a rename, a price
@@ -329,9 +359,18 @@ export default function RequestScreen() {
     lastPreselectedIdsKey.current = null;
   };
 
-  const inspectionsRemaining = subscription
+  // Prefers the accurate used+pending breakdown once it's loaded; falls back
+  // to the naive used-only calc only as a placeholder before that fetch
+  // resolves (or if it fails), so nothing blocks on it.
+  const inspectionsRemaining = inspectionsQuota
+    ? inspectionsQuota.remaining
+    : subscription
     ? Math.max(0, (subscription.plan?.inspectionsPerYear ?? 0) - (subscription.inspectionsUsed ?? 0))
     : null;
+  const inspectionsConsumed = inspectionsQuota
+    ? inspectionsQuota.used + inspectionsQuota.pending
+    : (subscription?.inspectionsUsed ?? 0);
+  const inspectionsPerYear = inspectionsQuota?.perYear ?? subscription?.plan?.inspectionsPerYear ?? 0;
   const limitReached = inspectionsRemaining !== null && inspectionsRemaining <= 0;
   const addonPrice = subscription?.plan?.addonInspectionPrice
     ? parseFloat(subscription.plan.addonInspectionPrice)
@@ -441,9 +480,7 @@ export default function RequestScreen() {
                 color={quotaFree ? '#065f46' : '#92400e'}
               />
               <Text style={[styles.quotaPillText, !quotaFree && styles.quotaPillTextWarn]}>
-                {quotaFree
-                  ? `Included — ${subscription.inspectionsUsed ?? 0} of ${subscription.plan?.inspectionsPerYear ?? 0} used this year`
-                  : `Plan's ${subscription.plan?.inspectionsPerYear ?? 0} included inspections used — normal price applies`}
+                {inspectionsConsumed} of {inspectionsPerYear} inspections
               </Text>
             </View>
           )}

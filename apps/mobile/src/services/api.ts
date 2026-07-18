@@ -88,6 +88,7 @@ export const cancellationFeedbackApi = {
 export const requestsApi = {
   create: (data: any) => api.post('/service-requests', data),
   getMyRequests: () => api.get('/service-requests/my'),
+  getInspectionsRemaining: () => api.get('/service-requests/inspections-remaining'),
   getVendorJobs: () => api.get('/service-requests/vendor/my'),
   getPending: () => api.get('/service-requests/pending'),
   getRejected: () => api.get('/service-requests/rejected'),

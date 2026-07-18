@@ -59,6 +59,12 @@ export class ServiceRequestsController {
     return this.service.getPendingAdditionalServices(req.user.id);
   }
 
+  @Get('inspections-remaining')
+  @ApiOperation({ summary: "Customer: accurate used+pending breakdown against the plan's inspection allowance" })
+  getInspectionsRemaining(@Request() req) {
+    return this.service.getInspectionsQuota(req.user.id);
+  }
+
   @Get(':id')
   async findOne(@Request() req, @Param('id') id: string) {
     const request = await this.service.findByIdForUser(id, req.user.id);

@@ -118,7 +118,7 @@ export class ServiceRequestsService {
     id: string;
     inspectionsUsed: number;
     plan: { inspectionsPerYear: number };
-  }): Promise<number> {
+  }): Promise<{ used: number; pending: number; perYear: number; remaining: number }> {
     const pendingInspections = await this.requestsRepo.count({
       where: {
         subscriptionId: subscription.id,
@@ -141,10 +141,24 @@ export class ServiceRequestsService {
         })
       : 0;
 
-    return Math.max(
-      0,
-      subscription.plan.inspectionsPerYear - subscription.inspectionsUsed - pendingInspections - pendingQuotaAddons,
-    );
+    const pending = pendingInspections + pendingQuotaAddons;
+    const perYear = subscription.plan.inspectionsPerYear;
+    const remaining = Math.max(0, perYear - subscription.inspectionsUsed - pending);
+
+    return { used: subscription.inspectionsUsed, pending, perYear, remaining };
+  }
+
+  // Public counterpart of the private calc above, for the client to display
+  // an accurate "X of Y used" instead of the naive inspectionsUsed-only
+  // count the subscription object itself exposes — that count never
+  // reflects pending (not yet completed) bookings from either flow, so the
+  // client previously had no way to know a booking or cancellation had
+  // changed the customer's real remaining allowance.
+  async getInspectionsQuota(customerId: string): Promise<{ used: number; pending: number; perYear: number; remaining: number } | null> {
+    const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
+    const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
+    if (!subscription) return null;
+    return this.getInspectionsRemaining(subscription);
   }
 
   async create(customerId: string, dto: {
@@ -161,7 +175,7 @@ export class ServiceRequestsService {
     const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
     if (!subscription) throw new BadRequestException('No active subscription found');
 
-    const limitReached = (await this.getInspectionsRemaining(subscription)) <= 0;
+    const limitReached = (await this.getInspectionsRemaining(subscription)).remaining <= 0;
     if (limitReached && !dto.isPaidAddon) {
       throw new BadRequestException('No inspections remaining on your subscription');
     }
@@ -233,7 +247,7 @@ export class ServiceRequestsService {
     // Inspection") is free while the plan's shared inspection allowance
     // remains — see getInspectionsRemaining — and charges its normal
     // tiered/markup price once that allowance is used up.
-    const isQuotaCovered = servicePrice.isQuotaInspection && (await this.getInspectionsRemaining(subscription)) > 0;
+    const isQuotaCovered = servicePrice.isQuotaInspection && (await this.getInspectionsRemaining(subscription)).remaining > 0;
     const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
     const cost = calcTieredCost(servicePrice, billedQty);
     const customerPrice = isQuotaCovered ? 0 : Math.round(cost * (1 + markup / 100) * 100) / 100;
