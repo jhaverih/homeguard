@@ -10,6 +10,7 @@ import { VendorAdminGuard } from '../common/guards/vendor-admin.guard';
 import { VendorAdminOnly } from '../common/decorators/vendor-admin.decorator';
 import { VendorService } from './vendor.service';
 import { CertificationType } from './entities/vendor-capability.entity';
+import { SetCapabilitiesDto } from './dto/set-capabilities.dto';
 
 @ApiTags('Vendor Portal')
 @ApiBearerAuth()
@@ -154,7 +155,7 @@ export class VendorController {
 
   @Patch('me/capabilities')
   @ApiOperation({ summary: 'Set my own selected capabilities' })
-  setMyCapabilities(@Request() req, @Body() body: { capabilityIds: string[] }) {
+  setMyCapabilities(@Request() req, @Body() body: SetCapabilitiesDto) {
     return this.service.setMyCapabilities(req.user.id, body.capabilityIds);
   }
 

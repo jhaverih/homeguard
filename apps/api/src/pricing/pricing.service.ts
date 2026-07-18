@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository, DataSource } from 'typeorm';
 import { ServicePrice } from './entities/service-price.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
@@ -181,6 +181,7 @@ export class PricingService implements OnModuleInit {
     private pricesRepo: Repository<ServicePrice>,
     @InjectRepository(VendorCapability)
     private capabilityRepo: Repository<VendorCapability>,
+    private dataSource: DataSource,
   ) {}
 
   async onModuleInit() {
@@ -221,12 +222,16 @@ export class PricingService implements OnModuleInit {
     const existing = await this.pricesRepo.findOne({ where: { name: 'Additional Inspection' } });
     if (existing) return;
 
-    // Remove old catalog
-    await this.pricesRepo.createQueryBuilder().delete().execute();
-
-    for (const item of NEW_CATALOG) {
-      await this.pricesRepo.save(this.pricesRepo.create(item));
-    }
+    // Wrapped in a transaction — a mid-loop failure previously left the
+    // catalog wiped (old rows already deleted, new ones only partially
+    // inserted), same failure mode as the vendor-capabilities bug fixed
+    // 2026-07-18.
+    await this.dataSource.transaction(async (manager) => {
+      await manager.createQueryBuilder().delete().from(ServicePrice).execute();
+      for (const item of NEW_CATALOG) {
+        await manager.save(ServicePrice, manager.create(ServicePrice, item));
+      }
+    });
   }
 
   // Separate from seedPrices() (which only ever runs once, on an empty
