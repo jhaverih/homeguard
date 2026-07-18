@@ -1,8 +1,9 @@
 import {
-  IsString, IsNumber, IsBoolean, IsOptional, IsEnum, Min,
+  IsString, IsNumber, IsBoolean, IsOptional, IsEnum, IsArray, Min,
 } from 'class-validator';
 import { PricingMethod } from '../../common/enums/pricing-method.enum';
 import { ServiceCategory } from '../../common/enums/service-category.enum';
+import { ServiceGroup } from '../../common/enums/service-group.enum';
 
 export class CreatePricingDto {
   @IsString()
@@ -62,6 +63,11 @@ export class CreatePricingDto {
   @IsEnum(ServiceCategory)
   @IsOptional()
   category?: ServiceCategory | null;
+
+  @IsArray()
+  @IsEnum(ServiceGroup, { each: true })
+  @IsOptional()
+  serviceGroups?: ServiceGroup[] | null;
 
   @IsBoolean()
   @IsOptional()

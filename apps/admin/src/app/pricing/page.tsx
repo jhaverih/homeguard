@@ -76,6 +76,26 @@ const CATEGORIES: { value: string; label: string }[] = [
 const CATEGORY_RANK = new Map(CATEGORIES.map((c, i) => [c.value, i]));
 const categoryLabel = (v: string | null) => CATEGORIES.find((c) => c.value === v)?.label ?? 'Uncategorized';
 
+// Additive, multi-valued lifecycle-stage tagging — orthogonal to CATEGORIES
+// above (trade/domain). A service can carry one or more of these.
+const SERVICE_GROUPS: { value: string; label: string }[] = [
+  { value: 'INSPECT', label: 'Inspect' },
+  { value: 'REPAIR', label: 'Repair' },
+  { value: 'IMPROVE', label: 'Improve' },
+  { value: 'MAINTAIN', label: 'Maintain' },
+  { value: 'INSTALL', label: 'Install' },
+];
+const SERVICE_GROUP_VALUES = new Set(SERVICE_GROUPS.map((g) => g.value));
+// Accepts comma- or semicolon-separated values in one CSV cell (e.g.
+// "INSPECT,REPAIR") — the exact delimiter a hand-built CSV uses isn't
+// guaranteed to match our own exportCsv's format, so accept both and
+// silently ignore anything that isn't a recognized group.
+const parseServiceGroups = (raw: string): string[] =>
+  (raw || '')
+    .split(/[,;]/)
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => SERVICE_GROUP_VALUES.has(s));
+
 type PriceRow = {
   id: string;
   name: string;
@@ -94,6 +114,7 @@ type PriceRow = {
   isActive: boolean;
   requiredCapabilityId: string | null;
   category: string | null;
+  serviceGroups: string[] | null;
   customerRequestable: boolean;
 };
 
@@ -112,6 +133,7 @@ type EditState = {
   volumeDiscountRate: string;
   requiredCapabilityId: string;
   category: string;
+  serviceGroups: string[];
   customerRequestable: boolean;
 };
 
@@ -146,7 +168,7 @@ export default function PricingPage() {
   const [newRow, setNewRow] = useState<EditState>({
     name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
     includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
-    requiredCapabilityId: '', category: '', customerRequestable: true,
+    requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true,
   });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -184,6 +206,7 @@ export default function PricingPage() {
       volumeDiscountRate: price.volumeDiscountRate != null ? String(price.volumeDiscountRate) : '',
       requiredCapabilityId: price.requiredCapabilityId ?? '',
       category: price.category ?? '',
+      serviceGroups: price.serviceGroups ?? [],
       customerRequestable: price.customerRequestable ?? true,
     };
   }
@@ -216,6 +239,7 @@ export default function PricingPage() {
         volumeDiscountRate: state.volumeDiscountRate !== '' ? parseFloat(state.volumeDiscountRate) : null,
         requiredCapabilityId: state.requiredCapabilityId || null,
         category: state.category || null,
+        serviceGroups: state.serviceGroups.length ? state.serviceGroups : null,
         customerRequestable: state.customerRequestable,
       });
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
@@ -298,6 +322,7 @@ export default function PricingPage() {
         volumeDiscountRate: newRow.volumeDiscountRate !== '' ? parseFloat(newRow.volumeDiscountRate) : null,
         requiredCapabilityId: newRow.requiredCapabilityId || null,
         category: newRow.category || null,
+        serviceGroups: newRow.serviceGroups.length ? newRow.serviceGroups : null,
         customerRequestable: newRow.customerRequestable,
       });
       setPrices((prev) => [...prev, created]);
@@ -305,7 +330,7 @@ export default function PricingPage() {
       setNewRow({
         name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
         includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
-        requiredCapabilityId: '', category: '', customerRequestable: true,
+        requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true,
       });
       setAddingRow(false);
     } finally {
@@ -324,7 +349,7 @@ export default function PricingPage() {
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   const exportCsv = () => {
-    const headers = ['name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category'];
+    const headers = ['name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service'];
     const rows = prices.map((p) => {
       const s = editStates[p.id];
       const esc = (v: string) => `"${(v || '').replace(/"/g, '""')}"`;
@@ -344,6 +369,7 @@ export default function PricingPage() {
         p.isActive ? 'true' : 'false',
         (s?.customerRequestable ?? p.customerRequestable) ? 'true' : 'false',
         esc(s?.category || p.category || ''),
+        esc((s?.serviceGroups || p.serviceGroups || []).join(',')),
       ].join(',');
     });
     const csv = [headers.join(','), ...rows].join('\r\n');
@@ -391,6 +417,10 @@ export default function PricingPage() {
           isActive: row.isActive !== 'false',
           customerRequestable: row.customerRequestable !== 'false',
           category: row.category || null,
+          serviceGroups: (() => {
+            const groups = parseServiceGroups(row['Type of Service'] || '');
+            return groups.length ? groups : null;
+          })(),
         };
 
         const existing = prices.find((p) => p.name.toLowerCase() === row.name.toLowerCase());
@@ -555,6 +585,7 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Customer Requestable</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel w-40">Required Capability</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">Category</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[220px]">Type of Service</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel w-32">Unit Label</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24">Min. Qty</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Provider Price</th>
@@ -719,6 +750,31 @@ export default function PricingPage() {
                           <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>
+                    </td>
+                    {/* Type of Service — multi-valued, so checkboxes not a single select */}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {SERVICE_GROUPS.map((g) => {
+                          const checked = state.serviceGroups.includes(g.value);
+                          return (
+                            <label key={g.value} className="flex items-center gap-1 text-xs text-steel cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const next = e.target.checked
+                                    ? [...state.serviceGroups, g.value]
+                                    : state.serviceGroups.filter((v) => v !== g.value);
+                                  updateField(price.id, 'serviceGroups', next);
+                                  setTimeout(() => savePrice(price.id), 0);
+                                }}
+                                className="accent-lantern"
+                              />
+                              {g.label}
+                            </label>
+                          );
+                        })}
+                      </div>
                     </td>
                     {/* Unit Label */}
                     <td className="px-4 py-3">
@@ -946,6 +1002,29 @@ export default function PricingPage() {
                     </select>
                   </td>
                   <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      {SERVICE_GROUPS.map((g) => {
+                        const checked = newRow.serviceGroups.includes(g.value);
+                        return (
+                          <label key={g.value} className="flex items-center gap-1 text-xs text-steel cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...newRow.serviceGroups, g.value]
+                                  : newRow.serviceGroups.filter((v) => v !== g.value);
+                                setNewRow((p) => ({ ...p, serviceGroups: next }));
+                              }}
+                              className="accent-lantern"
+                            />
+                            {g.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
                     <select
                       value={newRow.quantityLabel || 'NONE'}
                       onChange={(e) => setNewRow((p) => ({ ...p, quantityLabel: e.target.value }))}
@@ -1039,7 +1118,7 @@ export default function PricingPage() {
                   <td className="pr-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', customerRequestable: true }); }}
+                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true }); }}
                         className="text-steel hover:text-ink text-sm px-2 py-1"
                       >
                         Cancel
@@ -1068,7 +1147,7 @@ export default function PricingPage() {
         {/* CSV format hint */}
         <div className="p-4 border-t border-mist-dim">
           <p className="text-xs text-steel">
-            <strong>CSV format:</strong> name, description, pricingMethod (FLAT_PRICE/PER_UNIT/ONE_TIME_FEE/REQUEST_QUOTE), requiresQuote (true/false), basePrice, markupPercent, quantityLabel (HOUR/SQ_FT/BULB/SERVICE_TRIP/AC_UNIT/HOLE/LINEAR_FEET/UNIT/NONE — the Unit Label), minimumQuantity, includeQty, baseRateUnit, volumeDiscountThreshold, volumeDiscountRate, isActive (true/false), customerRequestable (true/false), category (INTERIOR_REPAIRS_MAINTENANCE/MINOR_ELECTRICAL_ADJUSTMENTS/MINOR_PLUMBING_FIXES/MOUNTING_INSTALLATIONS/CARPENTRY_ASSEMBLY/EXTERIOR_OUTDOOR_SERVICES, or blank) — existing rows matched by name, new names are created. includeQty/baseRateUnit/volumeDiscountThreshold/volumeDiscountRate only apply to Per Unit services (blank = flat qty × basePrice, matching pre-tiered behavior). Required Capability isn&apos;t part of CSV — set it per-row in the table above.
+            <strong>CSV format:</strong> name, description, pricingMethod (FLAT_PRICE/PER_UNIT/ONE_TIME_FEE/REQUEST_QUOTE), requiresQuote (true/false), basePrice, markupPercent, quantityLabel (HOUR/SQ_FT/BULB/SERVICE_TRIP/AC_UNIT/HOLE/LINEAR_FEET/UNIT/NONE — the Unit Label), minimumQuantity, includeQty, baseRateUnit, volumeDiscountThreshold, volumeDiscountRate, isActive (true/false), customerRequestable (true/false), category (INTERIOR_REPAIRS_MAINTENANCE/MINOR_ELECTRICAL_ADJUSTMENTS/MINOR_PLUMBING_FIXES/MOUNTING_INSTALLATIONS/CARPENTRY_ASSEMBLY/EXTERIOR_OUTDOOR_SERVICES, or blank), Type of Service (one or more of INSPECT/REPAIR/IMPROVE/MAINTAIN/INSTALL, comma- or semicolon-separated in one cell e.g. &quot;INSPECT,REPAIR&quot; — a separate, multi-valued tag from category, or blank) — existing rows matched by name, new names are created. includeQty/baseRateUnit/volumeDiscountThreshold/volumeDiscountRate only apply to Per Unit services (blank = flat qty × basePrice, matching pre-tiered behavior). Required Capability isn&apos;t part of CSV — set it per-row in the table above.
           </p>
         </div>
       </div>

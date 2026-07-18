@@ -75,7 +75,7 @@ export async function scheduleLocalReminder(date: Date, title: string, body: str
 /**
  * Set up listeners for the app session.
  * - Foreground alerts are shown automatically by setNotificationHandler above.
- * - onIncrement: called when a notification arrives in foreground (bumps badge count).
+ * - onIncrement: called only for real Yolink alerts (data.screen === 'alerts'), bumps badge count.
  * - onAlert: called when a notification arrives in foreground; receives the notification content.
  * - onNavigate: called when the user taps a notification; receives the target screen name.
  *
@@ -88,7 +88,13 @@ export function setupNotificationListeners(
   onAlert?: (notification: Notifications.Notification) => void,
 ): () => void {
   const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
-    onIncrement();
+    // Only real Yolink monitoring alerts should bump the Alerts tab badge —
+    // this used to fire for every push (job updates, payments, schedule
+    // changes, etc.), so the badge count and the Alerts screen's actual
+    // contents (scoped to the `alerts` table) were never the same data.
+    // Same 'alerts' vs. everything-else distinction onNavigate already uses.
+    const screen = notification.request.content.data?.screen as string | undefined;
+    if (screen === 'alerts') onIncrement();
     onAlert?.(notification);
   });
 

@@ -62,6 +62,7 @@ export default function AlertsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dispatchModal, setDispatchModal] = useState<any>(null);
+  const [loadError, setLoadError] = useState(false);
   const { setUnreadCount, decrement: decrementBadge } = useAlertsStore();
 
   const load = async () => {
@@ -70,6 +71,11 @@ export default function AlertsScreen() {
       setAlerts(res.alerts ?? []);
       setUnread(res.unread ?? 0);
       setUnreadCount(res.unread ?? 0);
+      setLoadError(false);
+    } catch {
+      // Previously unhandled — a network/auth failure silently rendered as
+      // "All Clear" with no indication anything went wrong.
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -130,9 +136,15 @@ export default function AlertsScreen() {
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-        contentContainerStyle={alerts.length === 0 ? styles.empty : { padding: 16, gap: 12 }}
+        contentContainerStyle={loadError || alerts.length === 0 ? styles.empty : { padding: 16, gap: 12 }}
       >
-        {alerts.length === 0 ? (
+        {loadError ? (
+          <View style={styles.emptyInner}>
+            <Ionicons name="cloud-offline-outline" size={56} color="#fca5a5" />
+            <Text style={styles.emptyTitle}>Couldn't load alerts</Text>
+            <Text style={styles.emptyText}>Pull down to try again.</Text>
+          </View>
+        ) : alerts.length === 0 ? (
           <View style={styles.emptyInner}>
             <Ionicons name="shield-checkmark-outline" size={56} color="#d1fae5" />
             <Text style={styles.emptyTitle}>All Clear</Text>

@@ -5,6 +5,7 @@ import {
 import { PricingMethod } from '../../common/enums/pricing-method.enum';
 import { UnitLabel } from '../../common/enums/unit-label.enum';
 import { ServiceCategory } from '../../common/enums/service-category.enum';
+import { ServiceGroup } from '../../common/enums/service-group.enum';
 
 @Entity('service_prices')
 export class ServicePrice {
@@ -62,6 +63,12 @@ export class ServicePrice {
   // with) requiredCapabilityId — legacy catalog items stay uncategorized.
   @Column({ type: 'enum', enum: ServiceCategory, nullable: true })
   category: ServiceCategory | null;
+
+  // Additive, multi-valued lifecycle-stage tagging (Inspect/Repair/Improve/
+  // Maintain/Install) — orthogonal to `category` above (trade/domain), not a
+  // replacement for it. A service can carry one or more of these.
+  @Column({ type: 'simple-array', nullable: true })
+  serviceGroups: ServiceGroup[] | null;
 
   // false for services only Attenteve triggers on a customer's behalf (e.g. Home
   // Monitoring Setup) — hidden from the customer's own "request a service" list.
