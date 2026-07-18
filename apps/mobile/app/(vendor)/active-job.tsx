@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, ActivityIndicator, Modal, Platform, Image,
-  KeyboardAvoidingView, Switch,
+  KeyboardAvoidingView, Switch, Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -697,18 +697,36 @@ export default function ActiveJobScreen() {
     setAdvancingStatus(true);
 
     if (next.next === 'VENDOR_EN_ROUTE') {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          await requestsApi.updateLocation(id, loc.coords.latitude, loc.coords.longitude).catch(() => {});
-          locationIntervalRef.current = setInterval(async () => {
-            try {
-              const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-              await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude);
-            } catch {}
-          }, 90000);
+      // Location sharing is required to enter this status, not best-effort —
+      // a denied/skipped permission used to leave vendorLatitude/Longitude
+      // permanently null with no way for the customer to tell that apart
+      // from a location that just hasn't been reported yet.
+      const existing = await Location.getForegroundPermissionsAsync();
+      const { status, canAskAgain } = existing.status === 'granted'
+        ? existing
+        : await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        if (!canAskAgain) {
+          Alert.alert(
+            'Location Required',
+            "Location access is required so the customer can see when you're on the way. Please enable it in Settings.",
+            [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }],
+          );
+        } else {
+          Alert.alert('Location Required', "Please allow location access so the customer can see when you're on the way.");
         }
+        setAdvancingStatus(false);
+        return;
+      }
+      try {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        await requestsApi.updateLocation(id, loc.coords.latitude, loc.coords.longitude).catch(() => {});
+        locationIntervalRef.current = setInterval(async () => {
+          try {
+            const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude);
+          } catch {}
+        }, 90000);
       } catch {}
     }
 
@@ -815,6 +833,32 @@ export default function ActiveJobScreen() {
     }
   };
 
+  const [releasingJob, setReleasingJob] = useState(false);
+  const handleReleaseJob = () => {
+    Alert.alert(
+      "Can't Make It?",
+      'This releases the job back to the open pool for another vendor to accept, and notifies the customer. This cannot be undone.',
+      [
+        { text: 'Keep Job', style: 'cancel' },
+        {
+          text: 'Release Job', style: 'destructive',
+          onPress: async () => {
+            setReleasingJob(true);
+            try {
+              await requestsApi.vendorRelease(id);
+              Alert.alert('Job Released', 'The customer has been notified and the job is back in the open pool.');
+              router.back();
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            } finally {
+              setReleasingJob(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const submitMonitoring = async () => {
     if (!monitorForm.yolinkUAID.trim() || !monitorForm.yolinkSecretKey.trim() || !monitorForm.homeName.trim()) {
       setMonitorError('UAID, Secret Key, and a home name are required.');
@@ -847,6 +891,7 @@ export default function ActiveJobScreen() {
     : NEXT_STATUS[job.status];
   const isPendingReview = job.status === 'PENDING_CUSTOMER_REVIEW';
   const canReschedule = !['COMPLETED', 'CANCELLED', 'PENDING_CUSTOMER_REVIEW'].includes(job.status);
+  const canReleaseJob = ['ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(job.status);
   const showChecklist = ['IN_PROGRESS', 'COMPLETED'].includes(job.status);
   const isCompleted = job.status === 'COMPLETED';
   const isService = job.type === 'ADDITIONAL_SERVICE';
@@ -1794,6 +1839,12 @@ export default function ActiveJobScreen() {
           </TouchableOpacity>
         )}
 
+        {canReleaseJob && (
+          <TouchableOpacity style={styles.releaseJobBtn} onPress={handleReleaseJob} disabled={releasingJob}>
+            <Text style={styles.releaseJobBtnText}>{releasingJob ? 'Releasing…' : "Can't Make It"}</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity style={styles.chatBtn}
           onPress={() => router.push(`/chat/${id}?recipientId=${job.customerId}&recipientName=${job.customer ? job.customer.firstName : 'Customer'}`)}>
           <Text style={styles.chatBtnText}>💬 Message Customer</Text>
@@ -2143,6 +2194,8 @@ const styles = StyleSheet.create({
   recOptionPrices: { fontSize: 12, color: colors.steel, marginTop: 2 },
   rescheduleBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 10, borderWidth: 1.5, borderColor: colors.lanternDeep },
   rescheduleBtnText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 15 },
+  releaseJobBtn: { backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10, borderWidth: 1.5, borderColor: '#dc2626' },
+  releaseJobBtnText: { color: '#dc2626', fontWeight: '700', fontSize: 15 },
   chatBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 32 },
   chatBtnText: { color: colors.ink, fontWeight: '600', fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

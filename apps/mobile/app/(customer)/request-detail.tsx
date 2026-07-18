@@ -211,9 +211,12 @@ export default function RequestDetailScreen() {
   };
 
   const cancelRequest = () => {
+    const isEnRoute = request.status === 'VENDOR_EN_ROUTE';
     Alert.alert(
       'Cancel Service Request',
-      'Are you sure you want to cancel this service request?',
+      isEnRoute
+        ? 'Your vendor is already on the way. Cancelling now will result in a $25 cancellation fee. Are you sure you want to cancel?'
+        : 'Are you sure you want to cancel this service request?',
       [
         { text: 'Keep It', style: 'cancel' },
         { text: 'Cancel Request', style: 'destructive', onPress: () => setShowCancelFeedback(true) },
@@ -286,7 +289,10 @@ export default function RequestDetailScreen() {
   const canReschedule = !['COMPLETED', 'CANCELLED', 'PENDING_CUSTOMER_REVIEW', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(request.status);
   const canCancel = request.type === 'ADDITIONAL_SERVICE'
     ? !['COMPLETED', 'CANCELLED'].includes(request.status)
-    : !['COMPLETED', 'CANCELLED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(request.status);
+    // VENDOR_EN_ROUTE is now cancellable (with the $25 late-cancellation fee
+    // charged server-side) — IN_PROGRESS stays blocked, that's a materially
+    // different already-started-work scenario.
+    : !['COMPLETED', 'CANCELLED', 'IN_PROGRESS'].includes(request.status);
   const canChat = !!request.vendorId;
 
   return (
@@ -356,22 +362,28 @@ export default function RequestDetailScreen() {
       )}
 
       {/* Vendor en-route ETA banner */}
-      {request.status === 'VENDOR_EN_ROUTE' && (
-        <View style={styles.enRouteBanner}>
-          <Ionicons name="car-outline" size={22} color="#92400e" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.enRouteTitle}>Your vendor is on the way!</Text>
-            <Text style={styles.enRouteBody}>
-              {etaMinutes != null
-                ? `Estimated arrival: ~${etaMinutes} min`
-                : 'Please make sure to be home when they arrive.'}
-            </Text>
-            {request.vendorLocationAt && (
-              <Text style={styles.enRouteMeta}>{formatRelativeAge(request.vendorLocationAt)}</Text>
-            )}
+      {request.status === 'VENDOR_EN_ROUTE' && (() => {
+        const hasVendorLocation = request.vendorLatitude != null && request.vendorLongitude != null;
+        const freshness = formatRelativeAge(request.vendorLocationAt);
+        return (
+          <View style={styles.enRouteBanner}>
+            <Ionicons name="car-outline" size={22} color="#92400e" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.enRouteTitle}>Your vendor is on the way!</Text>
+              <Text style={styles.enRouteBody}>
+                {etaMinutes != null
+                  ? `Estimated arrival: ~${etaMinutes} min`
+                  : hasVendorLocation
+                    ? "We haven't heard from your vendor's location recently, but they're on the way."
+                    : 'Please make sure to be home when they arrive.'}
+              </Text>
+              {freshness !== '' && (
+                <Text style={styles.enRouteMeta}>{freshness}</Text>
+              )}
+            </View>
           </View>
-        </View>
-      )}
+        );
+      })()}
 
       {request.customerNotes && (
         <>

@@ -449,11 +449,32 @@ export class PaymentsService {
     amount: number,
     description: string,
   ): Promise<{ status: 'succeeded' | 'failed'; paymentIntentId?: string; failureReason?: string }> {
-    const user = await this.usersService.findById(vendorUserId);
-    const methods = user.stripeCustomerId ? await this.listPaymentMethods(vendorUserId) : [];
+    return this.chargeOffSession(vendorUserId, amount, description, 'Vendor membership charge');
+  }
+
+  // Flat off-session charge for a customer who cancels a request while the
+  // vendor is already VENDOR_EN_ROUTE — the $25 late-cancellation fee has
+  // been disclosed policy (customer-terms.md) since the app's earliest T&Cs,
+  // this is the first place it's actually enforced rather than just shown.
+  async chargeCustomerCancellationFee(
+    customerUserId: string,
+    amount: number,
+    description: string,
+  ): Promise<{ status: 'succeeded' | 'failed'; paymentIntentId?: string; failureReason?: string }> {
+    return this.chargeOffSession(customerUserId, amount, description, 'Customer cancellation fee charge');
+  }
+
+  private async chargeOffSession(
+    userId: string,
+    amount: number,
+    description: string,
+    logContext: string,
+  ): Promise<{ status: 'succeeded' | 'failed'; paymentIntentId?: string; failureReason?: string }> {
+    const user = await this.usersService.findById(userId);
+    const methods = user.stripeCustomerId ? await this.listPaymentMethods(userId) : [];
     const defaultMethod = methods.find((m) => m.isDefault) ?? methods[0];
     if (!defaultMethod) {
-      throw new BadRequestException('Vendor has no payment method on file');
+      throw new BadRequestException('No payment method on file');
     }
 
     try {
@@ -473,9 +494,9 @@ export class PaymentsService {
     } catch (err: any) {
       // Off-session confirmations fail fast (rather than hang) when the card
       // requires interactive 3DS authentication — Stripe's documented
-      // behavior. Treated the same as any other decline for now; the vendor
+      // behavior. Treated the same as any other decline for now; the user
       // is notified to add/update a card via an on-session retry.
-      this.logger.warn(`Vendor membership charge failed for user ${vendorUserId}: ${err.message}`);
+      this.logger.warn(`${logContext} failed for user ${userId}: ${err.message}`);
       return { status: 'failed', failureReason: err.message };
     }
   }

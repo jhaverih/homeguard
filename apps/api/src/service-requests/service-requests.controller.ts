@@ -160,6 +160,12 @@ export class ServiceRequestsController {
     return this.service.updateVendorLocation(id, req.user.id, body.latitude, body.longitude);
   }
 
+  @Patch(':id/vendor-release')
+  @ApiOperation({ summary: "Vendor: release a job they can no longer make (breakdown, emergency, etc.) — returns it to the open pool" })
+  vendorRelease(@Request() req, @Param('id') id: string) {
+    return this.service.vendorReleaseJob(id, req.user.id);
+  }
+
   @Get(':id/solar-quote')
   getSolarQuote(@Param('id') id: string) {
     return this.service.getSolarQuote(id);

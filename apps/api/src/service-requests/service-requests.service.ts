@@ -1,9 +1,10 @@
 import {
-  Injectable, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Inject,
+  Injectable, NotFoundException, BadRequestException, ForbiddenException, forwardRef, Inject, Logger,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In, FindOptionsWhere, MoreThan, MoreThanOrEqual, DataSource } from 'typeorm';
+import { Repository, Not, In, FindOptionsWhere, MoreThan, MoreThanOrEqual, LessThan, IsNull, DataSource } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
 import { AdditionalService } from './entities/additional-service.entity';
 import { SolarQuote } from './entities/solar-quote.entity';
@@ -27,8 +28,21 @@ import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { calcTieredCost } from '../pricing/pricing.utils';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 
+// Safety net for a request stuck in VENDOR_EN_ROUTE with no further update —
+// app crash, dead phone, vendor never revisiting the screen. Neither the
+// vendor-release action nor a reschedule helps if the vendor never opens the
+// app again; this is the backstop that surfaces it for manual follow-up.
+const STUCK_EN_ROUTE_THRESHOLD_HOURS = 2.5;
+
+// Matches the minimum cancellation fee already disclosed in the T&Cs
+// (apps/api/legal/customer-terms.md) for cancelling less than 24 hours
+// before the appointment — VENDOR_EN_ROUTE is always within that window.
+const LATE_CANCELLATION_FEE_USD = 25;
+
 @Injectable()
 export class ServiceRequestsService {
+  private readonly logger = new Logger(ServiceRequestsService.name);
+
   constructor(
     @InjectRepository(ServiceRequest)
     private requestsRepo: Repository<ServiceRequest>,
@@ -449,6 +463,7 @@ export class ServiceRequestsService {
     request.status = status;
     if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
       request.vendorEnRouteAt = new Date();
+      request.stuckJobAlertSentAt = null;
     }
     const saved = await this.requestsRepo.save(request);
 
@@ -698,6 +713,64 @@ export class ServiceRequestsService {
     return { ok: true };
   }
 
+  // A vendor backing out after accepting (breakdown, emergency, running very
+  // late) previously had no real path — the only available action was
+  // Reschedule, which only changes scheduledDate and leaves status/vendorId/
+  // location fields untouched, producing a self-contradictory "still en
+  // route, now for a different date" state. This actually releases the job.
+  async vendorReleaseJob(requestId: string, vendorId: string): Promise<ServiceRequest> {
+    const request = await this.findById(requestId);
+    if (request.vendorId !== vendorId) throw new ForbiddenException();
+    if (![ServiceRequestStatus.ACCEPTED, ServiceRequestStatus.VENDOR_EN_ROUTE, ServiceRequestStatus.IN_PROGRESS].includes(request.status)) {
+      throw new BadRequestException('This job cannot be released in its current status');
+    }
+
+    request.status = ServiceRequestStatus.PENDING;
+    request.vendorId = null;
+    request.vendorLatitude = null;
+    request.vendorLongitude = null;
+    request.vendorLocationAt = null;
+    request.vendorEnRouteAt = null;
+    const saved = await this.requestsRepo.save(request);
+
+    await this.notificationsService.notifyUser(
+      request.customerId,
+      NotificationType.VENDOR_RELEASED_JOB,
+      'Vendor Update',
+      "Your vendor is no longer able to make this visit — we're finding a new one for you.",
+      { serviceRequestId: saved.id },
+    ).catch(() => {});
+
+    return saved;
+  }
+
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async checkStuckEnRouteRequests(): Promise<void> {
+    const cutoff = new Date(Date.now() - STUCK_EN_ROUTE_THRESHOLD_HOURS * 60 * 60 * 1000);
+    const stuck = await this.requestsRepo.find({
+      where: {
+        status: ServiceRequestStatus.VENDOR_EN_ROUTE,
+        vendorEnRouteAt: LessThan(cutoff),
+        stuckJobAlertSentAt: IsNull(),
+      },
+    });
+
+    for (const request of stuck) {
+      request.stuckJobAlertSentAt = new Date();
+      await this.requestsRepo.save(request);
+      await this.notificationsService.notifyAdmins(
+        NotificationType.STUCK_JOB_ALERT,
+        'Job Stuck En Route',
+        `Ticket ${request.ticketNumber ?? request.id} has been "vendor en route" for over ${STUCK_EN_ROUTE_THRESHOLD_HOURS} hours with no update — may need manual follow-up.`,
+        { serviceRequestId: request.id },
+      ).catch((err) => this.logger.warn(`Failed to notify admins about stuck request ${request.id}: ${err.message}`));
+    }
+
+    if (stuck.length > 0) {
+      this.logger.warn(`Flagged ${stuck.length} request(s) stuck in VENDOR_EN_ROUTE past ${STUCK_EN_ROUTE_THRESHOLD_HOURS}h`);
+    }
+  }
+
   async getPendingAdditionalServices(customerId: string): Promise<AdditionalService[]> {
     const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     const requests = await this.requestsRepo.find({
@@ -723,8 +796,34 @@ export class ServiceRequestsService {
     if (req.status === ServiceRequestStatus.CANCELLED) {
       throw new BadRequestException('Request is already cancelled');
     }
+
+    // A cancellation while the vendor is already en route is always within
+    // the <24h window the $25 late-cancellation fee applies to — that policy
+    // has been disclosed in the T&Cs since launch but was never actually
+    // charged anywhere until now.
+    const wasEnRoute = req.status === ServiceRequestStatus.VENDOR_EN_ROUTE;
+
     req.status = ServiceRequestStatus.CANCELLED;
     const saved = await this.requestsRepo.save(req);
+
+    if (wasEnRoute) {
+      try {
+        const result = await this.paymentsService.chargeCustomerCancellationFee(
+          req.customerId,
+          LATE_CANCELLATION_FEE_USD,
+          `Late cancellation fee — ${req.ticketNumber ?? req.id}`,
+        );
+        if (result.status !== 'succeeded') {
+          await this.notifyCancellationFeeFailure(req, result.failureReason);
+        }
+      } catch (err: any) {
+        // Charge helper throws (rather than returning 'failed') specifically
+        // when there's no payment method on file at all — still don't block
+        // the cancellation itself for that, just surface it.
+        await this.notifyCancellationFeeFailure(req, err.message);
+      }
+    }
+
     if (req.vendorId) {
       await this.notificationsService.notifyUser(
         req.vendorId,
@@ -735,6 +834,16 @@ export class ServiceRequestsService {
       );
     }
     return saved;
+  }
+
+  private async notifyCancellationFeeFailure(request: ServiceRequest, reason?: string): Promise<void> {
+    this.logger.warn(`Cancellation fee charge failed for request ${request.id}: ${reason}`);
+    await this.notificationsService.notifyAdmins(
+      NotificationType.CANCELLATION_FEE_FAILED,
+      'Cancellation Fee Not Collected',
+      `The $${LATE_CANCELLATION_FEE_USD} late-cancellation fee for ticket ${request.ticketNumber ?? request.id} could not be charged (${reason ?? 'unknown error'}) — may need manual follow-up.`,
+      { serviceRequestId: request.id },
+    ).catch(() => {});
   }
 
   async getSolarQuote(requestId: string): Promise<SolarQuote | null> {
@@ -821,6 +930,18 @@ export class ServiceRequestsService {
   ): Promise<ServiceRequest> {
     const request = await this.findById(requestId);
     if (request.customerId !== userId && request.vendorId !== userId) throw new ForbiddenException();
+
+    // A re-timed visit shouldn't still claim to be "en route" or "in
+    // progress" — without this, rescheduling mid-trip left the request
+    // showing a live ETA banner pointed at a stale GPS ping for a visit
+    // that's now scheduled for an entirely different time.
+    if ([ServiceRequestStatus.VENDOR_EN_ROUTE, ServiceRequestStatus.IN_PROGRESS].includes(request.status)) {
+      request.status = ServiceRequestStatus.ACCEPTED;
+      request.vendorLatitude = null;
+      request.vendorLongitude = null;
+      request.vendorLocationAt = null;
+      request.vendorEnRouteAt = null;
+    }
 
     request.scheduledDate = new Date(newDate);
     const saved = await this.requestsRepo.save(request);

@@ -95,14 +95,12 @@ function UpcomingServiceCard({ requests }: { requests: any[] }) {
 
   // etaMinutes comes from the server (ServiceRequest.etaMinutes, computed from
   // the vendor's live location vs. the property's ZIP centroid) — not the
-  // customer's own device location. A location reading older than 15 min is
-  // treated as too stale to present as a live ETA, same cutoff the fallback
-  // text already used before this was server-computed.
-  const locationAgeMin = upcoming.vendorLocationAt
-    ? (Date.now() - new Date(upcoming.vendorLocationAt).getTime()) / 60000
-    : null;
-  const etaIsFresh = locationAgeMin != null && locationAgeMin <= 15;
-  const etaLabel = (upcoming.etaMinutes != null && etaIsFresh) ? `~${upcoming.etaMinutes} min away` : '';
+  // customer's own device location. Staleness (a GPS ping older than 15 min)
+  // is already gated server-side in the getter itself, so etaMinutes is only
+  // ever non-null when it's fresh — no separate client-side age check needed.
+  const hasVendorLocation = upcoming.vendorLatitude != null && upcoming.vendorLongitude != null;
+  const etaLabel = upcoming.etaMinutes != null ? `~${upcoming.etaMinutes} min away` : '';
+  const freshness = formatRelativeAge(upcoming.vendorLocationAt);
 
   return (
     <TouchableOpacity
@@ -137,11 +135,13 @@ function UpcomingServiceCard({ requests }: { requests: any[] }) {
           <View style={styles.enRoutePill}>
             <Ionicons name="radio-button-on" size={10} color="#7c3aed" />
             <Text style={styles.enRoutePillText}>
-              {etaLabel || 'Vendor is heading to your location'}
+              {etaLabel || (hasVendorLocation
+                ? "Location update pending — vendor is on the way"
+                : 'Vendor is heading to your location')}
             </Text>
           </View>
-          {upcoming.vendorLocationAt && (
-            <Text style={styles.upcomingEtaMeta}>{formatRelativeAge(upcoming.vendorLocationAt)}</Text>
+          {freshness !== '' && (
+            <Text style={styles.upcomingEtaMeta}>{freshness}</Text>
           )}
         </>
       )}

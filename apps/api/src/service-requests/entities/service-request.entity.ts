@@ -8,6 +8,11 @@ import { AdditionalService } from './additional-service.entity';
 import { ServiceRequestStatus } from '../../common/enums/role.enum';
 import { getZipCentroid, haversineMiles } from '../../common/utils/geo.utils';
 
+// How old a vendor GPS ping can be before an ETA is no longer trustworthy
+// enough to show as a live number — past this, etaMinutes returns null
+// rather than presenting a stale reading as current.
+const ETA_STALE_THRESHOLD_MIN = 15;
+
 export enum ServiceType {
   SCHEDULED_INSPECTION = 'SCHEDULED_INSPECTION',
   ADDITIONAL_SERVICE = 'ADDITIONAL_SERVICE',
@@ -115,6 +120,9 @@ export class ServiceRequest {
   get etaMinutes(): number | null {
     if (this.status !== ServiceRequestStatus.VENDOR_EN_ROUTE) return null;
     if (this.vendorLatitude == null || this.vendorLongitude == null) return null;
+    if (!this.vendorLocationAt) return null;
+    const locationAgeMin = (Date.now() - this.vendorLocationAt.getTime()) / 60000;
+    if (locationAgeMin > ETA_STALE_THRESHOLD_MIN) return null;
     const dest = getZipCentroid(this.zipCode);
     if (!dest) return null;
     const distanceMiles = haversineMiles(Number(this.vendorLatitude), Number(this.vendorLongitude), dest.lat, dest.lng);
@@ -138,6 +146,12 @@ export class ServiceRequest {
 
   @Column({ type: 'timestamp', nullable: true })
   vendorEnRouteAt: Date | null;
+
+  // Set once the stuck-in-VENDOR_EN_ROUTE cron safety net fires for this
+  // request, so it only alerts admins once per incident rather than every
+  // cron tick. Cleared whenever the request freshly re-enters VENDOR_EN_ROUTE.
+  @Column({ type: 'timestamp', nullable: true })
+  stuckJobAlertSentAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
