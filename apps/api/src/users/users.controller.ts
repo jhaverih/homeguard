@@ -33,6 +33,12 @@ export class UsersController {
     return this.usersService.updatePushToken(req.user.id, body.token);
   }
 
+  @Delete('me/push-token')
+  @HttpCode(204)
+  clearPushToken(@Request() req) {
+    return this.usersService.clearPushToken(req.user.id);
+  }
+
   @Patch('me/profile')
   updateProfile(@Request() req, @Body() body: any) {
     return this.usersService.updateProfile(req.user.id, body);

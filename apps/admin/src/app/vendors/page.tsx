@@ -14,12 +14,14 @@ export default function VendorsPage() {
     adminApi.getVendors().then((v) => {
       setVendors(v);
       // Load reviews for all vendors in parallel
+      // GET /reviews/vendor/:vendorId returns { reviews, averageRating,
+      // totalCount } — not a bare array — reuse its own computed aggregate
+      // rather than recomputing (also avoids ever drifting from it).
       Promise.allSettled(
         v.map((vendor: any) =>
-          adminApi.getVendorReviews(vendor.id).then((reviews: any[]) => {
-            if (!reviews?.length) return;
-            const avg = reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length;
-            setReviewStats((prev) => ({ ...prev, [vendor.id]: { avg, count: reviews.length } }));
+          adminApi.getVendorReviews(vendor.id).then((data: any) => {
+            if (!data?.totalCount) return;
+            setReviewStats((prev) => ({ ...prev, [vendor.id]: { avg: data.averageRating, count: data.totalCount } }));
           })
         )
       );

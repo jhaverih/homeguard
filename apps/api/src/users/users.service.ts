@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not, DataSource } from 'typeorm';
 import { emailEquals, normalizeEmail } from '../common/utils/email.util';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
@@ -40,6 +40,7 @@ export class UsersService implements OnModuleInit {
     private customerProfileRepo: Repository<CustomerProfile>,
     @InjectRepository(VendorCompany)
     private vendorCompanyRepo: Repository<VendorCompany>,
+    private dataSource: DataSource,
   ) {}
 
   async onModuleInit() {
@@ -250,7 +251,21 @@ export class UsersService implements OnModuleInit {
   }
 
   async updatePushToken(userId: string, token: string): Promise<void> {
-    await this.usersRepo.update(userId, { expoPushToken: token });
+    // A physical device's Expo push token is stable per app-install — if a
+    // second account ever logs in on the same phone (common during testing,
+    // but also just a shared family device), the OLD account's row kept
+    // this exact token forever with nothing to clear it, so both accounts
+    // received each other's notifications indefinitely. Clearing it from any
+    // other owner before assigning it here guarantees at most one user ever
+    // holds a given token at a time.
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(User, { expoPushToken: token, id: Not(userId) }, { expoPushToken: null });
+      await manager.update(User, userId, { expoPushToken: token });
+    });
+  }
+
+  async clearPushToken(userId: string): Promise<void> {
+    await this.usersRepo.update(userId, { expoPushToken: null });
   }
 
   async updateStripeCustomerId(userId: string, stripeCustomerId: string | null): Promise<void> {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { setMemoryToken } from '../services/api';
+import { setMemoryToken, userApi } from '../services/api';
 import { disconnectSocket } from '../services/socket';
 
 interface User {
@@ -45,6 +45,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    // Must happen before setMemoryToken(null) wipes the auth header — this
+    // device's Expo push token is stable per app-install, so without
+    // clearing it here the departing account keeps receiving this device's
+    // notifications indefinitely if a different account logs in next
+    // (a real incident: two test accounts on one phone each got the
+    // other's alerts). Best-effort — a failed clear shouldn't block logout.
+    await userApi.clearPushToken().catch(() => {});
     disconnectSocket();
     setMemoryToken(null);
     await SecureStore.deleteItemAsync('accessToken');
