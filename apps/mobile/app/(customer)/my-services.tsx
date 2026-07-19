@@ -77,7 +77,7 @@ export default function MyServicesScreen() {
     >
       <View style={styles.topRow}>
         <Text style={styles.pageTitle}>My Services</Text>
-        <TouchableOpacity style={styles.bookBtn} onPress={() => router.push('/(customer)/request')}>
+        <TouchableOpacity style={styles.bookBtn} onPress={() => router.push('/(customer)')}>
           <Ionicons name="add-circle" size={18} color={colors.ink} />
           <Text style={styles.bookBtnText}>Book</Text>
         </TouchableOpacity>
@@ -107,7 +107,7 @@ export default function MyServicesScreen() {
               <Ionicons name="home-outline" size={48} color="#cbd5e0" />
               <Text style={styles.emptyTitle}>No services yet</Text>
               <Text style={styles.emptyText}>Book an inspection or service to get started.</Text>
-              <TouchableOpacity style={styles.emptyBookBtn} onPress={() => router.push('/(customer)/request')}>
+              <TouchableOpacity style={styles.emptyBookBtn} onPress={() => router.push('/(customer)')}>
                 <Text style={styles.emptyBookBtnText}>Book a Service</Text>
               </TouchableOpacity>
             </>

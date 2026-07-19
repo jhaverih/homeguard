@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { maintenanceBotApi, ServiceRequestDraft, SeasonalTip } from '../../src/services/api';
+import { maintenanceBotApi, pricingApi, ServiceRequestDraft, SeasonalTip } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
 type Message = {
@@ -82,13 +82,28 @@ export default function AssistantScreen() {
     });
   };
 
-  const requestSeasonalService = () => {
+  const requestSeasonalService = async () => {
     if (checkedTasks.size === 0 || !seasonalData) return;
     const label = SEASON_META[seasonalData.season]?.label ?? seasonalData.season;
     const lines = [...checkedTasks].sort((a, b) => a - b).map((i) => `• ${allTips[i].text}`).join('\n');
     const notes = `${label} maintenance requested:\n${lines}`;
     setActivePanel(null);
-    router.push({ pathname: '/(customer)/request', params: { prefilledNotes: notes } });
+    // Seasonal tasks aren't tied to a specific catalog item, so this hands
+    // off to the same "General Inspection" visit the dashboard's Inspect
+    // group offers — preselecting it (rather than leaving preselect empty)
+    // is what keeps this landing on the trimmed review screen instead of
+    // the retired full tabbed browse UI (see request.tsx's isPreselectedFlow).
+    let generalInspectionId: string | undefined;
+    try {
+      const catalog = await pricingApi.getAll() as any;
+      generalInspectionId = catalog.find((i: any) => i.name === 'General Inspection')?.id;
+    } catch {}
+    router.push({
+      pathname: '/(customer)/request',
+      params: generalInspectionId
+        ? { preselectServicePriceIds: generalInspectionId, prefilledNotes: notes }
+        : { prefilledNotes: notes },
+    });
   };
 
   const startNewChat = () => {

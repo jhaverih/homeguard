@@ -1,0 +1,71 @@
+# Changelog
+
+All notable changes to the Attenteve platform (api, admin, vendor, mobile, infrastructure) are documented in this file.
+
+## How this file works
+
+This project deploys continuously (`git push origin staging` triggers an automatic build+deploy via a self-hosted GitHub Actions runner — see `.github/workflows/staging.yml`), not via discrete tagged releases. So instead of strict [Semantic Versioning](https://semver.org) release sections, entries are grouped **by date**, newest first. That said:
+
+- **Every commit that changes deployed behavior gets a dated entry here, added in the *same commit* as the code change** — not as a follow-up, not batched later. If you're committing a fix or feature, update this file first.
+- Categorize each entry as **Added** / **Changed** / **Fixed** / **Removed**, and tag which app(s) it touches: `api`, `admin`, `vendor`, `mobile`, `infra`.
+- One or two sentences per entry: what changed and why (the "why" matters more than the "what" — the diff already shows what). Link to a memory file or plan doc instead of re-explaining background that's already written down elsewhere.
+- Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
+- This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
+
+## [0.2.0] — 2026-07-19
+
+### Fixed
+- **mobile**: The old full "Request a Service" tabbed browse screen (Inspection / Additional Services tabs) was still reachable from the dashboard's search bar and from eveAI (the in-app AI assistant) whenever either handed off a single specific service — both passed a singular `preselectServicePriceId`, which fell through to the full tab-switcher browse UI instead of the trimmed single-item review screen the newer `ServiceGroupsCard` dashboard flow already uses for multi-select. Fixed by treating a singular preselect the same as the plural one in `request.tsx`'s `isPreselectedFlow` check, so every current in-app handoff of a specific service (search, eveAI "Book Now", eveAI recommendation drafts) now lands on the same trimmed review screen. The four remaining "Book a Service" entry points with no specific service in mind (`my-services.tsx` ×2, `schedule.tsx`, `inspection-report.tsx`) now route to the dashboard instead of the bare old screen; eveAI's seasonal-maintenance-tasks flow now preselects the catalog's "General Inspection" item (with the checked tasks as prefilled notes) instead of landing with no context at all.
+- **infra**: Root-caused the vendor-portal crash-loop from the county-service-area deploy earlier the same day: `npm run build` was genuinely failing intermittently (a flaky Next.js standalone-output-tracing `ENOENT`, most likely triggered by building admin and vendor `--no-cache` in one combined `docker compose build` invocation and contending for CPU/memory on the QNAP), but a broken shell-operator chain in both `apps/vendor/Dockerfile` and `apps/admin/Dockerfile`'s build guard (`A && B || (echo ... && exit 1) && C || true`) let the step report success anyway — Docker shipped an image with no `server.js`. Split the guard into separate `RUN` layers (each one's own exit code now genuinely gates the build) and split the CI workflow's combined `--no-cache admin vendor` build into two sequential invocations to reduce the resource contention that likely caused the flake. Verified live: deliberately broke the build and confirmed the old guard would have let it through, then confirmed the new one correctly fails.
+
+### Added
+- **api, admin, vendor**: Vendor service-area coverage now runs on **counties a vendor company explicitly selects**, not a single base ZIP + travel radius. Public/customer-facing ZIP checks resolve to a county server-side via a bundled US Census ZCTA-to-county dataset. Currently launches with Tennessee as the only selectable state (`ENABLED_SERVICE_STATES` in `apps/api/src/common/config/enabled-service-states.ts`) — opening a new state later is a one-line config change, not a data or UI rebuild. Legacy ZIP+radius data is kept as an automatic fallback for any company that hasn't set counties yet, so existing coverage doesn't regress. See `[[project_service_area_matching]]` (project memory) for the prior ZIP+radius model this replaces.
+
+## 2026-07-18
+
+### Fixed
+- **api**: Fixed the marketing site's "Check availability" widget, which was silently failing for the site's actual Netlify hosting origin (`https://effulgent-dieffenbachia-067061.netlify.app`) — that origin was never in `ALLOWED_ORIGINS`, so the API's CORS layer blocked every request with no error surfaced to the widget beyond a generic "couldn't check availability" message. (An earlier same-day fix had corrected a missing `/api` prefix in the widget's request URL and added `www.attenteve.com`/`www.vendor.attenteve.com` to the CORS allow-list — necessary but not sufficient, since the actual live test URL turned out to be the Netlify domain, not `attenteve.com`, which currently just serves a placeholder page.)
+- **api**: Fixed a stuck "Pay Now" flow for legacy authorized-but-uncaptured Stripe payments left over from an earlier payment-model redesign (PaymentSheet errored with "cannot set up a PaymentIntent in status 'requires_capture'"). `PaymentsService.authorizePayment` now checks the real Stripe PaymentIntent status before deciding whether the client needs to open a payment sheet at all, fixed generally rather than as a one-off data patch for the single customer who reported it.
+
+### Added
+- **api, admin, vendor, mobile**: Admins can now add a new vendor capability inline from the pricing page (previously only reachable via a raw API call) — creating one now also notifies every active vendor account (not just currently-available ones) so they know to update their profile. A service with no nearby vendor who can perform it is now hidden from a customer's browse/search results rather than shown as bookable-but-impossible-to-fulfil; searching for a hidden service by name shows it disabled with "Not available in your area yet" and a "Notify Me" action that reuses the existing marketing-site waitlist infrastructure. Vendor companies with no location data set at all are deliberately treated as covering everywhere ("fail open"), not nowhere, so incomplete legacy data can't silently hide a service platform-wide.
+- **infra**: Implemented crash-loop prevention for the self-hosted GitHub Actions runner container. Root cause: Docker's `restart: unless-stopped` restarts the container in place (same filesystem), which can leave a stale/half-written `.runner` registration file after an abrupt exit that the runner image's entrypoint can neither reuse nor cleanly deregister — crash-looping forever. Fixed by setting `restart: "no"` plus an external cron-driven watchdog (`runner-watchdog.sh`) that does a full `docker compose up -d --force-recreate` (clean filesystem every time) instead of relying on Docker's native restart.
+
+## 2026-07-17
+
+### Added
+- **api, vendor, admin**: First version of vendor service-area matching — each vendor company sets one base ZIP + a travel radius in miles; a free, bundled US ZIP-centroid dataset plus a haversine distance check determines coverage automatically. New public, rate-limited, unauthenticated endpoint `GET /public/service-area/check?zip=` (returns only `{available: boolean}` — deliberately no vendor identity/count/distance, so it can't be scraped for competitive intel) and `POST /public/service-area/notify` (captures a waitlist signup, visible at `/waitlist` in the admin portal). Superseded 2026-07-19 by the county-based model above.
+
+### Fixed
+- **api**: A default JSON import (`import x from './file.json'`) in `apps/api` type-checks and builds cleanly but silently returns `undefined` at runtime, because the repo doesn't set `esModuleInterop` — every `/public/service-area/check` request 500'd in production despite a clean local build. Fixed by switching to a namespace import (`import * as x from './file.json'`), which compiles to a plain `require()` regardless of the interop setting.
+
+## 2026-07-16
+
+### Fixed
+- **api**: Consolidating the `PricingMethod` enum's per-unit variants (`PER_HOUR`/`PER_BULB`/etc.) into a single `PER_UNIT` value crash-looped the API on boot — TypeORM's schema sync runs `ALTER TYPE` during module initialization, *before* any application-level `onModuleInit()` migration code gets a chance to move live rows off the doomed enum values. Fixed by migrating the data via direct SQL before deploying the code that shrinks the enum, not as app-startup migration logic.
+
+## 2026-07-15
+
+### Added
+- **admin, api**: Pricing catalog now uses a structured `PricingMethod` enum dropdown (8 methods) instead of a free-text "Price Note" field, with a derived, always-consistent `priceDisplay` string. Vendor Elite-plan upgrade requests now notify admins and show a pending-review badge, and collect a real off-session Stripe charge against the vendor's saved card (not just an admin eyeballing it) via a new `VendorMembershipPayment` entity with webhook reconciliation. Customer cancellations now capture an optional reason code + comment (skippable, never blocks the cancellation) before finalizing. Password show/hide toggles added to the 3 mobile screens that lacked them.
+
+### Fixed
+- **admin**: `apps/admin/Dockerfile`'s runtime image never copied the Next.js app's top-level `public/` folder (only `mkdir -p ./public`, no matching `COPY`) — static assets placed there 404'd in production. Invisible until this date because `apps/admin/public/` had been empty until the legal-terms static HTML pages were added to it. Fixed by adding the missing `COPY --from=builder /app/public ./public` line; `apps/vendor/Dockerfile` was checked and already had it.
+
+## 2026-07-14
+
+### Changed
+- **admin, vendor, mobile**: Full platform rebrand from "HomeGuard" to "Attenteve" shipped across all 4 surfaces (admin portal, vendor portal, mobile customer screens, mobile vendor screens) — new palette (Ink/Slate/Lantern/Mist/Steel), Newsreader (display) + Karla (body) typography, rounded-square icon with a signal-arc + house glyph. Mobile app gained a shared `apps/mobile/src/theme.ts` token module (didn't exist before), giving future color work one source of truth instead of scattered hex literals. Light-mode only; dark mode not implemented. Attorney trademark review of the "Attenteve" name is a separate, still-open item — this entry only reflects that the visual implementation shipped.
+
+## Earlier history (reconstructed from project memory, dates approximate)
+
+These predate this changelog's creation and are reconstructed from persistent project-memory records rather than tracked in real time — treat exact dates as approximate.
+
+### ~2026-07-09 — Fixed (vendor, mobile)
+A Stripe Connect onboarding gate placed directly in `(vendor)/_layout.tsx` (a navigation layout file) returned a full-screen component instead of mounting `<Tabs>`, which meant the entire vendor tab bar silently disappeared for any vendor mid-onboarding. Multiple sessions had been spent debugging "broken icons" that were actually just an unmounted tab bar. Lesson applied going forward: business-logic gates (onboarding, subscription walls, permission prompts) belong inside a screen's content area, never in a layout file.
+
+### ~2026-07-06 — Fixed (api)
+Two unrelated TypeORM entities (`maintenance-bot`'s chat-message entity and the real-time `chat` module's message entity) both declared `@Entity('chat_messages')`, causing `synchronize` to crash trying to `ALTER` one entity's table with the other's schema. Renamed the bot's tables to `bot_messages`/`bot_sessions`. Lesson applied going forward: never reuse an `@Entity()` table name across entities.
+
+### ~2026-07-06 — Fixed (admin)
+The admin app's Next.js standalone Docker build could get cached from a layer pre-dating `output: 'standalone'` in `next.config.ts`, shipping an image missing `.next/standalone/server.js` and crash-looping. Fixed at the time by adding `--no-cache` to the admin build step in CI — later found (2026-07-19, see above) to have been an incomplete fix, since a broken build-guard bug meant a *build-time* failure (as opposed to a stale-cache issue) could still ship a broken image even with `--no-cache` on.

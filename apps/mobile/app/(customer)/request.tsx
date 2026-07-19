@@ -166,12 +166,19 @@ export default function RequestScreen() {
   const [preferredDate, setPreferredDate] = useState(tomorrow);
   const [serviceDate, setServiceDate] = useState(new Date(tomorrow));
   const { prefilledNotes, preselectServicePriceId, preselectServicePriceIds, preferredDate: preferredDateParam } = useLocalSearchParams<{ prefilledNotes?: string; preselectServicePriceId?: string; preselectServicePriceIds?: string; preferredDate?: string }>();
-  // True only for the dashboard ServiceGroupsCard's multi-select handoff —
-  // skips the tab switcher and full category browse below in favor of a
-  // view of just the already-picked services. The single-item
-  // preselectServicePriceId flow (search bar, AI recommendations) is
-  // untouched and still lands in the full browse list, scrolled to that item.
-  const isPreselectedFlow = !!preselectServicePriceIds;
+  // True for BOTH the dashboard ServiceGroupsCard's multi-select handoff
+  // (preselectServicePriceIds) and any single-item handoff — search bar,
+  // eveAI "Book Now"/recommendation drafts (preselectServicePriceId). Either
+  // one skips the tab switcher and full category browse in favor of a view
+  // of just the already-picked service(s). Until 2026-07-19 the singular
+  // case fell through to the full old tabbed browse screen instead — every
+  // in-app entry point that hands off a specific service now lands on this
+  // same trimmed review screen; the full browse/tab-switcher UI below is
+  // only ever reached with zero preselect params, which no current
+  // in-app navigation does (see the other apps/mobile call sites of
+  // `/(customer)/request` — all either pass one of these two params or
+  // route to the dashboard instead).
+  const isPreselectedFlow = !!preselectServicePriceIds || !!preselectServicePriceId;
   const [notes, setNotes] = useState('');
   const [serviceNotes, setServiceNotes] = useState('');
   const [solarMonthlyBill, setSolarMonthlyBill] = useState('');
@@ -205,6 +212,14 @@ export default function RequestScreen() {
 
   useEffect(() => {
     if (prefilledNotes) setNotes(prefilledNotes);
+  }, [prefilledNotes]);
+
+  // Same prefill, for the Service tab's notes field — needed now that
+  // notes-carrying handoffs (e.g. eveAI's seasonal-tasks request) preselect
+  // a specific catalog item and land directly on the Service tab instead of
+  // the old free-text Inspection tab.
+  useEffect(() => {
+    if (prefilledNotes) setServiceNotes(prefilledNotes);
   }, [prefilledNotes]);
 
   useEffect(() => {

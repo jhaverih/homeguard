@@ -651,7 +651,7 @@ export default function InspectionReportScreen() {
       {/* Add-on inspection CTA */}
       <TouchableOpacity
         style={styles.addonCTA}
-        onPress={() => router.push('/(customer)/request')}
+        onPress={() => router.push('/(customer)')}
         activeOpacity={0.75}
       >
         <View style={{ flex: 1 }}>
