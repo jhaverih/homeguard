@@ -20,6 +20,7 @@ import { AuthService } from '../auth/auth.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { emailEquals } from '../common/utils/email.util';
+import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.utils';
 
 const CAPABILITY_SEED: {
   name: string;
@@ -314,16 +315,26 @@ export class VendorService implements OnModuleInit {
     return { ...company, logoUrl };
   }
 
-  async updateCompany(userId: string, data: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number }) {
+  async updateCompany(userId: string, data: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number; serviceCounties?: string[] }) {
     const company = await this.requireCompany(userId);
     if (data.name !== undefined) company.name = data.name;
     if (data.logoKey !== undefined) company.logoKey = data.logoKey;
     if (data.baseZipCode !== undefined) company.baseZipCode = data.baseZipCode;
     if (data.serviceRadiusMiles !== undefined) company.serviceRadiusMiles = data.serviceRadiusMiles;
+    if (data.serviceCounties !== undefined) {
+      if (data.serviceCounties.some((fips) => !isEnabledCountyFips(fips))) {
+        throw new BadRequestException('One or more counties are not currently open for service-area selection');
+      }
+      company.serviceCounties = data.serviceCounties;
+    }
     const saved = await this.companyRepo.save(company);
     // Keep the legacy per-profile companyName in sync for old read sites.
     await this.vendorProfileRepo.update({ companyId: company.id }, { companyName: saved.name });
     return saved;
+  }
+
+  getSelectableCounties() {
+    return getEnabledCounties();
   }
 
   async getTeam(userId: string) {

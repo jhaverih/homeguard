@@ -57,7 +57,8 @@ export const vendorApi = {
   retractEliteRequest: () => api.post('/vendor/status/retract-elite-request').then((r) => r.data),
   setAssignmentMode: (mode: string) => api.patch('/vendor/status/assignment-mode', { mode }).then((r) => r.data),
   getCompany: () => api.get('/vendor/company').then((r) => r.data),
-  updateCompany: (data: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number }) => api.patch('/vendor/company', data).then((r) => r.data),
+  updateCompany: (data: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number; serviceCounties?: string[] }) => api.patch('/vendor/company', data).then((r) => r.data),
+  getCounties: (): Promise<Record<string, { fips: string; name: string }[]>> => api.get('/vendor/counties').then((r) => r.data),
   getTeam: () => api.get('/vendor/team').then((r) => r.data),
   createTechnician: (data: { email: string; firstName: string; lastName: string; avatarUrl?: string }) =>
     api.post('/vendor/team', data).then((r) => r.data),

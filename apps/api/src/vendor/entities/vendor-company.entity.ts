@@ -80,15 +80,21 @@ export class VendorCompany {
   @Column({ nullable: true })
   state: string | null;
 
-  // Company's home-base ZIP + how far out they'll travel — the entire
-  // service-area coverage model. Matched against zip-centroids.json via
-  // haversineMiles() (common/utils/geo.utils.ts); no lat/long stored here
-  // directly so there's a single source of truth for coordinates.
+  // Legacy service-area model (home-base ZIP + radius, matched via
+  // haversineMiles() in common/utils/geo.utils.ts). Superseded by
+  // serviceCounties below for any company that has set counties; kept as a
+  // fallback so companies that never migrate don't lose coverage.
   @Column({ nullable: true })
   baseZipCode: string | null;
 
   @Column({ type: 'int', nullable: true, default: 25 })
   serviceRadiusMiles: number | null;
+
+  // County FIPS codes (e.g. "47187") this company serves, restricted at save
+  // time to states in ENABLED_SERVICE_STATES (common/config/enabled-service-
+  // states.ts). Primary service-area model — see service-area.service.ts.
+  @Column('text', { array: true, nullable: true })
+  serviceCounties: string[] | null;
 
   @CreateDateColumn()
   createdAt: Date;

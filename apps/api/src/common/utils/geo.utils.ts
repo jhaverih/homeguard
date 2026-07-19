@@ -4,13 +4,24 @@
 // though it type-checks fine. `import * as` compiles straight to
 // `require(...)`, which is what a JSON module actually returns.
 import * as zipCentroids from '../data/zip-centroids.json';
+import * as zipCounty from '../data/zip-county.json';
 
 const ZIP_CENTROIDS: Record<string, number[]> = zipCentroids as unknown as Record<string, number[]>;
+const ZIP_COUNTY: Record<string, string> = zipCounty as unknown as Record<string, string>;
 
 export function getZipCentroid(zip: string): { lat: number; lng: number } | null {
   const normalized = zip?.trim().slice(0, 5);
   const entry = normalized ? ZIP_CENTROIDS[normalized] : undefined;
   return entry ? { lat: entry[0], lng: entry[1] } : null;
+}
+
+// County FIPS code (e.g. "47187") a ZIP mostly falls within, derived from the
+// US Census Bureau's ZCTA-to-county relationship file — a ZIP can straddle
+// several counties, so this picks the one with the largest land-area overlap,
+// matching how people colloquially think of "my ZIP's county."
+export function getCountyFipsForZip(zip: string): string | null {
+  const normalized = zip?.trim().slice(0, 5);
+  return (normalized && ZIP_COUNTY[normalized]) || null;
 }
 
 // Great-circle distance in miles — direct server-side port of the haversine

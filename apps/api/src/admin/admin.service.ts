@@ -26,6 +26,7 @@ import { VendorCapability, CertificationType } from '../vendor/entities/vendor-c
 import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { WaitlistSignup } from '../service-area/entities/waitlist-signup.entity';
 import { emailEquals } from '../common/utils/email.util';
+import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.utils';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from '../payments/payments.service';
 
@@ -175,6 +176,7 @@ export class AdminService {
         state: company?.state ?? null,
         baseZipCode: company?.baseZipCode ?? null,
         serviceRadiusMiles: company?.serviceRadiusMiles ?? null,
+        serviceCounties: company?.serviceCounties ?? null,
       };
     });
   }
@@ -196,10 +198,14 @@ export class AdminService {
   // checker always reported "not covered."
   async updateVendorServiceArea(
     vendorId: string,
-    data: { address?: string; city?: string; state?: string; baseZipCode?: string; serviceRadiusMiles?: number },
+    data: { address?: string; city?: string; state?: string; baseZipCode?: string; serviceRadiusMiles?: number; serviceCounties?: string[] },
   ) {
     const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
     if (!profile?.companyId) throw new NotFoundException('Vendor company not found');
+
+    if (data.serviceCounties?.some((fips) => !isEnabledCountyFips(fips))) {
+      throw new BadRequestException('One or more counties are not currently open for service-area selection');
+    }
 
     await this.vendorCompanyRepo.update(profile.companyId, {
       ...(data.address !== undefined ? { address: data.address } : {}),
@@ -207,8 +213,13 @@ export class AdminService {
       ...(data.state !== undefined ? { state: data.state } : {}),
       ...(data.baseZipCode !== undefined ? { baseZipCode: data.baseZipCode } : {}),
       ...(data.serviceRadiusMiles !== undefined ? { serviceRadiusMiles: data.serviceRadiusMiles } : {}),
+      ...(data.serviceCounties !== undefined ? { serviceCounties: data.serviceCounties } : {}),
     });
     return this.vendorCompanyRepo.findOne({ where: { id: profile.companyId } });
+  }
+
+  getSelectableCounties() {
+    return getEnabledCounties();
   }
 
   async removeCustomer(customerId: string) {
@@ -436,6 +447,7 @@ export class AdminService {
         state: company?.state ?? null,
         baseZipCode: company?.baseZipCode ?? null,
         serviceRadiusMiles: company?.serviceRadiusMiles ?? null,
+        serviceCounties: company?.serviceCounties ?? null,
       },
       jobs: {
         total: allJobs.length,

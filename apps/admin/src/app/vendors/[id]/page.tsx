@@ -30,8 +30,10 @@ export default function VendorKpiPage() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
-  const [baseZipCode, setBaseZipCode] = useState('');
-  const [serviceRadiusMiles, setServiceRadiusMiles] = useState('25');
+  const [counties, setCounties] = useState<Record<string, { fips: string; name: string }[]>>({});
+  const [selectedCounties, setSelectedCounties] = useState<Set<string>>(new Set());
+  const [savedCounties, setSavedCounties] = useState<Set<string>>(new Set());
+  const [legacyZip, setLegacyZip] = useState<{ baseZipCode: string | null; serviceRadiusMiles: number | null }>({ baseZipCode: null, serviceRadiusMiles: null });
   const [savingServiceArea, setSavingServiceArea] = useState(false);
 
   const load = () => adminApi.getVendorKpi(id).then((k) => {
@@ -39,22 +41,53 @@ export default function VendorKpiPage() {
     setAddress(k.vendor.address ?? '');
     setCity(k.vendor.city ?? '');
     setState(k.vendor.state ?? '');
-    setBaseZipCode(k.vendor.baseZipCode ?? '');
-    setServiceRadiusMiles(k.vendor.serviceRadiusMiles != null ? String(k.vendor.serviceRadiusMiles) : '25');
+    setLegacyZip({ baseZipCode: k.vendor.baseZipCode ?? null, serviceRadiusMiles: k.vendor.serviceRadiusMiles ?? null });
+    const saved = new Set<string>(k.vendor.serviceCounties ?? []);
+    setSelectedCounties(saved);
+    setSavedCounties(saved);
   });
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, [id]);
+  useEffect(() => {
+    Promise.all([load(), adminApi.getCounties().then(setCounties)]).finally(() => setLoading(false));
+  }, [id]);
 
-  const saveServiceArea = async () => {
+  const toggleCounty = (fips: string) => {
+    setSelectedCounties((prev) => {
+      const next = new Set(prev);
+      if (next.has(fips)) next.delete(fips); else next.add(fips);
+      return next;
+    });
+  };
+
+  const toggleAllInState = (stateCounties: { fips: string; name: string }[]) => {
+    const allSelected = stateCounties.every((c) => selectedCounties.has(c.fips));
+    setSelectedCounties((prev) => {
+      const next = new Set(prev);
+      for (const c of stateCounties) {
+        if (allSelected) next.delete(c.fips); else next.add(c.fips);
+      }
+      return next;
+    });
+  };
+
+  const saveAddress = async () => {
     setSavingServiceArea(true);
     try {
       await adminApi.updateVendorServiceArea(id, {
         address: address.trim(),
         city: city.trim(),
         state: state.trim(),
-        baseZipCode: baseZipCode.trim(),
-        serviceRadiusMiles: parseInt(serviceRadiusMiles, 10) || 25,
       });
+      await load();
+    } finally {
+      setSavingServiceArea(false);
+    }
+  };
+
+  const saveCounties = async () => {
+    setSavingServiceArea(true);
+    try {
+      await adminApi.updateVendorServiceArea(id, { serviceCounties: Array.from(selectedCounties) });
       await load();
     } finally {
       setSavingServiceArea(false);
@@ -80,15 +113,10 @@ export default function VendorKpiPage() {
         </div>
       </div>
 
-      {/* Location / Service Area */}
+      {/* Location */}
       <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
-        <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Location / Service Area</h2>
-        <p className="text-xs text-steel mb-4">
-          Where this vendor is based and how far they'll travel — determines whether the public zip-code checker reports coverage for a customer near them.
-          {!vendor.baseZipCode && (
-            <span className="text-red-500 font-medium"> No base ZIP set yet — this vendor won't match any zip until one is added.</span>
-          )}
-        </p>
+        <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Location</h2>
+        <p className="text-xs text-steel mb-4">Mailing address on file — display/records only, not used for coverage matching.</p>
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-xs font-medium text-steel mb-1">Street address</label>
@@ -120,35 +148,71 @@ export default function VendorKpiPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-end gap-4">
-          <div>
-            <label className="block text-xs font-medium text-steel mb-1">Base ZIP code</label>
-            <input
-              value={baseZipCode}
-              onChange={(e) => setBaseZipCode(e.target.value)}
-              placeholder="e.g. 37201"
-              maxLength={5}
-              className="w-32 border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-            />
+        <button
+          onClick={saveAddress}
+          disabled={savingServiceArea}
+          className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+        >
+          {savingServiceArea ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+
+      {/* Service Area */}
+      <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
+        <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Service Area</h2>
+        <p className="text-xs text-steel mb-4">
+          Counties this vendor's team serves — determines whether the public zip-code checker reports coverage for a customer near them.
+          {selectedCounties.size === 0 && !legacyZip.baseZipCode && (
+            <span className="text-red-500 font-medium"> No coverage set yet — this vendor won't match any zip until counties are selected.</span>
+          )}
+        </p>
+        {legacyZip.baseZipCode && (
+          <p className="text-xs text-steel mb-4 bg-canvas rounded-lg p-3">
+            Legacy zip-based coverage (ZIP {legacyZip.baseZipCode}, {legacyZip.serviceRadiusMiles} mi radius) stays active as a fallback until counties are selected below.
+          </p>
+        )}
+        {Object.keys(counties).length === 0 ? (
+          <p className="text-xs text-steel">No states are currently open for county selection.</p>
+        ) : (
+          <div className="space-y-5">
+            {Object.entries(counties).map(([st, stateCounties]) => (
+              <div key={st}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold text-lantern-deep">{st}</h3>
+                  <button
+                    onClick={() => toggleAllInState(stateCounties)}
+                    className="text-xs font-semibold text-steel hover:text-lantern-deep transition-colors"
+                  >
+                    {stateCounties.every((c) => selectedCounties.has(c.fips)) ? 'Deselect all' : 'Select all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-x-4 gap-y-1 max-h-64 overflow-y-auto border border-mist-dim rounded-lg p-3">
+                  {stateCounties.map((c) => (
+                    <label key={c.fips} className="flex items-center gap-2 text-sm text-steel cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedCounties.has(c.fips)}
+                        onChange={() => toggleCounty(c.fips)}
+                        className="accent-lantern"
+                      />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button
+              onClick={saveCounties}
+              disabled={
+                savingServiceArea
+                || (selectedCounties.size === savedCounties.size && Array.from(savedCounties).every((f) => selectedCounties.has(f)))
+              }
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+            >
+              {savingServiceArea ? 'Saving…' : 'Save'}
+            </button>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-steel mb-1">Service radius (miles)</label>
-            <input
-              type="number"
-              value={serviceRadiusMiles}
-              onChange={(e) => setServiceRadiusMiles(e.target.value)}
-              min="1"
-              className="w-32 border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-            />
-          </div>
-          <button
-            onClick={saveServiceArea}
-            disabled={savingServiceArea}
-            className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
-          >
-            {savingServiceArea ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+        )}
       </div>
 
       {/* KPI Grid */}

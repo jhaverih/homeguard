@@ -81,9 +81,15 @@ export class AdminController {
 
   @Patch('vendors/:id/service-area')
   @MinAdminLevel(AdminLevel.SUPER_USER)
-  @ApiOperation({ summary: "View/correct a vendor's address and service-area coverage radius" })
+  @ApiOperation({ summary: "View/correct a vendor's address and service-area coverage counties" })
   updateVendorServiceArea(@Param('id') id: string, @Body() body: UpdateVendorServiceAreaDto) {
     return this.service.updateVendorServiceArea(id, body);
+  }
+
+  @Get('counties')
+  @ApiOperation({ summary: 'Counties currently selectable for vendor service-area coverage, grouped by state' })
+  getCounties() {
+    return this.service.getSelectableCounties();
   }
 
   @Get('schedule')

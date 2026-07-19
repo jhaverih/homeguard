@@ -12,8 +12,8 @@ export default function CompanyPage() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [savingName, setSavingName] = useState(false);
-  const [baseZipCode, setBaseZipCode] = useState('');
-  const [serviceRadiusMiles, setServiceRadiusMiles] = useState('25');
+  const [counties, setCounties] = useState<Record<string, { fips: string; name: string }[]>>({});
+  const [selectedCounties, setSelectedCounties] = useState<Set<string>>(new Set());
   const [savingServiceArea, setSavingServiceArea] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [appForm, setAppForm] = useState({
@@ -27,11 +27,12 @@ export default function CompanyPage() {
   const load = () => vendorApi.getCompany().then((c) => {
     setCompany(c);
     setName(c.name);
-    setBaseZipCode(c.baseZipCode ?? '');
-    setServiceRadiusMiles(c.serviceRadiusMiles != null ? String(c.serviceRadiusMiles) : '25');
+    setSelectedCounties(new Set<string>(c.serviceCounties ?? []));
   });
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    Promise.all([load(), vendorApi.getCounties().then(setCounties)]).finally(() => setLoading(false));
+  }, []);
 
   const saveName = async () => {
     setSavingName(true);
@@ -43,13 +44,29 @@ export default function CompanyPage() {
     }
   };
 
+  const toggleCounty = (fips: string) => {
+    setSelectedCounties((prev) => {
+      const next = new Set(prev);
+      if (next.has(fips)) next.delete(fips); else next.add(fips);
+      return next;
+    });
+  };
+
+  const toggleAllInState = (stateCounties: { fips: string; name: string }[]) => {
+    const allSelected = stateCounties.every((c) => selectedCounties.has(c.fips));
+    setSelectedCounties((prev) => {
+      const next = new Set(prev);
+      for (const c of stateCounties) {
+        if (allSelected) next.delete(c.fips); else next.add(c.fips);
+      }
+      return next;
+    });
+  };
+
   const saveServiceArea = async () => {
     setSavingServiceArea(true);
     try {
-      const updated = await vendorApi.updateCompany({
-        baseZipCode: baseZipCode.trim(),
-        serviceRadiusMiles: parseInt(serviceRadiusMiles, 10) || 25,
-      });
+      const updated = await vendorApi.updateCompany({ serviceCounties: Array.from(selectedCounties) });
       setCompany((prev: any) => ({ ...prev, ...updated }));
     } finally {
       setSavingServiceArea(false);
@@ -132,36 +149,55 @@ export default function CompanyPage() {
 
       <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
         <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Service Area</h2>
-        <p className="text-xs text-steel mb-4">Where you're based and how far you'll travel — this determines whether customers near you can request your services.</p>
-        <div className="flex items-end gap-4">
-          <div>
-            <label className="block text-xs font-medium text-steel mb-1">Base ZIP code</label>
-            <input
-              value={baseZipCode}
-              onChange={(e) => setBaseZipCode(e.target.value)}
-              placeholder="e.g. 78701"
-              maxLength={5}
-              className="w-32 border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-            />
+        <p className="text-xs text-steel mb-4">Select every county your team serves — this determines whether customers near them can request your services.</p>
+        {company.baseZipCode && (
+          <p className="text-xs text-steel mb-4 bg-canvas rounded-lg p-3">
+            Legacy zip-based coverage (ZIP {company.baseZipCode}, {company.serviceRadiusMiles} mi radius) stays active as a fallback until you select counties below.
+          </p>
+        )}
+        {Object.keys(counties).length === 0 ? (
+          <p className="text-xs text-steel">No states are currently open for county selection.</p>
+        ) : (
+          <div className="space-y-5">
+            {Object.entries(counties).map(([state, stateCounties]) => (
+              <div key={state}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold text-lantern-deep">{state}</h3>
+                  <button
+                    onClick={() => toggleAllInState(stateCounties)}
+                    className="text-xs font-semibold text-steel hover:text-lantern-deep transition-colors"
+                  >
+                    {stateCounties.every((c) => selectedCounties.has(c.fips)) ? 'Deselect all' : 'Select all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-x-4 gap-y-1 max-h-64 overflow-y-auto border border-mist-dim rounded-lg p-3">
+                  {stateCounties.map((c) => (
+                    <label key={c.fips} className="flex items-center gap-2 text-sm text-steel cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedCounties.has(c.fips)}
+                        onChange={() => toggleCounty(c.fips)}
+                        className="accent-lantern"
+                      />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button
+              onClick={saveServiceArea}
+              disabled={
+                savingServiceArea
+                || (selectedCounties.size === (company.serviceCounties?.length ?? 0)
+                  && (company.serviceCounties ?? []).every((f: string) => selectedCounties.has(f)))
+              }
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+            >
+              {savingServiceArea ? 'Saving…' : 'Save'}
+            </button>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-steel mb-1">Service radius (miles)</label>
-            <input
-              type="number"
-              value={serviceRadiusMiles}
-              onChange={(e) => setServiceRadiusMiles(e.target.value)}
-              min="1"
-              className="w-32 border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-            />
-          </div>
-          <button
-            onClick={saveServiceArea}
-            disabled={savingServiceArea || (baseZipCode === (company.baseZipCode ?? '') && serviceRadiusMiles === String(company.serviceRadiusMiles ?? 25))}
-            className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
-          >
-            {savingServiceArea ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-mist-dim p-6">

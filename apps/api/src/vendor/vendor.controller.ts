@@ -99,9 +99,15 @@ export class VendorController {
 
   @Patch('company')
   @VendorAdminOnly()
-  @ApiOperation({ summary: 'Vendor Admin: update company name/logo' })
-  updateCompany(@Request() req, @Body() body: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number }) {
+  @ApiOperation({ summary: 'Vendor Admin: update company name/logo/service area' })
+  updateCompany(@Request() req, @Body() body: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number; serviceCounties?: string[] }) {
     return this.service.updateCompany(req.user.id, body);
+  }
+
+  @Get('counties')
+  @ApiOperation({ summary: 'Counties currently selectable for service-area coverage, grouped by state' })
+  getCounties() {
+    return this.service.getSelectableCounties();
   }
 
   @Get('team')
