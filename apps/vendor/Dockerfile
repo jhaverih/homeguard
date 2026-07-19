@@ -17,11 +17,18 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
-    test -f .next/standalone/server.js || (echo "ERROR: standalone server.js not generated — check output:'standalone' in next.config" && exit 1) && \
-    mkdir -p .next/standalone/node_modules && \
-    cp -rL node_modules/react .next/standalone/node_modules/react 2>/dev/null || true && \
-    cp -rL node_modules/react-dom .next/standalone/node_modules/react-dom 2>/dev/null || true
+# Split into separate RUN layers deliberately: a combined `A && B || (echo ... && exit 1) &&
+# C || true` chain looks like a fail-loud guard but isn't one — left-to-right AND-OR
+# evaluation plus the trailing `|| true` fallbacks on the cp lines caused the WHOLE step to
+# report success even when `npm run build` itself failed outright (caught 2026-07-19: a
+# flaky Next.js standalone-tracing ENOENT crashed the build, the guard printed its error
+# line, and Docker still reported "Built" — shipping an image with no server.js). Each RUN
+# below fails the image build on its own exit code, no AND-OR ambiguity possible.
+RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=2048" npm run build
+RUN test -f .next/standalone/server.js || (echo "ERROR: standalone server.js not generated — check output:'standalone' in next.config" >&2 && exit 1)
+RUN mkdir -p .next/standalone/node_modules
+RUN cp -rL node_modules/react .next/standalone/node_modules/react 2>/dev/null || true
+RUN cp -rL node_modules/react-dom .next/standalone/node_modules/react-dom 2>/dev/null || true
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM node:lts-alpine AS runner

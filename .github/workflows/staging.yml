@@ -32,14 +32,21 @@ jobs:
           # Export all vars so docker-compose variable substitution works (postgres, redis, minio passwords)
           set -a; source /share/Container/homeguard/.env 2>/dev/null || true; set +a
 
-          # Build admin AND vendor first with --no-cache — do it before stopping services to
-          # minimise downtime. Both are Next.js standalone builds; a stale cached layer can
-          # silently drop .next/standalone/server.js from the final image, which typechecks/
-          # builds fine but crash-loops the container at runtime with MODULE_NOT_FOUND. Learned
-          # this the hard way with admin first (2026-07-15), then vendor hit the exact same bug
-          # 2026-07-19 because it was still building with cache. api/nginx build with cache after
-          # — NestJS/static-config builds aren't prone to this failure mode.
-          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin vendor
+          # Build admin AND vendor first with --no-cache, SEQUENTIALLY (not in one combined
+          # invocation) — do it before stopping services to minimise downtime. Both are Next.js
+          # standalone builds; a stale cached layer can silently drop .next/standalone/server.js
+          # from the final image, which typechecks/builds fine but crash-loops the container at
+          # runtime with MODULE_NOT_FOUND. Learned this the hard way with admin first
+          # (2026-07-15), then vendor hit the exact same symptom 2026-07-19 — that time the
+          # actual cause was `npm run build` itself failing (a flaky Next.js standalone-tracing
+          # ENOENT, likely from admin+vendor's builds contending for CPU/memory on the same
+          # invocation) combined with a broken shell guard in the Dockerfile that let the
+          # broken image ship anyway (now fixed — see apps/vendor/Dockerfile). Building them one
+          # at a time reduces the odds of hitting that resource-contention flake again; the
+          # Dockerfile guard fix means a genuine build failure now stops this workflow instead
+          # of silently deploying a broken image either way.
+          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin
+          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache vendor
           docker compose -f infrastructure/docker-compose.staging.yml build api nginx
 
           # Stop containers (not down — down removes the network which causes QNAP dnsmasq NAT errors)
