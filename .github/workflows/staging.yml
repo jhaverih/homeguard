@@ -32,10 +32,15 @@ jobs:
           # Export all vars so docker-compose variable substitution works (postgres, redis, minio passwords)
           set -a; source /share/Container/homeguard/.env 2>/dev/null || true; set +a
 
-          # Build admin first with --no-cache (takes 8-12 min) — do it before stopping services
-          # to minimise downtime. api/nginx/vendor build with cache after.
-          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin
-          docker compose -f infrastructure/docker-compose.staging.yml build api nginx vendor
+          # Build admin AND vendor first with --no-cache — do it before stopping services to
+          # minimise downtime. Both are Next.js standalone builds; a stale cached layer can
+          # silently drop .next/standalone/server.js from the final image, which typechecks/
+          # builds fine but crash-loops the container at runtime with MODULE_NOT_FOUND. Learned
+          # this the hard way with admin first (2026-07-15), then vendor hit the exact same bug
+          # 2026-07-19 because it was still building with cache. api/nginx build with cache after
+          # — NestJS/static-config builds aren't prone to this failure mode.
+          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin vendor
+          docker compose -f infrastructure/docker-compose.staging.yml build api nginx
 
           # Stop containers (not down — down removes the network which causes QNAP dnsmasq NAT errors)
           docker compose -f infrastructure/docker-compose.staging.yml stop || true
