@@ -20,6 +20,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ### Added
 - **api, admin, vendor**: Vendor service-area coverage now runs on **counties a vendor company explicitly selects**, not a single base ZIP + travel radius. Public/customer-facing ZIP checks resolve to a county server-side via a bundled US Census ZCTA-to-county dataset. Currently launches with Tennessee as the only selectable state (`ENABLED_SERVICE_STATES` in `apps/api/src/common/config/enabled-service-states.ts`) — opening a new state later is a one-line config change, not a data or UI rebuild. Legacy ZIP+radius data is kept as an automatic fallback for any company that hasn't set counties yet, so existing coverage doesn't regress. See `[[project_service_area_matching]]` (project memory) for the prior ZIP+radius model this replaces.
+- **mobile**: The dashboard's "What does your home need?" card now auto-scrolls into view (smooth, animated) when a customer taps a service-group icon, instead of leaving the newly-revealed service list below the fold whenever the card sits low on the page. The revealed list also fades/slides in rather than popping in instantly. Reuses the same scroll-into-view pattern the search bar already had (`ServiceSearchCard`) and the same Reanimated-based transition approach already used for the schedule screen's calendar swipe, for consistency.
+- **docs**: First documentation of any kind added to this repo — a root `README.md` plus one per app, and `docs/deployment.md` / `docs/mobile-build.md` / `docs/troubleshooting.md` promoting operational knowledge (deploy pipeline, QNAP specifics, mobile build process, known platform gotchas) that previously only existed in the assistant's private memory files, so it's visible to any human teammate or future session.
+
+### Changed
+- **infra**: Swagger/OpenAPI docs (`/api/docs`) were found to be live and publicly reachable at `https://api.attenteve.com/api/docs` with no access gate — an unintended side effect of the 2026-07-17 public-gateway widening (done for the mobile app's benefit, not for exposing API docs). Restricted to the internal network only (`infrastructure/nginx/nginx.conf`); still reachable at `http://192.168.86.29/api/docs`.
 
 ## 2026-07-18
 

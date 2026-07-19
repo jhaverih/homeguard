@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi, paymentsApi, pricingApi } from '../../src/services/api';
@@ -135,11 +136,39 @@ const GROUP_META = [
 // of every group's filtered list — since only one group is expanded at a
 // time this also means it won't reappear if the customer switches groups —
 // and reappears only as a removable chip in the selection summary below.
-function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription }: { catalog: any[]; availableCapabilityIds: Set<string> | 'all'; subscription: any }) {
+function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription, scrollViewRef }: { catalog: any[]; availableCapabilityIds: Set<string> | 'all'; subscription: any; scrollViewRef: React.RefObject<ScrollView | null> }) {
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const cardY = useRef(0);
+  const listOpacity = useSharedValue(0);
+  const listTranslateY = useSharedValue(8);
+  const animatedListStyle = useAnimatedStyle(() => ({
+    opacity: listOpacity.value,
+    transform: [{ translateY: listTranslateY.value }],
+  }));
 
   const toggleGroup = (key: string) => setActiveGroup((prev) => (prev === key ? null : key));
+
+  // Opening a group (not closing one) reveals a list that's often below the
+  // fold — scroll the card up so it's visible instead of leaving the
+  // customer to find it, and fade/slide the list in rather than popping it
+  // in instantly. Scrolling the card to the top of the ScrollView is
+  // naturally capped at the fixed black nav header (outside the ScrollView,
+  // see (customer)/_layout.tsx) — there's nothing above the card to scroll
+  // past, so no separate clamp is needed. Same 100ms-settle delay
+  // ServiceSearchCard already uses before its own scrollTo, so the
+  // just-expanded list has laid out before we measure/scroll to it.
+  useEffect(() => {
+    if (!activeGroup) return;
+    listOpacity.value = 0;
+    listTranslateY.value = 8;
+    listOpacity.value = withTiming(1, { duration: 220 });
+    listTranslateY.value = withTiming(0, { duration: 220 });
+    const t = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, cardY.current - 12), animated: true });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [activeGroup]);
 
   const toggleService = (id: string) => {
     setSelectedIds((prev) => {
@@ -173,7 +202,7 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription }: { 
   };
 
   return (
-    <View style={styles.groupsCard}>
+    <View style={styles.groupsCard} onLayout={(e) => { cardY.current = e.nativeEvent.layout.y; }}>
       <View style={styles.groupsHeader}>
         <Text style={styles.groupsTitle}>What does your home need?</Text>
         {subscription && (
@@ -205,7 +234,7 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription }: { 
       </View>
 
       {activeGroup && (
-        <View style={styles.groupList}>
+        <Animated.View style={[styles.groupList, animatedListStyle]}>
           {groupItems.length === 0 ? (
             <Text style={styles.groupEmpty}>
               {catalog.some((i) => i.serviceGroups?.includes(activeGroup) && selectedIds.has(i.id))
@@ -225,7 +254,7 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription }: { 
               </TouchableOpacity>
             ))
           )}
-        </View>
+        </Animated.View>
       )}
 
       {selectedItems.length > 0 && (
@@ -457,7 +486,7 @@ export default function CustomerDashboard() {
       <ServiceSearchCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} scrollViewRef={dashScrollRef} />
 
       {subscription ? (
-        <ServiceGroupsCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} subscription={subscription} />
+        <ServiceGroupsCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} subscription={subscription} scrollViewRef={dashScrollRef} />
       ) : (
         <TouchableOpacity style={styles.noSubCard} onPress={() => router.push('/(customer)/subscribe')}>
           <Text style={styles.noSubTitle}>No Active Subscription</Text>
