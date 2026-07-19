@@ -39,6 +39,15 @@ export const subscriptionsApi = {
   updatePlan: (id: string, data: any) => api.patch(`/subscriptions/plans/${id}`, data).then((r) => r.data),
 };
 
+export const marketplaceApi = {
+  getConfig: () => api.get('/marketplace/house-cleaning/config').then((r) => r.data),
+  updatePlan: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/plans/${id}`, data).then((r) => r.data),
+  updateRoomUnit: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/room-units/${id}`, data).then((r) => r.data),
+  updateCondition: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/conditions/${id}`, data).then((r) => r.data),
+  updateAddOn: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/add-ons/${id}`, data).then((r) => r.data),
+  updateFrequencyDiscount: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/frequency-discounts/${id}`, data).then((r) => r.data),
+};
+
 export const disputesApi = {
   getAll: () => api.get('/disputes').then((r) => r.data),
   resolve: (id: string, resolution: string, note: string) =>

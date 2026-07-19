@@ -91,6 +91,14 @@ export class ServiceRequest {
   @Column({ nullable: true })
   servicePriceId: string | null;
 
+  // Set for a visit generated from a MarketplaceSubscription's recurring
+  // cadence (MarketplaceVisitSchedulerService) — signals the completion-charge
+  // flow (ServiceRequestsService.updateStatus) to skip creating a per-visit
+  // PaymentIntent, since it's already covered by the subscription's monthly
+  // Stripe charge.
+  @Column({ nullable: true })
+  marketplaceSubscriptionId: string | null;
+
   @Column()
   address: string;
 

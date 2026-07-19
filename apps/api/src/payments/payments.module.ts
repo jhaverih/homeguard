@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
@@ -9,6 +9,7 @@ import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-pa
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { MarketplaceModule } from '../marketplace/marketplace.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     NotificationsModule,
     UsersModule,
     SubscriptionsModule,
+    forwardRef(() => MarketplaceModule),
   ],
   providers: [PaymentsService],
   controllers: [PaymentsController],

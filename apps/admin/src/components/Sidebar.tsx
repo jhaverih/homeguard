@@ -10,6 +10,7 @@ const links = [
   { href: '/', label: 'Dashboard', icon: '📊' },
   { href: '/calendar', label: 'Calendar', icon: '📅' },
   { href: '/pricing', label: 'Services', icon: '💰' },
+  { href: '/marketplace', label: 'Marketplace', icon: '🧺' },
   { href: '/vendors', label: 'Vendors', icon: '🔧' },
   { href: '/customers', label: 'Customers', icon: '🏠' },
   { href: '/subscriptions', label: 'Subscriptions', icon: '📋' },

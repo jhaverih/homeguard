@@ -45,13 +45,15 @@ export function MaintainIcon({ size = 22, color = '#C97F1F' }: IconProps) {
   );
 }
 
-export function InstallIcon({ size = 22, color = '#C97F1F' }: IconProps) {
+// INSTALL merged into IMPROVE 2026-07-19 — removed here, see service-group.enum.ts.
+
+export function MarketplaceIcon({ size = 22, color = '#C97F1F' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M3 9h18v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18z" />
-      <Path d="M8 9V6.5A1.5 1.5 0 019.5 5h5A1.5 1.5 0 0116 6.5V9" />
-      <Path d="M3 13h18" />
-      <Rect x={10.5} y={11.5} width={3} height={3} rx={0.6} />
+      <Path d="M4 9l1.2-4.5h13.6L20 9" />
+      <Path d="M4 9a2 2 0 004 0 2 2 0 004 0 2 2 0 004 0 2 2 0 004 0" />
+      <Rect x={5} y={11} width={14} height={9} rx={1} />
+      <Path d="M10 20v-4a2 2 0 014 0v4" />
     </Svg>
   );
 }

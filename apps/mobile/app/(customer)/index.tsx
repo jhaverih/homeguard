@@ -12,13 +12,23 @@ import { subscriptionsApi, requestsApi, paymentsApi, pricingApi } from '../../sr
 import { fmtUSD } from '../../src/utils/currency';
 import { formatRelativeAge } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
-import { InspectIcon, RepairIcon, ImproveIcon, MaintainIcon, InstallIcon } from '../../src/components/ServiceGroupIcons';
+import { InspectIcon, RepairIcon, ImproveIcon, MaintainIcon, MarketplaceIcon } from '../../src/components/ServiceGroupIcons';
 
 // A service with no requiredCapabilityId is open to any vendor — always
 // available. 'all' means the availability fetch hasn't resolved (or the
 // customer has no zip on file) — fail open, don't hide/flag anything.
 const isServiceAvailable = (item: any, availableCapabilityIds: Set<string> | 'all') =>
   !item.requiredCapabilityId || availableCapabilityIds === 'all' || availableCapabilityIds.has(item.requiredCapabilityId);
+
+// Categories with a dedicated configuration flow (BCU/condition/add-on
+// pricing) instead of the standard request.tsx browse-and-book screen —
+// only House Cleaning has one built so far; Lawn & Landscaping/Pest Control
+// are category placeholders with no catalog item yet.
+const MARKETPLACE_CATEGORIES = new Set(['HOUSE_CLEANING']);
+const routeForItem = (item: any) =>
+  MARKETPLACE_CATEGORIES.has(item.category)
+    ? { pathname: '/(customer)/marketplace-house-cleaning' as const }
+    : { pathname: '/(customer)/request' as const, params: { preselectServicePriceId: item.id } };
 
 function ServiceSearchCard({ catalog, availableCapabilityIds, scrollViewRef }: { catalog: any[]; availableCapabilityIds: Set<string> | 'all'; scrollViewRef: React.RefObject<ScrollView | null> }) {
   const [query, setQuery] = useState('');
@@ -35,7 +45,7 @@ function ServiceSearchCard({ catalog, availableCapabilityIds, scrollViewRef }: {
 
   const selectService = (item: any) => {
     setQuery('');
-    router.push({ pathname: '/(customer)/request', params: { preselectServicePriceId: item.id } });
+    router.push(routeForItem(item) as any);
   };
 
   const notifyMe = async (item: any) => {
@@ -125,7 +135,7 @@ const GROUP_META = [
   { key: 'REPAIR', label: 'Repair', Icon: RepairIcon },
   { key: 'IMPROVE', label: 'Improve', Icon: ImproveIcon },
   { key: 'MAINTAIN', label: 'Maintain', Icon: MaintainIcon },
-  { key: 'INSTALL', label: 'Install', Icon: InstallIcon },
+  { key: 'MARKETPLACE', label: 'Marketplace', Icon: MarketplaceIcon },
 ];
 
 // Replaces the old Plan/+Request Service card. Tapping a group icon filters
@@ -244,15 +254,22 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription, scro
                 : 'No services tagged for this group yet.'}
             </Text>
           ) : (
-            groupItems.map((item) => (
-              <TouchableOpacity key={item.id} style={styles.groupItemRow} onPress={() => toggleService(item.id)}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.groupItemName}>{item.name}</Text>
-                  {!!item.description && <Text style={styles.groupItemDesc} numberOfLines={1}>{item.description}</Text>}
-                </View>
-                <Ionicons name="add-circle-outline" size={22} color={colors.lanternDeep} />
-              </TouchableOpacity>
-            ))
+            groupItems.map((item) => {
+              const isMarketplace = MARKETPLACE_CATEGORIES.has(item.category);
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.groupItemRow}
+                  onPress={() => (isMarketplace ? router.push(routeForItem(item) as any) : toggleService(item.id))}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.groupItemName}>{item.name}</Text>
+                    {!!item.description && <Text style={styles.groupItemDesc} numberOfLines={1}>{item.description}</Text>}
+                  </View>
+                  <Ionicons name={isMarketplace ? 'chevron-forward' : 'add-circle-outline'} size={22} color={colors.lanternDeep} />
+                </TouchableOpacity>
+              );
+            })
           )}
         </Animated.View>
       )}

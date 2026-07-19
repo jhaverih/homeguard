@@ -1,11 +1,12 @@
 import {
   Controller, Post, Get, Patch, Delete, Param, Body, Headers, RawBodyRequest,
-  UseGuards, Request, Req, HttpCode, HttpStatus, Header,
+  UseGuards, Request, Req, HttpCode, HttpStatus, Header, Inject, forwardRef,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { MarketplaceService } from '../marketplace/marketplace.service';
 
 const ONBOARDING_HTML = (title: string, icon: string, body: string) =>
   `<!DOCTYPE html><html><head><title>HomeGuard</title>
@@ -20,6 +21,8 @@ export class PaymentsController {
   constructor(
     private readonly service: PaymentsService,
     private readonly subscriptionsService: SubscriptionsService,
+    @Inject(forwardRef(() => MarketplaceService))
+    private readonly marketplaceService: MarketplaceService,
   ) {}
 
   @Post('vendor/onboarding')
@@ -140,9 +143,15 @@ export class PaymentsController {
     let parsed: any;
     try { parsed = JSON.parse(req.rawBody.toString()); } catch { parsed = {}; }
 
+    // Both handlers independently no-op if the event's stripeSubscriptionId
+    // isn't theirs (a plain repo lookup that finds nothing) — simpler and
+    // more robust than metadata-based routing, and each subscription type's
+    // webhook logic stays fully encapsulated in its own service.
     const subEvents = ['invoice.payment_succeeded', 'invoice.payment_failed', 'customer.subscription.deleted'];
     if (subEvents.includes(parsed?.type)) {
-      return this.subscriptionsService.handleSubscriptionWebhook(parsed);
+      await this.subscriptionsService.handleSubscriptionWebhook(parsed);
+      await this.marketplaceService.handleSubscriptionWebhook(parsed);
+      return;
     }
 
     return this.service.handleWebhook(req.rawBody, sig);

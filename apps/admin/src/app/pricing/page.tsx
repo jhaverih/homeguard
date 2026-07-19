@@ -72,6 +72,9 @@ const CATEGORIES: { value: string; label: string }[] = [
   { value: 'MOUNTING_INSTALLATIONS', label: 'Mounting and Installations' },
   { value: 'CARPENTRY_ASSEMBLY', label: 'Carpentry and Assembly' },
   { value: 'EXTERIOR_OUTDOOR_SERVICES', label: 'Exterior and Outdoor Services' },
+  { value: 'HOUSE_CLEANING', label: 'House Cleaning' },
+  { value: 'LAWN_LANDSCAPING', label: 'Lawn & Landscaping' },
+  { value: 'PEST_CONTROL', label: 'Pest Control' },
 ];
 const CATEGORY_RANK = new Map(CATEGORIES.map((c, i) => [c.value, i]));
 const categoryLabel = (v: string | null) => CATEGORIES.find((c) => c.value === v)?.label ?? 'Uncategorized';
@@ -95,7 +98,7 @@ const SERVICE_GROUPS: { value: string; label: string }[] = [
   { value: 'REPAIR', label: 'Repair' },
   { value: 'IMPROVE', label: 'Improve' },
   { value: 'MAINTAIN', label: 'Maintain' },
-  { value: 'INSTALL', label: 'Install' },
+  { value: 'MARKETPLACE', label: 'Marketplace' },
 ];
 const SERVICE_GROUP_VALUES = new Set(SERVICE_GROUPS.map((g) => g.value));
 // Accepts comma- or semicolon-separated values in one CSV cell (e.g.

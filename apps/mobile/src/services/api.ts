@@ -144,6 +144,17 @@ export const pricingApi = {
   notifyMe: (servicePriceId: string) => api.post(`/pricing/${servicePriceId}/notify-me`),
 };
 
+export const marketplaceApi = {
+  getConfig: (): Promise<{
+    plans: any[]; roomUnits: any[]; conditions: any[]; addOns: any[]; frequencyDiscounts: any[];
+  }> => api.get('/marketplace/house-cleaning/config') as any,
+  quote: (body: any): Promise<{ perVisitCost: number; monthlyPrice: number | null; quoteRequired: boolean }> =>
+    api.post('/marketplace/house-cleaning/quote', body) as any,
+  subscribe: (body: any): Promise<{ clientSecret: string | null; subscriptionId: string }> =>
+    api.post('/marketplace/house-cleaning/subscribe', body) as any,
+  bookOneTime: (body: any) => api.post('/marketplace/house-cleaning/one-time', body),
+};
+
 export const standaloneServiceApi = {
   create: (body: any) => api.post('/service-requests/standalone', body),
 };

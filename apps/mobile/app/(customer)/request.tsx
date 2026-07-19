@@ -69,7 +69,7 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
   );
 }
 
-const CATEGORY_ORDER = ['INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUSTMENTS', 'MINOR_PLUMBING_FIXES', 'MOUNTING_INSTALLATIONS', 'CARPENTRY_ASSEMBLY', 'EXTERIOR_OUTDOOR_SERVICES'];
+const CATEGORY_ORDER = ['INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUSTMENTS', 'MINOR_PLUMBING_FIXES', 'MOUNTING_INSTALLATIONS', 'CARPENTRY_ASSEMBLY', 'EXTERIOR_OUTDOOR_SERVICES', 'HOUSE_CLEANING', 'LAWN_LANDSCAPING', 'PEST_CONTROL'];
 
 // Explicit display order for the 3 inspection-named catalog items, which all
 // carry category: null (so they'd otherwise just follow catalog/creation
@@ -88,6 +88,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   MOUNTING_INSTALLATIONS: 'Mounting and Installations',
   CARPENTRY_ASSEMBLY: 'Carpentry and Assembly',
   EXTERIOR_OUTDOOR_SERVICES: 'Exterior and Outdoor Services',
+  HOUSE_CLEANING: 'House Cleaning',
+  LAWN_LANDSCAPING: 'Lawn & Landscaping',
+  PEST_CONTROL: 'Pest Control',
 };
 
 // Unit Label is now a fixed enum on the backend (not free text), so this

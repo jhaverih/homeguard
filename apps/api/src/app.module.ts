@@ -25,6 +25,7 @@ import { YolinkModule } from './yolink/yolink.module';
 import { VendorModule } from './vendor/vendor.module';
 import { CancellationFeedbackModule } from './cancellation-feedback/cancellation-feedback.module';
 import { ServiceAreaModule } from './service-area/service-area.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { ServiceAreaModule } from './service-area/service-area.module';
     VendorModule,
     CancellationFeedbackModule,
     ServiceAreaModule,
+    MarketplaceModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
