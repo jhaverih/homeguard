@@ -473,6 +473,97 @@ const WATER_HEATER_TASKS: SeedTask[] = [
   { key: 'water_heater_leak.tank_area_dry', label: 'Area around heater is dry', description: 'Tank Condition', promptFields: [], catalogLinks: [] },
 ];
 
+// Exterior Inspection subgroup — 9 checklists, added 2026-07-20.
+const FOUNDATION_TASKS: SeedTask[] = [
+  { key: 'foundation.cracks', label: 'No visible cracks larger than 1/8"', description: 'Visible Foundation', promptFields: [], catalogLinks: [] },
+  { key: 'foundation.separation', label: 'No significant foundation separation', description: 'Visible Foundation', promptFields: [], catalogLinks: [] },
+  { key: 'foundation.shifting', label: 'No signs of shifting or settlement', description: 'Visible Foundation', promptFields: [], catalogLinks: [] },
+  { key: 'foundation.slope', label: 'Ground slopes away from foundation', description: 'Grading & Drainage', promptFields: [], catalogLinks: [] },
+  { key: 'foundation.standing_water', label: 'No standing water near foundation', description: 'Grading & Drainage', promptFields: [], catalogLinks: [] },
+  { key: 'foundation.erosion', label: 'No erosion around foundation', description: 'Grading & Drainage', promptFields: [], catalogLinks: [] },
+];
+
+const SIDING_TASKS: SeedTask[] = [
+  { key: 'siding.cracked_panels', label: 'No cracked siding panels', description: 'Exterior Walls', promptFields: [], catalogLinks: [] },
+  { key: 'siding.missing_pieces', label: 'No missing siding pieces', description: 'Exterior Walls', promptFields: [], catalogLinks: [] },
+  { key: 'siding.loose_siding', label: 'No loose siding', description: 'Exterior Walls', promptFields: [], catalogLinks: [] },
+  { key: 'siding.soft_spots', label: 'No soft spots', description: 'Moisture Damage', promptFields: [], catalogLinks: [] },
+  { key: 'siding.water_stains', label: 'No water stains', description: 'Moisture Damage', promptFields: [], catalogLinks: [] },
+  { key: 'siding.mold_mildew', label: 'No visible mold or mildew', description: 'Moisture Damage', promptFields: [], catalogLinks: [] },
+  { key: 'siding.paint_condition', label: 'Paint in good condition', description: 'Paint Condition', promptFields: [], catalogLinks: [] },
+  { key: 'siding.paint_peeling', label: 'No excessive peeling', description: 'Paint Condition', promptFields: [], catalogLinks: [] },
+  { key: 'siding.exposed_wood', label: 'No exposed wood', description: 'Paint Condition', promptFields: [], catalogLinks: [] },
+];
+
+const TRIM_FASCIA_TASKS: SeedTask[] = [
+  { key: 'trim_fascia.wood_rot', label: 'No visible wood rot', description: 'Exterior Trim', promptFields: [], catalogLinks: [] },
+  { key: 'trim_fascia.attached', label: 'Trim securely attached', description: 'Exterior Trim', promptFields: [], catalogLinks: [] },
+  { key: 'trim_fascia.joint_gaps', label: 'No significant gaps at joints', description: 'Exterior Trim', promptFields: [], catalogLinks: [] },
+  { key: 'trim_fascia.paint_intact', label: 'Paint intact', description: 'Paint', promptFields: [], catalogLinks: [] },
+  { key: 'trim_fascia.paint_peeling', label: 'No peeling paint', description: 'Paint', promptFields: [], catalogLinks: [] },
+  { key: 'trim_fascia.fascia_damage', label: 'No visible damage', description: 'Fascia', promptFields: [], catalogLinks: [] },
+  { key: 'trim_fascia.fascia_water', label: 'No signs of water intrusion', description: 'Fascia', promptFields: [], catalogLinks: [] },
+];
+
+// "Roof (Ground/Binocular Inspection Only)" — visual-only, matching the
+// same caution already applied to the Water Heater checklist.
+const ROOF_EXTERIOR_TASKS: SeedTask[] = [
+  { key: 'roof_exterior.missing_shingles', label: 'No missing shingles visible', description: 'Roof Covering — ground/binocular inspection only', promptFields: [], catalogLinks: [] },
+  { key: 'roof_exterior.damaged_shingles', label: 'No curling or damaged shingles visible', description: 'Roof Covering — ground/binocular inspection only', promptFields: [], catalogLinks: [] },
+  { key: 'roof_exterior.roofline', label: 'Roofline appears straight', description: 'Roof Covering — ground/binocular inspection only', promptFields: [], catalogLinks: [] },
+  { key: 'roof_exterior.flashing_secure', label: 'Flashing appears secure', description: 'Flashing', promptFields: [], catalogLinks: [] },
+  { key: 'roof_exterior.flashing_rust', label: 'No visible rust or separation', description: 'Flashing', promptFields: [], catalogLinks: [] },
+  { key: 'roof_exterior.valleys_debris', label: 'Valleys free of debris', description: 'Roof Debris', promptFields: [], catalogLinks: [] },
+  { key: 'roof_exterior.branches', label: 'No excessive branches on roof', description: 'Roof Debris', promptFields: [], catalogLinks: [] },
+];
+
+const GUTTERS_TASKS: SeedTask[] = [
+  { key: 'gutters.debris', label: 'Gutters appear free of major debris', description: 'Gutters', promptFields: [], catalogLinks: [] },
+  { key: 'gutters.aligned', label: 'Gutters properly aligned', description: 'Gutters', promptFields: [], catalogLinks: [] },
+  { key: 'gutters.fascia_separation', label: 'No visible separation from fascia', description: 'Gutters', promptFields: [], catalogLinks: [] },
+  { key: 'gutters.downspouts_attached', label: 'Downspouts securely attached', description: 'Downspouts', promptFields: [], catalogLinks: [] },
+  { key: 'gutters.water_directed', label: 'Water directed away from foundation', description: 'Downspouts', promptFields: [], catalogLinks: [] },
+  { key: 'gutters.extensions', label: 'Extensions present where needed', description: 'Downspouts', promptFields: [], catalogLinks: [] },
+  { key: 'gutters.staining', label: 'No staining below gutters', description: 'Water Indicators', promptFields: [], catalogLinks: [] },
+  { key: 'gutters.overflow', label: 'No overflow marks', description: 'Water Indicators', promptFields: [], catalogLinks: [] },
+];
+
+const WINDOWS_DOORS_TASKS: SeedTask[] = [
+  { key: 'windows_doors.sealant', label: 'Sealant intact', description: 'Caulking', promptFields: [], catalogLinks: [] },
+  { key: 'windows_doors.gaps', label: 'No visible gaps', description: 'Caulking', promptFields: [], catalogLinks: [] },
+  { key: 'windows_doors.trim_rot', label: 'Trim free of rot', description: 'Trim', promptFields: [], catalogLinks: [] },
+  { key: 'windows_doors.trim_paint', label: 'Paint in good condition', description: 'Trim', promptFields: [], catalogLinks: [] },
+  { key: 'windows_doors.water_stains', label: 'No visible water stains', description: 'Moisture', promptFields: [], catalogLinks: [] },
+  { key: 'windows_doors.mold', label: 'No mold or mildew', description: 'Moisture', promptFields: [], catalogLinks: [] },
+];
+
+const DECK_PORCH_TASKS: SeedTask[] = [
+  { key: 'deck_porch.railings', label: 'Railings secure', description: 'Safety', promptFields: [], catalogLinks: [] },
+  { key: 'deck_porch.stairs', label: 'Stairs stable', description: 'Safety', promptFields: [], catalogLinks: [] },
+  { key: 'deck_porch.loose_boards', label: 'No loose deck boards', description: 'Safety', promptFields: [], catalogLinks: [] },
+  { key: 'deck_porch.rot', label: 'No visible rot', description: 'Wood Condition', promptFields: [], catalogLinks: [] },
+  { key: 'deck_porch.cracking', label: 'No major cracking or splitting', description: 'Wood Condition', promptFields: [], catalogLinks: [] },
+  { key: 'deck_porch.fasteners', label: 'Fasteners secure', description: 'Hardware', promptFields: [], catalogLinks: [] },
+  { key: 'deck_porch.missing_hardware', label: 'No missing hardware', description: 'Hardware', promptFields: [], catalogLinks: [] },
+];
+
+const CONCRETE_TASKS: SeedTask[] = [
+  { key: 'concrete.trip_hazards', label: 'No trip hazards', description: 'Walkways/Driveways', promptFields: [], catalogLinks: [] },
+  { key: 'concrete.major_cracks', label: 'No major cracks', description: 'Walkways/Driveways', promptFields: [], catalogLinks: [] },
+  { key: 'concrete.settlement', label: 'No significant settlement', description: 'Walkways/Driveways', promptFields: [], catalogLinks: [] },
+  { key: 'concrete.joints_intact', label: 'Joints intact', description: 'Expansion Joints', promptFields: [], catalogLinks: [] },
+  { key: 'concrete.joints_deterioration', label: 'No excessive deterioration', description: 'Expansion Joints', promptFields: [], catalogLinks: [] },
+];
+
+const VEGETATION_TASKS: SeedTask[] = [
+  { key: 'vegetation.branches_roof', label: 'No branches touching roof', description: 'Trees', promptFields: [], catalogLinks: [] },
+  { key: 'vegetation.branches_siding', label: 'No branches contacting siding', description: 'Trees', promptFields: [], catalogLinks: [] },
+  { key: 'vegetation.shrubs_trimmed', label: 'Shrubs trimmed away from house', description: 'Shrubs', promptFields: [], catalogLinks: [] },
+  { key: 'vegetation.vents_blocked', label: 'No vegetation blocking vents', description: 'Shrubs', promptFields: [], catalogLinks: [] },
+  { key: 'vegetation.drainage_paths', label: 'Drainage paths unobstructed', description: 'Drainage', promptFields: [], catalogLinks: [] },
+  { key: 'vegetation.downspouts_blocked', label: 'No vegetation blocking downspouts', description: 'Drainage', promptFields: [], catalogLinks: [] },
+];
+
 @Injectable()
 export class InspectionChecklistSeedService implements OnModuleInit {
   private readonly logger = new Logger(InspectionChecklistSeedService.name);
@@ -490,6 +581,7 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     const hvacVisualSub = await this.ensureSubgroup(group.id, 'HVAC_VISUAL_INSPECTION', 'HVAC Visual Inspection', 0);
     const ahuFiltersSub = await this.ensureSubgroup(group.id, 'AHU_FILTERS', 'AHU Filters', 1);
     const leakSub = await this.ensureSubgroup(group.id, 'LEAK_INSPECTION', 'Leak Inspection', 2);
+    const exteriorSub = await this.ensureSubgroup(group.id, 'EXTERIOR_INSPECTION', 'Exterior Inspection', 3);
 
     const hvacVisualSection = await this.ensureSection(hvacVisualSub.id, 'hvac_visual', 'HVAC Visual Inspection', 0);
     const ahuFiltersSection = await this.ensureSection(ahuFiltersSub.id, 'hvac_filter', 'AHU Filters', 0);
@@ -504,6 +596,25 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     const waterHeaterSection = await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 5,
       'Visual inspection only — do not operate the water heater or its valves. Recommended photos if an issue is found: full water heater, supply connections, drain pan, any signs of corrosion or leaks.');
 
+    const foundationSection = await this.ensureSection(exteriorSub.id, 'foundation', 'Foundation', 0,
+      'Recommended photos if an issue is found: front foundation, any cracks, drainage concerns.');
+    const sidingSection = await this.ensureSection(exteriorSub.id, 'siding', 'Siding', 1,
+      'Recommended photos if an issue is found: damaged siding, paint deterioration, moisture damage.');
+    const trimFasciaSection = await this.ensureSection(exteriorSub.id, 'trim_fascia', 'Trim & Fascia', 2,
+      'Recommended photos if an issue is found: rot, loose trim, peeling paint.');
+    const roofExteriorSection = await this.ensureSection(exteriorSub.id, 'roof_exterior', 'Roof (Ground/Binocular Inspection Only)', 3,
+      'Ground/binocular inspection only — do not access the roof. Recommended photos if an issue is found: missing shingles, debris accumulation, flashing issues.');
+    const guttersSection = await this.ensureSection(exteriorSub.id, 'gutters', 'Gutters', 4,
+      'Recommended photos if an issue is found: debris, sagging gutters, downspout discharge.');
+    const windowsDoorsSection = await this.ensureSection(exteriorSub.id, 'windows_doors', 'Windows & Exterior Doors', 5,
+      'Recommended photos if an issue is found: failed caulking, damaged trim, moisture stains.');
+    const deckPorchSection = await this.ensureSection(exteriorSub.id, 'deck_porch', 'Deck / Porch', 6,
+      'Recommended photos if an issue is found: loose railings, rot, damaged stairs.');
+    const concreteSection = await this.ensureSection(exteriorSub.id, 'concrete', 'Concrete Surfaces', 7,
+      'Recommended photos if an issue is found: trip hazards, settlement, cracked concrete.');
+    const vegetationSection = await this.ensureSection(exteriorSub.id, 'vegetation', 'Vegetation', 8,
+      'Recommended photos if an issue is found: trees over roof, vegetation against siding, drainage issues.');
+
     await this.ensureTasks(hvacVisualSection.id, HVAC_VISUAL_TASKS);
     await this.ensureTasks(ahuFiltersSection.id, AHU_FILTERS_TASKS);
     await this.ensureTasks(toiletsSection.id, TOILETS_TASKS);
@@ -512,6 +623,15 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     await this.ensureTasks(kitchenSection.id, KITCHEN_TASKS);
     await this.ensureTasks(laundrySection.id, LAUNDRY_TASKS);
     await this.ensureTasks(waterHeaterSection.id, WATER_HEATER_TASKS);
+    await this.ensureTasks(foundationSection.id, FOUNDATION_TASKS);
+    await this.ensureTasks(sidingSection.id, SIDING_TASKS);
+    await this.ensureTasks(trimFasciaSection.id, TRIM_FASCIA_TASKS);
+    await this.ensureTasks(roofExteriorSection.id, ROOF_EXTERIOR_TASKS);
+    await this.ensureTasks(guttersSection.id, GUTTERS_TASKS);
+    await this.ensureTasks(windowsDoorsSection.id, WINDOWS_DOORS_TASKS);
+    await this.ensureTasks(deckPorchSection.id, DECK_PORCH_TASKS);
+    await this.ensureTasks(concreteSection.id, CONCRETE_TASKS);
+    await this.ensureTasks(vegetationSection.id, VEGETATION_TASKS);
   }
 
   private async ensureGroup(key: string, label: string, sortOrder: number) {
