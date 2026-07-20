@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Added
+- **api, admin**: New `ServiceCategory` value `INSPECTIONS` ("Inspections"), available in the admin Services Catalog's Category dropdown alongside the existing trade categories.
+
 ### Fixed
 - **api**: `GET /subscriptions/plans` had no `ORDER BY`, so the three plans could render in an arbitrary/inconsistent order (e.g. Premium, Basic, Standard). Now always sorted Basic → Standard → Premium — fixes ordering on the admin Services page and every mobile screen that lists plans (My Plan, signup).
 

@@ -1,4 +1,5 @@
 export enum ServiceCategory {
+  INSPECTIONS = 'INSPECTIONS',
   INTERIOR_REPAIRS_MAINTENANCE = 'INTERIOR_REPAIRS_MAINTENANCE',
   MINOR_ELECTRICAL_ADJUSTMENTS = 'MINOR_ELECTRICAL_ADJUSTMENTS',
   MINOR_PLUMBING_FIXES = 'MINOR_PLUMBING_FIXES',
@@ -18,6 +19,7 @@ export enum ServiceCategory {
 // resolve the matching vendor-skill-group capability once per category.
 // sortOrder: display/grouping order (doesn't match alphabetical enum order).
 export const SERVICE_CATEGORY_META: Record<ServiceCategory, { label: string; capabilityName: string; sortOrder: number }> = {
+  [ServiceCategory.INSPECTIONS]: { label: 'Inspections', capabilityName: 'Interior Repairs & Maintenance', sortOrder: 0 },
   [ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE]: { label: 'Interior Repairs and Maintenance', capabilityName: 'Interior Repairs & Maintenance', sortOrder: 1 },
   [ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS]: { label: 'Minor Electrical Adjustments', capabilityName: 'Minor Electrical Adjustments', sortOrder: 2 },
   [ServiceCategory.MINOR_PLUMBING_FIXES]: { label: 'Minor Plumbing Fixes', capabilityName: 'Minor Plumbing Fixes', sortOrder: 3 },

@@ -66,6 +66,7 @@ const UNIT_LABELS: { value: string; label: string }[] = [
 ];
 
 const CATEGORIES: { value: string; label: string }[] = [
+  { value: 'INSPECTIONS', label: 'Inspections' },
   { value: 'INTERIOR_REPAIRS_MAINTENANCE', label: 'Interior Repairs and Maintenance' },
   { value: 'MINOR_ELECTRICAL_ADJUSTMENTS', label: 'Minor Electrical Adjustments' },
   { value: 'MINOR_PLUMBING_FIXES', label: 'Minor Plumbing Fixes' },
