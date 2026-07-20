@@ -35,7 +35,8 @@ export default function MarketplaceHouseCleaningScreen() {
     marketplaceApi.getConfig().then((c) => {
       setConfig(c);
       const initial: Record<string, number> = {};
-      for (const r of c.roomUnits) initial[r.key] = r.key === 'bedroom' || r.key === 'kitchen' || r.key === 'bathroom_full' ? 1 : 0;
+      const defaultToOne = new Set(['bedroom', 'kitchen', 'bathroom_full', 'dining_room', 'additional_living_room']);
+      for (const r of c.roomUnits) initial[r.key] = defaultToOne.has(r.key) ? 1 : 0;
       setHouseConfig(initial);
     }).catch(() => Alert.alert('Error', 'Could not load House Cleaning options.')).finally(() => setLoading(false));
   }, []);
@@ -104,29 +105,57 @@ export default function MarketplaceHouseCleaningScreen() {
     return true;
   };
 
+  const doSubscribe = async () => {
+    setSubmitting(true);
+    try {
+      const payload = {
+        cleaningType, visitFrequency, houseConfig, conditions: [...selectedConditions], addOns: addOnsPayload,
+        preferredVisitDate: preferredDate.toISOString(),
+      };
+      const res = await marketplaceApi.subscribe(payload);
+      if (!res.charged) {
+        // Rare fallback — the saved card needs additional authentication.
+        const ok = await presentStripeSheet(res.clientSecret);
+        if (!ok) return;
+      }
+      Alert.alert('Subscribed!', `Your House Cleaning membership is active at ${fmtUSD(res.monthlyPrice)}/month. Your first visit is scheduled for ${preferredDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`, [{ text: 'OK', onPress: () => router.back() }]);
+    } catch (e: any) {
+      Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const submit = async () => {
     if (hoardingSelected) {
       Alert.alert('Quote Required', 'This home\'s condition requires a manual quote — please contact support to proceed.');
       return;
     }
     if (!quote || quote.quoteRequired) return;
-    setSubmitting(true);
-    try {
-      const payload = { cleaningType, visitFrequency, houseConfig, conditions: [...selectedConditions], addOns: addOnsPayload };
-      if (visitFrequency === 'ONE_TIME') {
+
+    if (visitFrequency === 'ONE_TIME') {
+      setSubmitting(true);
+      try {
+        const payload = { cleaningType, visitFrequency, houseConfig, conditions: [...selectedConditions], addOns: addOnsPayload };
         await marketplaceApi.bookOneTime({ ...payload, preferredDate: preferredDate.toISOString() });
         Alert.alert('Cleaning Requested!', 'We are finding an available cleaner. You will be notified once one accepts.', [{ text: 'OK', onPress: () => router.back() }]);
-      } else {
-        const res = await marketplaceApi.subscribe(payload);
-        const ok = await presentStripeSheet(res.clientSecret);
-        if (!ok) return;
-        Alert.alert('Subscribed!', `Your House Cleaning membership is active at ${fmtUSD(quote.monthlyPrice!)}/month.`, [{ text: 'OK', onPress: () => router.back() }]);
+      } catch (e: any) {
+        Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
+      } finally {
+        setSubmitting(false);
       }
-    } catch (e: any) {
-      Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
-    } finally {
-      setSubmitting(false);
+      return;
     }
+
+    const visitDateLabel = preferredDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    Alert.alert(
+      'Confirm Subscription',
+      `You'll be billed ${fmtUSD(quote.monthlyPrice ?? 0)}/month starting today, using the card already on file. Your first visit is scheduled for ${visitDateLabel}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Subscribe', onPress: doSubscribe },
+      ],
+    );
   };
 
   if (loading || !config) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
@@ -175,27 +204,34 @@ export default function MarketplaceHouseCleaningScreen() {
           </>
         )}
 
-        {visitFrequency === 'ONE_TIME' && (
-          <>
-            <Text style={styles.sectionLabel}>Preferred Date</Text>
-            <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
-              <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-              <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
-            </TouchableOpacity>
-            {showDate && (
-              <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
-            )}
-          </>
+        <Text style={styles.sectionLabel}>{visitFrequency === 'ONE_TIME' ? 'Preferred Date' : 'Preferred First Visit'}</Text>
+        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+          <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+          <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
+        </TouchableOpacity>
+        {showDate && (
+          <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
         )}
 
         <Text style={styles.sectionLabel}>Home Condition</Text>
         <Text style={styles.helperText}>Select the option that best describes your home, plus anything else that applies.</Text>
-        <View style={styles.conditionGrid}>
-          {config.conditions.map((c) => {
+        <View style={styles.baseTierRow}>
+          {config.conditions.filter((c) => c.isBaseTier).map((c) => {
             const checked = selectedConditions.has(c.key);
             return (
-              <TouchableOpacity key={c.key} style={[styles.conditionChip, checked && styles.conditionChipActive]} onPress={() => toggleCondition(c.key, c.isBaseTier)}>
-                <Ionicons name={checked ? (c.isBaseTier ? 'radio-button-on' : 'checkbox') : (c.isBaseTier ? 'radio-button-off' : 'square-outline')} size={16} color={checked ? colors.lanternDeep : colors.steel} />
+              <TouchableOpacity key={c.key} style={[styles.baseTierChip, checked && styles.conditionChipActive]} onPress={() => toggleCondition(c.key, true)}>
+                <Ionicons name={checked ? 'radio-button-on' : 'radio-button-off'} size={16} color={checked ? colors.lanternDeep : colors.steel} />
+                <Text style={[styles.conditionChipText, checked && styles.conditionChipTextActive]} numberOfLines={2}>{c.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <View style={styles.conditionGrid}>
+          {config.conditions.filter((c) => !c.isBaseTier).map((c) => {
+            const checked = selectedConditions.has(c.key);
+            return (
+              <TouchableOpacity key={c.key} style={[styles.conditionChip, checked && styles.conditionChipActive]} onPress={() => toggleCondition(c.key, false)}>
+                <Ionicons name={checked ? 'checkbox' : 'square-outline'} size={16} color={checked ? colors.lanternDeep : colors.steel} />
                 <Text style={[styles.conditionChipText, checked && styles.conditionChipTextActive]}>{c.label}</Text>
               </TouchableOpacity>
             );
@@ -295,6 +331,8 @@ const styles = StyleSheet.create({
   qtyValue: { fontSize: 15, fontWeight: '700', color: colors.ink, minWidth: 20, textAlign: 'center' },
   dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateBtnText: { fontSize: 15, color: colors.lanternDeep, fontWeight: '500' },
+  baseTierRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  baseTierChip: { flex: 1, minWidth: '30%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: '#fff' },
   conditionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   conditionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: '#fff' },
   conditionChipActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },

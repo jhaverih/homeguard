@@ -16,6 +16,11 @@ class BookOneTimeCleaningDto extends QuoteHouseCleaningDto {
   preferredDate: string;
 }
 
+class SubscribeHouseCleaningDto extends QuoteHouseCleaningDto {
+  @IsDateString()
+  preferredVisitDate: string;
+}
+
 @ApiTags('Marketplace')
 @Controller('marketplace')
 export class MarketplaceController {
@@ -39,7 +44,7 @@ export class MarketplaceController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Customer: subscribe to a recurring House Cleaning plan (Standard/Deep)' })
-  subscribe(@Body() dto: QuoteHouseCleaningDto, @Request() req) {
+  subscribe(@Body() dto: SubscribeHouseCleaningDto, @Request() req) {
     return this.service.subscribe(req.user.id, dto);
   }
 

@@ -37,17 +37,6 @@ export interface HouseCleaningQuote {
   quoteRequired: boolean;
 }
 
-// The next occurrence of the 1st of the month, as a Unix timestamp — always
-// strictly in the future regardless of what day "now" is. Used as every
-// subscription's Stripe billing_cycle_anchor so all Marketplace subscribers
-// land on the same monthly billing date, with proration_behavior handling
-// the partial first period automatically.
-function nextMonthlyBillingAnchor(): number {
-  const now = new Date();
-  const anchor = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0);
-  return Math.floor(anchor.getTime() / 1000);
-}
-
 function advanceVisitDate(from: Date, frequency: VisitFrequency): Date {
   const next = new Date(from);
   if (frequency === VisitFrequency.WEEKLY) next.setDate(next.getDate() + 7);
@@ -120,7 +109,7 @@ export class MarketplaceService implements OnModuleInit {
       { key: 'office', label: 'Office', units: 0.75, sortOrder: 6 },
       { key: 'dining_room', label: 'Dining Room', units: 0.5, sortOrder: 7 },
       { key: 'finished_basement', label: 'Finished Basement', units: 2.0, sortOrder: 8 },
-      { key: 'additional_living_room', label: 'Additional Living Room', units: 1.0, sortOrder: 9 },
+      { key: 'additional_living_room', label: 'Living Room', units: 1.0, sortOrder: 9 },
       { key: 'stairs_flight', label: 'Stairs (per flight)', units: 0.5, sortOrder: 10 },
     ];
     for (const r of roomUnits) {
@@ -261,7 +250,17 @@ export class MarketplaceService implements OnModuleInit {
 
   // ── Subscribe (Standard/Deep, recurring) ──────────────────────────────
 
-  async subscribe(customerId: string, dto: QuoteHouseCleaningDto): Promise<{ clientSecret: string | null; subscriptionId: string }> {
+  // No shared calendar billing anchor — each subscription starts (and bills)
+  // immediately at signup, using the payment method already on file from the
+  // core plan. Avoids the customer-facing problem a shared "everyone bills
+  // on the 1st" anchor has: a late-month signup would wait weeks for their
+  // first visit while an early-month one barely waits at all. The customer's
+  // preferred first-visit date is independent of billing, same as how the
+  // core plan and the Move-Out one-time flow already separate "charge now"
+  // from "schedule separately."
+  async subscribe(customerId: string, dto: QuoteHouseCleaningDto & { preferredVisitDate: string }): Promise<{
+    subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null;
+  }> {
     if (dto.visitFrequency === VisitFrequency.ONE_TIME) {
       throw new BadRequestException('One-time cleanings are booked directly — use /marketplace/house-cleaning/one-time.');
     }
@@ -279,9 +278,22 @@ export class MarketplaceService implements OnModuleInit {
     }
 
     const stripeCustomerId = await this.subscriptionsService.getOrCreateStripeCustomer(customerId);
-    const product = await this.ensureStripeProduct();
-    const anchor = nextMonthlyBillingAnchor();
+    const customer = await this.stripe.customers.retrieve(stripeCustomerId);
+    const defaultPaymentMethod = !('deleted' in customer)
+      ? (customer.invoice_settings?.default_payment_method as string | null)
+      : null;
+    if (!defaultPaymentMethod) {
+      throw new BadRequestException('Add a payment method in Payments before subscribing to a Marketplace service.');
+    }
 
+    const product = await this.ensureStripeProduct();
+
+    // default_payment_method is already attached and off-session-eligible
+    // (the same card that already worked for the core plan), so Stripe
+    // attempts to confirm this first invoice automatically — no PaymentSheet
+    // needed unless that attempt genuinely requires additional
+    // authentication, mirroring PaymentsService.chargeForCompletedService's
+    // "try silently, only surface a client action if it truly needs one" shape.
     const stripeSub = await this.stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{
@@ -292,12 +304,8 @@ export class MarketplaceService implements OnModuleInit {
           recurring: { interval: 'month' },
         },
       }],
-      billing_cycle_anchor: anchor,
-      proration_behavior: 'create_prorations',
+      default_payment_method: defaultPaymentMethod,
       payment_behavior: 'default_incomplete',
-      // Card-only — same reasoning as the core plan's own subscription
-      // creation (no deep-link/return-URL handling for redirect-based methods).
-      payment_settings: { save_default_payment_method: 'on_subscription', payment_method_types: ['card'] },
       expand: ['latest_invoice.payment_intent'],
       metadata: { type: 'marketplace', customerId, cleaningType: dto.cleaningType },
     });
@@ -319,7 +327,7 @@ export class MarketplaceService implements OnModuleInit {
       status: MarketplaceSubscriptionStatus.ACTIVE,
       startDate: now,
       stripeSubscriptionId: stripeSub.id,
-      nextVisitDate: now,
+      nextVisitDate: new Date(dto.preferredVisitDate),
     });
     const saved = await this.subscriptionsRepo.save(record);
 
@@ -330,9 +338,15 @@ export class MarketplaceService implements OnModuleInit {
     }));
 
     const invoice = stripeSub.latest_invoice as Stripe.Invoice;
-    const pi = invoice?.payment_intent as Stripe.PaymentIntent | null;
+    const pi = invoice?.payment_intent as Stripe.PaymentIntent | undefined;
+    const charged = pi?.status === 'succeeded';
 
-    return { clientSecret: pi?.client_secret ?? null, subscriptionId: saved.id };
+    return {
+      subscriptionId: saved.id,
+      monthlyPrice: quote.monthlyPrice,
+      charged,
+      clientSecret: charged ? null : (pi?.client_secret ?? null),
+    };
   }
 
   private async ensureStripeProduct(): Promise<Stripe.Product> {
@@ -366,6 +380,11 @@ export class MarketplaceService implements OnModuleInit {
       city: profile.city,
       state: profile.state,
       zipCode: profile.zipCode,
+      // Move-Out is a one-time exit transaction — a customer moving out has
+      // no ongoing home relationship for a core Attenteve plan to maintain.
+      // Standard/Deep booked as a one-time visit still require one, since
+      // that customer is maintaining a home they're staying in.
+      requireCoreSubscription: dto.cleaningType !== CleaningType.MOVE_OUT,
     });
   }
 

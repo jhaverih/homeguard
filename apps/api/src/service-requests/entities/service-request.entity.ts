@@ -37,12 +37,18 @@ export class ServiceRequest {
   @Column({ nullable: true })
   vendorId: string;
 
-  @ManyToOne(() => CustomerSubscription)
+  // Nullable — null specifically for a subscription-free Move-Out cleaning
+  // (ServiceRequestsService.createMarketplaceBooking with
+  // requireCoreSubscription: false), which deliberately has no core
+  // Attenteve plan requirement since a customer moving out has no ongoing
+  // relationship with the platform to maintain. Every other request type
+  // still always has one.
+  @ManyToOne(() => CustomerSubscription, { nullable: true })
   @JoinColumn()
-  subscription: CustomerSubscription;
+  subscription: CustomerSubscription | null;
 
-  @Column()
-  subscriptionId: string;
+  @Column({ nullable: true })
+  subscriptionId: string | null;
 
   @Column({ type: 'enum', enum: ServiceType, default: ServiceType.SCHEDULED_INSPECTION })
   type: ServiceType;

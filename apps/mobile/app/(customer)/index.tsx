@@ -211,6 +211,13 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription, scro
     router.push({ pathname: '/(customer)/request', params: { preselectServicePriceIds: ids.join(',') } });
   };
 
+  // Without a core plan, Inspect/Repair/Improve/Maintain don't apply — only
+  // Marketplace items (e.g. Move-Out cleaning) are bookable subscription-free.
+  // Still shown (not the old full-replacement "No Active Subscription" card)
+  // so a non-member can actually reach that flow — see request.tsx's
+  // createMarketplaceBooking and its requireCoreSubscription flag.
+  const visibleGroups = subscription ? GROUP_META : GROUP_META.filter((g) => g.key === 'MARKETPLACE');
+
   return (
     <View style={styles.groupsCard} onLayout={(e) => { cardY.current = e.nativeEvent.layout.y; }}>
       <View style={styles.groupsHeader}>
@@ -224,8 +231,14 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription, scro
         )}
       </View>
 
+      {!subscription && (
+        <TouchableOpacity style={styles.noSubNote} onPress={() => router.push('/(customer)/subscribe')}>
+          <Text style={styles.noSubNoteText}>No active plan — Inspect/Repair/Improve/Maintain need a subscription. Tap to choose a plan.</Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.groupGrid}>
-        {GROUP_META.map((g) => {
+        {visibleGroups.map((g) => {
           const isActive = activeGroup === g.key;
           return (
             <TouchableOpacity
@@ -502,14 +515,7 @@ export default function CustomerDashboard() {
 
       <ServiceSearchCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} scrollViewRef={dashScrollRef} />
 
-      {subscription ? (
-        <ServiceGroupsCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} subscription={subscription} scrollViewRef={dashScrollRef} />
-      ) : (
-        <TouchableOpacity style={styles.noSubCard} onPress={() => router.push('/(customer)/subscribe')}>
-          <Text style={styles.noSubTitle}>No Active Subscription</Text>
-          <Text style={styles.noSubText}>Tap to choose a plan and protect your home.</Text>
-        </TouchableOpacity>
-      )}
+      <ServiceGroupsCard catalog={catalog} availableCapabilityIds={availableCapabilityIds} subscription={subscription} scrollViewRef={dashScrollRef} />
 
       {/* Pending payments requiring authorization */}
       {/* Charged jobs are charged automatically at completion (see
@@ -603,11 +609,11 @@ const styles = StyleSheet.create({
   planPillText: { fontSize: 10, fontWeight: '800', color: colors.lanternDeep, letterSpacing: 0.4 },
   planPillDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#059669' },
   planPillStatus: { fontSize: 10, fontWeight: '700', color: '#059669' },
-  groupGrid: { flexDirection: 'row', justifyContent: 'space-between' },
-  groupTile: { alignItems: 'center', width: '18%' },
+  groupGrid: { flexDirection: 'row' },
+  groupTile: { flex: 1, alignItems: 'center' },
   groupIconWrap: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.mist, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   groupIconWrapActive: { backgroundColor: colors.lantern },
-  groupLabel: { fontSize: 11, fontWeight: '600', color: colors.steel, textAlign: 'center' },
+  groupLabel: { fontSize: 10, fontWeight: '600', color: colors.steel, textAlign: 'center', lineHeight: 13 },
   groupLabelActive: { color: colors.lanternDeep },
   groupList: { marginTop: 16, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
   groupEmpty: { fontSize: 13, color: colors.steel, textAlign: 'center', paddingVertical: 16 },
@@ -617,9 +623,8 @@ const styles = StyleSheet.create({
   selectedChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
   selectedChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.mist, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6, maxWidth: '100%' },
   selectedChipText: { fontSize: 12, fontWeight: '600', color: colors.ink, maxWidth: 160 },
-  noSubCard: { margin: 16, backgroundColor: '#fff4e5', borderRadius: 16, padding: 20, borderWidth: 2, borderColor: '#f6ad55' },
-  noSubTitle: { fontSize: 16, fontWeight: '700', color: '#c05621', marginBottom: 4 },
-  noSubText: { color: '#744210', fontSize: 14 },
+  noSubNote: { backgroundColor: '#fff4e5', borderRadius: 10, borderWidth: 1, borderColor: '#f6ad55', padding: 10, marginBottom: 14 },
+  noSubNoteText: { color: '#744210', fontSize: 12, lineHeight: 17 },
   paymentCard: {
     marginHorizontal: 16, marginBottom: 8,
     backgroundColor: '#fff', borderRadius: 14, padding: 16,

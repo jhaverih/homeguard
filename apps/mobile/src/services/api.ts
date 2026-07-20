@@ -150,7 +150,7 @@ export const marketplaceApi = {
   }> => api.get('/marketplace/house-cleaning/config') as any,
   quote: (body: any): Promise<{ perVisitCost: number; monthlyPrice: number | null; quoteRequired: boolean }> =>
     api.post('/marketplace/house-cleaning/quote', body) as any,
-  subscribe: (body: any): Promise<{ clientSecret: string | null; subscriptionId: string }> =>
+  subscribe: (body: any): Promise<{ subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null }> =>
     api.post('/marketplace/house-cleaning/subscribe', body) as any,
   bookOneTime: (body: any) => api.post('/marketplace/house-cleaning/one-time', body),
 };

@@ -315,10 +315,20 @@ export class ServiceRequestsService {
     city: string;
     state: string;
     zipCode: string;
+    // false only for a subscription-free Move-Out cleaning — someone moving
+    // out has no ongoing home relationship for a core Attenteve plan to
+    // maintain. Every other Marketplace booking (recurring visits,
+    // Standard/Deep one-time) keeps the default requirement.
+    requireCoreSubscription?: boolean;
   }): Promise<ServiceRequest> {
-    const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
-    const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
-    if (!subscription) throw new BadRequestException('No active subscription found');
+    const requireCoreSubscription = dto.requireCoreSubscription ?? true;
+    let subscriptionId: string | null = null;
+    if (requireCoreSubscription) {
+      const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
+      const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
+      if (!subscription) throw new BadRequestException('No active subscription found');
+      subscriptionId = subscription.id;
+    }
 
     const prices = await this.pricingService.getAll();
     const servicePrice = prices.find((p) => p.id === dto.servicePriceId);
@@ -326,7 +336,7 @@ export class ServiceRequestsService {
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
-      subscriptionId: subscription.id,
+      subscriptionId,
       type: ServiceType.ADDITIONAL_SERVICE,
       status: ServiceRequestStatus.PENDING,
       ticketNumber,
