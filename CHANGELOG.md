@@ -14,7 +14,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Added
+- **admin**: The Services page's Subscription Plan Prices card now shows and edits each plan's description and feature-bullet list (add/remove bullets) — the same copy the mobile "My Plan" screen renders — so that content can be changed without a code deploy. Previously only price was editable there.
+
 ### Changed
+- **admin**: Every editable field on the Services page (Subscription Plan Prices and the Additional Services Catalog table) now requires pressing an explicit Save button to take effect, instead of auto-saving the instant a field lost focus or changed. The Active toggle in the catalog still applies immediately, since a checked/unchecked switch has no intermediate draft state to confirm.
 - **mobile**: The Alerts tab's empty state showed "All Clear — no alerts from your home sensors yet" regardless of plan, even though home monitoring isn't included on the Basic plan at all — implying a Basic customer's home was being watched when it wasn't. Basic-tier customers with no alerts now see a distinct "Home Monitoring Available" message explaining monitoring is a Standard/Premium feature, with a direct link to view plans.
 
 ## [0.3.1] — 2026-07-19

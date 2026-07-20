@@ -154,6 +154,51 @@ type EditState = {
   isQuotaInspection: boolean;
 };
 
+// Everything on a price row now requires an explicit Save press — this
+// compares the live draft against the last-saved server row to decide
+// whether that row's Save button should show.
+function statesEqual(a: EditState, b: EditState): boolean {
+  return (
+    a.name === b.name &&
+    a.description === b.description &&
+    a.pricingMethod === b.pricingMethod &&
+    a.requiresQuote === b.requiresQuote &&
+    a.basePrice === b.basePrice &&
+    a.markupPercent === b.markupPercent &&
+    a.quantityLabel === b.quantityLabel &&
+    a.minimumQuantity === b.minimumQuantity &&
+    a.includeQty === b.includeQty &&
+    a.baseRateUnit === b.baseRateUnit &&
+    a.volumeDiscountThreshold === b.volumeDiscountThreshold &&
+    a.volumeDiscountRate === b.volumeDiscountRate &&
+    a.requiredCapabilityId === b.requiredCapabilityId &&
+    a.category === b.category &&
+    a.customerRequestable === b.customerRequestable &&
+    a.isQuotaInspection === b.isQuotaInspection &&
+    a.serviceGroups.length === b.serviceGroups.length &&
+    a.serviceGroups.every((v, i) => v === b.serviceGroups[i])
+  );
+}
+
+type PlanDraft = { price: string; description: string; features: string[] };
+
+function planToDraft(plan: any): PlanDraft {
+  return {
+    price: String(plan.price),
+    description: plan.description ?? '',
+    features: Array.isArray(plan.features) ? [...plan.features] : [],
+  };
+}
+
+function planDirty(plan: any, draft: PlanDraft | undefined): boolean {
+  if (!draft) return false;
+  if (draft.price !== String(plan.price)) return true;
+  if (draft.description !== (plan.description ?? '')) return true;
+  const serverFeatures: string[] = Array.isArray(plan.features) ? plan.features : [];
+  if (draft.features.length !== serverFeatures.length) return true;
+  return draft.features.some((f, i) => f !== serverFeatures[i]);
+}
+
 // Keeps the "Quote Only" checkbox and the Pricing method dropdown from ever
 // disagreeing, matching the same sync rule enforced server-side.
 function syncQuoteFields(base: EditState, field: 'requiresQuote' | 'pricingMethod', value: any): Partial<EditState> {
@@ -187,6 +232,8 @@ export default function PricingPage() {
   const [globalMarkup, setGlobalMarkup] = useState('15');
   const [editStates, setEditStates] = useState<Record<string, EditState>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
+  const [planDrafts, setPlanDrafts] = useState<Record<string, PlanDraft>>({});
+  const [savingPlan, setSavingPlan] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [addingRow, setAddingRow] = useState(false);
   const [newRow, setNewRow] = useState<EditState>({
@@ -213,6 +260,9 @@ export default function PricingPage() {
         const states: Record<string, EditState> = {};
         for (const price of p) states[price.id] = rowToEdit(price);
         setEditStates(states);
+        const drafts: Record<string, PlanDraft> = {};
+        for (const plan of s) drafts[plan.id] = planToDraft(plan);
+        setPlanDrafts(drafts);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -274,6 +324,43 @@ export default function PricingPage() {
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
     } finally {
       setSaving((s) => { const n = new Set(s); n.delete(id); return n; });
+    }
+  };
+
+  const updatePlanDraft = (id: string, patch: Partial<PlanDraft>) =>
+    setPlanDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+
+  const addPlanFeature = (id: string) =>
+    setPlanDrafts((prev) => ({ ...prev, [id]: { ...prev[id], features: [...prev[id].features, ''] } }));
+
+  const updatePlanFeature = (id: string, idx: number, value: string) =>
+    setPlanDrafts((prev) => {
+      const features = [...prev[id].features];
+      features[idx] = value;
+      return { ...prev, [id]: { ...prev[id], features } };
+    });
+
+  const removePlanFeature = (id: string, idx: number) =>
+    setPlanDrafts((prev) => ({ ...prev, [id]: { ...prev[id], features: prev[id].features.filter((_, i) => i !== idx) } }));
+
+  const savePlan = async (id: string) => {
+    const draft = planDrafts[id];
+    if (!draft) return;
+    setSavingPlan((s) => new Set(s).add(id));
+    try {
+      // features is a TypeORM simple-array (comma-joined in the DB) — a
+      // literal comma in admin-entered text would silently split into two
+      // bullets on next load, so swap it for a safe separator on save.
+      const cleanedFeatures = draft.features.map((f) => f.trim().replace(/,/g, ';')).filter((f) => f.length > 0);
+      const updated = await subscriptionsApi.updatePlan(id, {
+        price: parseFloat(draft.price) || 0,
+        description: draft.description,
+        features: cleanedFeatures,
+      });
+      setPlans((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
+      setPlanDrafts((prev) => ({ ...prev, [id]: planToDraft(updated) }));
+    } finally {
+      setSavingPlan((s) => { const n = new Set(s); n.delete(id); return n; });
     }
   };
 
@@ -418,7 +505,6 @@ export default function PricingPage() {
       setNewRow((p) => ({ ...p, requiredCapabilityId: value }));
     } else {
       updateField(target, 'requiredCapabilityId', value);
-      setTimeout(() => savePrice(target), 0);
     }
   };
 
@@ -561,7 +647,7 @@ export default function PricingPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-lantern-deep mb-2">Services Management</h1>
-      <p className="text-steel mb-8">Edit service names, descriptions, pricing notes, and rates. Changes save on blur.</p>
+      <p className="text-steel mb-8">Edit service names, descriptions, pricing notes, and rates. Press Save on a row to apply your changes.</p>
 
       {/* Automatic Backups */}
       <div className="bg-white rounded-2xl border border-mist-dim mb-8">
@@ -607,26 +693,90 @@ export default function PricingPage() {
       <div className="bg-white rounded-2xl border border-mist-dim mb-8">
         <div className="p-6 border-b border-mist-dim">
           <h2 className="text-lg font-bold text-lantern-deep">Subscription Plan Prices</h2>
+          <p className="text-sm text-steel mt-1">Price, description, and feature bullets shown on the homeowner app's "My Plan" screen. Press Save to apply changes.</p>
         </div>
         <div className="divide-y divide-canvas">
-          {plans.map((plan: any) => (
-            <div key={plan.id} className="p-6 flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-ink">{plan.name}</div>
-                <div className="text-sm text-steel">{plan.tier} tier</div>
+          {plans.map((plan: any) => {
+            const draft = planDrafts[plan.id];
+            if (!draft) return null;
+            const dirty = planDirty(plan, draft);
+            const isPlanSaving = savingPlan.has(plan.id);
+            return (
+              <div key={plan.id} className="p-6">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="font-semibold text-ink">{plan.name}</div>
+                    <div className="text-sm text-steel">{plan.tier} tier</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-steel">$</span>
+                    <input
+                      type="number"
+                      value={draft.price}
+                      onChange={(e) => updatePlanDraft(plan.id, { price: e.target.value })}
+                      className="w-24 border border-border rounded-lg px-3 py-2 text-right focus:border-lantern outline-none"
+                    />
+                    <span className="text-sm text-steel">/year</span>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="text-xs font-semibold text-steel uppercase tracking-wide">Description</label>
+                  <textarea
+                    value={draft.description}
+                    onChange={(e) => updatePlanDraft(plan.id, { description: e.target.value })}
+                    rows={2}
+                    className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none resize-none"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="text-xs font-semibold text-steel uppercase tracking-wide">Features shown to homeowners</label>
+                  <div className="mt-1.5 space-y-2">
+                    {draft.features.map((f, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={f}
+                          onChange={(e) => updatePlanFeature(plan.id, idx, e.target.value)}
+                          className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm focus:border-lantern outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePlanFeature(plan.id, idx)}
+                          className="text-steel hover:text-red-500 transition-colors px-1"
+                          title="Remove feature"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addPlanFeature(plan.id)}
+                      className="text-sm font-semibold text-lantern-deep hover:underline"
+                    >
+                      + Add feature
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-end gap-3 h-9">
+                  {isPlanSaving ? (
+                    <div className="w-4 h-4 border-2 border-lantern border-t-transparent rounded-full animate-spin" />
+                  ) : dirty ? (
+                    <button
+                      type="button"
+                      onClick={() => savePlan(plan.id)}
+                      className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep hover:text-white transition-colors"
+                    >
+                      Save Changes
+                    </button>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-steel">$</span>
-                <input
-                  type="number"
-                  defaultValue={plan.price}
-                  onBlur={(e) => subscriptionsApi.updatePlan(plan.id, { price: parseFloat(e.target.value) })}
-                  className="w-24 border border-border rounded-lg px-3 py-2 text-right focus:border-lantern outline-none"
-                />
-                <span className="text-sm text-steel">/year</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -636,7 +786,7 @@ export default function PricingPage() {
           <div>
             <h2 className="text-lg font-bold text-lantern-deep">Additional Services Catalog</h2>
             <p className="text-sm text-steel mt-1">
-              All fields editable. Stripe fee: 2.9% + $0.30. Toggle the switch to disable without deleting.
+              All fields editable — press Save on a row to apply. Stripe fee: 2.9% + $0.30. Toggle the switch to disable without deleting (applies immediately).
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -758,6 +908,7 @@ export default function PricingPage() {
                 const { customerPrice } = calcPricing(previewCost, effectivePct);
                 const isSaving = saving.has(price.id);
                 const isDeleting = deletingId === price.id;
+                const isDirty = !statesEqual(state, rowToEdit(price));
                 const inactive = !price.isActive;
                 const showDivider = idx === 0 || sortedPrices[idx - 1].category !== price.category;
 
@@ -806,7 +957,6 @@ export default function PricingPage() {
                         type="text"
                         value={state.name}
                         onChange={(e) => updateField(price.id, 'name', e.target.value)}
-                        onBlur={() => savePrice(price.id)}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-sm font-semibold text-ink focus:border-lantern outline-none"
                       />
                     </td>
@@ -815,7 +965,6 @@ export default function PricingPage() {
                       <textarea
                         value={state.description}
                         onChange={(e) => updateField(price.id, 'description', e.target.value)}
-                        onBlur={() => savePrice(price.id)}
                         rows={2}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-xs text-steel focus:border-lantern outline-none resize-none"
                       />
@@ -825,10 +974,7 @@ export default function PricingPage() {
                       <select
                         value={state.pricingMethod}
                         disabled={state.requiresQuote}
-                        onChange={(e) => {
-                          updateField(price.id, 'pricingMethod', e.target.value);
-                          setTimeout(() => savePrice(price.id), 0);
-                        }}
+                        onChange={(e) => updateField(price.id, 'pricingMethod', e.target.value)}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {PRICING_METHODS.map((m) => (
@@ -841,10 +987,7 @@ export default function PricingPage() {
                       <input
                         type="checkbox"
                         checked={state.requiresQuote}
-                        onChange={(e) => {
-                          updateField(price.id, 'requiresQuote', e.target.checked);
-                          setTimeout(() => savePrice(price.id), 0);
-                        }}
+                        onChange={(e) => updateField(price.id, 'requiresQuote', e.target.checked)}
                         className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
                     </td>
@@ -853,10 +996,7 @@ export default function PricingPage() {
                       <input
                         type="checkbox"
                         checked={state.customerRequestable}
-                        onChange={(e) => {
-                          updateField(price.id, 'customerRequestable', e.target.checked);
-                          setTimeout(() => savePrice(price.id), 0);
-                        }}
+                        onChange={(e) => updateField(price.id, 'customerRequestable', e.target.checked)}
                         title="Uncheck for services only Attenteve triggers (e.g. Home Monitoring Setup) — hidden from the customer's own request list"
                         className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
@@ -866,10 +1006,7 @@ export default function PricingPage() {
                       <input
                         type="checkbox"
                         checked={state.isQuotaInspection}
-                        onChange={(e) => {
-                          updateField(price.id, 'isQuotaInspection', e.target.checked);
-                          setTimeout(() => savePrice(price.id), 0);
-                        }}
+                        onChange={(e) => updateField(price.id, 'isQuotaInspection', e.target.checked)}
                         title="Draws from the plan's included inspections instead of always charging its listed price — expected on exactly one row"
                         className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
@@ -892,10 +1029,7 @@ export default function PricingPage() {
                     <td className="px-4 py-3">
                       <select
                         value={state.category}
-                        onChange={(e) => {
-                          updateField(price.id, 'category', e.target.value);
-                          setTimeout(() => savePrice(price.id), 0);
-                        }}
+                        onChange={(e) => updateField(price.id, 'category', e.target.value)}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
                       >
                         <option value="">Uncategorized</option>
@@ -919,7 +1053,6 @@ export default function PricingPage() {
                                     ? [...state.serviceGroups, g.value]
                                     : state.serviceGroups.filter((v) => v !== g.value);
                                   updateField(price.id, 'serviceGroups', next);
-                                  setTimeout(() => savePrice(price.id), 0);
                                 }}
                                 className="accent-lantern"
                               />
@@ -933,10 +1066,7 @@ export default function PricingPage() {
                     <td className="px-4 py-3">
                       <select
                         value={state.quantityLabel || 'NONE'}
-                        onChange={(e) => {
-                          updateField(price.id, 'quantityLabel', e.target.value);
-                          setTimeout(() => savePrice(price.id), 0);
-                        }}
+                        onChange={(e) => updateField(price.id, 'quantityLabel', e.target.value)}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
                       >
                         {UNIT_LABELS.map((u) => (
@@ -950,7 +1080,6 @@ export default function PricingPage() {
                         type="number"
                         value={state.minimumQuantity}
                         onChange={(e) => updateField(price.id, 'minimumQuantity', e.target.value)}
-                        onBlur={() => savePrice(price.id)}
                         placeholder="0"
                         className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                         min="0"
@@ -964,7 +1093,6 @@ export default function PricingPage() {
                           type="number"
                           value={state.basePrice}
                           onChange={(e) => updateField(price.id, 'basePrice', e.target.value)}
-                          onBlur={() => savePrice(price.id)}
                           className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                           min="0" step="0.01"
                         />
@@ -976,7 +1104,6 @@ export default function PricingPage() {
                         type="number"
                         value={state.includeQty}
                         onChange={(e) => updateField(price.id, 'includeQty', e.target.value)}
-                        onBlur={() => savePrice(price.id)}
                         placeholder="1"
                         className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                         min="0" step="0.01"
@@ -990,7 +1117,6 @@ export default function PricingPage() {
                           type="number"
                           value={state.baseRateUnit}
                           onChange={(e) => updateField(price.id, 'baseRateUnit', e.target.value)}
-                          onBlur={() => savePrice(price.id)}
                           className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                           min="0" step="0.01"
                         />
@@ -1002,7 +1128,6 @@ export default function PricingPage() {
                         type="number"
                         value={state.volumeDiscountThreshold}
                         onChange={(e) => updateField(price.id, 'volumeDiscountThreshold', e.target.value)}
-                        onBlur={() => savePrice(price.id)}
                         placeholder="None"
                         className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                         min="0" step="0.01"
@@ -1016,7 +1141,6 @@ export default function PricingPage() {
                           type="number"
                           value={state.volumeDiscountRate}
                           onChange={(e) => updateField(price.id, 'volumeDiscountRate', e.target.value)}
-                          onBlur={() => savePrice(price.id)}
                           className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
                           min="0" step="0.01"
                         />
@@ -1029,7 +1153,6 @@ export default function PricingPage() {
                           type="number"
                           value={state.markupPercent}
                           onChange={(e) => updateField(price.id, 'markupPercent', e.target.value)}
-                          onBlur={() => savePrice(price.id)}
                           placeholder={globalMarkup}
                           className="w-16 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
                           min="0" max="200" step="0.1"
@@ -1059,18 +1182,29 @@ export default function PricingPage() {
                         </div>
                       )}
                     </td>
-                    {/* Delete */}
+                    {/* Save / Delete */}
                     <td className="pr-4 text-center">
                       {isSaving || isDeleting ? (
                         <div className="w-4 h-4 border-2 border-lantern border-t-transparent rounded-full animate-spin inline-block" />
                       ) : (
-                        <button
-                          onClick={() => deletePrice(price.id, state.name)}
-                          className="text-steel hover:text-red-500 transition-colors px-1"
-                          title="Delete service"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          {isDirty && (
+                            <button
+                              onClick={() => savePrice(price.id)}
+                              className="text-xs font-semibold text-lantern-deep hover:underline"
+                              title="Save changes"
+                            >
+                              Save
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deletePrice(price.id, state.name)}
+                            className="text-steel hover:text-red-500 transition-colors px-1"
+                            title="Delete service"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
