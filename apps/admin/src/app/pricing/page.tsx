@@ -343,6 +343,15 @@ export default function PricingPage() {
   const removePlanFeature = (id: string, idx: number) =>
     setPlanDrafts((prev) => ({ ...prev, [id]: { ...prev[id], features: prev[id].features.filter((_, i) => i !== idx) } }));
 
+  const moveFeature = (id: string, idx: number, direction: -1 | 1) =>
+    setPlanDrafts((prev) => {
+      const features = [...prev[id].features];
+      const target = idx + direction;
+      if (target < 0 || target >= features.length) return prev;
+      [features[idx], features[target]] = [features[target], features[idx]];
+      return { ...prev, [id]: { ...prev[id], features } };
+    });
+
   const savePlan = async (id: string) => {
     const draft = planDrafts[id];
     if (!draft) return;
@@ -735,6 +744,26 @@ export default function PricingPage() {
                   <div className="mt-1.5 space-y-2">
                     {draft.features.map((f, idx) => (
                       <div key={idx} className="flex items-center gap-2">
+                        <div className="flex flex-col -my-1">
+                          <button
+                            type="button"
+                            onClick={() => moveFeature(plan.id, idx, -1)}
+                            disabled={idx === 0}
+                            className="text-steel hover:text-ink disabled:opacity-25 disabled:cursor-not-allowed leading-none px-1"
+                            title="Move up"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveFeature(plan.id, idx, 1)}
+                            disabled={idx === draft.features.length - 1}
+                            className="text-steel hover:text-ink disabled:opacity-25 disabled:cursor-not-allowed leading-none px-1"
+                            title="Move down"
+                          >
+                            ▼
+                          </button>
+                        </div>
                         <input
                           type="text"
                           value={f}

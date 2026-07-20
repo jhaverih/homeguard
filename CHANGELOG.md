@@ -18,7 +18,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - **api**: `GET /subscriptions/plans` had no `ORDER BY`, so the three plans could render in an arbitrary/inconsistent order (e.g. Premium, Basic, Standard). Now always sorted Basic → Standard → Premium — fixes ordering on the admin Services page and every mobile screen that lists plans (My Plan, signup).
 
 ### Added
-- **admin**: The Services page's Subscription Plan Prices card now shows and edits each plan's description and feature-bullet list (add/remove bullets) — the same copy the mobile "My Plan" screen renders — so that content can be changed without a code deploy. Previously only price was editable there.
+- **admin**: The Services page's Subscription Plan Prices card now shows and edits each plan's description and feature-bullet list (add/remove/reorder bullets via ▲/▼) — the same copy the mobile "My Plan" and signup screens render in that exact order — so that content can be changed without a code deploy. Previously only price was editable there. Reordering, like every other edit on this card, only takes effect once Save is pressed.
 
 ### Changed
 - **admin**: Every editable field on the Services page (Subscription Plan Prices and the Additional Services Catalog table) now requires pressing an explicit Save button to take effect, instead of auto-saving the instant a field lost focus or changed. The Active toggle in the catalog still applies immediately, since a checked/unchecked switch has no intermediate draft state to confirm.
