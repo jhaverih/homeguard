@@ -11,3 +11,13 @@
   z-index: 10;
   background-color: #F5F7F6;
 }
+
+/* Leftmost "identity" columns (e.g. Name) frozen via a `left` offset stay
+   visible while the rest of a wide table scrolls horizontally underneath.
+   Header cells that are sticky in both axes need to out-rank plain
+   top-sticky headers AND plain left-sticky body cells at their corner
+   intersection — a second class here gives it higher specificity than the
+   single-class .sticky-thead th rule above, without resorting to !important. */
+.sticky-thead th.sticky-col {
+  z-index: 20;
+}

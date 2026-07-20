@@ -943,7 +943,7 @@ export default function PricingPage() {
           <table className="w-full text-sm sticky-thead">
             <thead>
               <tr className="border-b border-mist-dim bg-canvas/70">
-                <th className="px-3 py-3 text-center font-semibold text-steel w-10">
+                <th className="sticky-col px-3 py-3 text-center font-semibold text-steel w-10 left-0 bg-canvas/70">
                   <input
                     type="checkbox"
                     checked={sortedPrices.length > 0 && selectedIds.size === sortedPrices.length}
@@ -952,8 +952,8 @@ export default function PricingPage() {
                     title="Select all"
                   />
                 </th>
-                <th className="px-3 py-3 text-left font-semibold text-steel w-16">Active</th>
-                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[160px]">Name</th>
+                <th className="sticky-col px-3 py-3 text-left font-semibold text-steel w-16 left-10 bg-canvas/70">Active</th>
+                <th className="sticky-col px-4 py-3 text-left font-semibold text-steel min-w-[160px] left-[6.5rem] bg-canvas/70 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">Name</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[200px]">Description</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[150px]">Pricing Method</th>
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Quote Only</th>
@@ -970,6 +970,7 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — quantity at which the discounted rate kicks in; leave blank for no volume discount tier">Discount Threshold</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — per-unit rate beyond Discount Threshold">Discount Rate</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24">Markup %</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="2.9% + $0.30, passed through to the customer — already folded into Customer Price, shown separately so it isn't mistaken for missing">Stripe Fee</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Customer Price</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Global Markup</th>
                 <th className="w-16 pr-4"></th>
@@ -982,7 +983,7 @@ export default function PricingPage() {
                 return (
                   <Fragment key={catKey}>
                   <tr className="bg-canvas/70">
-                    <td colSpan={20} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-steel">
+                    <td colSpan={21} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-steel">
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
@@ -1007,7 +1008,7 @@ export default function PricingPage() {
                   </tr>
                   {!collapsed && group.items.length === 0 && (
                     <tr>
-                      <td colSpan={20} className="px-4 py-4 text-xs text-steel italic">No services in this category yet.</td>
+                      <td colSpan={21} className="px-4 py-4 text-xs text-steel italic">No services in this category yet.</td>
                     </tr>
                   )}
                   {!collapsed && group.items.map((price) => {
@@ -1023,7 +1024,7 @@ export default function PricingPage() {
                       ? Math.max(1, parseFloat(state.minimumQuantity) || 1)
                       : 1;
                     const previewCost = calcTieredCost(state, previewQty);
-                    const { customerPrice } = calcPricing(previewCost, effectivePct);
+                    const { stripeFee, customerPrice } = calcPricing(previewCost, effectivePct);
                     const isSaving = saving.has(price.id);
                     const isDeleting = deletingId === price.id;
                     const isDirty = !statesEqual(state, rowToEdit(price));
@@ -1032,7 +1033,7 @@ export default function PricingPage() {
                     return (
                   <tr key={price.id} className={`hover:bg-canvas/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
                     {/* Row select */}
-                    <td className="px-3 py-3 text-center">
+                    <td className="sticky left-0 z-[1] bg-white px-3 py-3 text-center">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(price.id)}
@@ -1041,7 +1042,7 @@ export default function PricingPage() {
                       />
                     </td>
                     {/* Active toggle */}
-                    <td className="px-3 py-3 text-center">
+                    <td className="sticky left-10 z-[1] bg-white px-3 py-3 text-center">
                       <button
                         onClick={() => toggleActive(price.id, price.isActive)}
                         title={price.isActive ? 'Disable service' : 'Enable service'}
@@ -1051,7 +1052,7 @@ export default function PricingPage() {
                       </button>
                     </td>
                     {/* Name */}
-                    <td className="px-4 py-3">
+                    <td className="sticky left-[6.5rem] z-[1] bg-white px-4 py-3 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
                       <input
                         type="text"
                         value={state.name}
@@ -1192,7 +1193,8 @@ export default function PricingPage() {
                           type="number"
                           value={state.basePrice}
                           onChange={(e) => updateField(price.id, 'basePrice', e.target.value)}
-                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                          disabled={state.requiresQuote}
+                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           min="0" step="0.01"
                         />
                       </div>
@@ -1216,7 +1218,8 @@ export default function PricingPage() {
                           type="number"
                           value={state.baseRateUnit}
                           onChange={(e) => updateField(price.id, 'baseRateUnit', e.target.value)}
-                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                          disabled={state.requiresQuote}
+                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           min="0" step="0.01"
                         />
                       </div>
@@ -1258,6 +1261,12 @@ export default function PricingPage() {
                         />
                         <span className="text-steel text-xs">%</span>
                       </div>
+                    </td>
+                    {/* Stripe Fee — informational only, already included in Customer Price */}
+                    <td className="px-4 py-3 text-right">
+                      {!state.requiresQuote && (
+                        <span className="text-steel tabular-nums">${stripeFee.toFixed(2)}</span>
+                      )}
                     </td>
                     {/* Customer Price */}
                     <td className="px-4 py-3 text-right">
@@ -1311,9 +1320,9 @@ export default function PricingPage() {
               {/* Add new row */}
               {addingRow && (
                 <tr className="bg-mist-dim/30 border-t-2 border-lantern">
-                  <td className="px-3 py-3" />
-                  <td className="px-3 py-3" />
-                  <td className="px-4 py-3">
+                  <td className="sticky left-0 z-[1] bg-mist-dim/30 px-3 py-3" />
+                  <td className="sticky left-10 z-[1] bg-mist-dim/30 px-3 py-3" />
+                  <td className="sticky left-[6.5rem] z-[1] bg-mist-dim/30 px-4 py-3 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
                     <input
                       type="text"
                       value={newRow.name}
@@ -1444,7 +1453,8 @@ export default function PricingPage() {
                         type="number"
                         value={newRow.basePrice}
                         onChange={(e) => setNewRow((p) => ({ ...p, basePrice: e.target.value }))}
-                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        disabled={newRow.requiresQuote}
+                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         min="0" step="0.01"
                       />
                     </div>
@@ -1466,7 +1476,8 @@ export default function PricingPage() {
                         type="number"
                         value={newRow.baseRateUnit}
                         onChange={(e) => setNewRow((p) => ({ ...p, baseRateUnit: e.target.value }))}
-                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        disabled={newRow.requiresQuote}
+                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         min="0" step="0.01"
                       />
                     </div>
@@ -1506,7 +1517,7 @@ export default function PricingPage() {
                       <span className="text-steel text-xs">%</span>
                     </div>
                   </td>
-                  <td colSpan={2} />
+                  <td colSpan={3} />
                   <td className="pr-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
