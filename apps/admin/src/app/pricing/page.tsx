@@ -983,8 +983,15 @@ export default function PricingPage() {
                 return (
                   <Fragment key={catKey}>
                   <tr className="bg-canvas/70">
-                    <td colSpan={21} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-steel">
-                      <div className="flex items-center gap-3">
+                    <td colSpan={21} className="text-xs font-bold uppercase tracking-wide text-steel">
+                      {/* Sticky on the inner content (not the <td> itself) — the
+                          <td>'s colSpan makes it as wide as the whole table, so
+                          sticking the cell itself would pin the entire row in
+                          place instead of just the label. This inline-flex box
+                          is only as wide as its content, so it can float at the
+                          left edge of the scroll area while the wide <td> (and
+                          its background) scrolls normally underneath. */}
+                      <div className="sticky left-0 z-[2] inline-flex items-center gap-3 bg-canvas/70 px-4 py-2">
                         <button
                           type="button"
                           onClick={() => toggleCategoryCollapsed(catKey)}
