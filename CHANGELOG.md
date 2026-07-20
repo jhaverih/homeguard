@@ -14,6 +14,12 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Added
+- **api**: Populated the 3 previously-empty Leak Inspection checklists — Showers/Tub (14 tasks: Fixtures, Caulking, Tile & Grout, Water Damage), Kitchen (13 tasks: Faucet, Sink Plumbing, Garbage Disposal, Dishwasher), and Water Heater (13 tasks: Drain Pan, Supply Fittings, T&P Valve — visual only, Tank Condition) — with real inspection content supplied by the user. Each checklist's section description now lists its recommended photos to take if an issue is found.
+
+### Changed
+- **api**: Replaced Laundry's original 5 grouped-question tasks with 9 more granular ones (Washer Supply Hoses, Shutoff Valves, Drain Line — one task per individual check), matching the format of the 3 checklists added above.
+
 ### Removed
 - **api**: Removed "Bulb Replacement" (and its "Other" subgroup) from the General Home Inspection checklist — it wasn't part of the requested group structure and the user confirmed it should go rather than stay as a leftover "Other" catch-all. Removed from the seed and deleted from the live database so it won't reappear on a future deploy.
 

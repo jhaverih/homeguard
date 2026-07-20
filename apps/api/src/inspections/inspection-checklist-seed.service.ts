@@ -350,61 +350,127 @@ const SINKS_TASKS: SeedTask[] = [
   },
 ];
 
+// Replaced 2026-07-20: the original 5 grouped-question tasks were superseded
+// by this more granular 9-task version (one task per individual check,
+// matching the Showers/Tub, Kitchen, and Water Heater checklists added the
+// same day) — see InspectionConfigService.removeTask usage in the seed
+// service's onModuleInit for the corresponding live-data cleanup.
 const LAUNDRY_TASKS: SeedTask[] = [
   {
-    key: 'washer_pan.pan_condition',
-    label: 'Pan cracks / corrosion / standing water',
-    description: 'Check pan material and condition',
-    promptFields: [
-      { key: 'pan_material', label: 'Pan material', type: 'select', options: ['Plastic', 'Metal', 'Unknown'] },
-      { key: 'cracks', label: 'Cracks present', type: 'boolean' },
-      { key: 'corrosion', label: 'Corrosion present', type: 'boolean' },
-      { key: 'standing_water', label: 'Standing water in pan', type: 'boolean' },
-    ],
+    key: 'washer_pan.hoses_cracks',
+    label: 'No cracks or bulges',
+    description: 'Washer Supply Hoses',
+    promptFields: [],
     catalogLinks: [],
   },
   {
-    key: 'washer_pan.drain_line',
-    label: 'Pan drain line',
-    description: 'Verify drain line is connected and unobstructed',
-    promptFields: [
-      { key: 'connected', label: 'Drain line connected', type: 'boolean' },
-      { key: 'unobstructed', label: 'Drain line unobstructed', type: 'boolean' },
-    ],
+    key: 'washer_pan.hoses_wear',
+    label: 'No signs of wear',
+    description: 'Washer Supply Hoses',
+    promptFields: [],
     catalogLinks: [],
   },
   {
-    key: 'washer_pan.hoses',
-    label: 'Supply and drain hoses',
-    description: 'Check hoses for bulging, cracking, or leaks at connections',
-    promptFields: [
-      { key: 'bulging', label: 'Bulging observed on hoses', type: 'boolean' },
-      { key: 'cracking', label: 'Cracking on hose surface', type: 'boolean' },
-      { key: 'connection_leaks', label: 'Leaks at hose connections', type: 'boolean' },
-      { key: 'hose_age_known', label: 'Hose age known (recommend replace every 5 yrs)', type: 'text', placeholder: 'e.g. 2018 or unknown' },
-    ],
+    key: 'washer_pan.hoses_dry',
+    label: 'Connections are dry',
+    description: 'Washer Supply Hoses',
+    promptFields: [],
     catalogLinks: [],
   },
   {
-    key: 'washer_pan.position',
-    label: 'Pan positioning',
-    description: 'Confirm pan is properly positioned under washer with no gaps',
-    promptFields: [
-      { key: 'properly_positioned', label: 'Pan properly positioned', type: 'boolean' },
-      { key: 'gaps', label: 'Gaps allowing water escape', type: 'boolean' },
-    ],
+    key: 'washer_pan.valves_leaks',
+    label: 'No leaks',
+    description: 'Shutoff Valves',
+    promptFields: [],
     catalogLinks: [],
   },
   {
-    key: 'washer_pan.flooring',
-    label: 'Surrounding flooring',
-    description: 'Check for water damage or staining around washer area',
-    promptFields: [
-      { key: 'water_damage', label: 'Water damage / staining found', type: 'boolean' },
-      { key: 'warped_flooring', label: 'Warped or soft flooring', type: 'boolean' },
-    ],
+    key: 'washer_pan.valves_operable',
+    label: 'Valves appear operable',
+    description: 'Shutoff Valves',
+    promptFields: [],
     catalogLinks: [],
   },
+  {
+    key: 'washer_pan.valves_corrosion',
+    label: 'No corrosion',
+    description: 'Shutoff Valves',
+    promptFields: [],
+    catalogLinks: [],
+  },
+  {
+    key: 'washer_pan.drain_secured',
+    label: 'Drain hose properly secured',
+    description: 'Drain Line',
+    promptFields: [],
+    catalogLinks: [],
+  },
+  {
+    key: 'washer_pan.drain_leaks',
+    label: 'No visible leaks',
+    description: 'Drain Line',
+    promptFields: [],
+    catalogLinks: [],
+  },
+  {
+    key: 'washer_pan.drain_overflow',
+    label: 'No signs of overflow',
+    description: 'Drain Line',
+    promptFields: [],
+    catalogLinks: [],
+  },
+];
+
+const SHOWER_TUB_TASKS: SeedTask[] = [
+  { key: 'shower_tub_leak.fixtures_showerhead', label: 'No active leaks from showerhead', description: 'Fixtures', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.fixtures_spout', label: 'No leaks from tub spout', description: 'Fixtures', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.fixtures_handles', label: 'Faucet handles operate properly', description: 'Fixtures', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.fixtures_shutoff', label: 'Water shuts off completely (no dripping)', description: 'Fixtures', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.caulking_intact', label: 'Caulking is intact', description: 'Caulking', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.caulking_gaps', label: 'No gaps or separation', description: 'Caulking', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.caulking_mold', label: 'No mold or mildew present', description: 'Caulking', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.grout_intact', label: 'Grout is intact', description: 'Tile & Grout', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.grout_tiles', label: 'No cracked or loose tiles', description: 'Tile & Grout', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.grout_missing', label: 'No missing grout', description: 'Tile & Grout', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.damage_walls', label: 'No staining on surrounding walls', description: 'Water Damage', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.damage_ceiling', label: 'No staining on ceiling below (if applicable)', description: 'Water Damage', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.damage_floor', label: 'Floor is dry', description: 'Water Damage', promptFields: [], catalogLinks: [] },
+  { key: 'shower_tub_leak.damage_drywall', label: 'No soft or swollen drywall', description: 'Water Damage', promptFields: [], catalogLinks: [] },
+];
+
+const KITCHEN_TASKS: SeedTask[] = [
+  { key: 'kitchen_leak.faucet_dripping', label: 'No dripping from faucet', description: 'Faucet', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.faucet_handles', label: 'Handles operate properly', description: 'Faucet', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.faucet_sprayer', label: 'Spray nozzle functions correctly (if applicable)', description: 'Faucet', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.plumbing_supply', label: 'No leaks from supply lines', description: 'Sink Plumbing', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.plumbing_shutoff', label: 'No leaks from shutoff valves', description: 'Sink Plumbing', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.plumbing_ptrap', label: 'No leaks from P-trap', description: 'Sink Plumbing', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.plumbing_cabinet', label: 'Cabinet floor is dry', description: 'Sink Plumbing', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.disposal_operates', label: 'Disposal operates properly', description: 'Garbage Disposal', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.disposal_leaks', label: 'No visible leaks', description: 'Garbage Disposal', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.disposal_noise', label: 'No unusual vibration or noise', description: 'Garbage Disposal', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.dishwasher_connections', label: 'No leaks under sink connections', description: 'Dishwasher', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.dishwasher_hose', label: 'Drain hose appears secure', description: 'Dishwasher', promptFields: [], catalogLinks: [] },
+  { key: 'kitchen_leak.dishwasher_supply', label: 'Water supply connection is dry', description: 'Dishwasher', promptFields: [], catalogLinks: [] },
+];
+
+// "Do not test or operate the T&P valve — this is a visual inspection only"
+// is a real safety caveat from the source checklist, carried in the
+// description of each Temperature & Pressure Relief Valve task below.
+const WATER_HEATER_TASKS: SeedTask[] = [
+  { key: 'water_heater_leak.pan_dry', label: 'Pan is dry', description: 'Drain Pan', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.pan_standing_water', label: 'No standing water', description: 'Drain Pan', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.pan_condition', label: 'Pan not rusted or damaged', description: 'Drain Pan', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.fittings_hot', label: 'Hot water connection dry', description: 'Supply Fittings', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.fittings_cold', label: 'Cold water connection dry', description: 'Supply Fittings', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.fittings_corrosion', label: 'No visible corrosion', description: 'Supply Fittings', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.tp_pipe_present', label: 'Discharge pipe present', description: 'Temperature & Pressure Relief (T&P) Valve — visual only, do not test or operate the valve', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.tp_pipe_direction', label: 'Pipe points downward', description: 'Temperature & Pressure Relief (T&P) Valve — visual only, do not test or operate the valve', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.tp_leaks', label: 'No visible leaks', description: 'Temperature & Pressure Relief (T&P) Valve — visual only, do not test or operate the valve', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.tank_rust', label: 'No visible rust', description: 'Tank Condition', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.tank_stains', label: 'No water stains', description: 'Tank Condition', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.tank_leaking', label: 'No signs of leaking', description: 'Tank Condition', promptFields: [], catalogLinks: [] },
+  { key: 'water_heater_leak.tank_area_dry', label: 'Area around heater is dry', description: 'Tank Condition', promptFields: [], catalogLinks: [] },
 ];
 
 @Injectable()
@@ -429,16 +495,23 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     const ahuFiltersSection = await this.ensureSection(ahuFiltersSub.id, 'hvac_filter', 'AHU Filters', 0);
     const toiletsSection = await this.ensureSection(leakSub.id, 'toilet_leak', 'Toilets', 0);
     const sinksSection = await this.ensureSection(leakSub.id, 'sink_leak', 'Sinks', 1);
-    await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 2); // new, starts empty
-    await this.ensureSection(leakSub.id, 'kitchen_leak', 'Kitchen', 3); // new, starts empty
-    const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 4);
-    await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 5); // new, starts empty
+    const showerTubSection = await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 2,
+      'Recommended photos if an issue is found: shower fixture leak, failed caulking, damaged grout, water damage.');
+    const kitchenSection = await this.ensureSection(leakSub.id, 'kitchen_leak', 'Kitchen', 3,
+      'Recommended photos if an issue is found: under-sink plumbing, disposal leak, dishwasher connection, cabinet water damage.');
+    const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 4,
+      'Recommended photos if an issue is found: washer connections, shutoff valves, drain hose.');
+    const waterHeaterSection = await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 5,
+      'Visual inspection only — do not operate the water heater or its valves. Recommended photos if an issue is found: full water heater, supply connections, drain pan, any signs of corrosion or leaks.');
 
     await this.ensureTasks(hvacVisualSection.id, HVAC_VISUAL_TASKS);
     await this.ensureTasks(ahuFiltersSection.id, AHU_FILTERS_TASKS);
     await this.ensureTasks(toiletsSection.id, TOILETS_TASKS);
     await this.ensureTasks(sinksSection.id, SINKS_TASKS);
+    await this.ensureTasks(showerTubSection.id, SHOWER_TUB_TASKS);
+    await this.ensureTasks(kitchenSection.id, KITCHEN_TASKS);
     await this.ensureTasks(laundrySection.id, LAUNDRY_TASKS);
+    await this.ensureTasks(waterHeaterSection.id, WATER_HEATER_TASKS);
   }
 
   private async ensureGroup(key: string, label: string, sortOrder: number) {
@@ -459,10 +532,10 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     return s;
   }
 
-  private async ensureSection(subgroupId: string, key: string, label: string, sortOrder: number) {
+  private async ensureSection(subgroupId: string, key: string, label: string, sortOrder: number, description: string | null = null) {
     let s = await this.sectionsRepo.findOne({ where: { key } });
     if (!s) {
-      s = await this.sectionsRepo.save(this.sectionsRepo.create({ subgroupId, key, label, sortOrder }));
+      s = await this.sectionsRepo.save(this.sectionsRepo.create({ subgroupId, key, label, sortOrder, description }));
       this.logger.log(`Seeded inspection checklist section "${label}" (${key}).`);
     }
     return s;
