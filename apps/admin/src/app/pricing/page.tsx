@@ -663,6 +663,17 @@ export default function PricingPage() {
     return ai - bi;
   });
 
+  // Every defined category gets its own always-visible section — including
+  // ones with zero services in them right now (e.g. a brand-new category
+  // like Inspections) — plus a trailing Uncategorized bucket, so there's
+  // always somewhere to see/target a category before anything's assigned to
+  // it. Recomputed from live `prices` every render, so re-categorizing a
+  // service (after Save) moves it into its new group automatically.
+  const categoryGroups = [
+    ...CATEGORIES.map((c) => ({ key: c.value as string | null, label: c.label })),
+    { key: null as string | null, label: 'Uncategorized' },
+  ].map((g) => ({ ...g, items: sortedPrices.filter((p) => (p.category ?? null) === g.key) }));
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-lantern-deep mb-2">Services Management</h1>
@@ -894,7 +905,12 @@ export default function PricingPage() {
           </div>
         )}
 
-        <div className="overflow-x-auto mt-2">
+        {/* A bounded height + overflow-auto here (rather than relying on the
+            page's own <main> scroll) makes this div the actual scrolling
+            box, so the sticky-thead header genuinely freezes at its top
+            instead of scrolling away with an intervening overflow-x-auto
+            ancestor that never itself gets clipped. */}
+        <div className="overflow-auto mt-2 max-h-[70vh]">
           <table className="w-full text-sm sticky-thead">
             <thead>
               <tr className="border-b border-mist-dim bg-canvas/70">
@@ -931,57 +947,61 @@ export default function PricingPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-canvas">
-              {sortedPrices.map((price, idx) => {
-                const state = editStates[price.id];
-                if (!state) return null;
-                const effectivePct = state.markupPercent !== ''
-                  ? (parseFloat(state.markupPercent) || 0)
-                  : (parseFloat(globalMarkup) || 0);
-                // Preview at the effective minimum quantity for Per Unit services, so
-                // editing Min. Qty actually moves the displayed Customer Price. Cost
-                // itself runs through the same tiered formula the server uses.
-                const previewQty = state.pricingMethod === 'PER_UNIT'
-                  ? Math.max(1, parseFloat(state.minimumQuantity) || 1)
-                  : 1;
-                const previewCost = calcTieredCost(state, previewQty);
-                const { customerPrice } = calcPricing(previewCost, effectivePct);
-                const isSaving = saving.has(price.id);
-                const isDeleting = deletingId === price.id;
-                const isDirty = !statesEqual(state, rowToEdit(price));
-                const inactive = !price.isActive;
-                const showDivider = idx === 0 || sortedPrices[idx - 1].category !== price.category;
-                const catKey = categoryKey(price.category);
+              {categoryGroups.map((group) => {
+                const catKey = categoryKey(group.key);
                 const collapsed = collapsedCategories.has(catKey);
-
                 return (
-                  <Fragment key={price.id}>
-                  {showDivider && (
-                    <tr className="bg-canvas/70">
-                      <td colSpan={20} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-steel">
-                        <div className="flex items-center gap-3">
+                  <Fragment key={catKey}>
+                  <tr className="bg-canvas/70">
+                    <td colSpan={20} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-steel">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleCategoryCollapsed(catKey)}
+                          className="flex items-center gap-2 normal-case text-steel hover:text-ink transition-colors"
+                          title={collapsed ? 'Expand category' : 'Collapse category'}
+                        >
+                          <span className={`inline-block text-[10px] transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
+                          {group.label}
+                          <span className="normal-case font-normal text-steel/70">({group.items.length})</span>
+                        </button>
+                        {group.items.length > 0 && (
                           <button
-                            type="button"
-                            onClick={() => toggleCategoryCollapsed(catKey)}
-                            className="flex items-center gap-2 normal-case text-steel hover:text-ink transition-colors"
-                            title={collapsed ? 'Expand category' : 'Collapse category'}
-                          >
-                            <span className={`inline-block text-[10px] transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
-                            {categoryLabel(price.category)}
-                          </button>
-                          <button
-                            onClick={() => selectGroup(
-                              sortedPrices.filter((p) => p.category === price.category).map((p) => p.id)
-                            )}
+                            onClick={() => selectGroup(group.items.map((p) => p.id))}
                             className="normal-case font-semibold text-lantern-deep hover:underline"
                           >
                             Select all
                           </button>
-                        </div>
-                      </td>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {!collapsed && group.items.length === 0 && (
+                    <tr>
+                      <td colSpan={20} className="px-4 py-4 text-xs text-steel italic">No services in this category yet.</td>
                     </tr>
                   )}
-                  {!collapsed && (
-                  <tr className={`hover:bg-canvas/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
+                  {!collapsed && group.items.map((price) => {
+                    const state = editStates[price.id];
+                    if (!state) return null;
+                    const effectivePct = state.markupPercent !== ''
+                      ? (parseFloat(state.markupPercent) || 0)
+                      : (parseFloat(globalMarkup) || 0);
+                    // Preview at the effective minimum quantity for Per Unit services, so
+                    // editing Min. Qty actually moves the displayed Customer Price. Cost
+                    // itself runs through the same tiered formula the server uses.
+                    const previewQty = state.pricingMethod === 'PER_UNIT'
+                      ? Math.max(1, parseFloat(state.minimumQuantity) || 1)
+                      : 1;
+                    const previewCost = calcTieredCost(state, previewQty);
+                    const { customerPrice } = calcPricing(previewCost, effectivePct);
+                    const isSaving = saving.has(price.id);
+                    const isDeleting = deletingId === price.id;
+                    const isDirty = !statesEqual(state, rowToEdit(price));
+                    const inactive = !price.isActive;
+
+                    return (
+                  <tr key={price.id} className={`hover:bg-canvas/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
                     {/* Row select */}
                     <td className="px-3 py-3 text-center">
                       <input
@@ -1258,7 +1278,8 @@ export default function PricingPage() {
                       )}
                     </td>
                   </tr>
-                  )}
+                    );
+                  })}
                   </Fragment>
                 );
               })}

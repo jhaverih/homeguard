@@ -15,18 +15,18 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-07-20
 
 ### Added
+- **admin**: Every category defined in the Additional Services Catalog (including ones with zero services assigned, like the new Inspections category below) now always shows its own section header — previously a category with no services silently had nowhere to appear, so there was no way to see it as a target before assigning something to it. Re-categorizing a service and pressing Save moves it into its new section automatically.
 - **admin**: Category section headers in the Additional Services Catalog table are now collapsible (click the header to hide/show that category's rows) — makes the catalog easier to scan as it grows.
+- **admin**: The Additional Services Catalog table's header row now freezes at the top of its own scrolling area while the rows underneath scroll, instead of scrolling away with the rest of the page on a long catalog.
 - **api, admin**: New `ServiceCategory` value `INSPECTIONS` ("Inspections"), available in the admin Services Catalog's Category dropdown alongside the existing trade categories.
-
-### Fixed
-- **api**: `GET /subscriptions/plans` had no `ORDER BY`, so the three plans could render in an arbitrary/inconsistent order (e.g. Premium, Basic, Standard). Now always sorted Basic → Standard → Premium — fixes ordering on the admin Services page and every mobile screen that lists plans (My Plan, signup).
-
-### Added
 - **admin**: The Services page's Subscription Plan Prices card now shows and edits each plan's description and feature-bullet list (add/remove/reorder bullets via ▲/▼) — the same copy the mobile "My Plan" and signup screens render in that exact order — so that content can be changed without a code deploy. Previously only price was editable there. Reordering, like every other edit on this card, only takes effect once Save is pressed.
 
 ### Changed
 - **admin**: Every editable field on the Services page (Subscription Plan Prices and the Additional Services Catalog table) now requires pressing an explicit Save button to take effect, instead of auto-saving the instant a field lost focus or changed. The Active toggle in the catalog still applies immediately, since a checked/unchecked switch has no intermediate draft state to confirm.
 - **mobile**: The Alerts tab's empty state showed "All Clear — no alerts from your home sensors yet" regardless of plan, even though home monitoring isn't included on the Basic plan at all — implying a Basic customer's home was being watched when it wasn't. Basic-tier customers with no alerts now see a distinct "Home Monitoring Available" message explaining monitoring is a Standard/Premium feature, with a direct link to view plans.
+
+### Fixed
+- **api**: `GET /subscriptions/plans` had no `ORDER BY`, so the three plans could render in an arbitrary/inconsistent order (e.g. Premium, Basic, Standard). Now always sorted Basic → Standard → Premium — fixes ordering on the admin Services page and every mobile screen that lists plans (My Plan, signup).
 
 ## [0.3.1] — 2026-07-19
 
