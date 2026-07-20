@@ -48,6 +48,16 @@ export const marketplaceApi = {
   updateFrequencyDiscount: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/frequency-discounts/${id}`, data).then((r) => r.data),
 };
 
+export const inspectionConfigApi = {
+  getTree: () => api.get('/inspection-config').then((r) => r.data),
+  updateSection: (id: string, data: any) => api.patch(`/inspection-config/sections/${id}`, data).then((r) => r.data),
+  createSection: (subgroupId: string, label: string) => api.post(`/inspection-config/subgroups/${subgroupId}/sections`, { label }).then((r) => r.data),
+  removeSection: (id: string) => api.delete(`/inspection-config/sections/${id}`).then((r) => r.data),
+  updateTask: (id: string, data: any) => api.patch(`/inspection-config/tasks/${id}`, data).then((r) => r.data),
+  createTask: (sectionId: string, label: string) => api.post(`/inspection-config/sections/${sectionId}/tasks`, { label }).then((r) => r.data),
+  removeTask: (id: string) => api.delete(`/inspection-config/tasks/${id}`).then((r) => r.data),
+};
+
 export const disputesApi = {
   getAll: () => api.get('/disputes').then((r) => r.data),
   resolve: (id: string, resolution: string, note: string) =>

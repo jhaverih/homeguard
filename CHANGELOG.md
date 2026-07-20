@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Added
+- **api, admin**: New "Inspection Configurator" admin page for the General Home Inspection checklist a vendor completes on-site. The checklist (previously a hardcoded TypeScript array with no way to change a single label without a code deploy) now lives in the database across four new tables (Group -> Subgroup -> Section -> Task), seeded verbatim from the old hardcoded content so nothing changed for vendors on day one. Organized as General Home Inspection > HVAC Visual Inspection / AHU Filters (the old "HVAC Filter Replacement", relabeled) / Leak Inspection (Toilets, Sinks, Laundry reused as-is; Showers/Tub, Kitchen, and Water heater added as new, empty checklists ready to be built out) / Other (Bulb Replacement, not part of the requested groups but preserved rather than dropped). Admins can edit a task or checklist's label/description/enabled state (batched under one page-wide Save Changes button) and add/remove whole tasks or checklists (takes effect immediately). Each task's typed prompt fields, per-unit repeater config, and catalog upsell links are carried over unchanged but aren't editable in this first version.
+
 ### Fixed
 - **admin**: Saving a row in the Additional Services Catalog worked (the API call succeeded), but the row's "unsaved" dot never cleared and the Save Changes button stayed enabled — a decimal field round-tripping through the API (e.g. Markup % "15" coming back as "15.00") made the local draft look permanently different from the saved value. The draft now resyncs to the server's saved values after a successful save, so the dot and button correctly clear. Previously the only way to see a save actually took effect was leaving the page and coming back.
 

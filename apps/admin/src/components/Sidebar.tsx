@@ -18,6 +18,7 @@ const links = [
   { href: '/disputes', label: 'Disputes', icon: '⚖️' },
   { href: '/events', label: 'Monitoring Events', icon: '🔔' },
   { href: '/waitlist', label: 'Waitlist', icon: '📍' },
+  { href: '/inspection-config', label: 'Inspection Configurator', icon: '📝' },
 ];
 
 export function Sidebar() {

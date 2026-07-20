@@ -2,15 +2,15 @@ import {
   Injectable, ForbiddenException, BadRequestException, NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { InspectionNote } from './entities/inspection.entity';
 import { InspectionTaskResult } from './entities/inspection-task-result.entity';
+import { InspectionChecklistSection } from './entities/inspection-checklist-section.entity';
+import { InspectionChecklistTask } from './entities/inspection-checklist-task.entity';
 import { UploadsService } from '../uploads/uploads.service';
 import { NoteType, TaskStatus, ServiceRequestStatus } from '../common/enums/role.enum';
 import { ServiceRequest, ServiceType } from '../service-requests/entities/service-request.entity';
-import {
-  INSPECTION_CHECKLIST, ALL_TASK_KEYS, TASK_TOTAL, getTaskDef, getSectionKey,
-} from './checklists';
+import { getSectionKey, ChecklistSection } from './checklists';
 
 @Injectable()
 export class InspectionsService {
@@ -19,6 +19,10 @@ export class InspectionsService {
     private notesRepo: Repository<InspectionNote>,
     @InjectRepository(InspectionTaskResult)
     private taskResultsRepo: Repository<InspectionTaskResult>,
+    @InjectRepository(InspectionChecklistSection)
+    private checklistSectionsRepo: Repository<InspectionChecklistSection>,
+    @InjectRepository(InspectionChecklistTask)
+    private checklistTasksRepo: Repository<InspectionChecklistTask>,
     @InjectRepository(ServiceRequest)
     private requestsRepo: Repository<ServiceRequest>,
     private uploadsService: UploadsService,
@@ -61,8 +65,37 @@ export class InspectionsService {
 
   // ── Task results ──────────────────────────────────────────────────────────
 
-  getChecklist() {
-    return INSPECTION_CHECKLIST;
+  // General Inspection Checklist — admin-configurable via the Inspection
+  // Configurator (Group -> Subgroup -> Section -> Task). Shape returned here
+  // matches the old hardcoded INSPECTION_CHECKLIST exactly (ChecklistSection[])
+  // so the vendor app needs no changes. GUTTER_CHECKLIST/HVAC_SECTIONS in
+  // ./checklists.ts are separate, unrelated checklists and stay hardcoded.
+  private async loadChecklist(): Promise<ChecklistSection[]> {
+    const sections = await this.checklistSectionsRepo.find({
+      where: { isActive: true },
+      relations: ['tasks'],
+    });
+    return sections
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((section) => ({
+        key: section.key,
+        label: section.label,
+        tasks: (section.tasks || [])
+          .filter((t) => t.isActive)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((t) => ({
+            key: t.key,
+            label: t.label,
+            description: t.description ?? '',
+            promptFields: t.promptFields,
+            dynamicGroups: t.dynamicGroups ?? undefined,
+            catalogLinks: t.catalogLinks ?? [],
+          })),
+      }));
+  }
+
+  async getChecklist(): Promise<ChecklistSection[]> {
+    return this.loadChecklist();
   }
 
   async upsertTaskResult(
@@ -78,7 +111,7 @@ export class InspectionsService {
       linkedAdditionalServiceId?: string;
     },
   ): Promise<InspectionTaskResult> {
-    const taskDef = getTaskDef(taskKey);
+    const taskDef = await this.checklistTasksRepo.findOne({ where: { key: taskKey } });
     const isSpecialKey = taskKey === 'hvac_report' || taskKey.startsWith('gutter_');
     if (!taskDef && !isSpecialKey) throw new NotFoundException(`Unknown task key: ${taskKey}`);
 
@@ -137,8 +170,9 @@ export class InspectionsService {
   }> {
     const results = await this.taskResultsRepo.find({ where: { serviceRequestId } });
     const doneKeys = new Set(results.map((r) => r.taskKey));
+    const checklist = await this.loadChecklist();
 
-    const sections = INSPECTION_CHECKLIST.map((section) => ({
+    const sections = checklist.map((section) => ({
       key: section.key,
       label: section.label,
       total: section.tasks.length,
@@ -146,7 +180,7 @@ export class InspectionsService {
     }));
 
     return {
-      total: TASK_TOTAL,
+      total: checklist.reduce((sum, s) => sum + s.tasks.length, 0),
       completed: doneKeys.size,
       sections,
     };
@@ -156,7 +190,8 @@ export class InspectionsService {
     const count = await this.taskResultsRepo.count({ where: { serviceRequestId } });
     // If no tasks at all, allow completion (legacy job)
     if (count === 0) return true;
-    return count >= TASK_TOTAL;
+    const taskTotal = await this.checklistTasksRepo.count({ where: { isActive: true } });
+    return count >= taskTotal;
   }
 
   async getTaskHistoryForCustomer(customerId: string): Promise<any[]> {
@@ -185,9 +220,10 @@ export class InspectionsService {
       .orderBy('r.updatedAt', 'DESC')
       .getMany();
 
+    const labelByTaskKey = await this.getTaskLabelsByKey(results.map((r) => r.taskKey));
     return results.map((r) => ({
       taskKey: r.taskKey,
-      label: getTaskDef(r.taskKey)?.label ?? r.taskKey,
+      label: labelByTaskKey.get(r.taskKey) ?? r.taskKey,
       status: r.status,
       findings: r.findings ?? null,
       recommendation: r.recommendation ?? null,
@@ -208,12 +244,13 @@ export class InspectionsService {
     if (!request) return { found: false };
 
     const results = await this.taskResultsRepo.find({ where: { serviceRequestId: request.id } });
+    const labelByTaskKey = await this.getTaskLabelsByKey(results.map((r) => r.taskKey));
     const counts = { OK: 0, NEEDS_ATTENTION: 0, URGENT: 0, NOT_ACCESSIBLE: 0 };
     const flaggedLines: string[] = [];
     for (const r of results) {
       counts[r.status] = (counts[r.status] ?? 0) + 1;
       if (r.status === TaskStatus.NEEDS_ATTENTION || r.status === TaskStatus.URGENT) {
-        const label = getTaskDef(r.taskKey)?.label ?? r.taskKey;
+        const label = labelByTaskKey.get(r.taskKey) ?? r.taskKey;
         flaggedLines.push(`${label} (${r.status}): ${r.findings ?? 'no details recorded'}`);
       }
     }
@@ -236,6 +273,13 @@ export class InspectionsService {
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
+
+  private async getTaskLabelsByKey(taskKeys: string[]): Promise<Map<string, string>> {
+    const uniqueKeys = [...new Set(taskKeys)];
+    if (uniqueKeys.length === 0) return new Map();
+    const tasks = await this.checklistTasksRepo.find({ where: { key: In(uniqueKeys) } });
+    return new Map(tasks.map((t) => [t.key, t.label]));
+  }
 
   private async resolveNotePhotos(notes: InspectionNote[]): Promise<any[]> {
     return Promise.all(
