@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Removed
+- **api**: Removed "Bulb Replacement" (and its "Other" subgroup) from the General Home Inspection checklist — it wasn't part of the requested group structure and the user confirmed it should go rather than stay as a leftover "Other" catch-all. Removed from the seed and deleted from the live database so it won't reappear on a future deploy.
+
 ### Added
 - **api, admin**: New "Inspection Configurator" admin page for the General Home Inspection checklist a vendor completes on-site. The checklist (previously a hardcoded TypeScript array with no way to change a single label without a code deploy) now lives in the database across four new tables (Group -> Subgroup -> Section -> Task), seeded verbatim from the old hardcoded content so nothing changed for vendors on day one. Organized as General Home Inspection > HVAC Visual Inspection / AHU Filters (the old "HVAC Filter Replacement", relabeled) / Leak Inspection (Toilets, Sinks, Laundry reused as-is; Showers/Tub, Kitchen, and Water heater added as new, empty checklists ready to be built out) / Other (Bulb Replacement, not part of the requested groups but preserved rather than dropped). Admins can edit a task or checklist's label/description/enabled state (batched under one page-wide Save Changes button) and add/remove whole tasks or checklists (takes effect immediately). Each task's typed prompt fields, per-unit repeater config, and catalog upsell links are carried over unchanged but aren't editable in this first version.
 

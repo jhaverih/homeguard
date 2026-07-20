@@ -407,60 +407,6 @@ const LAUNDRY_TASKS: SeedTask[] = [
   },
 ];
 
-const BULB_REPLACEMENT_TASKS: SeedTask[] = [
-  {
-    key: 'bulb_replacement.test_fixtures',
-    label: 'Test all fixtures for functionality',
-    description: 'Test every fixture/light switch in scope',
-    promptFields: [
-      { key: 'fixtures_tested', label: 'Number of fixtures tested', type: 'number', placeholder: 'e.g. 12' },
-      { key: 'non_functioning', label: 'Number of non-functioning fixtures', type: 'number', placeholder: 'e.g. 3' },
-    ],
-    catalogLinks: ['Replace Bulbs (included in inspection)', 'Replace Bulbs (not included)'],
-  },
-  {
-    key: 'bulb_replacement.identify_type',
-    label: 'Identify bulb type / wattage / base',
-    description: 'Record bulb specifications before replacement',
-    promptFields: [
-      { key: 'bulb_type', label: 'Bulb type', type: 'select', options: ['LED', 'CFL', 'Incandescent', 'Halogen', 'Fluorescent', 'Mixed'] },
-      { key: 'wattage', label: 'Wattage (or equivalent)', type: 'text', placeholder: 'e.g. 60W equiv.' },
-      { key: 'base_type', label: 'Base type', type: 'text', placeholder: 'e.g. E26, GU10, MR16' },
-    ],
-    catalogLinks: ['Replace Bulbs (included in inspection)', 'Replace Bulbs (not included)'],
-  },
-  {
-    key: 'bulb_replacement.replace_bulbs',
-    label: 'Replace non-functioning / damaged bulbs',
-    description: 'Replace flickering, blackened, or broken bulbs',
-    promptFields: [
-      { key: 'bulbs_replaced', label: 'Number of bulbs replaced', type: 'number', placeholder: 'e.g. 3' },
-      { key: 'fixture_locations', label: 'Fixture locations', type: 'text', placeholder: 'e.g. hallway ceiling, garage exterior' },
-      { key: 'bulb_type_installed', label: 'Bulb type installed', type: 'select', options: ['LED', 'CFL', 'Incandescent', 'Halogen', 'Same as existing'] },
-    ],
-    catalogLinks: ['Replace Bulbs (included in inspection)', 'Replace Bulbs (not included)'],
-  },
-  {
-    key: 'bulb_replacement.verify_socket',
-    label: 'Verify socket / wiring if bulb replacement fails',
-    description: 'If a new bulb still does not work, flag as wiring/socket issue',
-    promptFields: [
-      { key: 'socket_issue_found', label: 'Socket or wiring issue (not just bulb)', type: 'boolean' },
-      { key: 'fixtures_flagged', label: 'Fixtures flagged for electrician', type: 'text', placeholder: 'e.g. kitchen pendant, garage switch' },
-    ],
-    catalogLinks: [],
-  },
-  {
-    key: 'bulb_replacement.dispose',
-    label: 'Dispose of old bulbs',
-    description: 'Note if CFL/fluorescent requiring special disposal',
-    promptFields: [
-      { key: 'special_disposal_needed', label: 'CFL/fluorescent bulbs requiring special disposal', type: 'boolean' },
-    ],
-    catalogLinks: [],
-  },
-];
-
 @Injectable()
 export class InspectionChecklistSeedService implements OnModuleInit {
   private readonly logger = new Logger(InspectionChecklistSeedService.name);
@@ -478,7 +424,6 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     const hvacVisualSub = await this.ensureSubgroup(group.id, 'HVAC_VISUAL_INSPECTION', 'HVAC Visual Inspection', 0);
     const ahuFiltersSub = await this.ensureSubgroup(group.id, 'AHU_FILTERS', 'AHU Filters', 1);
     const leakSub = await this.ensureSubgroup(group.id, 'LEAK_INSPECTION', 'Leak Inspection', 2);
-    const otherSub = await this.ensureSubgroup(group.id, 'OTHER', 'Other', 3);
 
     const hvacVisualSection = await this.ensureSection(hvacVisualSub.id, 'hvac_visual', 'HVAC Visual Inspection', 0);
     const ahuFiltersSection = await this.ensureSection(ahuFiltersSub.id, 'hvac_filter', 'AHU Filters', 0);
@@ -488,14 +433,12 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     await this.ensureSection(leakSub.id, 'kitchen_leak', 'Kitchen', 3); // new, starts empty
     const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 4);
     await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 5); // new, starts empty
-    const bulbSection = await this.ensureSection(otherSub.id, 'bulb_replacement', 'Bulb Replacement', 0);
 
     await this.ensureTasks(hvacVisualSection.id, HVAC_VISUAL_TASKS);
     await this.ensureTasks(ahuFiltersSection.id, AHU_FILTERS_TASKS);
     await this.ensureTasks(toiletsSection.id, TOILETS_TASKS);
     await this.ensureTasks(sinksSection.id, SINKS_TASKS);
     await this.ensureTasks(laundrySection.id, LAUNDRY_TASKS);
-    await this.ensureTasks(bulbSection.id, BULB_REPLACEMENT_TASKS);
   }
 
   private async ensureGroup(key: string, label: string, sortOrder: number) {
