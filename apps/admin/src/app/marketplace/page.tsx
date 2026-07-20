@@ -16,6 +16,26 @@ function SectionCard({ title, subtitle, children }: { title: string; subtitle: s
   );
 }
 
+// Holds every table for one Marketplace subscription type (today: House
+// Cleaning's 5 tables). Each future subscription type gets its own sibling
+// CollapsibleGroup with its own groupKey — a light wrapper around
+// SectionCards, not itself card-styled, so it doesn't double up borders.
+function CollapsibleGroup({ label, collapsed, onToggle, children }: { label: string; collapsed: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="mb-8">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 mb-4 text-left"
+      >
+        <span className={`inline-block text-xs text-steel transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
+        <h2 className="text-lg font-bold text-lantern-deep">{label}</h2>
+      </button>
+      {!collapsed && children}
+    </div>
+  );
+}
+
 function SaveButton({ dirty, saving, onClick }: { dirty: boolean; saving: boolean; onClick: () => void }) {
   return (
     <button
@@ -33,6 +53,14 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroupCollapsed = (key: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
 
   const load = () => marketplaceApi.getConfig().then((c: any) => {
     setConfig(c);
@@ -68,8 +96,13 @@ export default function MarketplacePage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-lantern-deep mb-2">Marketplace</h1>
-      <p className="text-steel mb-8">Pricing configuration for House Cleaning subscriptions — every field here is what the mobile pricing formula actually reads, seeded with the Tennessee defaults.</p>
+      <p className="text-steel mb-8">Pricing configuration for Marketplace subscriptions, grouped by service — every field here is what the mobile pricing formula actually reads.</p>
 
+      <CollapsibleGroup
+        label="House Cleaning"
+        collapsed={collapsedGroups.has('HOUSE_CLEANING')}
+        onToggle={() => toggleGroupCollapsed('HOUSE_CLEANING')}
+      >
       <SectionCard title="Cleaning Plans" subtitle="Cost/unit (internal), retail/unit (customer-facing), and which visit frequencies each plan allows.">
         <table className="w-full text-sm">
           <thead>
@@ -258,6 +291,7 @@ export default function MarketplacePage() {
           </tbody>
         </table>
       </SectionCard>
+      </CollapsibleGroup>
     </div>
   );
 }
