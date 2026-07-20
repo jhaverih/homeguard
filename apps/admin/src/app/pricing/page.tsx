@@ -253,6 +253,7 @@ export default function PricingPage() {
   const [backupsOpen, setBackupsOpen] = useState(false);
   const [backupsLoading, setBackupsLoading] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [savingAll, setSavingAll] = useState(false);
 
   useEffect(() => {
     Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
@@ -327,6 +328,15 @@ export default function PricingPage() {
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
     } finally {
       setSaving((s) => { const n = new Set(s); n.delete(id); return n; });
+    }
+  };
+
+  const saveAllPrices = async (ids: string[]) => {
+    setSavingAll(true);
+    try {
+      await Promise.all(ids.map((id) => savePrice(id)));
+    } finally {
+      setSavingAll(false);
     }
   };
 
@@ -674,6 +684,12 @@ export default function PricingPage() {
     { key: null as string | null, label: 'Uncategorized' },
   ].map((g) => ({ ...g, items: sortedPrices.filter((p) => (p.category ?? null) === g.key) }));
 
+  // One button saves every unsaved row in the catalog at once, rather than
+  // hunting down a per-row Save on each edited service.
+  const dirtyPriceIds = prices
+    .filter((p) => editStates[p.id] && !statesEqual(editStates[p.id], rowToEdit(p)))
+    .map((p) => p.id);
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-lantern-deep mb-2">Services Management</h1>
@@ -836,10 +852,17 @@ export default function PricingPage() {
           <div>
             <h2 className="text-lg font-bold text-lantern-deep">Additional Services Catalog</h2>
             <p className="text-sm text-steel mt-1">
-              All fields editable — press Save on a row to apply. Stripe fee: 2.9% + $0.30. Toggle the switch to disable without deleting (applies immediately).
+              All fields editable — edited rows show a dot; press "Save Changes" to apply all edits at once. Stripe fee: 2.9% + $0.30. Toggle the switch to disable without deleting (applies immediately).
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => saveAllPrices(dirtyPriceIds)}
+              disabled={dirtyPriceIds.length === 0 || savingAll}
+              className="bg-lantern-deep text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-lantern-deep"
+            >
+              {savingAll ? 'Saving…' : dirtyPriceIds.length > 0 ? `Save Changes (${dirtyPriceIds.length})` : 'Save Changes'}
+            </button>
             <button
               onClick={exportCsv}
               className="border border-border text-steel px-4 py-2 rounded-lg text-sm font-semibold hover:bg-canvas transition-colors flex items-center gap-2"
@@ -1252,20 +1275,15 @@ export default function PricingPage() {
                         </div>
                       )}
                     </td>
-                    {/* Save / Delete */}
+                    {/* Unsaved indicator / Delete — saving itself happens via the
+                        single "Save Changes" button above the table, not per row. */}
                     <td className="pr-4 text-center">
                       {isSaving || isDeleting ? (
                         <div className="w-4 h-4 border-2 border-lantern border-t-transparent rounded-full animate-spin inline-block" />
                       ) : (
                         <div className="flex items-center justify-center gap-2">
                           {isDirty && (
-                            <button
-                              onClick={() => savePrice(price.id)}
-                              className="text-xs font-semibold text-lantern-deep hover:underline"
-                              title="Save changes"
-                            >
-                              Save
-                            </button>
+                            <span className="w-2 h-2 rounded-full bg-lantern-deep inline-block" title="Unsaved changes" />
                           )}
                           <button
                             onClick={() => deletePrice(price.id, state.name)}
