@@ -326,6 +326,12 @@ export default function PricingPage() {
         isQuotaInspection: state.isQuotaInspection,
       });
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
+      // Resync the draft to the server's canonical values (e.g. a decimal
+      // column round-tripping "15" -> "15.00") — otherwise a merely
+      // cosmetic formatting difference leaves the row looking permanently
+      // dirty even though the save succeeded, and repeated Save presses
+      // appear to do nothing.
+      setEditStates((prev) => ({ ...prev, [id]: rowToEdit(updated) }));
     } finally {
       setSaving((s) => { const n = new Set(s); n.delete(id); return n; });
     }

@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Fixed
+- **admin**: Saving a row in the Additional Services Catalog worked (the API call succeeded), but the row's "unsaved" dot never cleared and the Save Changes button stayed enabled — a decimal field round-tripping through the API (e.g. Markup % "15" coming back as "15.00") made the local draft look permanently different from the saved value. The draft now resyncs to the server's saved values after a successful save, so the dot and button correctly clear. Previously the only way to see a save actually took effect was leaving the page and coming back.
+
 ### Added
 - **admin**: Every category defined in the Additional Services Catalog (including ones with zero services assigned, like the new Inspections category below) now always shows its own section header — previously a category with no services silently had nowhere to appear, so there was no way to see it as a target before assigning something to it. Re-categorizing a service and pressing Save moves it into its new section automatically.
 - **admin**: Category section headers in the Additional Services Catalog table are now collapsible (click the header to hide/show that category's rows) — makes the catalog easier to scan as it grows.
