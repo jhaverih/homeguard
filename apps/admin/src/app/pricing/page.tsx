@@ -79,6 +79,7 @@ const CATEGORIES: { value: string; label: string }[] = [
 ];
 const CATEGORY_RANK = new Map(CATEGORIES.map((c, i) => [c.value, i]));
 const categoryLabel = (v: string | null) => CATEGORIES.find((c) => c.value === v)?.label ?? 'Uncategorized';
+const categoryKey = (v: string | null) => v ?? '__uncategorized__';
 
 // Mirrors apps/api/src/vendor/entities/vendor-capability.entity.ts's CertificationType enum.
 const CERTIFICATION_TYPES: { value: string; label: string }[] = [
@@ -251,6 +252,7 @@ export default function PricingPage() {
   const [backups, setBackups] = useState<any[]>([]);
   const [backupsOpen, setBackupsOpen] = useState(false);
   const [backupsLoading, setBackupsLoading] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
@@ -404,6 +406,13 @@ export default function PricingPage() {
     setSelectedIds(new Set());
     setBulkCategory('');
   };
+
+  const toggleCategoryCollapsed = (key: string) =>
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
 
   const applyBulkCategory = async () => {
     if (selectedIds.size === 0) return;
@@ -941,6 +950,8 @@ export default function PricingPage() {
                 const isDirty = !statesEqual(state, rowToEdit(price));
                 const inactive = !price.isActive;
                 const showDivider = idx === 0 || sortedPrices[idx - 1].category !== price.category;
+                const catKey = categoryKey(price.category);
+                const collapsed = collapsedCategories.has(catKey);
 
                 return (
                   <Fragment key={price.id}>
@@ -948,7 +959,15 @@ export default function PricingPage() {
                     <tr className="bg-canvas/70">
                       <td colSpan={20} className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-steel">
                         <div className="flex items-center gap-3">
-                          <span>{categoryLabel(price.category)}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleCategoryCollapsed(catKey)}
+                            className="flex items-center gap-2 normal-case text-steel hover:text-ink transition-colors"
+                            title={collapsed ? 'Expand category' : 'Collapse category'}
+                          >
+                            <span className={`inline-block text-[10px] transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
+                            {categoryLabel(price.category)}
+                          </button>
                           <button
                             onClick={() => selectGroup(
                               sortedPrices.filter((p) => p.category === price.category).map((p) => p.id)
@@ -961,6 +980,7 @@ export default function PricingPage() {
                       </td>
                     </tr>
                   )}
+                  {!collapsed && (
                   <tr className={`hover:bg-canvas/50 transition-colors ${inactive ? 'opacity-50' : ''}`}>
                     {/* Row select */}
                     <td className="px-3 py-3 text-center">
@@ -1238,6 +1258,7 @@ export default function PricingPage() {
                       )}
                     </td>
                   </tr>
+                  )}
                   </Fragment>
                 );
               })}

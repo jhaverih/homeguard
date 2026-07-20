@@ -15,6 +15,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-07-20
 
 ### Added
+- **admin**: Category section headers in the Additional Services Catalog table are now collapsible (click the header to hide/show that category's rows) — makes the catalog easier to scan as it grows.
 - **api, admin**: New `ServiceCategory` value `INSPECTIONS` ("Inspections"), available in the admin Services Catalog's Category dropdown alongside the existing trade categories.
 
 ### Fixed
