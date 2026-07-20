@@ -21,6 +21,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ### Fixed
 - **mobile**: The dashboard's Marketplace tile label ("Marketplace" — the longest of the 5 group names) was clipping its wrapped second line; the group grid now distributes tiles evenly by flex instead of a fixed narrow width, with room reserved for a wrapped line.
 - **mobile**: House Cleaning wizard — Dining Room and (renamed) Living Room now default to a count of 1 like the other common rooms did already; the three mutually-exclusive base house-condition options (Well Maintained/Average/Not Cleaned in 3+ Months) now render as equal-sized, aligned buttons in their own row instead of an intrinsic-width wrap alongside the stacking modifiers.
+- **mobile**: The House Cleaning wizard screen was never registered in the customer tab layout, so Expo Router auto-added it as a visible bottom tab (raw filename as its label, cut off in the tab bar) and used the raw filename as the screen title too. Registered with `href: null` (hidden from the tab bar, same as every other non-tab screen) and a proper "House Cleaning" title.
 
 ## [0.3.0] — 2026-07-19
 
