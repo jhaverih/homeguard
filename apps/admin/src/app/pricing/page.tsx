@@ -254,6 +254,7 @@ export default function PricingPage() {
   const [backupsLoading, setBackupsLoading] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [savingAll, setSavingAll] = useState(false);
+  const [nameFilter, setNameFilter] = useState('');
 
   useEffect(() => {
     Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
@@ -679,6 +680,13 @@ export default function PricingPage() {
     return ai - bi;
   });
 
+  // Services whose name partially matches the toolbar filter (case-insensitive).
+  // Empty filter = everything, same as no filter applied at all.
+  const trimmedFilter = nameFilter.trim().toLowerCase();
+  const filteredPrices = trimmedFilter
+    ? sortedPrices.filter((p) => p.name.toLowerCase().includes(trimmedFilter))
+    : sortedPrices;
+
   // Every defined category gets its own always-visible section — including
   // ones with zero services in them right now (e.g. a brand-new category
   // like Inspections) — plus a trailing Uncategorized bucket, so there's
@@ -688,7 +696,7 @@ export default function PricingPage() {
   const categoryGroups = [
     ...CATEGORIES.map((c) => ({ key: c.value as string | null, label: c.label })),
     { key: null as string | null, label: 'Uncategorized' },
-  ].map((g) => ({ ...g, items: sortedPrices.filter((p) => (p.category ?? null) === g.key) }));
+  ].map((g) => ({ ...g, items: filteredPrices.filter((p) => (p.category ?? null) === g.key) }));
 
   // One button saves every unsaved row in the catalog at once, rather than
   // hunting down a per-row Save on each edited service.
@@ -891,6 +899,13 @@ export default function PricingPage() {
             >
               + Add Service
             </button>
+            <input
+              type="text"
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              placeholder="Filter by name…"
+              className="border border-border rounded-lg px-3 py-2 text-sm w-48 focus:border-lantern outline-none"
+            />
           </div>
         </div>
 
@@ -946,8 +961,8 @@ export default function PricingPage() {
                 <th className="sticky-col px-3 py-3 text-center font-semibold text-steel w-10 left-0 bg-canvas/70">
                   <input
                     type="checkbox"
-                    checked={sortedPrices.length > 0 && selectedIds.size === sortedPrices.length}
-                    onChange={() => toggleSelectAll(sortedPrices.map((p) => p.id))}
+                    checked={filteredPrices.length > 0 && selectedIds.size === filteredPrices.length}
+                    onChange={() => toggleSelectAll(filteredPrices.map((p) => p.id))}
                     className="w-4 h-4 rounded cursor-pointer accent-lantern"
                     title="Select all"
                   />
@@ -1015,7 +1030,7 @@ export default function PricingPage() {
                   </tr>
                   {!collapsed && group.items.length === 0 && (
                     <tr>
-                      <td colSpan={21} className="px-4 py-4 text-xs text-steel italic">No services in this category yet.</td>
+                      <td colSpan={21} className="px-4 py-4 text-xs text-steel italic">{trimmedFilter ? 'No services match your filter.' : 'No services in this category yet.'}</td>
                     </tr>
                   )}
                   {!collapsed && group.items.map((price) => {
