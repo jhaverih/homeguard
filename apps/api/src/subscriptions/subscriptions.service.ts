@@ -156,7 +156,12 @@ export class SubscriptionsService implements OnModuleInit {
   }
 
   async getPlans(): Promise<SubscriptionPlan[]> {
-    return this.plansRepo.find({ where: { isActive: true } });
+    const plans = await this.plansRepo.find({ where: { isActive: true } });
+    // No ORDER BY at the DB level, so row order is otherwise undefined —
+    // always show Basic/Standard/Premium in that fixed tier order, everywhere
+    // this single endpoint is consumed (admin, mobile subscribe/register).
+    const tierOrder = Object.values(PlanTier);
+    return plans.sort((a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier));
   }
 
   async getActiveSubscription(customerId: string): Promise<CustomerSubscription | null> {

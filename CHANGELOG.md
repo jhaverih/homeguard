@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Fixed
+- **api**: `GET /subscriptions/plans` had no `ORDER BY`, so the three plans could render in an arbitrary/inconsistent order (e.g. Premium, Basic, Standard). Now always sorted Basic → Standard → Premium — fixes ordering on the admin Services page and every mobile screen that lists plans (My Plan, signup).
+
 ### Added
 - **admin**: The Services page's Subscription Plan Prices card now shows and edits each plan's description and feature-bullet list (add/remove bullets) — the same copy the mobile "My Plan" screen renders — so that content can be changed without a code deploy. Previously only price was editable there.
 
