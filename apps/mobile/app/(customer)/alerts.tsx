@@ -3,9 +3,9 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Modal, Alert,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { alertsApi } from '../../src/services/api';
+import { alertsApi, subscriptionsApi } from '../../src/services/api';
 import { useAlertsStore } from '../../src/store/alerts.store';
 import { colors } from '../../src/theme';
 
@@ -63,9 +63,11 @@ export default function AlertsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [dispatchModal, setDispatchModal] = useState<any>(null);
   const [loadError, setLoadError] = useState(false);
+  const [subscription, setSubscription] = useState<any>(null);
   const { setUnreadCount, decrement: decrementBadge } = useAlertsStore();
 
   const load = async () => {
+    subscriptionsApi.getMySubscription().then((sub: any) => setSubscription(sub)).catch(() => {});
     try {
       const res: any = await alertsApi.getMyAlerts();
       setAlerts(res.alerts ?? []);
@@ -144,6 +146,16 @@ export default function AlertsScreen() {
             <Text style={styles.emptyTitle}>Couldn't load alerts</Text>
             <Text style={styles.emptyText}>Pull down to try again.</Text>
           </View>
+        ) : alerts.length === 0 && subscription?.plan?.tier === 'BASIC' ? (
+          <View style={styles.emptyInner}>
+            <Ionicons name="shield-outline" size={56} color={colors.lantern} />
+            <Text style={styles.emptyTitle}>Home Monitoring Available</Text>
+            <Text style={styles.emptyText}>Real-time sensor alerts are included with the Standard and Premium plans — upgrade to start monitoring your home.</Text>
+            <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/(customer)/subscribe')}>
+              <Text style={styles.upgradeBtnText}>View Plans</Text>
+              <Ionicons name="arrow-forward" size={14} color={colors.ink} />
+            </TouchableOpacity>
+          </View>
         ) : alerts.length === 0 ? (
           <View style={styles.emptyInner}>
             <Ionicons name="shield-checkmark-outline" size={56} color="#d1fae5" />
@@ -188,5 +200,7 @@ const styles = StyleSheet.create({
   empty: { flex: 1 },
   emptyInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 80 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.lanternDeep, marginTop: 16, marginBottom: 8 },
-  emptyText: { fontSize: 14, color: colors.steel, textAlign: 'center' },
+  emptyText: { fontSize: 14, color: colors.steel, textAlign: 'center', lineHeight: 20 },
+  upgradeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.lantern, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 12, marginTop: 20 },
+  upgradeBtnText: { fontSize: 14, fontWeight: '700', color: colors.ink },
 });
