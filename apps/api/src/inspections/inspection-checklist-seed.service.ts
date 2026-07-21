@@ -701,40 +701,43 @@ export class InspectionChecklistSeedService implements OnModuleInit {
   async onModuleInit() {
     const group = await this.ensureGroup('GENERAL_HOME_INSPECTION', 'General Home Inspection', 0);
 
-    const hvacVisualSub = await this.ensureSubgroup(group.id, 'HVAC_VISUAL_INSPECTION', 'HVAC Visual Inspection', 0);
+    const hvacVisualSub = await this.ensureSubgroup(group.id, 'HVAC_VISUAL_INSPECTION', 'HVAC', 0);
     const leakSub = await this.ensureSubgroup(group.id, 'LEAK_INSPECTION', 'Leak Inspection', 2);
-    const exteriorSub = await this.ensureSubgroup(group.id, 'EXTERIOR_INSPECTION', 'Exterior Inspection', 3);
+    const exteriorSub = await this.ensureSubgroup(group.id, 'EXTERIOR_INSPECTION', 'Exterior Visual Inspection', 3);
 
     const hvacVisualSection = await this.ensureSection(hvacVisualSub.id, 'hvac_visual', 'HVAC Visual Inspection', 0);
+    // Leak Inspection: Toilet Inspection, Sinks, Siding, Showers/Tub, Kitchen, Laundry, Water Heater
+    // (Siding moved here from Exterior Visual Inspection; Foundation stays exterior-only, confirmed with the user)
     const toiletsSection = await this.ensureSection(leakSub.id, 'toilet_leak', 'Toilet Inspection', 0);
     const sinksSection = await this.ensureSection(leakSub.id, 'sink_leak', 'Sinks', 1);
-    const showerTubSection = await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 2,
+    const sidingSection = await this.ensureSection(leakSub.id, 'siding', 'Siding', 2,
+      'Recommended photos if an issue is found: damaged siding, paint deterioration, moisture damage.');
+    const showerTubSection = await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 3,
       'Recommended photos if an issue is found: shower fixture leak, failed caulking, damaged grout, water damage.');
-    const kitchenSection = await this.ensureSection(leakSub.id, 'kitchen_leak', 'Kitchen', 3,
+    const kitchenSection = await this.ensureSection(leakSub.id, 'kitchen_leak', 'Kitchen', 4,
       'Recommended photos if an issue is found: under-sink plumbing, disposal leak, dishwasher connection, cabinet water damage.');
-    const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 4,
+    const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 5,
       'Recommended photos if an issue is found: washer connections, shutoff valves, drain hose.');
-    const waterHeaterSection = await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 5,
+    const waterHeaterSection = await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 6,
       'Visual inspection only — do not operate the water heater or its valves. Recommended photos if an issue is found: full water heater, supply connections, drain pan, any signs of corrosion or leaks.');
 
-    const foundationSection = await this.ensureSection(exteriorSub.id, 'foundation', 'Foundation', 0,
-      'Recommended photos if an issue is found: front foundation, any cracks, drainage concerns.');
-    const sidingSection = await this.ensureSection(exteriorSub.id, 'siding', 'Siding', 1,
-      'Recommended photos if an issue is found: damaged siding, paint deterioration, moisture damage.');
-    const trimFasciaSection = await this.ensureSection(exteriorSub.id, 'trim_fascia', 'Trim & Fascia', 2,
+    // Exterior Visual Inspection: Trim & Fascia, Gutters, Roof, Deck/Porch, Concrete Surfaces, Foundation, Vegetation, Windows & Exterior Doors
+    const trimFasciaSection = await this.ensureSection(exteriorSub.id, 'trim_fascia', 'Trim & Fascia', 0,
       'Recommended photos if an issue is found: rot, loose trim, peeling paint.');
-    const roofExteriorSection = await this.ensureSection(exteriorSub.id, 'roof_exterior', 'Roof (Ground/Binocular Inspection Only)', 3,
-      'Ground/binocular inspection only — do not access the roof. Recommended photos if an issue is found: missing shingles, debris accumulation, flashing issues.');
-    const guttersSection = await this.ensureSection(exteriorSub.id, 'gutters', 'Gutters', 4,
+    const guttersSection = await this.ensureSection(exteriorSub.id, 'gutters', 'Gutters', 1,
       'Recommended photos if an issue is found: debris, sagging gutters, downspout discharge.');
-    const windowsDoorsSection = await this.ensureSection(exteriorSub.id, 'windows_doors', 'Windows & Exterior Doors', 5,
-      'Recommended photos if an issue is found: failed caulking, damaged trim, moisture stains.');
-    const deckPorchSection = await this.ensureSection(exteriorSub.id, 'deck_porch', 'Deck / Porch', 6,
+    const roofExteriorSection = await this.ensureSection(exteriorSub.id, 'roof_exterior', 'Roof (Ground/Binocular Inspection Only)', 2,
+      'Ground/binocular inspection only — do not access the roof. Recommended photos if an issue is found: missing shingles, debris accumulation, flashing issues.');
+    const deckPorchSection = await this.ensureSection(exteriorSub.id, 'deck_porch', 'Deck / Porch', 3,
       'Recommended photos if an issue is found: loose railings, rot, damaged stairs.');
-    const concreteSection = await this.ensureSection(exteriorSub.id, 'concrete', 'Concrete Surfaces', 7,
+    const concreteSection = await this.ensureSection(exteriorSub.id, 'concrete', 'Concrete Surfaces', 4,
       'Recommended photos if an issue is found: trip hazards, settlement, cracked concrete.');
-    const vegetationSection = await this.ensureSection(exteriorSub.id, 'vegetation', 'Vegetation', 8,
+    const foundationSection = await this.ensureSection(exteriorSub.id, 'foundation', 'Foundation', 5,
+      'Recommended photos if an issue is found: front foundation, any cracks, drainage concerns.');
+    const vegetationSection = await this.ensureSection(exteriorSub.id, 'vegetation', 'Vegetation', 6,
       'Recommended photos if an issue is found: trees over roof, vegetation against siding, drainage issues.');
+    const windowsDoorsSection = await this.ensureSection(exteriorSub.id, 'windows_doors', 'Windows & Exterior Doors', 7,
+      'Recommended photos if an issue is found: failed caulking, damaged trim, moisture stains.');
 
     await this.ensureTasks(hvacVisualSection.id, HVAC_VISUAL_TASKS);
     await this.ensureTasks(toiletsSection.id, TOILETS_TASKS);
