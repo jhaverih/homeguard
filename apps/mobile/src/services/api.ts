@@ -161,6 +161,8 @@ export const marketplaceApi = {
   subscribeLawncarePackage: (body: any): Promise<{ subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null }> =>
     api.post('/marketplace/lawncare/subscribe', body) as any,
   bookLawncareService: (body: any) => api.post('/marketplace/lawncare/book', body),
+  getLawncarePropertyProfile: (): Promise<any | null> => api.get('/marketplace/lawncare/property-profile') as any,
+  saveLawncarePropertyProfile: (body: any) => api.put('/marketplace/lawncare/property-profile', body),
 };
 
 export const standaloneServiceApi = {

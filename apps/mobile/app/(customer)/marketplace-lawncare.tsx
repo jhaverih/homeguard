@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
   Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
@@ -12,16 +12,60 @@ import { colors } from '../../src/theme';
 
 type Mode = 'package' | 'service';
 
+// One-off project services — quantity varies per project, not a standing
+// property attribute, so these keep a manual qty entry instead of pulling
+// from the shared property profile.
+const MANUAL_QTY_SERVICES = new Set(['sod_installation', 'plant_installation', 'gravel_rock_installation']);
+
+const PROFILE_FIELDS: { key: string; label: string; unit: string }[] = [
+  { key: 'propertySizeSqFt', label: 'Property (Lawn) Size', unit: 'sq ft' },
+  { key: 'shrubPlantCount', label: 'Number of Shrubs/Plants', unit: 'count' },
+  { key: 'bedSqFt', label: 'Bed Square Footage', unit: 'sq ft' },
+  { key: 'gutterLinearFt', label: 'Gutter Linear Footage', unit: 'ft' },
+  { key: 'irrigationZones', label: 'Irrigation Zones', unit: 'zones' },
+  { key: 'treeCountSmall', label: "Small Trees (<20')", unit: 'count' },
+  { key: 'treeCountMedium', label: "Medium Trees (20-40')", unit: 'count' },
+  { key: 'treeCountLarge', label: "Large Trees (40-60')", unit: 'count' },
+  { key: 'lightingFixtureCount', label: 'Landscape Lighting Fixtures', unit: 'count' },
+];
+
+// Mirrors the qty portion of resolveServiceQty() in
+// apps/api/src/marketplace/marketplace-lawncare-pricing.utils.ts, purely for
+// display (e.g. "Quantity: 3,200 sq ft, from your property details") — the
+// actual charged price always comes from the live quoteLawncare() call,
+// never computed client-side.
+function displayQtyFromProfile(serviceKey: string, profile: any): number | null {
+  if (!profile) return null;
+  switch (serviceKey) {
+    case 'mulch_installation': return Math.round(((Number(profile.bedSqFt) || 0) * 0.25) / 27);
+    case 'bed_weeding': return Number(profile.bedSqFt) || 0;
+    case 'leaf_removal': return Number(profile.propertySizeSqFt) || 0;
+    case 'shrub_trimming': return Number(profile.shrubPlantCount) || 0;
+    case 'gutter_cleaning': return Number(profile.gutterLinearFt) || 0;
+    case 'irrigation_startup':
+    case 'irrigation_winterization': return Number(profile.irrigationZones) || 0;
+    case 'small_tree_trimming': return Number(profile.treeCountSmall) || 0;
+    case 'medium_tree_trimming': return Number(profile.treeCountMedium) || 0;
+    case 'large_tree_trimming': return Number(profile.treeCountLarge) || 0;
+    case 'landscape_lighting_maintenance': return Number(profile.lightingFixtureCount) || 0;
+    default: return null; // flat services (lawn_mowing, spring_cleanup, seasonal_maintenance, drainage_correction)
+  }
+}
+
 export default function MarketplaceLawncareScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [config, setConfig] = useState<{ services: any[]; packages: any[] } | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<Record<string, string>>({});
+  const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [mode, setMode] = useState<Mode>('package');
   const [packageKey, setPackageKey] = useState<string | null>(null);
   const [serviceKey, setServiceKey] = useState<string | null>(null);
-  const [qty, setQty] = useState(1);
+  const [manualQty, setManualQty] = useState(1);
   const [preferredDate, setPreferredDate] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 3); return d; });
   const [showDate, setShowDate] = useState(false);
 
@@ -30,33 +74,66 @@ export default function MarketplaceLawncareScreen() {
   const quoteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    marketplaceApi.getLawncareConfig().then((c) => {
-      setConfig(c);
-      if (c.packages.length > 0) setPackageKey(c.packages[0].key);
-    }).catch(() => Alert.alert('Error', 'Could not load Lawncare options.')).finally(() => setLoading(false));
+    Promise.all([marketplaceApi.getLawncareConfig(), marketplaceApi.getLawncarePropertyProfile()])
+      .then(([c, p]) => {
+        setConfig(c);
+        if (c.packages.length > 0) setPackageKey(c.packages[0].key);
+        setProfile(p);
+        if (!p) setEditingProfile(true);
+      })
+      .catch(() => Alert.alert('Error', 'Could not load Lawncare options.'))
+      .finally(() => setLoading(false));
   }, []);
 
   const selectedPackage = config?.packages.find((p) => p.key === packageKey) ?? null;
   const selectedService = config?.services.find((s) => s.key === serviceKey) ?? null;
+  const isManualService = selectedService ? MANUAL_QTY_SERVICES.has(selectedService.key) : false;
+  const hasProfile = !!profile;
 
-  // Package price is already known client-side — no live quote call needed.
-  useEffect(() => {
-    if (mode === 'package' && selectedPackage) {
-      setQuote({ type: 'package', monthlyPrice: Number(selectedPackage.monthlyPrice) });
+  const openProfileEditor = () => {
+    setProfileDraft(Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, profile?.[f.key] != null ? String(profile[f.key]) : ''])));
+    setEditingProfile(true);
+  };
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const payload: Record<string, number> = {};
+      for (const f of PROFILE_FIELDS) {
+        const raw = profileDraft[f.key];
+        if (raw != null && raw !== '') payload[f.key] = Number(raw);
+      }
+      const saved = await marketplaceApi.saveLawncarePropertyProfile(payload);
+      setProfile(saved);
+      setEditingProfile(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
+    } finally {
+      setSavingProfile(false);
     }
-  }, [mode, selectedPackage]);
+  };
 
-  // Service mode: debounced live quote, since price depends on the entered qty.
+  // Package mode: real computed price, depends on the saved profile — quote whenever the package selection changes.
   useEffect(() => {
-    if (mode !== 'service' || !selectedService) return;
+    if (mode !== 'package' || !selectedPackage || !hasProfile || editingProfile) { setQuote(null); return; }
+    setQuoting(true);
+    marketplaceApi.quoteLawncare({ mode: 'package', packageKey: selectedPackage.key })
+      .then(setQuote).catch(() => setQuote(null)).finally(() => setQuoting(false));
+  }, [mode, selectedPackage, hasProfile, editingProfile]);
+
+  // Service mode: debounced live quote — manual services depend on the entered qty, others on the saved profile.
+  useEffect(() => {
+    if (mode !== 'service' || !selectedService || editingProfile) return;
+    if (!isManualService && !hasProfile) { setQuote(null); return; }
     if (quoteTimer.current) clearTimeout(quoteTimer.current);
     setQuoting(true);
     quoteTimer.current = setTimeout(() => {
-      marketplaceApi.quoteLawncare({ mode: 'service', serviceKey: selectedService.key, qty })
-        .then(setQuote).catch(() => setQuote(null)).finally(() => setQuoting(false));
+      const body: any = { mode: 'service', serviceKey: selectedService.key };
+      if (isManualService) body.qty = manualQty;
+      marketplaceApi.quoteLawncare(body).then(setQuote).catch(() => setQuote(null)).finally(() => setQuoting(false));
     }, 400);
     return () => { if (quoteTimer.current) clearTimeout(quoteTimer.current); };
-  }, [mode, selectedService, qty]);
+  }, [mode, selectedService, isManualService, manualQty, hasProfile, editingProfile]);
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -105,7 +182,9 @@ export default function MarketplaceLawncareScreen() {
     if (!selectedService || !quote || quote.type !== 'service') return;
     setSubmitting(true);
     try {
-      await marketplaceApi.bookLawncareService({ serviceKey: selectedService.key, qty, preferredDate: preferredDate.toISOString() });
+      const body: any = { serviceKey: selectedService.key, preferredDate: preferredDate.toISOString() };
+      if (isManualService) body.qty = manualQty;
+      await marketplaceApi.bookLawncareService(body);
       Alert.alert('Service Requested!', 'We are finding an available vendor. You will be notified once one accepts.', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e: any) {
       Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
@@ -122,116 +201,163 @@ export default function MarketplaceLawncareScreen() {
         <Text style={styles.title}>Lawncare</Text>
         <Text style={styles.subtitle}>Subscribe to a monthly plan, or request a specific service whenever you need it.</Text>
 
-        <View style={styles.choiceRow}>
-          <TouchableOpacity style={[styles.choiceBtn, mode === 'package' && styles.choiceBtnActive]} onPress={() => switchMode('package')}>
-            <Text style={[styles.choiceBtnText, mode === 'package' && styles.choiceBtnTextActive]}>Subscribe to a Package</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.choiceBtn, mode === 'service' && styles.choiceBtnActive]} onPress={() => switchMode('service')}>
-            <Text style={[styles.choiceBtnText, mode === 'service' && styles.choiceBtnTextActive]}>Request a Service</Text>
-          </TouchableOpacity>
-        </View>
-
-        {mode === 'package' ? (
+        <Text style={styles.sectionLabel}>Property Details</Text>
+        {editingProfile ? (
           <>
-            <Text style={styles.sectionLabel}>Choose a Plan</Text>
-            {config.packages.map((p) => {
-              const selected = p.key === packageKey;
-              return (
-                <TouchableOpacity key={p.key} style={[styles.packageCard, selected && styles.packageCardActive]} onPress={() => setPackageKey(p.key)}>
-                  <View style={styles.packageCardHeader}>
-                    <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
-                    <Text style={styles.packageLabel}>{p.label}</Text>
-                    <Text style={styles.packagePrice}>{p.isStartingAt ? 'From ' : ''}{fmtUSD(Number(p.monthlyPrice))}/mo</Text>
-                  </View>
-                  <Text style={styles.packageDescription}>{p.description}</Text>
-                </TouchableOpacity>
-              );
-            })}
-
-            <View style={styles.priceCard}>
-              {quote?.type === 'package' ? (
-                <>
-                  <Text style={styles.priceLabel}>Billed monthly</Text>
-                  <Text style={styles.priceAmount}>{fmtUSD(quote.monthlyPrice)}<Text style={styles.pricePer}>/mo</Text></Text>
-                </>
-              ) : null}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.submitBtn, (submitting || !selectedPackage) && styles.submitBtnDisabled]}
-              onPress={submitPackage}
-              disabled={submitting || !selectedPackage}
-            >
-              {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Subscribe</Text>}
+            <Text style={styles.helperText}>Entered once and reused for every Lawncare price — no need to enter it again.</Text>
+            {PROFILE_FIELDS.map((f) => (
+              <View key={f.key} style={styles.profileFieldRow}>
+                <Text style={styles.profileFieldLabel}>{f.label}</Text>
+                <TextInput
+                  style={styles.profileFieldInput}
+                  keyboardType="numeric"
+                  placeholder={f.unit}
+                  placeholderTextColor={colors.steel}
+                  value={profileDraft[f.key] ?? ''}
+                  onChangeText={(v) => setProfileDraft((p) => ({ ...p, [f.key]: v.replace(/[^0-9.]/g, '') }))}
+                />
+              </View>
+            ))}
+            <TouchableOpacity style={[styles.submitBtn, savingProfile && styles.submitBtnDisabled]} onPress={saveProfile} disabled={savingProfile}>
+              {savingProfile ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Save Property Details</Text>}
             </TouchableOpacity>
           </>
         ) : (
+          <TouchableOpacity style={styles.profileSummary} onPress={openProfileEditor}>
+            <Ionicons name="home-outline" size={18} color={colors.lanternDeep} />
+            <Text style={styles.profileSummaryText}>Property details saved</Text>
+            <Text style={styles.profileEditLink}>Edit</Text>
+          </TouchableOpacity>
+        )}
+
+        {!editingProfile && (
           <>
-            <Text style={styles.sectionLabel}>Choose a Service</Text>
-            {config.services.map((s) => {
-              const selected = s.key === serviceKey;
-              return (
-                <TouchableOpacity key={s.key} style={[styles.serviceRow, selected && styles.serviceRowActive]} onPress={() => { setServiceKey(s.key); setQty(1); }}>
-                  <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.serviceLabel}>{s.label}</Text>
-                    <Text style={styles.serviceMeta}>{s.pricingUnit} · {s.recommendedFrequency}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            <View style={styles.choiceRow}>
+              <TouchableOpacity style={[styles.choiceBtn, mode === 'package' && styles.choiceBtnActive]} onPress={() => switchMode('package')}>
+                <Text style={[styles.choiceBtnText, mode === 'package' && styles.choiceBtnTextActive]}>Subscribe to a Package</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.choiceBtn, mode === 'service' && styles.choiceBtnActive]} onPress={() => switchMode('service')}>
+                <Text style={[styles.choiceBtnText, mode === 'service' && styles.choiceBtnTextActive]}>Request a Service</Text>
+              </TouchableOpacity>
+            </View>
 
-            {selectedService && (
+            {mode === 'package' ? (
               <>
-                <Text style={styles.sectionLabel}>{selectedService.pricingUnit}</Text>
-                <View style={styles.qtyRow}>
-                  <Text style={styles.qtyLabel}>Quantity</Text>
-                  <View style={styles.qtyStepper}>
-                    <TouchableOpacity onPress={() => setQty((q) => Math.max(1, q - 1))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="remove-circle-outline" size={26} color={colors.lanternDeep} />
+                <Text style={styles.sectionLabel}>Choose a Plan</Text>
+                {config.packages.map((p) => {
+                  const selected = p.key === packageKey;
+                  return (
+                    <TouchableOpacity key={p.key} style={[styles.packageCard, selected && styles.packageCardActive]} onPress={() => setPackageKey(p.key)}>
+                      <View style={styles.packageCardHeader}>
+                        <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
+                        <Text style={styles.packageLabel}>{p.label}</Text>
+                      </View>
+                      <Text style={styles.packageDescription}>{p.description}</Text>
                     </TouchableOpacity>
-                    <Text style={styles.qtyValue}>{qty}</Text>
-                    <TouchableOpacity onPress={() => setQty((q) => q + 1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="add-circle-outline" size={26} color={colors.lanternDeep} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {!!selectedService.volumeDiscountText && (
-                  <View style={styles.infoNotice}>
-                    <Ionicons name="pricetag-outline" size={16} color={colors.lanternDeep} />
-                    <Text style={styles.infoNoticeText}>Volume discount: {selectedService.volumeDiscountText}</Text>
-                  </View>
-                )}
-
-                <Text style={styles.sectionLabel}>Preferred Date</Text>
-                <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
-                  <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-                  <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
-                </TouchableOpacity>
-                {showDate && (
-                  <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
-                )}
+                  );
+                })}
 
                 <View style={styles.priceCard}>
                   {quoting ? (
                     <ActivityIndicator color={colors.lanternDeep} />
-                  ) : quote?.type === 'service' ? (
+                  ) : quote?.type === 'package' ? (
                     <>
-                      <Text style={styles.priceLabel}>Total</Text>
-                      <Text style={styles.priceAmount}>{fmtUSD(quote.price)}</Text>
-                      {quote.discountRate > 0 && <Text style={styles.priceSub}>Includes a {quote.discountRate}% volume discount</Text>}
+                      <Text style={styles.priceLabel}>Billed monthly</Text>
+                      <Text style={styles.priceAmount}>{fmtUSD(quote.monthlyPrice)}<Text style={styles.pricePer}>/mo</Text></Text>
+                      <Text style={styles.priceSub}>Computed from your property details</Text>
                     </>
                   ) : null}
                 </View>
 
                 <TouchableOpacity
                   style={[styles.submitBtn, (submitting || quoting || !quote) && styles.submitBtnDisabled]}
-                  onPress={submitService}
+                  onPress={submitPackage}
                   disabled={submitting || quoting || !quote}
                 >
-                  {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Request Service</Text>}
+                  {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Subscribe</Text>}
                 </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.sectionLabel}>Choose a Service</Text>
+                {config.services.map((s) => {
+                  const selected = s.key === serviceKey;
+                  return (
+                    <TouchableOpacity key={s.key} style={[styles.serviceRow, selected && styles.serviceRowActive]} onPress={() => { setServiceKey(s.key); setManualQty(1); }}>
+                      <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.serviceLabel}>{s.label}</Text>
+                        <Text style={styles.serviceMeta}>{s.pricingUnit} · {s.recommendedFrequency}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {selectedService && (
+                  <>
+                    {isManualService ? (
+                      <>
+                        <Text style={styles.sectionLabel}>{selectedService.pricingUnit}</Text>
+                        <View style={styles.qtyRow}>
+                          <Text style={styles.qtyLabel}>Quantity</Text>
+                          <View style={styles.qtyStepper}>
+                            <TouchableOpacity onPress={() => setManualQty((q) => Math.max(1, q - 1))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Ionicons name="remove-circle-outline" size={26} color={colors.lanternDeep} />
+                            </TouchableOpacity>
+                            <Text style={styles.qtyValue}>{manualQty}</Text>
+                            <TouchableOpacity onPress={() => setManualQty((q) => q + 1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Ionicons name="add-circle-outline" size={26} color={colors.lanternDeep} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </>
+                    ) : (() => {
+                      const qty = displayQtyFromProfile(selectedService.key, profile);
+                      return qty != null ? (
+                        <View style={styles.infoNotice}>
+                          <Ionicons name="home-outline" size={16} color={colors.lanternDeep} />
+                          <Text style={styles.infoNoticeText}>Quantity: {qty.toLocaleString()} ({selectedService.pricingUnit}), from your property details</Text>
+                        </View>
+                      ) : null;
+                    })()}
+
+                    {!!selectedService.volumeDiscountText && (
+                      <View style={styles.infoNotice}>
+                        <Ionicons name="pricetag-outline" size={16} color={colors.lanternDeep} />
+                        <Text style={styles.infoNoticeText}>Volume discount: {selectedService.volumeDiscountText}</Text>
+                      </View>
+                    )}
+
+                    <Text style={styles.sectionLabel}>Preferred Date</Text>
+                    <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+                      <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                      <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
+                    </TouchableOpacity>
+                    {showDate && (
+                      <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
+                    )}
+
+                    <View style={styles.priceCard}>
+                      {quoting ? (
+                        <ActivityIndicator color={colors.lanternDeep} />
+                      ) : quote?.type === 'service' ? (
+                        <>
+                          <Text style={styles.priceLabel}>Total</Text>
+                          <Text style={styles.priceAmount}>{fmtUSD(quote.price)}</Text>
+                          {quote.discountRate > 0 && <Text style={styles.priceSub}>Includes a {quote.discountRate}% volume discount</Text>}
+                        </>
+                      ) : null}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.submitBtn, (submitting || quoting || !quote) && styles.submitBtnDisabled]}
+                      onPress={submitService}
+                      disabled={submitting || quoting || !quote}
+                    >
+                      {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Request Service</Text>}
+                    </TouchableOpacity>
+                  </>
+                )}
               </>
             )}
           </>
@@ -255,16 +381,22 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#666', lineHeight: 20, marginBottom: 20 },
   sectionLabel: { fontSize: 13, fontWeight: '700', color: colors.steel, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 20, marginBottom: 10 },
+  helperText: { fontSize: 12, color: colors.steel, marginBottom: 10, marginTop: -4 },
   choiceRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   choiceBtn: { flex: 1, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#fff', alignItems: 'center' },
   choiceBtnActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   choiceBtnText: { fontSize: 13, fontWeight: '600', color: colors.steel, textAlign: 'center' },
   choiceBtnTextActive: { color: colors.lanternDeep },
+  profileFieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
+  profileFieldLabel: { fontSize: 13, color: colors.ink, flex: 1 },
+  profileFieldInput: { width: 90, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, textAlign: 'right', color: colors.ink },
+  profileSummary: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 14 },
+  profileSummaryText: { fontSize: 14, color: colors.ink, flex: 1 },
+  profileEditLink: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep },
   packageCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   packageCardActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   packageCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   packageLabel: { fontSize: 15, fontWeight: '700', color: colors.ink, flex: 1 },
-  packagePrice: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
   packageDescription: { fontSize: 12, color: colors.steel, lineHeight: 18, marginLeft: 26 },
   serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
   serviceRowActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },

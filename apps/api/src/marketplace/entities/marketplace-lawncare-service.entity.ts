@@ -27,6 +27,14 @@ export class MarketplaceLawncareService {
   @Column()
   pricingUnit: string;
 
+  // Quantity already covered by customerPriceBase, parsed from pricingUnit's
+  // own "First X ..." wording (e.g. "First 200 SF" -> 200). Rows priced per
+  // unit from zero (Per SF/Per Plant/Per Tree/Per Project/Per Month/Service
+  // Call) get 0. computeLawncareServicePrice() only charges
+  // customerPricePerUnit for qty beyond this amount.
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  includedQty: number;
+
   @Column()
   recommendedFrequency: string;
 

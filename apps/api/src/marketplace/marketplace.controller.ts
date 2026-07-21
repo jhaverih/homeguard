@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -9,7 +9,9 @@ import { MinAdminLevel } from '../common/decorators/min-admin-level.decorator';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { MarketplaceService } from './marketplace.service';
 import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
-import { QuoteLawncareDto, SubscribeLawncarePackageDto, BookLawncareServiceDto } from './dto/quote-lawncare.dto';
+import {
+  QuoteLawncareDto, SubscribeLawncarePackageDto, BookLawncareServiceDto, UpsertLawncarePropertyProfileDto,
+} from './dto/quote-lawncare.dto';
 import { IsDateString } from 'class-validator';
 
 class BookOneTimeCleaningDto extends QuoteHouseCleaningDto {
@@ -113,12 +115,28 @@ export class MarketplaceController {
     return this.service.getLawncareConfig();
   }
 
+  @Get('lawncare/property-profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: fetch their saved Lawncare property profile (lot size, shrub count, etc.)' })
+  getLawncarePropertyProfile(@Request() req) {
+    return this.service.getLawncarePropertyProfile(req.user.id);
+  }
+
+  @Put('lawncare/property-profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: create/update their Lawncare property profile — captured once, reused for every package/service price' })
+  upsertLawncarePropertyProfile(@Body() dto: UpsertLawncarePropertyProfileDto, @Request() req) {
+    return this.service.upsertLawncarePropertyProfile(req.user.id, dto);
+  }
+
   @Post('lawncare/quote')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Customer: compute a Lawncare price before committing (package flat price, or a service + qty)' })
-  quoteLawncare(@Body() dto: QuoteLawncareDto) {
-    return this.service.quoteLawncare(dto);
+  @ApiOperation({ summary: 'Customer: compute a Lawncare price before committing (package computed from composition + property profile, or a single service)' })
+  quoteLawncare(@Body() dto: QuoteLawncareDto, @Request() req) {
+    return this.service.quoteLawncare(req.user.id, dto);
   }
 
   @Post('lawncare/subscribe')

@@ -18,6 +18,17 @@ export class MarketplaceLawncarePackage {
   @Column({ type: 'text' })
   description: string;
 
+  // Which of the 18 MarketplaceLawncareService keys this package includes,
+  // and how many times per year each runs — the actual charged monthlyPrice
+  // is computed fresh at quote/subscribe time from this composition against
+  // the customer's own MarketplaceLawncarePropertyProfile, the same way
+  // House Cleaning derives its price from BCU x rate x frequency.
+  @Column({ type: 'jsonb', default: [] })
+  composition: { serviceKey: string; visitsPerYear: number }[];
+
+  // Typical/"starting at" reference price shown in marketing copy only —
+  // NOT the authoritative charged amount (that's always freshly computed
+  // from `composition` against the customer's property profile).
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   monthlyPrice: number;
 
