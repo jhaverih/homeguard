@@ -706,22 +706,21 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     const exteriorSub = await this.ensureSubgroup(group.id, 'EXTERIOR_INSPECTION', 'Exterior Visual Inspection', 3);
 
     const hvacVisualSection = await this.ensureSection(hvacVisualSub.id, 'hvac_visual', 'HVAC Visual Inspection', 0);
-    // Leak Inspection: Toilet Inspection, Sinks, Siding, Showers/Tub, Kitchen, Laundry, Water Heater
-    // (Siding moved here from Exterior Visual Inspection; Foundation stays exterior-only, confirmed with the user)
+    // Leak Inspection: Toilet Inspection, Sinks, Showers/Tub, Kitchen, Laundry, Water Heater
+    // (Siding belongs to Exterior Visual Inspection, not here — corrected 2026-07-21 after
+    // an earlier, mistaken move; Foundation stays exterior-only too, confirmed with the user)
     const toiletsSection = await this.ensureSection(leakSub.id, 'toilet_leak', 'Toilet Inspection', 0);
     const sinksSection = await this.ensureSection(leakSub.id, 'sink_leak', 'Sinks', 1);
-    const sidingSection = await this.ensureSection(leakSub.id, 'siding', 'Siding', 2,
-      'Recommended photos if an issue is found: damaged siding, paint deterioration, moisture damage.');
-    const showerTubSection = await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 3,
+    const showerTubSection = await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 2,
       'Recommended photos if an issue is found: shower fixture leak, failed caulking, damaged grout, water damage.');
-    const kitchenSection = await this.ensureSection(leakSub.id, 'kitchen_leak', 'Kitchen', 4,
+    const kitchenSection = await this.ensureSection(leakSub.id, 'kitchen_leak', 'Kitchen', 3,
       'Recommended photos if an issue is found: under-sink plumbing, disposal leak, dishwasher connection, cabinet water damage.');
-    const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 5,
+    const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 4,
       'Recommended photos if an issue is found: washer connections, shutoff valves, drain hose.');
-    const waterHeaterSection = await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 6,
+    const waterHeaterSection = await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 5,
       'Visual inspection only — do not operate the water heater or its valves. Recommended photos if an issue is found: full water heater, supply connections, drain pan, any signs of corrosion or leaks.');
 
-    // Exterior Visual Inspection: Trim & Fascia, Gutters, Roof, Deck/Porch, Concrete Surfaces, Foundation, Vegetation, Windows & Exterior Doors
+    // Exterior Visual Inspection: Trim & Fascia, Gutters, Roof, Deck/Porch, Concrete Surfaces, Foundation, Vegetation, Windows & Exterior Doors, Siding
     const trimFasciaSection = await this.ensureSection(exteriorSub.id, 'trim_fascia', 'Trim & Fascia', 0,
       'Recommended photos if an issue is found: rot, loose trim, peeling paint.');
     const guttersSection = await this.ensureSection(exteriorSub.id, 'gutters', 'Gutters', 1,
@@ -738,6 +737,8 @@ export class InspectionChecklistSeedService implements OnModuleInit {
       'Recommended photos if an issue is found: trees over roof, vegetation against siding, drainage issues.');
     const windowsDoorsSection = await this.ensureSection(exteriorSub.id, 'windows_doors', 'Windows & Exterior Doors', 7,
       'Recommended photos if an issue is found: failed caulking, damaged trim, moisture stains.');
+    const sidingSection = await this.ensureSection(exteriorSub.id, 'siding', 'Siding', 8,
+      'Recommended photos if an issue is found: damaged siding, paint deterioration, moisture damage.');
 
     await this.ensureTasks(hvacVisualSection.id, HVAC_VISUAL_TASKS);
     await this.ensureTasks(toiletsSection.id, TOILETS_TASKS);
