@@ -12,6 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-21 (4)
+
+### Added
+- **api, mobile**: Lawncare's "Request a Service" mode is renamed **Add-on Services** and reworked to multi-select — customers can pick several services in one go, each with an editable quantity (pre-filled from the saved property profile) and, for services with a frequency-worded discount (Lawn Mowing, Bed Weeding, Gutter Cleaning, etc.), a frequency picker that actually applies that discount. New `frequencyDiscounts` structured field on `MarketplaceLawncareService` (parsed once from the source pricing sheet, not text-parsed at runtime) drives this.
+
+### Changed
+- **api, mobile**: Package selection is now a real toggle (tap again to deselect). Add-on Services hides whichever services the currently-selected package already includes, driven directly from that package's own `composition` data so it can never drift out of sync with what's actually priced.
+
 ## 2026-07-21 (3)
 
 ### Changed

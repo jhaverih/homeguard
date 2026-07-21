@@ -10,18 +10,26 @@ import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawnc
 // which instead switches to a cheaper per-unit rate past a threshold.
 //
 // Services whose volumeDiscountText is frequency/bundle-based (e.g. Lawn
-// Mowing: "Weekly: 15%, Biweekly: 5%") have no numeric thresholds set, so
-// discountRate stays 0 here — that text is informational only, not applied
-// to the computed price.
+// Mowing: "Weekly: 15%, Biweekly: 5%") have no numeric thresholds set — for
+// those, pass the customer's chosen `frequency` and it's looked up in the
+// service's own frequencyDiscounts array instead. The two discount shapes
+// never co-occur on the same service, so there's no stacking/precedence
+// question: if a matching frequencyDiscounts entry is found, it's used
+// exclusively; otherwise the qty-threshold path runs as before (a no-op for
+// rows that only have frequency-based discounts).
 export function computeLawncareServicePrice(
   service: MarketplaceLawncareService,
   qty: number,
+  frequency?: string,
 ): { price: number; discountRate: number } {
   const billableQty = Math.max(0, qty - Number(service.includedQty ?? 0));
   const raw = Number(service.customerPriceBase) + Number(service.customerPricePerUnit) * billableQty;
 
   let discountRate = 0;
-  if (service.volumeDiscountThreshold2 != null && qty >= Number(service.volumeDiscountThreshold2)) {
+  const frequencyMatch = frequency ? service.frequencyDiscounts?.find((f) => f.frequency === frequency) : undefined;
+  if (frequencyMatch) {
+    discountRate = Number(frequencyMatch.ratePercent);
+  } else if (service.volumeDiscountThreshold2 != null && qty >= Number(service.volumeDiscountThreshold2)) {
     discountRate = Number(service.volumeDiscountRate2);
   } else if (service.volumeDiscountThreshold1 != null && qty >= Number(service.volumeDiscountThreshold1)) {
     discountRate = Number(service.volumeDiscountRate1);

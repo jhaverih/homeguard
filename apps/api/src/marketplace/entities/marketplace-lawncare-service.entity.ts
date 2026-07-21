@@ -53,6 +53,15 @@ export class MarketplaceLawncareService {
   @Column({ type: 'text' })
   volumeDiscountText: string;
 
+  // Structured version of volumeDiscountText for services whose discount is
+  // tied to a chosen frequency/commitment rather than a quantity threshold
+  // (e.g. Lawn Mowing: "Weekly: 15%, Biweekly: 5%") — empty for every other
+  // service, including the ones with a numeric volumeDiscountThreshold1/2
+  // (the two shapes never co-occur on the same row). The mobile add-on
+  // wizard shows a frequency picker only when this array is non-empty.
+  @Column({ type: 'jsonb', default: [] })
+  frequencyDiscounts: { frequency: string; label: string; ratePercent: number }[];
+
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   volumeDiscountThreshold1: number | null;
 

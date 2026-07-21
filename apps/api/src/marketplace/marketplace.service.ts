@@ -214,19 +214,19 @@ export class MarketplaceService implements OnModuleInit {
   // prices with no additional-unit component.
   private async seedLawncareConfig() {
     const services: Partial<MarketplaceLawncareService>[] = [
-      { key: 'lawn_mowing', label: 'Lawn Mowing', pricingUnit: 'Per Visit', includedQty: 0, recommendedFrequency: 'Weekly (Apr–Oct), Biweekly (Nov–Mar)', subCostBase: 35, subCostPerUnit: 5, customerPriceBase: 60, customerPricePerUnit: 8, volumeDiscountText: 'Weekly: 15%, Biweekly: 5%', sortOrder: 1 },
+      { key: 'lawn_mowing', label: 'Lawn Mowing', pricingUnit: 'Per Visit', includedQty: 0, recommendedFrequency: 'Weekly (Apr–Oct), Biweekly (Nov–Mar)', subCostBase: 35, subCostPerUnit: 5, customerPriceBase: 60, customerPricePerUnit: 8, volumeDiscountText: 'Weekly: 15%, Biweekly: 5%', frequencyDiscounts: [{ frequency: 'WEEKLY', label: 'Weekly', ratePercent: 15 }, { frequency: 'BIWEEKLY', label: 'Biweekly', ratePercent: 5 }], sortOrder: 1 },
       { key: 'mulch_installation', label: 'Mulch Installation', pricingUnit: 'First 3 CY', includedQty: 3, recommendedFrequency: '1× per year', subCostBase: 80, subCostPerUnit: 20, customerPriceBase: 140, customerPricePerUnit: 35, volumeDiscountText: '10+ CY: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 2 },
       { key: 'shrub_trimming', label: 'Shrub Trimming', pricingUnit: 'First 5 shrubs', includedQty: 5, recommendedFrequency: '2–4× per year', subCostBase: 70, subCostPerUnit: 10, customerPriceBase: 125, customerPricePerUnit: 20, volumeDiscountText: '20+ shrubs: 10%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, sortOrder: 3 },
-      { key: 'leaf_removal', label: 'Leaf Removal', pricingUnit: 'First 5,000 SF', includedQty: 5000, recommendedFrequency: '2–6× per Fall', subCostBase: 85, subCostPerUnit: 12, customerPriceBase: 150, customerPricePerUnit: 20, volumeDiscountText: 'Seasonal package: 15%', sortOrder: 4 },
-      { key: 'bed_weeding', label: 'Bed Weeding', pricingUnit: 'First 200 SF', includedQty: 200, recommendedFrequency: 'Monthly', subCostBase: 60, subCostPerUnit: 0.15, customerPriceBase: 100, customerPricePerUnit: 0.30, volumeDiscountText: 'Monthly: 10%', sortOrder: 5 },
+      { key: 'leaf_removal', label: 'Leaf Removal', pricingUnit: 'First 5,000 SF', includedQty: 5000, recommendedFrequency: '2–6× per Fall', subCostBase: 85, subCostPerUnit: 12, customerPriceBase: 150, customerPricePerUnit: 20, volumeDiscountText: 'Seasonal package: 15%', frequencyDiscounts: [{ frequency: 'SEASONAL_PACKAGE', label: 'Seasonal Package', ratePercent: 15 }], sortOrder: 4 },
+      { key: 'bed_weeding', label: 'Bed Weeding', pricingUnit: 'First 200 SF', includedQty: 200, recommendedFrequency: 'Monthly', subCostBase: 60, subCostPerUnit: 0.15, customerPriceBase: 100, customerPricePerUnit: 0.30, volumeDiscountText: 'Monthly: 10%', frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 10 }], sortOrder: 5 },
       { key: 'sod_installation', label: 'Sod Installation', pricingUnit: 'Per SF', includedQty: 0, recommendedFrequency: 'One-time', subCostBase: 0, subCostPerUnit: 1.10, customerPriceBase: 0, customerPricePerUnit: 1.95, volumeDiscountText: '5,000+ SF: 10%; 10,000+ SF: 15%', volumeDiscountThreshold1: 5000, volumeDiscountRate1: 10, volumeDiscountThreshold2: 10000, volumeDiscountRate2: 15, sortOrder: 6 },
       { key: 'plant_installation', label: 'Plant Installation', pricingUnit: 'Per Plant', includedQty: 0, recommendedFrequency: 'As needed', subCostBase: 0, subCostPerUnit: 35, customerPriceBase: 0, customerPricePerUnit: 60, volumeDiscountText: '20+ plants: 10%; 50+: 15%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, volumeDiscountThreshold2: 50, volumeDiscountRate2: 15, sortOrder: 7 },
       { key: 'gravel_rock_installation', label: 'Gravel/Rock Installation', pricingUnit: 'Per SF', includedQty: 0, recommendedFrequency: 'One-time', subCostBase: 0, subCostPerUnit: 1.75, customerPriceBase: 0, customerPricePerUnit: 3.00, volumeDiscountText: '2,000+ SF: 10%', volumeDiscountThreshold1: 2000, volumeDiscountRate1: 10, sortOrder: 8 },
-      { key: 'spring_cleanup', label: 'Spring Cleanup', pricingUnit: 'Per Project', includedQty: 0, recommendedFrequency: 'Annually', subCostBase: 180, subCostPerUnit: 20, customerPriceBase: 300, customerPricePerUnit: 40, volumeDiscountText: 'Annual package: 15%', sortOrder: 9 },
-      { key: 'seasonal_maintenance', label: 'Seasonal Maintenance', pricingUnit: 'Per Month', includedQty: 0, recommendedFrequency: 'Monthly', subCostBase: 180, subCostPerUnit: 0, customerPriceBase: 295, customerPricePerUnit: 0, volumeDiscountText: 'Annual agreement: 10%', sortOrder: 10 },
-      { key: 'irrigation_startup', label: 'Irrigation Startup', pricingUnit: 'First 6 zones', includedQty: 6, recommendedFrequency: 'Annually', subCostBase: 75, subCostPerUnit: 8, customerPriceBase: 125, customerPricePerUnit: 15, volumeDiscountText: 'Bundle: 15%', sortOrder: 11 },
-      { key: 'irrigation_winterization', label: 'Irrigation Winterization', pricingUnit: 'First 6 zones', includedQty: 6, recommendedFrequency: 'Annually', subCostBase: 75, subCostPerUnit: 8, customerPriceBase: 125, customerPricePerUnit: 15, volumeDiscountText: 'Bundle: 15%', sortOrder: 12 },
-      { key: 'gutter_cleaning', label: 'Gutter Cleaning', pricingUnit: 'First 150 LF', includedQty: 150, recommendedFrequency: 'Twice per year', subCostBase: 100, subCostPerUnit: 0.40, customerPriceBase: 175, customerPricePerUnit: 0.75, volumeDiscountText: 'Semiannual: 10%', sortOrder: 13 },
+      { key: 'spring_cleanup', label: 'Spring Cleanup', pricingUnit: 'Per Project', includedQty: 0, recommendedFrequency: 'Annually', subCostBase: 180, subCostPerUnit: 20, customerPriceBase: 300, customerPricePerUnit: 40, volumeDiscountText: 'Annual package: 15%', frequencyDiscounts: [{ frequency: 'ANNUAL_PACKAGE', label: 'Annual Package', ratePercent: 15 }], sortOrder: 9 },
+      { key: 'seasonal_maintenance', label: 'Seasonal Maintenance', pricingUnit: 'Per Month', includedQty: 0, recommendedFrequency: 'Monthly', subCostBase: 180, subCostPerUnit: 0, customerPriceBase: 295, customerPricePerUnit: 0, volumeDiscountText: 'Annual agreement: 10%', frequencyDiscounts: [{ frequency: 'ANNUAL_AGREEMENT', label: 'Annual Agreement', ratePercent: 10 }], sortOrder: 10 },
+      { key: 'irrigation_startup', label: 'Irrigation Startup', pricingUnit: 'First 6 zones', includedQty: 6, recommendedFrequency: 'Annually', subCostBase: 75, subCostPerUnit: 8, customerPriceBase: 125, customerPricePerUnit: 15, volumeDiscountText: 'Bundle: 15%', frequencyDiscounts: [{ frequency: 'BUNDLE', label: 'Bundle with Winterization', ratePercent: 15 }], sortOrder: 11 },
+      { key: 'irrigation_winterization', label: 'Irrigation Winterization', pricingUnit: 'First 6 zones', includedQty: 6, recommendedFrequency: 'Annually', subCostBase: 75, subCostPerUnit: 8, customerPriceBase: 125, customerPricePerUnit: 15, volumeDiscountText: 'Bundle: 15%', frequencyDiscounts: [{ frequency: 'BUNDLE', label: 'Bundle with Startup', ratePercent: 15 }], sortOrder: 12 },
+      { key: 'gutter_cleaning', label: 'Gutter Cleaning', pricingUnit: 'First 150 LF', includedQty: 150, recommendedFrequency: 'Twice per year', subCostBase: 100, subCostPerUnit: 0.40, customerPriceBase: 175, customerPricePerUnit: 0.75, volumeDiscountText: 'Semiannual: 10%', frequencyDiscounts: [{ frequency: 'SEMIANNUAL', label: 'Semiannual', ratePercent: 10 }], sortOrder: 13 },
       { key: 'small_tree_trimming', label: "Small Tree Trimming (<20')", pricingUnit: 'Per Tree', includedQty: 0, recommendedFrequency: 'Every 2–3 years', subCostBase: 0, subCostPerUnit: 90, customerPriceBase: 0, customerPricePerUnit: 195, volumeDiscountText: '3–5 trees: 10%', volumeDiscountThreshold1: 3, volumeDiscountRate1: 10, sortOrder: 14 },
       { key: 'medium_tree_trimming', label: "Medium Tree Trimming (20–40')", pricingUnit: 'Per Tree', includedQty: 0, recommendedFrequency: 'Every 2–3 years', subCostBase: 0, subCostPerUnit: 180, customerPriceBase: 0, customerPricePerUnit: 395, volumeDiscountText: '3–5 trees: 10%', volumeDiscountThreshold1: 3, volumeDiscountRate1: 10, sortOrder: 15 },
       { key: 'large_tree_trimming', label: "Large Tree Trimming (40–60')", pricingUnit: 'Per Tree', includedQty: 0, recommendedFrequency: 'Every 3–5 years', subCostBase: 0, subCostPerUnit: 450, customerPriceBase: 0, customerPricePerUnit: 850, volumeDiscountText: '3+ trees: 10%', volumeDiscountThreshold1: 3, volumeDiscountRate1: 10, sortOrder: 16 },
@@ -612,12 +612,14 @@ Exterior Maintenance Add-Ons
   }
 
   // Manual-qty services (Sod/Plant/Gravel-Rock Installation) require an
-  // explicit qty from the caller; every other service resolves its qty from
-  // the customer's saved property profile automatically.
+  // explicit qty from the caller. Every other service defaults to the
+  // property-profile-resolved qty, but the mobile add-on UI pre-fills that
+  // value and lets the customer edit it for this specific booking — so a
+  // provided qty always wins when present, for any service.
   private async resolveLawncareBookingQty(customerId: string, serviceKey: string, providedQty?: number): Promise<number> {
+    if (providedQty != null) return providedQty;
     if (isManualQtyService(serviceKey)) {
-      if (providedQty == null) throw new BadRequestException('A quantity is required for this service.');
-      return providedQty;
+      throw new BadRequestException('A quantity is required for this service.');
     }
     const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     if (!profile) throw new BadRequestException('Complete your property details first.');
@@ -639,7 +641,7 @@ Exterior Maintenance Add-Ons
     const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
     if (!service) throw new NotFoundException('Service not found.');
     const qty = await this.resolveLawncareBookingQty(customerId, service.key, dto.qty);
-    const { price, discountRate } = computeLawncareServicePrice(service, qty);
+    const { price, discountRate } = computeLawncareServicePrice(service, qty, dto.frequency);
     return { type: 'service', price, discountRate };
   }
 
@@ -722,7 +724,7 @@ Exterior Maintenance Add-Ons
     const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
     if (!service) throw new NotFoundException('Service not found.');
     const qty = await this.resolveLawncareBookingQty(customerId, service.key, dto.qty);
-    const { price } = computeLawncareServicePrice(service, qty);
+    const { price } = computeLawncareServicePrice(service, qty, dto.frequency);
 
     const lawncareCatalogPrice = await this.servicePriceRepo.findOne({ where: { name: LAWNCARE_CATALOG_NAME } });
     if (!lawncareCatalogPrice) throw new NotFoundException('Lawncare is not currently available.');

@@ -11,10 +11,11 @@ import { marketplaceApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
 type Mode = 'package' | 'service';
+type AddOnSelection = { qty: string; frequency?: string };
+type ServiceQuote = { price: number; discountRate: number };
 
 // One-off project services — quantity varies per project, not a standing
-// property attribute, so these keep a manual qty entry instead of pulling
-// from the shared property profile.
+// property attribute, so these don't get a property-profile-derived default.
 const MANUAL_QTY_SERVICES = new Set(['sod_installation', 'plant_installation', 'gravel_rock_installation']);
 
 const PROFILE_FIELDS: { key: string; label: string; unit: string }[] = [
@@ -30,10 +31,9 @@ const PROFILE_FIELDS: { key: string; label: string; unit: string }[] = [
 ];
 
 // Mirrors the qty portion of resolveServiceQty() in
-// apps/api/src/marketplace/marketplace-lawncare-pricing.utils.ts, purely for
-// display (e.g. "Quantity: 3,200 sq ft, from your property details") — the
-// actual charged price always comes from the live quoteLawncare() call,
-// never computed client-side.
+// apps/api/src/marketplace/marketplace-lawncare-pricing.utils.ts, purely to
+// pre-fill the editable qty input — the actual charged price always comes
+// from the live quoteLawncare() call, never computed client-side.
 function displayQtyFromProfile(serviceKey: string, profile: any): number | null {
   if (!profile) return null;
   switch (serviceKey) {
@@ -64,20 +64,21 @@ export default function MarketplaceLawncareScreen() {
 
   const [mode, setMode] = useState<Mode>('package');
   const [packageKey, setPackageKey] = useState<string | null>(null);
-  const [serviceKey, setServiceKey] = useState<string | null>(null);
-  const [manualQty, setManualQty] = useState(1);
+  const [packageQuote, setPackageQuote] = useState<{ monthlyPrice: number } | null>(null);
+  const [packageQuoting, setPackageQuoting] = useState(false);
+
+  const [selectedAddOns, setSelectedAddOns] = useState<Record<string, AddOnSelection>>({});
+  const [addOnQuotes, setAddOnQuotes] = useState<Record<string, ServiceQuote>>({});
+  const [addOnQuoting, setAddOnQuoting] = useState<Record<string, boolean>>({});
+  const quoteTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
   const [preferredDate, setPreferredDate] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 3); return d; });
   const [showDate, setShowDate] = useState(false);
-
-  const [quote, setQuote] = useState<{ type: 'package'; monthlyPrice: number } | { type: 'service'; price: number; discountRate: number } | null>(null);
-  const [quoting, setQuoting] = useState(false);
-  const quoteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     Promise.all([marketplaceApi.getLawncareConfig(), marketplaceApi.getLawncarePropertyProfile()])
       .then(([c, p]) => {
         setConfig(c);
-        if (c.packages.length > 0) setPackageKey(c.packages[0].key);
         setProfile(p);
         if (!p) setEditingProfile(true);
       })
@@ -86,9 +87,9 @@ export default function MarketplaceLawncareScreen() {
   }, []);
 
   const selectedPackage = config?.packages.find((p) => p.key === packageKey) ?? null;
-  const selectedService = config?.services.find((s) => s.key === serviceKey) ?? null;
-  const isManualService = selectedService ? MANUAL_QTY_SERVICES.has(selectedService.key) : false;
   const hasProfile = !!profile;
+  const includedServiceKeys = new Set(selectedPackage?.composition?.map((c: any) => c.serviceKey) ?? []);
+  const visibleServices = config?.services.filter((s) => !includedServiceKeys.has(s.key)) ?? [];
 
   const openProfileEditor = () => {
     setProfileDraft(Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, profile?.[f.key] != null ? String(profile[f.key]) : ''])));
@@ -113,32 +114,66 @@ export default function MarketplaceLawncareScreen() {
     }
   };
 
-  // Package mode: real computed price, depends on the saved profile — quote whenever the package selection changes.
+  const togglePackage = (key: string) => {
+    setPackageKey((prev) => (prev === key ? null : key));
+  };
+
+  // Package mode: real computed price, depends on the saved profile.
   useEffect(() => {
-    if (mode !== 'package' || !selectedPackage || !hasProfile || editingProfile) { setQuote(null); return; }
-    setQuoting(true);
+    if (mode !== 'package' || !selectedPackage || !hasProfile || editingProfile) { setPackageQuote(null); return; }
+    setPackageQuoting(true);
     marketplaceApi.quoteLawncare({ mode: 'package', packageKey: selectedPackage.key })
-      .then(setQuote).catch(() => setQuote(null)).finally(() => setQuoting(false));
+      .then((q: any) => setPackageQuote(q)).catch(() => setPackageQuote(null)).finally(() => setPackageQuoting(false));
   }, [mode, selectedPackage, hasProfile, editingProfile]);
 
-  // Service mode: debounced live quote — manual services depend on the entered qty, others on the saved profile.
-  useEffect(() => {
-    if (mode !== 'service' || !selectedService || editingProfile) return;
-    if (!isManualService && !hasProfile) { setQuote(null); return; }
-    if (quoteTimer.current) clearTimeout(quoteTimer.current);
-    setQuoting(true);
-    quoteTimer.current = setTimeout(() => {
-      const body: any = { mode: 'service', serviceKey: selectedService.key };
-      if (isManualService) body.qty = manualQty;
-      marketplaceApi.quoteLawncare(body).then(setQuote).catch(() => setQuote(null)).finally(() => setQuoting(false));
-    }, 400);
-    return () => { if (quoteTimer.current) clearTimeout(quoteTimer.current); };
-  }, [mode, selectedService, isManualService, manualQty, hasProfile, editingProfile]);
-
-  const switchMode = (m: Mode) => {
-    setMode(m);
-    setQuote(null);
+  const toggleAddOn = (service: any) => {
+    setSelectedAddOns((prev) => {
+      const next = { ...prev };
+      if (next[service.key]) {
+        delete next[service.key];
+      } else {
+        const defaultQty = MANUAL_QTY_SERVICES.has(service.key) ? '' : String(displayQtyFromProfile(service.key, profile) ?? 0);
+        next[service.key] = { qty: defaultQty, frequency: service.frequencyDiscounts?.length > 0 ? 'MONTHLY' : undefined };
+      }
+      return next;
+    });
   };
+
+  const updateAddOnQty = (key: string, qty: string) => {
+    setSelectedAddOns((prev) => ({ ...prev, [key]: { ...prev[key], qty: qty.replace(/[^0-9.]/g, '') } }));
+  };
+
+  const updateAddOnFrequency = (key: string, frequency: string) => {
+    setSelectedAddOns((prev) => ({ ...prev, [key]: { ...prev[key], frequency } }));
+  };
+
+  // Debounced live quote, per selected add-on row.
+  useEffect(() => {
+    for (const [key, sel] of Object.entries(selectedAddOns)) {
+      if (quoteTimers.current[key]) clearTimeout(quoteTimers.current[key]);
+      const qtyNum = Number(sel.qty);
+      if (!sel.qty || Number.isNaN(qtyNum) || qtyNum <= 0) { setAddOnQuotes((p) => { const n = { ...p }; delete n[key]; return n; }); continue; }
+      setAddOnQuoting((p) => ({ ...p, [key]: true }));
+      quoteTimers.current[key] = setTimeout(() => {
+        marketplaceApi.quoteLawncare({ mode: 'service', serviceKey: key, qty: qtyNum, frequency: sel.frequency })
+          .then((q: any) => setAddOnQuotes((p) => ({ ...p, [key]: q })))
+          .catch(() => setAddOnQuotes((p) => { const n = { ...p }; delete n[key]; return n; }))
+          .finally(() => setAddOnQuoting((p) => ({ ...p, [key]: false })));
+      }, 400);
+    }
+    // Drop quotes for rows that are no longer selected.
+    setAddOnQuotes((p) => {
+      const n: Record<string, ServiceQuote> = {};
+      for (const k of Object.keys(p)) if (selectedAddOns[k]) n[k] = p[k];
+      return n;
+    });
+    return () => { Object.values(quoteTimers.current).forEach(clearTimeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAddOns]);
+
+  const addOnTotal = Object.values(addOnQuotes).reduce((sum, q) => sum + q.price, 0);
+  const anyAddOnQuoting = Object.values(addOnQuoting).some(Boolean);
+  const selectedAddOnKeys = Object.keys(selectedAddOns);
 
   const presentStripeSheet = async (clientSecret: string | null): Promise<boolean> => {
     if (!clientSecret) return true;
@@ -167,10 +202,10 @@ export default function MarketplaceLawncareScreen() {
   };
 
   const submitPackage = () => {
-    if (!selectedPackage || !quote || quote.type !== 'package') return;
+    if (!selectedPackage || !packageQuote) return;
     Alert.alert(
       'Confirm Subscription',
-      `You'll be billed ${fmtUSD(quote.monthlyPrice)}/month starting today, using the card already on file.`,
+      `You'll be billed ${fmtUSD(packageQuote.monthlyPrice)}/month starting today, using the card already on file.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Subscribe', onPress: doSubscribe },
@@ -178,14 +213,21 @@ export default function MarketplaceLawncareScreen() {
     );
   };
 
-  const submitService = async () => {
-    if (!selectedService || !quote || quote.type !== 'service') return;
+  const submitAddOns = async () => {
+    if (selectedAddOnKeys.length === 0) return;
     setSubmitting(true);
     try {
-      const body: any = { serviceKey: selectedService.key, preferredDate: preferredDate.toISOString() };
-      if (isManualService) body.qty = manualQty;
-      await marketplaceApi.bookLawncareService(body);
-      Alert.alert('Service Requested!', 'We are finding an available vendor. You will be notified once one accepts.', [{ text: 'OK', onPress: () => router.back() }]);
+      for (const key of selectedAddOnKeys) {
+        const sel = selectedAddOns[key];
+        await marketplaceApi.bookLawncareService({
+          serviceKey: key,
+          qty: Number(sel.qty),
+          frequency: sel.frequency,
+          preferredDate: preferredDate.toISOString(),
+        });
+      }
+      Alert.alert('Services Requested!', 'We are finding available vendors. You will be notified as they accept.', [{ text: 'OK', onPress: () => router.back() }]);
+      setSelectedAddOns({});
     } catch (e: any) {
       Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
     } finally {
@@ -199,7 +241,7 @@ export default function MarketplaceLawncareScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Lawncare</Text>
-        <Text style={styles.subtitle}>Subscribe to a monthly plan, or request a specific service whenever you need it.</Text>
+        <Text style={styles.subtitle}>Subscribe to a monthly plan, or add specific services whenever you need them.</Text>
 
         <Text style={styles.sectionLabel}>Property Details</Text>
         {editingProfile ? (
@@ -233,23 +275,24 @@ export default function MarketplaceLawncareScreen() {
         {!editingProfile && (
           <>
             <View style={styles.choiceRow}>
-              <TouchableOpacity style={[styles.choiceBtn, mode === 'package' && styles.choiceBtnActive]} onPress={() => switchMode('package')}>
+              <TouchableOpacity style={[styles.choiceBtn, mode === 'package' && styles.choiceBtnActive]} onPress={() => setMode('package')}>
                 <Text style={[styles.choiceBtnText, mode === 'package' && styles.choiceBtnTextActive]}>Subscribe to a Package</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.choiceBtn, mode === 'service' && styles.choiceBtnActive]} onPress={() => switchMode('service')}>
-                <Text style={[styles.choiceBtnText, mode === 'service' && styles.choiceBtnTextActive]}>Request a Service</Text>
+              <TouchableOpacity style={[styles.choiceBtn, mode === 'service' && styles.choiceBtnActive]} onPress={() => setMode('service')}>
+                <Text style={[styles.choiceBtnText, mode === 'service' && styles.choiceBtnTextActive]}>Add-on Services</Text>
               </TouchableOpacity>
             </View>
 
             {mode === 'package' ? (
               <>
                 <Text style={styles.sectionLabel}>Choose a Plan</Text>
+                <Text style={styles.helperText}>Tap a plan to select it; tap again to deselect.</Text>
                 {config.packages.map((p) => {
                   const selected = p.key === packageKey;
                   return (
-                    <TouchableOpacity key={p.key} style={[styles.packageCard, selected && styles.packageCardActive]} onPress={() => setPackageKey(p.key)}>
+                    <TouchableOpacity key={p.key} style={[styles.packageCard, selected && styles.packageCardActive]} onPress={() => togglePackage(p.key)}>
                       <View style={styles.packageCardHeader}>
-                        <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
+                        <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
                         <Text style={styles.packageLabel}>{p.label}</Text>
                         <Ionicons name={selected ? 'chevron-up' : 'chevron-down'} size={16} color={colors.steel} />
                       </View>
@@ -259,76 +302,82 @@ export default function MarketplaceLawncareScreen() {
                 })}
 
                 <View style={styles.priceCard}>
-                  {quoting ? (
+                  {packageQuoting ? (
                     <ActivityIndicator color={colors.lanternDeep} />
-                  ) : quote?.type === 'package' ? (
+                  ) : packageQuote ? (
                     <>
                       <Text style={styles.priceLabel}>Billed monthly</Text>
-                      <Text style={styles.priceAmount}>{fmtUSD(quote.monthlyPrice)}<Text style={styles.pricePer}>/mo</Text></Text>
+                      <Text style={styles.priceAmount}>{fmtUSD(packageQuote.monthlyPrice)}<Text style={styles.pricePer}>/mo</Text></Text>
                       <Text style={styles.priceSub}>Computed from your property details</Text>
                     </>
                   ) : null}
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.submitBtn, (submitting || quoting || !quote) && styles.submitBtnDisabled]}
+                  style={[styles.submitBtn, (submitting || packageQuoting || !packageQuote) && styles.submitBtnDisabled]}
                   onPress={submitPackage}
-                  disabled={submitting || quoting || !quote}
+                  disabled={submitting || packageQuoting || !packageQuote}
                 >
                   {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Subscribe</Text>}
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={styles.sectionLabel}>Choose a Service</Text>
-                {config.services.map((s) => {
-                  const selected = s.key === serviceKey;
+                <Text style={styles.sectionLabel}>Add-on Services</Text>
+                {!!selectedPackage && (
+                  <Text style={styles.helperText}>Services already included in {selectedPackage.label} are hidden below.</Text>
+                )}
+                {visibleServices.map((s) => {
+                  const sel = selectedAddOns[s.key];
+                  const selected = !!sel;
+                  const quote = addOnQuotes[s.key];
+                  const quotingRow = addOnQuoting[s.key];
                   return (
-                    <TouchableOpacity key={s.key} style={[styles.serviceRow, selected && styles.serviceRowActive]} onPress={() => { setServiceKey(s.key); setManualQty(1); }}>
-                      <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.serviceLabel}>{s.label}</Text>
-                        <Text style={styles.serviceMeta}>{s.pricingUnit} · {s.recommendedFrequency}</Text>
-                      </View>
-                    </TouchableOpacity>
+                    <View key={s.key} style={styles.addOnCard}>
+                      <TouchableOpacity style={styles.addOnHeader} onPress={() => toggleAddOn(s)}>
+                        <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.serviceLabel}>{s.label}</Text>
+                          <Text style={styles.serviceMeta}>{s.pricingUnit} · {s.recommendedFrequency}</Text>
+                        </View>
+                        {quote && <Text style={styles.addOnPrice}>{fmtUSD(quote.price)}</Text>}
+                      </TouchableOpacity>
+
+                      {selected && (
+                        <View style={styles.addOnDetails}>
+                          <View style={styles.qtyRow}>
+                            <Text style={styles.qtyLabel}>Quantity ({s.pricingUnit})</Text>
+                            <TextInput
+                              style={styles.profileFieldInput}
+                              keyboardType="numeric"
+                              value={sel.qty}
+                              onChangeText={(v) => updateAddOnQty(s.key, v)}
+                            />
+                          </View>
+
+                          {s.frequencyDiscounts?.length > 0 && (
+                            <View style={styles.freqRow}>
+                              {s.frequencyDiscounts.map((f: any) => (
+                                <TouchableOpacity
+                                  key={f.frequency}
+                                  style={[styles.freqChip, sel.frequency === f.frequency && styles.freqChipActive]}
+                                  onPress={() => updateAddOnFrequency(s.key, f.frequency)}
+                                >
+                                  <Text style={[styles.freqChipText, sel.frequency === f.frequency && styles.freqChipTextActive]}>{f.label} (-{f.ratePercent}%)</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+
+                          {quotingRow && <ActivityIndicator color={colors.lanternDeep} style={{ marginTop: 8 }} />}
+                        </View>
+                      )}
+                    </View>
                   );
                 })}
 
-                {selectedService && (
+                {selectedAddOnKeys.length > 0 && (
                   <>
-                    {isManualService ? (
-                      <>
-                        <Text style={styles.sectionLabel}>{selectedService.pricingUnit}</Text>
-                        <View style={styles.qtyRow}>
-                          <Text style={styles.qtyLabel}>Quantity</Text>
-                          <View style={styles.qtyStepper}>
-                            <TouchableOpacity onPress={() => setManualQty((q) => Math.max(1, q - 1))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                              <Ionicons name="remove-circle-outline" size={26} color={colors.lanternDeep} />
-                            </TouchableOpacity>
-                            <Text style={styles.qtyValue}>{manualQty}</Text>
-                            <TouchableOpacity onPress={() => setManualQty((q) => q + 1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                              <Ionicons name="add-circle-outline" size={26} color={colors.lanternDeep} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      </>
-                    ) : (() => {
-                      const qty = displayQtyFromProfile(selectedService.key, profile);
-                      return qty != null ? (
-                        <View style={styles.infoNotice}>
-                          <Ionicons name="home-outline" size={16} color={colors.lanternDeep} />
-                          <Text style={styles.infoNoticeText}>Quantity: {qty.toLocaleString()} ({selectedService.pricingUnit}), from your property details</Text>
-                        </View>
-                      ) : null;
-                    })()}
-
-                    {!!selectedService.volumeDiscountText && (
-                      <View style={styles.infoNotice}>
-                        <Ionicons name="pricetag-outline" size={16} color={colors.lanternDeep} />
-                        <Text style={styles.infoNoticeText}>Volume discount: {selectedService.volumeDiscountText}</Text>
-                      </View>
-                    )}
-
                     <Text style={styles.sectionLabel}>Preferred Date</Text>
                     <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
                       <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
@@ -339,23 +388,22 @@ export default function MarketplaceLawncareScreen() {
                     )}
 
                     <View style={styles.priceCard}>
-                      {quoting ? (
+                      {anyAddOnQuoting ? (
                         <ActivityIndicator color={colors.lanternDeep} />
-                      ) : quote?.type === 'service' ? (
+                      ) : (
                         <>
                           <Text style={styles.priceLabel}>Total</Text>
-                          <Text style={styles.priceAmount}>{fmtUSD(quote.price)}</Text>
-                          {quote.discountRate > 0 && <Text style={styles.priceSub}>Includes a {quote.discountRate}% volume discount</Text>}
+                          <Text style={styles.priceAmount}>{fmtUSD(addOnTotal)}</Text>
                         </>
-                      ) : null}
+                      )}
                     </View>
 
                     <TouchableOpacity
-                      style={[styles.submitBtn, (submitting || quoting || !quote) && styles.submitBtnDisabled]}
-                      onPress={submitService}
-                      disabled={submitting || quoting || !quote}
+                      style={[styles.submitBtn, (submitting || anyAddOnQuoting) && styles.submitBtnDisabled]}
+                      onPress={submitAddOns}
+                      disabled={submitting || anyAddOnQuoting}
                     >
-                      {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Request Service</Text>}
+                      {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Request Selected Services</Text>}
                     </TouchableOpacity>
                   </>
                 )}
@@ -399,16 +447,19 @@ const styles = StyleSheet.create({
   packageCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   packageLabel: { fontSize: 15, fontWeight: '700', color: colors.ink, flex: 1 },
   packageDescription: { fontSize: 12, color: colors.steel, lineHeight: 18, marginLeft: 26 },
-  serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
-  serviceRowActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
+  addOnCard: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
+  addOnHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  addOnPrice: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep },
+  addOnDetails: { marginTop: 10, marginLeft: 28 },
   serviceLabel: { fontSize: 14, fontWeight: '600', color: colors.ink },
   serviceMeta: { fontSize: 11, color: colors.steel, marginTop: 2 },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
-  qtyLabel: { fontSize: 14, color: colors.ink, flex: 1 },
-  qtyStepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  qtyValue: { fontSize: 15, fontWeight: '700', color: colors.ink, minWidth: 20, textAlign: 'center' },
-  infoNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: colors.mist, borderRadius: 10, padding: 12, marginTop: 4, borderWidth: 1, borderColor: colors.border },
-  infoNoticeText: { fontSize: 12, color: colors.lanternDeep, lineHeight: 18, flex: 1 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  qtyLabel: { fontSize: 13, color: colors.ink, flex: 1 },
+  freqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  freqChip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.canvas },
+  freqChipActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
+  freqChipText: { fontSize: 11, color: colors.steel, fontWeight: '600' },
+  freqChipTextActive: { color: colors.lanternDeep },
   dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateBtnText: { fontSize: 15, color: colors.lanternDeep, fontWeight: '500' },
   priceCard: { backgroundColor: colors.ink, borderRadius: 14, padding: 18, marginTop: 24, alignItems: 'center', minHeight: 80, justifyContent: 'center' },
