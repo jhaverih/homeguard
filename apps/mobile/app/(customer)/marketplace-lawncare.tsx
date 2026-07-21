@@ -251,8 +251,9 @@ export default function MarketplaceLawncareScreen() {
                       <View style={styles.packageCardHeader}>
                         <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={18} color={selected ? colors.lanternDeep : colors.steel} />
                         <Text style={styles.packageLabel}>{p.label}</Text>
+                        <Ionicons name={selected ? 'chevron-up' : 'chevron-down'} size={16} color={colors.steel} />
                       </View>
-                      <Text style={styles.packageDescription}>{p.description}</Text>
+                      {selected && <Text style={styles.packageDescription}>{p.description}</Text>}
                     </TouchableOpacity>
                   );
                 })}

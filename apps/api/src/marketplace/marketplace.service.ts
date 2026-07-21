@@ -242,7 +242,11 @@ export class MarketplaceService implements OnModuleInit {
       {
         key: 'essential_lawn_care',
         label: 'Essentials Lawn Care',
-        description: 'Weekly Lawn Mowing + Monthly Bed Weeding',
+        description: `Lawn & Turf
+✅ Weekly mowing and edging
+
+Landscape Beds
+✅ Monthly bed weeding`,
         composition: [
           { serviceKey: 'lawn_mowing', visitsPerYear: 52 },
           { serviceKey: 'bed_weeding', visitsPerYear: 12 },
@@ -253,7 +257,18 @@ export class MarketplaceService implements OnModuleInit {
       {
         key: 'premium_landscape_care',
         label: 'Seasonal Maintenance Package',
-        description: 'Weekly Lawn Mowing + Monthly Bed Weeding + Annual Shrub Trimming + Seasonal Cleanups',
+        description: `Lawn & Turf
+✅ Weekly mowing and edging
+
+Landscape Beds
+✅ Monthly bed weeding
+
+Shrubs & Trees
+✅ Annual shrub trimming
+
+Seasonal Services
+✅ Spring cleanup
+✅ Fall cleanup`,
         composition: [
           { serviceKey: 'lawn_mowing', visitsPerYear: 52 },
           { serviceKey: 'bed_weeding', visitsPerYear: 12 },
