@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.homeguard.app",
+      "bundleIdentifier": "com.attenteve.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Attenteve needs camera access to take inspection photos.",
         "NSPhotoLibraryUsageDescription": "Attenteve needs photo library access to upload inspection photos.",
