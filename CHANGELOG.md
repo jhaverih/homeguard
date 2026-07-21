@@ -12,6 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-21
+
+### Added
+- **api, mobile**: Lawncare Marketplace customer-facing wizard — subscribe to a monthly package (Essentials Lawn Care/Seasonal Maintenance Package/Premium Lawn Care, flat billing only, no auto-scheduled visits) or request a single on-demand service (Lawn Mowing, Sod Installation, etc.) with a live quote that applies each service's two-tier volume discount. New endpoints `POST /marketplace/lawncare/quote`, `/subscribe`, `/book`; new `MarketplaceLawncarePackageSubscription` entity; new mobile screen `marketplace-lawncare.tsx`, wired into the Marketplace tile routing alongside House Cleaning.
+
+### Changed
+- **api, admin**: Renamed the 3 Lawncare packages to match final marketing copy — "Essential Lawn Care" → "Essentials Lawn Care", "Premium Landscape Care" → "Seasonal Maintenance Package", "Estate Package" → "Premium Lawn Care" — with fuller descriptions (Premium Lawn Care's is a detailed multi-category breakdown). Admin's package description field is now a multi-line textarea.
+
 ## 2026-07-20
 
 ### Added

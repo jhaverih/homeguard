@@ -12,6 +12,7 @@ import { MarketplaceSubscription } from './entities/marketplace-subscription.ent
 import { MarketplaceSubscriptionEvent } from './entities/marketplace-subscription-event.entity';
 import { MarketplaceLawncareService } from './entities/marketplace-lawncare-service.entity';
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
+import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { UsersModule } from '../users/users.module';
@@ -25,7 +26,7 @@ import { ServiceRequestsModule } from '../service-requests/service-requests.modu
       MarketplaceCleaningPlan, MarketplaceRoomUnit, MarketplaceConditionMultiplier,
       MarketplaceAddOn, MarketplaceFrequencyDiscount, MarketplaceSubscription,
       MarketplaceSubscriptionEvent, MarketplaceLawncareService, MarketplaceLawncarePackage,
-      VendorCapability, ServicePrice,
+      MarketplaceLawncarePackageSubscription, VendorCapability, ServicePrice,
     ]),
     UsersModule,
     SubscriptionsModule,

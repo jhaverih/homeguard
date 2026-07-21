@@ -320,6 +320,13 @@ export class ServiceRequestsService {
     // maintain. Every other Marketplace booking (recurring visits,
     // Standard/Deep one-time) keeps the default requirement.
     requireCoreSubscription?: boolean;
+    // Lawncare on-demand bookings share one generic "Lawncare Subscription"
+    // catalog row across all 18 individual services (for capability
+    // matching), so the AdditionalService line item needs the specific
+    // service's own name/description instead of the catalog row's generic
+    // ones — e.g. "Lawn Mowing", not "Lawncare Subscription".
+    nameOverride?: string;
+    descriptionOverride?: string;
   }): Promise<ServiceRequest> {
     const requireCoreSubscription = dto.requireCoreSubscription ?? true;
     let subscriptionId: string | null = null;
@@ -351,10 +358,11 @@ export class ServiceRequestsService {
       marketplaceSubscriptionId: dto.marketplaceSubscriptionId ?? null,
     }));
 
+    const displayName = dto.nameOverride ?? servicePrice.name;
     await this.additionalRepo.save(this.additionalRepo.create({
       serviceRequestId: saved.id,
-      name: servicePrice.name,
-      description: servicePrice.description,
+      name: displayName,
+      description: dto.descriptionOverride ?? servicePrice.description,
       price: dto.price,
       servicePriceId: servicePrice.id,
       approved: true,
@@ -368,7 +376,7 @@ export class ServiceRequestsService {
         vendors,
         NotificationType.NEW_REQUEST,
         'New Service Request',
-        `A customer needs: ${servicePrice.name} in ${dto.city}, ${dto.state}.`,
+        `A customer needs: ${displayName} in ${dto.city}, ${dto.state}.`,
         { serviceRequestId: saved.id },
       );
     }

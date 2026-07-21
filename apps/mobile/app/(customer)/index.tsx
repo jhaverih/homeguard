@@ -20,14 +20,17 @@ import { InspectIcon, RepairIcon, ImproveIcon, MaintainIcon, MarketplaceIcon } f
 const isServiceAvailable = (item: any, availableCapabilityIds: Set<string> | 'all') =>
   !item.requiredCapabilityId || availableCapabilityIds === 'all' || availableCapabilityIds.has(item.requiredCapabilityId);
 
-// Categories with a dedicated configuration flow (BCU/condition/add-on
-// pricing) instead of the standard request.tsx browse-and-book screen —
-// only House Cleaning has one built so far; Lawn & Landscaping/Pest Control
-// are category placeholders with no catalog item yet.
-const MARKETPLACE_CATEGORIES = new Set(['HOUSE_CLEANING']);
+// Categories with a dedicated configuration flow (bespoke pricing tables)
+// instead of the standard request.tsx browse-and-book screen — Pest Control
+// is still just a category placeholder with no catalog item yet.
+const MARKETPLACE_ROUTES: Record<string, string> = {
+  HOUSE_CLEANING: '/(customer)/marketplace-house-cleaning',
+  LAWN_LANDSCAPING: '/(customer)/marketplace-lawncare',
+};
+const MARKETPLACE_CATEGORIES = new Set(Object.keys(MARKETPLACE_ROUTES));
 const routeForItem = (item: any) =>
   MARKETPLACE_CATEGORIES.has(item.category)
-    ? { pathname: '/(customer)/marketplace-house-cleaning' as const }
+    ? { pathname: MARKETPLACE_ROUTES[item.category] as any }
     : { pathname: '/(customer)/request' as const, params: { preselectServicePriceId: item.id } };
 
 function ServiceSearchCard({ catalog, availableCapabilityIds, scrollViewRef }: { catalog: any[]; availableCapabilityIds: Set<string> | 'all'; scrollViewRef: React.RefObject<ScrollView | null> }) {

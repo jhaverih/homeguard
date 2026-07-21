@@ -411,7 +411,7 @@ export default function MarketplacePage() {
                 <tr key={pkg.id}>
                   <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{pkg.label}</td>
                   <td className="px-3 py-2">
-                    <input type="text" value={d.description} onChange={(e) => setField(pkg.id, 'description', e.target.value)} className="w-72 border border-border rounded px-2 py-1" />
+                    <textarea value={d.description} onChange={(e) => setField(pkg.id, 'description', e.target.value)} rows={4} className="w-96 border border-border rounded px-2 py-1 whitespace-pre-wrap" />
                   </td>
                   <td className="px-3 py-2 text-right">
                     <input type="number" step="0.01" value={d.monthlyPrice} onChange={(e) => setField(pkg.id, 'monthlyPrice', e.target.value)} className="w-24 border border-border rounded px-2 py-1 text-right" />

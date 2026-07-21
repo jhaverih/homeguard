@@ -12,6 +12,7 @@ import { MarketplaceSubscription } from './entities/marketplace-subscription.ent
 import { MarketplaceSubscriptionEvent } from './entities/marketplace-subscription-event.entity';
 import { MarketplaceLawncareService } from './entities/marketplace-lawncare-service.entity';
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
+import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
 import {
   CleaningType, VisitFrequency, MarketplaceSubscriptionStatus, MarketplaceEventType,
 } from './enums/marketplace.enum';
@@ -19,7 +20,9 @@ import {
   computeBCU, computeConditionMultiplier, computeAddOnsTotal, computePerVisitCost,
   computeMonthlySubscriptionPrice, QUOTE_REQUIRED,
 } from './marketplace-pricing.utils';
+import { computeLawncareServicePrice } from './marketplace-lawncare-pricing.utils';
 import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
+import { QuoteLawncareDto, BookLawncareServiceDto, SubscribeLawncarePackageDto } from './dto/quote-lawncare.dto';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { ServiceCategory } from '../common/enums/service-category.enum';
@@ -64,6 +67,7 @@ export class MarketplaceService implements OnModuleInit {
     @InjectRepository(MarketplaceSubscriptionEvent) private eventsRepo: Repository<MarketplaceSubscriptionEvent>,
     @InjectRepository(MarketplaceLawncareService) private lawncareServicesRepo: Repository<MarketplaceLawncareService>,
     @InjectRepository(MarketplaceLawncarePackage) private lawncarePackagesRepo: Repository<MarketplaceLawncarePackage>,
+    @InjectRepository(MarketplaceLawncarePackageSubscription) private lawncarePackageSubscriptionsRepo: Repository<MarketplaceLawncarePackageSubscription>,
     @InjectRepository(VendorCapability) private capabilityRepo: Repository<VendorCapability>,
     @InjectRepository(ServicePrice) private servicePriceRepo: Repository<ServicePrice>,
     private configService: ConfigService,
@@ -231,9 +235,62 @@ export class MarketplaceService implements OnModuleInit {
     }
 
     const packages: Partial<MarketplaceLawncarePackage>[] = [
-      { key: 'essential_lawn_care', label: 'Essential Lawn Care', description: 'Weekly mowing + monthly weeding', monthlyPrice: 295, sortOrder: 1 },
-      { key: 'premium_landscape_care', label: 'Premium Landscape Care', description: 'Lawn, beds, shrubs, seasonal cleanups', monthlyPrice: 495, sortOrder: 2 },
-      { key: 'estate_package', label: 'Estate Package', description: 'Full maintenance including irrigation and gutters', monthlyPrice: 695, isStartingAt: true, sortOrder: 3 },
+      {
+        key: 'essential_lawn_care',
+        label: 'Essentials Lawn Care',
+        description: 'Weekly Lawn Mowing + Monthly Bed Weeding',
+        monthlyPrice: 295,
+        sortOrder: 1,
+      },
+      {
+        key: 'premium_landscape_care',
+        label: 'Seasonal Maintenance Package',
+        description: 'Weekly Lawn Mowing + Monthly Bed Weeding + Annual Shrub Trimming + Seasonal Cleanups',
+        monthlyPrice: 495,
+        sortOrder: 2,
+      },
+      {
+        key: 'estate_package',
+        label: 'Premium Lawn Care',
+        description: `Lawn & Turf
+✅ Weekly mowing and edging
+✅ Seasonal fertilization coordination
+✅ Spot weed control monitoring
+✅ Turf health inspections
+
+Landscape Beds
+✅ Monthly bed weeding
+✅ Mulch inspections and replenishment recommendations
+✅ Seasonal flower rotation coordination
+✅ Debris removal
+
+Shrubs & Trees
+✅ Quarterly shrub trimming
+✅ Annual tree inspections
+✅ Dead limb identification
+✅ Coordination of tree services
+
+Irrigation
+✅ Spring startup
+✅ Monthly irrigation inspections
+✅ Fall winterization
+✅ Controller adjustments
+
+Seasonal Services
+✅ Spring cleanup
+✅ Multiple fall cleanups
+✅ Storm debris removal
+
+Exterior Maintenance Add-Ons
+✅ Gutter cleaning (2× annually)
+✅ Drainage inspections
+✅ Landscape lighting inspections
+✅ Pressure washing coordination
+✅ Exterior property condition reports`,
+        monthlyPrice: 695,
+        isStartingAt: true,
+        sortOrder: 3,
+      },
     ];
     for (const p of packages) {
       const existing = await this.lawncarePackagesRepo.findOne({ where: { key: p.key } });
@@ -480,6 +537,124 @@ export class MarketplaceService implements OnModuleInit {
     });
   }
 
+  // ── Lawncare: quote / package subscribe (billing-only) / on-demand booking ─
+
+  async quoteLawncare(dto: QuoteLawncareDto): Promise<
+    { type: 'package'; monthlyPrice: number } | { type: 'service'; price: number; discountRate: number }
+  > {
+    if (dto.mode === 'package') {
+      if (!dto.packageKey) throw new BadRequestException('packageKey is required for mode "package".');
+      const pkg = await this.lawncarePackagesRepo.findOne({ where: { key: dto.packageKey, isActive: true } });
+      if (!pkg) throw new NotFoundException('Package not found.');
+      // Flat price as listed — including Estate's "starting at" figure; a
+      // bespoke higher quote for oversized properties isn't built this pass.
+      return { type: 'package', monthlyPrice: Number(pkg.monthlyPrice) };
+    }
+
+    if (!dto.serviceKey || dto.qty == null) throw new BadRequestException('serviceKey and qty are required for mode "service".');
+    const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
+    if (!service) throw new NotFoundException('Service not found.');
+    const { price, discountRate } = computeLawncareServicePrice(service, dto.qty);
+    return { type: 'service', price, discountRate };
+  }
+
+  // Billing-only: charges a flat monthly Stripe subscription for the chosen
+  // package. No recurring visit is generated from this — the customer books
+  // actual work separately via bookLawncareService(), on-demand.
+  async subscribeLawncarePackage(customerId: string, dto: SubscribeLawncarePackageDto): Promise<{
+    subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null;
+  }> {
+    const pkg = await this.lawncarePackagesRepo.findOne({ where: { key: dto.packageKey, isActive: true } });
+    if (!pkg) throw new NotFoundException('Package not found.');
+
+    const coreSubscription = await this.subscriptionsService.getActiveSubscription(customerId);
+    if (!coreSubscription) throw new BadRequestException('An active Attenteve plan is required to subscribe to Marketplace services.');
+
+    const stripeCustomerId = await this.subscriptionsService.getOrCreateStripeCustomer(customerId);
+    const customer = await this.stripe.customers.retrieve(stripeCustomerId);
+    const defaultPaymentMethod = !('deleted' in customer)
+      ? (customer.invoice_settings?.default_payment_method as string | null)
+      : null;
+    if (!defaultPaymentMethod) {
+      throw new BadRequestException('Add a payment method in Payments before subscribing to a Marketplace service.');
+    }
+
+    const product = await this.ensureLawncarePackageStripeProduct();
+    const monthlyPrice = Number(pkg.monthlyPrice);
+
+    const stripeSub = await this.stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [{
+        price_data: {
+          currency: 'usd',
+          product: product.id,
+          unit_amount: Math.round(monthlyPrice * 100),
+          recurring: { interval: 'month' },
+        },
+      }],
+      default_payment_method: defaultPaymentMethod,
+      payment_behavior: 'default_incomplete',
+      expand: ['latest_invoice.payment_intent'],
+      metadata: { type: 'marketplace_lawncare_package', customerId, packageKey: dto.packageKey },
+    });
+
+    const saved = await this.lawncarePackageSubscriptionsRepo.save(this.lawncarePackageSubscriptionsRepo.create({
+      customerId,
+      packageKey: dto.packageKey,
+      computedMonthlyPrice: monthlyPrice,
+      status: MarketplaceSubscriptionStatus.ACTIVE,
+      startDate: new Date(),
+      stripeSubscriptionId: stripeSub.id,
+    }));
+
+    const invoice = stripeSub.latest_invoice as Stripe.Invoice;
+    const pi = invoice?.payment_intent as Stripe.PaymentIntent | undefined;
+    const charged = pi?.status === 'succeeded';
+
+    return {
+      subscriptionId: saved.id,
+      monthlyPrice,
+      charged,
+      clientSecret: charged ? null : (pi?.client_secret ?? null),
+    };
+  }
+
+  private async ensureLawncarePackageStripeProduct(): Promise<Stripe.Product> {
+    const products = await this.stripe.products.list({ limit: 100, active: true });
+    const existing = products.data.find((p) => p.name === 'Lawncare Package Subscription');
+    if (existing) return existing;
+    return this.stripe.products.create({ name: 'Lawncare Package Subscription' });
+  }
+
+  // On-demand, one-time booking for a single à-la-carte service (not a
+  // subscription) — e.g. "Lawn Mowing" or "Sod Installation" requested
+  // outside of any package. Payment happens at job completion via the
+  // standard ServiceRequest flow, same as any other approved add-on.
+  async bookLawncareService(customerId: string, dto: BookLawncareServiceDto) {
+    const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
+    if (!service) throw new NotFoundException('Service not found.');
+    const { price } = computeLawncareServicePrice(service, dto.qty);
+
+    const lawncareCatalogPrice = await this.servicePriceRepo.findOne({ where: { name: LAWNCARE_CATALOG_NAME } });
+    if (!lawncareCatalogPrice) throw new NotFoundException('Lawncare is not currently available.');
+
+    const customer = await this.usersService.findById(customerId);
+    const profile = customer.customerProfile;
+    if (!profile) throw new BadRequestException('A saved address is required to book a Lawncare service.');
+
+    return this.serviceRequestsService.createMarketplaceBooking(customerId, {
+      servicePriceId: lawncareCatalogPrice.id,
+      preferredDate: dto.preferredDate,
+      price,
+      address: profile.address,
+      city: profile.city,
+      state: profile.state,
+      zipCode: profile.zipCode,
+      nameOverride: service.label,
+      descriptionOverride: `${service.label} — ${dto.qty} (${service.pricingUnit})`,
+    });
+  }
+
   // ── Recurring visit generation (called by MarketplaceVisitSchedulerService) ─
 
   async generateDueVisits(): Promise<number> {
@@ -537,17 +712,23 @@ export class MarketplaceService implements OnModuleInit {
       const stripeSubId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
       if (!stripeSubId) return;
       const sub = await this.subscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
-      if (!sub) return;
-
-      if (sub.status !== MarketplaceSubscriptionStatus.ACTIVE) {
-        sub.status = MarketplaceSubscriptionStatus.ACTIVE;
-        await this.subscriptionsRepo.save(sub);
+      if (sub) {
+        if (sub.status !== MarketplaceSubscriptionStatus.ACTIVE) {
+          sub.status = MarketplaceSubscriptionStatus.ACTIVE;
+          await this.subscriptionsRepo.save(sub);
+        }
+        await this.eventsRepo.save(this.eventsRepo.create({
+          marketplaceSubscriptionId: sub.id,
+          type: MarketplaceEventType.RENEWED,
+          amount: (invoice.amount_paid ?? 0) / 100,
+        }));
       }
-      await this.eventsRepo.save(this.eventsRepo.create({
-        marketplaceSubscriptionId: sub.id,
-        type: MarketplaceEventType.RENEWED,
-        amount: (invoice.amount_paid ?? 0) / 100,
-      }));
+
+      const lawncareSub = await this.lawncarePackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (lawncareSub && lawncareSub.status !== MarketplaceSubscriptionStatus.ACTIVE) {
+        lawncareSub.status = MarketplaceSubscriptionStatus.ACTIVE;
+        await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
+      }
     }
 
     if (event.type === 'invoice.payment_failed') {
@@ -555,28 +736,41 @@ export class MarketplaceService implements OnModuleInit {
       const stripeSubId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
       if (!stripeSubId) return;
       const sub = await this.subscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
-      if (!sub) return;
+      if (sub) {
+        sub.status = MarketplaceSubscriptionStatus.PAST_DUE;
+        await this.subscriptionsRepo.save(sub);
+        await this.eventsRepo.save(this.eventsRepo.create({
+          marketplaceSubscriptionId: sub.id,
+          type: MarketplaceEventType.PAYMENT_FAILED,
+        }));
+      }
 
-      sub.status = MarketplaceSubscriptionStatus.PAST_DUE;
-      await this.subscriptionsRepo.save(sub);
-      await this.eventsRepo.save(this.eventsRepo.create({
-        marketplaceSubscriptionId: sub.id,
-        type: MarketplaceEventType.PAYMENT_FAILED,
-      }));
+      const lawncareSub = await this.lawncarePackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (lawncareSub) {
+        lawncareSub.status = MarketplaceSubscriptionStatus.PAST_DUE;
+        await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
+      }
     }
 
     if (event.type === 'customer.subscription.deleted') {
       const stripeSub = event.data.object as Stripe.Subscription;
       const sub = await this.subscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSub.id } });
-      if (!sub || sub.status === MarketplaceSubscriptionStatus.CANCELLED) return;
+      if (sub && sub.status !== MarketplaceSubscriptionStatus.CANCELLED) {
+        sub.status = MarketplaceSubscriptionStatus.CANCELLED;
+        sub.cancelledAt = new Date();
+        await this.subscriptionsRepo.save(sub);
+        await this.eventsRepo.save(this.eventsRepo.create({
+          marketplaceSubscriptionId: sub.id,
+          type: MarketplaceEventType.CANCELLED,
+        }));
+      }
 
-      sub.status = MarketplaceSubscriptionStatus.CANCELLED;
-      sub.cancelledAt = new Date();
-      await this.subscriptionsRepo.save(sub);
-      await this.eventsRepo.save(this.eventsRepo.create({
-        marketplaceSubscriptionId: sub.id,
-        type: MarketplaceEventType.CANCELLED,
-      }));
+      const lawncareSub = await this.lawncarePackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSub.id } });
+      if (lawncareSub && lawncareSub.status !== MarketplaceSubscriptionStatus.CANCELLED) {
+        lawncareSub.status = MarketplaceSubscriptionStatus.CANCELLED;
+        lawncareSub.cancelledAt = new Date();
+        await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
+      }
     }
   }
 

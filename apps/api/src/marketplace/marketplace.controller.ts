@@ -9,6 +9,7 @@ import { MinAdminLevel } from '../common/decorators/min-admin-level.decorator';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { MarketplaceService } from './marketplace.service';
 import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
+import { QuoteLawncareDto, SubscribeLawncarePackageDto, BookLawncareServiceDto } from './dto/quote-lawncare.dto';
 import { IsDateString } from 'class-validator';
 
 class BookOneTimeCleaningDto extends QuoteHouseCleaningDto {
@@ -110,6 +111,30 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Lawncare services and subscription packages' })
   getLawncareConfig() {
     return this.service.getLawncareConfig();
+  }
+
+  @Post('lawncare/quote')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: compute a Lawncare price before committing (package flat price, or a service + qty)' })
+  quoteLawncare(@Body() dto: QuoteLawncareDto) {
+    return this.service.quoteLawncare(dto);
+  }
+
+  @Post('lawncare/subscribe')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: subscribe to a Lawncare package (billing only, no auto-scheduled visits)' })
+  subscribeLawncarePackage(@Body() dto: SubscribeLawncarePackageDto, @Request() req) {
+    return this.service.subscribeLawncarePackage(req.user.id, dto);
+  }
+
+  @Post('lawncare/book')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: book a single on-demand Lawncare service' })
+  bookLawncareService(@Body() dto: BookLawncareServiceDto, @Request() req) {
+    return this.service.bookLawncareService(req.user.id, dto);
   }
 
   @Patch('lawncare/services/:id')
