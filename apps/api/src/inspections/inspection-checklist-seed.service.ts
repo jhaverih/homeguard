@@ -26,7 +26,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
   {
     key: 'hvac_visual.units_overview',
     label: 'AC Unit Count & Per-Unit Inspection',
-    description: 'Enter the number of AC units in the home, then complete visual inspection and filter details for each unit.',
+    description: 'Enter the number of AC units in the home, then complete visual inspection, nameplate, and filter details for each unit. AHU Filters is now part of this per-unit inspection rather than its own checklist.',
     promptFields: [
       { key: 'num_units', label: 'Number of AC units in home', type: 'number', placeholder: 'e.g. 2' },
     ],
@@ -37,18 +37,23 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       fields: [
         { key: 'location', label: 'Unit location', type: 'text', placeholder: 'e.g. garage, attic, closet' },
         { key: 'visual_ok', label: 'Visual inspection passed', type: 'boolean' },
-        { key: 'filter_replaced', label: 'Filter replaced', type: 'boolean' },
-        { key: 'filter_location', label: 'Filter slot location', type: 'text', placeholder: 'e.g. return air grille, air handler front' },
+        { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Carrier 24ACC636A003' },
+        { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
+        { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
         { key: 'num_filters', label: 'Number of filters in this unit', type: 'number', placeholder: 'e.g. 1' },
       ],
       subGroups: {
         countKey: 'num_filters',
         prefix: 'filter',
-        label: 'Filter',
+        label: 'AHU Filter',
         fields: [
-          { key: 'size', label: 'Filter size (L×W×D)', type: 'text', placeholder: 'e.g. 20x25x1' },
-          { key: 'brand', label: 'Brand / model', type: 'text', placeholder: 'e.g. Filtrete 1500' },
-          { key: 'merv', label: 'MERV rating', type: 'number', placeholder: 'e.g. 11' },
+          { key: 'filter_location', label: 'Filter Location', type: 'text', placeholder: 'e.g. return air grille, air handler front' },
+          { key: 'size', label: 'Filter size', type: 'text', placeholder: 'e.g. 20x25x1' },
+          { key: 'dirt_level', label: 'Filter Dirt/clog level', type: 'select', options: ['Light', 'Moderate', 'Heavy', 'Severely clogged'] },
+          { key: 'merv', label: 'New Filter MERV Rating', type: 'number', placeholder: 'e.g. 11' },
+          { key: 'airflow_correct', label: 'Airflow direction correct (arrow toward unit)', type: 'boolean' },
+          { key: 'next_replacement_days', label: 'Recommended next replacement (in days)', type: 'number', placeholder: 'e.g. 75' },
+          { key: 'finding_notes', label: 'Finding Notes', type: 'text', placeholder: 'Any issues noted' },
         ],
       },
     },
@@ -127,68 +132,6 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'excessive_dust', label: 'Excessive dust buildup', type: 'boolean' },
     ],
     catalogLinks: ['HVAC Full Inspection'],
-  },
-  {
-    key: 'hvac_visual.unit_age',
-    label: 'Unit age / nameplate',
-    description: 'Note age and manufacture date from unit nameplate',
-    promptFields: [
-      { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Carrier 24ACC636A003' },
-      { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
-      { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
-    ],
-    catalogLinks: [],
-  },
-];
-
-const AHU_FILTERS_TASKS: SeedTask[] = [
-  {
-    key: 'hvac_filter.locate_remove',
-    label: 'Locate and remove old filter',
-    description: 'Find filter location, remove old filter for inspection',
-    promptFields: [
-      { key: 'filter_location', label: 'Filter location', type: 'text', placeholder: 'e.g. return air grille, utility closet' },
-    ],
-    catalogLinks: [],
-  },
-  {
-    key: 'hvac_filter.record_size',
-    label: 'Record filter size',
-    description: 'Note dimensions printed on filter frame',
-    promptFields: [
-      { key: 'filter_size', label: 'Filter size (L×W×D)', type: 'text', placeholder: 'e.g. 20x25x1' },
-    ],
-    catalogLinks: [],
-  },
-  {
-    key: 'hvac_filter.inspect_old',
-    label: 'Inspect old filter condition',
-    description: 'Assess dirt/clog level before disposal',
-    promptFields: [
-      { key: 'dirt_level', label: 'Dirt/clog level', type: 'select', options: ['Light', 'Moderate', 'Heavy', 'Severely clogged'] },
-    ],
-    catalogLinks: [],
-  },
-  {
-    key: 'hvac_filter.install_new',
-    label: 'Install new filter',
-    description: 'Install with correct airflow direction (arrow toward unit)',
-    promptFields: [
-      { key: 'filter_size', label: 'Filter size installed', type: 'text', placeholder: 'e.g. 20x25x1' },
-      { key: 'merv_rating', label: 'MERV rating', type: 'number', placeholder: 'e.g. 11' },
-      { key: 'airflow_correct', label: 'Airflow direction correct (arrow toward unit)', type: 'boolean' },
-      { key: 'next_replacement', label: 'Recommended next replacement', type: 'text', placeholder: 'e.g. 60–90 days' },
-    ],
-    catalogLinks: [],
-  },
-  {
-    key: 'hvac_filter.verify_seat',
-    label: 'Verify filter seating',
-    description: 'Confirm filter seats properly with no gaps',
-    promptFields: [
-      { key: 'gaps_found', label: 'Gaps found around filter', type: 'boolean' },
-    ],
-    catalogLinks: [],
   },
 ];
 
@@ -579,12 +522,10 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     const group = await this.ensureGroup('GENERAL_HOME_INSPECTION', 'General Home Inspection', 0);
 
     const hvacVisualSub = await this.ensureSubgroup(group.id, 'HVAC_VISUAL_INSPECTION', 'HVAC Visual Inspection', 0);
-    const ahuFiltersSub = await this.ensureSubgroup(group.id, 'AHU_FILTERS', 'AHU Filters', 1);
     const leakSub = await this.ensureSubgroup(group.id, 'LEAK_INSPECTION', 'Leak Inspection', 2);
     const exteriorSub = await this.ensureSubgroup(group.id, 'EXTERIOR_INSPECTION', 'Exterior Inspection', 3);
 
     const hvacVisualSection = await this.ensureSection(hvacVisualSub.id, 'hvac_visual', 'HVAC Visual Inspection', 0);
-    const ahuFiltersSection = await this.ensureSection(ahuFiltersSub.id, 'hvac_filter', 'AHU Filters', 0);
     const toiletsSection = await this.ensureSection(leakSub.id, 'toilet_leak', 'Toilets', 0);
     const sinksSection = await this.ensureSection(leakSub.id, 'sink_leak', 'Sinks', 1);
     const showerTubSection = await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 2,
@@ -616,7 +557,6 @@ export class InspectionChecklistSeedService implements OnModuleInit {
       'Recommended photos if an issue is found: trees over roof, vegetation against siding, drainage issues.');
 
     await this.ensureTasks(hvacVisualSection.id, HVAC_VISUAL_TASKS);
-    await this.ensureTasks(ahuFiltersSection.id, AHU_FILTERS_TASKS);
     await this.ensureTasks(toiletsSection.id, TOILETS_TASKS);
     await this.ensureTasks(sinksSection.id, SINKS_TASKS);
     await this.ensureTasks(showerTubSection.id, SHOWER_TUB_TASKS);

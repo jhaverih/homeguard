@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-20
 
+### Changed
+- **api**: Consolidated AHU Filters into the AC Unit's per-unit inspection task instead of being a separate checklist — each AC unit's nested filter entry now records filter location, size, dirt/clog level, MERV rating, airflow direction, recommended replacement (in days), and finding notes. Each AC unit now also records Make/Model, Serial Number, and Install/Manufacture date (moved in from the deleted "Unit age/nameplate" task) — all effectively optional, since no field in this checklist has ever been enforced as required. The standalone "AHU Filters" subgroup, its checklist, and its 5 old tasks are removed.
+
 ### Added
 - **api**: New "Exterior Inspection" subgroup under General Home Inspection with 9 checklists (61 tasks total): Foundation, Siding, Trim & Fascia, Roof (ground/binocular inspection only), Gutters, Windows & Exterior Doors, Deck/Porch, Concrete Surfaces, and Vegetation. Each section's description carries its recommended-photos guidance, mirroring the Leak Inspection checklists added earlier the same day. The end-of-inspection "Exterior Inspection Summary" (per-category rollup) is the same kind of vendor-facing mobile feature already deferred for Leak Inspection — not built in this pass.
 - **api**: Populated the 3 previously-empty Leak Inspection checklists — Showers/Tub (14 tasks: Fixtures, Caulking, Tile & Grout, Water Damage), Kitchen (13 tasks: Faucet, Sink Plumbing, Garbage Disposal, Dishwasher), and Water Heater (13 tasks: Drain Pan, Supply Fittings, T&P Valve — visual only, Tank Condition) — with real inspection content supplied by the user. Each checklist's section description now lists its recommended photos to take if an issue is found.
