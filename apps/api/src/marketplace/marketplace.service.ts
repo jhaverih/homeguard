@@ -10,6 +10,8 @@ import { MarketplaceAddOn } from './entities/marketplace-add-on.entity';
 import { MarketplaceFrequencyDiscount } from './entities/marketplace-frequency-discount.entity';
 import { MarketplaceSubscription } from './entities/marketplace-subscription.entity';
 import { MarketplaceSubscriptionEvent } from './entities/marketplace-subscription-event.entity';
+import { MarketplaceLawncareService } from './entities/marketplace-lawncare-service.entity';
+import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import {
   CleaningType, VisitFrequency, MarketplaceSubscriptionStatus, MarketplaceEventType,
 } from './enums/marketplace.enum';
@@ -30,6 +32,8 @@ import { ServiceRequestsService } from '../service-requests/service-requests.ser
 
 export const CLEANING_SERVICES_CAPABILITY_NAME = 'Cleaning Services';
 export const HOUSE_CLEANING_CATALOG_NAME = 'House Cleaning';
+export const LAWN_CARE_CAPABILITY_NAME = 'Lawn & Landscaping';
+export const LAWNCARE_CATALOG_NAME = 'Lawncare Subscription';
 
 export interface HouseCleaningQuote {
   perVisitCost: number;
@@ -58,6 +62,8 @@ export class MarketplaceService implements OnModuleInit {
     @InjectRepository(MarketplaceFrequencyDiscount) private frequencyDiscountsRepo: Repository<MarketplaceFrequencyDiscount>,
     @InjectRepository(MarketplaceSubscription) private subscriptionsRepo: Repository<MarketplaceSubscription>,
     @InjectRepository(MarketplaceSubscriptionEvent) private eventsRepo: Repository<MarketplaceSubscriptionEvent>,
+    @InjectRepository(MarketplaceLawncareService) private lawncareServicesRepo: Repository<MarketplaceLawncareService>,
+    @InjectRepository(MarketplaceLawncarePackage) private lawncarePackagesRepo: Repository<MarketplaceLawncarePackage>,
     @InjectRepository(VendorCapability) private capabilityRepo: Repository<VendorCapability>,
     @InjectRepository(ServicePrice) private servicePriceRepo: Repository<ServicePrice>,
     private configService: ConfigService,
@@ -73,6 +79,8 @@ export class MarketplaceService implements OnModuleInit {
   async onModuleInit() {
     await this.seedConfig();
     await this.seedCapabilityAndCatalog();
+    await this.seedLawncareConfig();
+    await this.seedLawncareCapabilityAndCatalog();
   }
 
   // ── Seeding ────────────────────────────────────────────────────────────
@@ -191,6 +199,82 @@ export class MarketplaceService implements OnModuleInit {
     }
   }
 
+  // Transcribed verbatim from the source pricing sheet. `subCostBase`/
+  // `customerPriceBase` are 0 for pure per-unit services (Sod/Gravel/Plant
+  // Installation) and for Drainage Correction/Seasonal Maintenance the
+  // "per unit" fields are 0 since those are flat per-project/per-month
+  // prices with no additional-unit component.
+  private async seedLawncareConfig() {
+    const services: Partial<MarketplaceLawncareService>[] = [
+      { key: 'lawn_mowing', label: 'Lawn Mowing', pricingUnit: 'Per Visit', recommendedFrequency: 'Weekly (Apr–Oct), Biweekly (Nov–Mar)', subCostBase: 35, subCostPerUnit: 5, customerPriceBase: 60, customerPricePerUnit: 8, volumeDiscountText: 'Weekly: 15%, Biweekly: 5%', sortOrder: 1 },
+      { key: 'mulch_installation', label: 'Mulch Installation', pricingUnit: 'First 3 CY', recommendedFrequency: '1× per year', subCostBase: 80, subCostPerUnit: 20, customerPriceBase: 140, customerPricePerUnit: 35, volumeDiscountText: '10+ CY: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 2 },
+      { key: 'shrub_trimming', label: 'Shrub Trimming', pricingUnit: 'First 5 shrubs', recommendedFrequency: '2–4× per year', subCostBase: 70, subCostPerUnit: 10, customerPriceBase: 125, customerPricePerUnit: 20, volumeDiscountText: '20+ shrubs: 10%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, sortOrder: 3 },
+      { key: 'leaf_removal', label: 'Leaf Removal', pricingUnit: 'First 5,000 SF', recommendedFrequency: '2–6× per Fall', subCostBase: 85, subCostPerUnit: 12, customerPriceBase: 150, customerPricePerUnit: 20, volumeDiscountText: 'Seasonal package: 15%', sortOrder: 4 },
+      { key: 'bed_weeding', label: 'Bed Weeding', pricingUnit: 'First 200 SF', recommendedFrequency: 'Monthly', subCostBase: 60, subCostPerUnit: 0.15, customerPriceBase: 100, customerPricePerUnit: 0.30, volumeDiscountText: 'Monthly: 10%', sortOrder: 5 },
+      { key: 'sod_installation', label: 'Sod Installation', pricingUnit: 'Per SF', recommendedFrequency: 'One-time', subCostBase: 0, subCostPerUnit: 1.10, customerPriceBase: 0, customerPricePerUnit: 1.95, volumeDiscountText: '5,000+ SF: 10%; 10,000+ SF: 15%', volumeDiscountThreshold1: 5000, volumeDiscountRate1: 10, volumeDiscountThreshold2: 10000, volumeDiscountRate2: 15, sortOrder: 6 },
+      { key: 'plant_installation', label: 'Plant Installation', pricingUnit: 'Per Plant', recommendedFrequency: 'As needed', subCostBase: 0, subCostPerUnit: 35, customerPriceBase: 0, customerPricePerUnit: 60, volumeDiscountText: '20+ plants: 10%; 50+: 15%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, volumeDiscountThreshold2: 50, volumeDiscountRate2: 15, sortOrder: 7 },
+      { key: 'gravel_rock_installation', label: 'Gravel/Rock Installation', pricingUnit: 'Per SF', recommendedFrequency: 'One-time', subCostBase: 0, subCostPerUnit: 1.75, customerPriceBase: 0, customerPricePerUnit: 3.00, volumeDiscountText: '2,000+ SF: 10%', volumeDiscountThreshold1: 2000, volumeDiscountRate1: 10, sortOrder: 8 },
+      { key: 'spring_cleanup', label: 'Spring Cleanup', pricingUnit: 'Per Project', recommendedFrequency: 'Annually', subCostBase: 180, subCostPerUnit: 20, customerPriceBase: 300, customerPricePerUnit: 40, volumeDiscountText: 'Annual package: 15%', sortOrder: 9 },
+      { key: 'seasonal_maintenance', label: 'Seasonal Maintenance', pricingUnit: 'Per Month', recommendedFrequency: 'Monthly', subCostBase: 180, subCostPerUnit: 0, customerPriceBase: 295, customerPricePerUnit: 0, volumeDiscountText: 'Annual agreement: 10%', sortOrder: 10 },
+      { key: 'irrigation_startup', label: 'Irrigation Startup', pricingUnit: 'First 6 zones', recommendedFrequency: 'Annually', subCostBase: 75, subCostPerUnit: 8, customerPriceBase: 125, customerPricePerUnit: 15, volumeDiscountText: 'Bundle: 15%', sortOrder: 11 },
+      { key: 'irrigation_winterization', label: 'Irrigation Winterization', pricingUnit: 'First 6 zones', recommendedFrequency: 'Annually', subCostBase: 75, subCostPerUnit: 8, customerPriceBase: 125, customerPricePerUnit: 15, volumeDiscountText: 'Bundle: 15%', sortOrder: 12 },
+      { key: 'gutter_cleaning', label: 'Gutter Cleaning', pricingUnit: 'First 150 LF', recommendedFrequency: 'Twice per year', subCostBase: 100, subCostPerUnit: 0.40, customerPriceBase: 175, customerPricePerUnit: 0.75, volumeDiscountText: 'Semiannual: 10%', sortOrder: 13 },
+      { key: 'small_tree_trimming', label: "Small Tree Trimming (<20')", pricingUnit: 'Per Tree', recommendedFrequency: 'Every 2–3 years', subCostBase: 0, subCostPerUnit: 90, customerPriceBase: 0, customerPricePerUnit: 195, volumeDiscountText: '3–5 trees: 10%', volumeDiscountThreshold1: 3, volumeDiscountRate1: 10, sortOrder: 14 },
+      { key: 'medium_tree_trimming', label: "Medium Tree Trimming (20–40')", pricingUnit: 'Per Tree', recommendedFrequency: 'Every 2–3 years', subCostBase: 0, subCostPerUnit: 180, customerPriceBase: 0, customerPricePerUnit: 395, volumeDiscountText: '3–5 trees: 10%', volumeDiscountThreshold1: 3, volumeDiscountRate1: 10, sortOrder: 15 },
+      { key: 'large_tree_trimming', label: "Large Tree Trimming (40–60')", pricingUnit: 'Per Tree', recommendedFrequency: 'Every 3–5 years', subCostBase: 0, subCostPerUnit: 450, customerPriceBase: 0, customerPricePerUnit: 850, volumeDiscountText: '3+ trees: 10%', volumeDiscountThreshold1: 3, volumeDiscountRate1: 10, sortOrder: 16 },
+      { key: 'drainage_correction', label: 'Drainage Correction', pricingUnit: 'Per Project', recommendedFrequency: 'One-time', subCostBase: 650, subCostPerUnit: 0, customerPriceBase: 1200, customerPricePerUnit: 0, volumeDiscountText: 'Projects >$5k: 10%', sortOrder: 17 },
+      { key: 'landscape_lighting_maintenance', label: 'Landscape Lighting Maintenance', pricingUnit: 'Service Call', recommendedFrequency: 'Annual', subCostBase: 75, subCostPerUnit: 15, customerPriceBase: 125, customerPricePerUnit: 25, volumeDiscountText: '10+ fixtures: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 18 },
+    ];
+    for (const s of services) {
+      const existing = await this.lawncareServicesRepo.findOne({ where: { key: s.key } });
+      if (!existing) await this.lawncareServicesRepo.save(this.lawncareServicesRepo.create(s));
+    }
+
+    const packages: Partial<MarketplaceLawncarePackage>[] = [
+      { key: 'essential_lawn_care', label: 'Essential Lawn Care', description: 'Weekly mowing + monthly weeding', monthlyPrice: 295, sortOrder: 1 },
+      { key: 'premium_landscape_care', label: 'Premium Landscape Care', description: 'Lawn, beds, shrubs, seasonal cleanups', monthlyPrice: 495, sortOrder: 2 },
+      { key: 'estate_package', label: 'Estate Package', description: 'Full maintenance including irrigation and gutters', monthlyPrice: 695, isStartingAt: true, sortOrder: 3 },
+    ];
+    for (const p of packages) {
+      const existing = await this.lawncarePackagesRepo.findOne({ where: { key: p.key } });
+      if (!existing) await this.lawncarePackagesRepo.save(this.lawncarePackagesRepo.create(p));
+    }
+  }
+
+  // Same shape as seedCapabilityAndCatalog() above — a module-owned
+  // "Lawn & Landscaping" vendor capability plus a single browsable
+  // "Lawncare Subscription" catalog row gated on it. Real pricing lives in
+  // the seedLawncareConfig() tables above; this row's own price fields are
+  // unused placeholders, same as House Cleaning's catalog row.
+  private async seedLawncareCapabilityAndCatalog() {
+    let capability = await this.capabilityRepo.findOne({ where: { name: LAWN_CARE_CAPABILITY_NAME } });
+    if (!capability) {
+      capability = await this.capabilityRepo.save(this.capabilityRepo.create({ name: LAWN_CARE_CAPABILITY_NAME }));
+      const vendors = await this.usersService.findAllActiveVendors();
+      if (vendors.length > 0) {
+        await this.notificationsService.notifyVendors(
+          vendors, NotificationType.NEW_CAPABILITY_AVAILABLE, 'New Capability Available',
+          `"${capability.name}" has been added — update your profile if you'd like to offer it.`,
+          { screen: 'capabilities' },
+        ).catch(() => {});
+      }
+    }
+
+    const existing = await this.servicePriceRepo.findOne({ where: { name: LAWNCARE_CATALOG_NAME } });
+    if (!existing) {
+      await this.servicePriceRepo.save(this.servicePriceRepo.create({
+        name: LAWNCARE_CATALOG_NAME,
+        description: 'Recurring lawn and landscape care, tailored to your property.',
+        basePrice: 0,
+        pricingMethod: PricingMethod.FLAT_PRICE,
+        category: ServiceCategory.LAWN_LANDSCAPING,
+        serviceGroups: [ServiceGroup.MARKETPLACE],
+        customerRequestable: true,
+        requiredCapabilityId: capability.id,
+      }));
+    }
+  }
+
   // ── Config lookups ─────────────────────────────────────────────────────
 
   async getConfig() {
@@ -202,6 +286,14 @@ export class MarketplaceService implements OnModuleInit {
       this.frequencyDiscountsRepo.find({ where: { isActive: true } }),
     ]);
     return { plans: plans.filter((p) => p.isActive), roomUnits, conditions, addOns, frequencyDiscounts };
+  }
+
+  async getLawncareConfig() {
+    const [services, packages] = await Promise.all([
+      this.lawncareServicesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
+      this.lawncarePackagesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
+    ]);
+    return { services, packages };
   }
 
   private async getActivePlan(cleaningType: CleaningType): Promise<MarketplaceCleaningPlan> {
@@ -513,5 +605,15 @@ export class MarketplaceService implements OnModuleInit {
   async updateFrequencyDiscount(id: string, data: Partial<MarketplaceFrequencyDiscount>) {
     await this.frequencyDiscountsRepo.update(id, data);
     return this.frequencyDiscountsRepo.findOne({ where: { id } });
+  }
+
+  async updateLawncareService(id: string, data: Partial<MarketplaceLawncareService>) {
+    await this.lawncareServicesRepo.update(id, data);
+    return this.lawncareServicesRepo.findOne({ where: { id } });
+  }
+
+  async updateLawncarePackage(id: string, data: Partial<MarketplaceLawncarePackage>) {
+    await this.lawncarePackagesRepo.update(id, data);
+    return this.lawncarePackagesRepo.findOne({ where: { id } });
   }
 }

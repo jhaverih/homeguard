@@ -62,10 +62,11 @@ export default function MarketplacePage() {
       return next;
     });
 
-  const load = () => marketplaceApi.getConfig().then((c: any) => {
-    setConfig(c);
+  const load = () => Promise.all([marketplaceApi.getConfig(), marketplaceApi.getLawncareConfig()]).then(([c, lc]: any[]) => {
+    const merged = { ...c, lawncareServices: lc.services, lawncarePackages: lc.packages };
+    setConfig(merged);
     const d: Record<string, any> = {};
-    for (const row of [...c.plans, ...c.roomUnits, ...c.conditions, ...c.addOns, ...c.frequencyDiscounts]) {
+    for (const row of [...c.plans, ...c.roomUnits, ...c.conditions, ...c.addOns, ...c.frequencyDiscounts, ...lc.services, ...lc.packages]) {
       d[row.id] = { ...row };
     }
     setDrafts(d);
@@ -77,14 +78,16 @@ export default function MarketplacePage() {
 
   const isDirty = (original: any, draft: any) => JSON.stringify(original) !== JSON.stringify(draft);
 
-  const save = async (kind: 'plan' | 'roomUnit' | 'condition' | 'addOn' | 'frequencyDiscount', id: string, payload: any) => {
+  const save = async (kind: 'plan' | 'roomUnit' | 'condition' | 'addOn' | 'frequencyDiscount' | 'lawncareService' | 'lawncarePackage', id: string, payload: any) => {
     setSaving((p) => new Set(p).add(id));
     try {
       if (kind === 'plan') await marketplaceApi.updatePlan(id, payload);
       else if (kind === 'roomUnit') await marketplaceApi.updateRoomUnit(id, payload);
       else if (kind === 'condition') await marketplaceApi.updateCondition(id, payload);
       else if (kind === 'addOn') await marketplaceApi.updateAddOn(id, payload);
-      else await marketplaceApi.updateFrequencyDiscount(id, payload);
+      else if (kind === 'frequencyDiscount') await marketplaceApi.updateFrequencyDiscount(id, payload);
+      else if (kind === 'lawncareService') await marketplaceApi.updateLawncareService(id, payload);
+      else await marketplaceApi.updateLawncarePackage(id, payload);
       await load();
     } finally {
       setSaving((p) => { const n = new Set(p); n.delete(id); return n; });
@@ -284,6 +287,152 @@ export default function MarketplacePage() {
                   </td>
                   <td className="px-3 py-2">
                     <SaveButton dirty={isDirty(f, d)} saving={saving.has(f.id)} onClick={() => save('frequencyDiscount', f.id, { discountPercent: Number(d.discountPercent), isActive: d.isActive })} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </SectionCard>
+      </CollapsibleGroup>
+
+      <CollapsibleGroup
+        label="Lawncare"
+        collapsed={collapsedGroups.has('LAWN_LANDSCAPING')}
+        onToggle={() => toggleGroupCollapsed('LAWN_LANDSCAPING')}
+      >
+      <SectionCard title="Lawncare Services" subtitle="À-la-carte pricing per service. Sub cost is paid to the vendor; customer price is what the customer is charged. Base + per-unit covers services priced per additional unit beyond what's included. Volume discount text is always the source of truth (shown to customers/vendors) — the numeric tiers are optional structured data for a future quote engine.">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-mist-dim">
+              <th className="px-3 py-2 text-left font-semibold text-steel">Service</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Pricing Unit</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Frequency</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Sub Cost Base</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Sub Cost/Unit</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Cust. Price Base</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Cust. Price/Unit</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Volume Discount</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Threshold 1</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Rate 1 %</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Threshold 2</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Rate 2 %</th>
+              <th className="px-3 py-2 text-center font-semibold text-steel">Enabled</th>
+              <th className="w-16" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-canvas">
+            {config.lawncareServices.map((s: any) => {
+              const d = drafts[s.id] ?? s;
+              return (
+                <tr key={s.id}>
+                  <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{s.label}</td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.pricingUnit} onChange={(e) => setField(s.id, 'pricingUnit', e.target.value)} className="w-32 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.recommendedFrequency} onChange={(e) => setField(s.id, 'recommendedFrequency', e.target.value)} className="w-28 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.subCostBase} onChange={(e) => setField(s.id, 'subCostBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.subCostPerUnit} onChange={(e) => setField(s.id, 'subCostPerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.customerPriceBase} onChange={(e) => setField(s.id, 'customerPriceBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.customerPricePerUnit} onChange={(e) => setField(s.id, 'customerPricePerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.volumeDiscountText} onChange={(e) => setField(s.id, 'volumeDiscountText', e.target.value)} className="w-44 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.volumeDiscountThreshold1 ?? ''} onChange={(e) => setField(s.id, 'volumeDiscountThreshold1', e.target.value === '' ? null : e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.5" value={d.volumeDiscountRate1 ?? ''} onChange={(e) => setField(s.id, 'volumeDiscountRate1', e.target.value === '' ? null : e.target.value)} className="w-16 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.volumeDiscountThreshold2 ?? ''} onChange={(e) => setField(s.id, 'volumeDiscountThreshold2', e.target.value === '' ? null : e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.5" value={d.volumeDiscountRate2 ?? ''} onChange={(e) => setField(s.id, 'volumeDiscountRate2', e.target.value === '' ? null : e.target.value)} className="w-16 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={d.isActive} onChange={(e) => setField(s.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <SaveButton
+                      dirty={isDirty(s, d)}
+                      saving={saving.has(s.id)}
+                      onClick={() => save('lawncareService', s.id, {
+                        pricingUnit: d.pricingUnit,
+                        recommendedFrequency: d.recommendedFrequency,
+                        subCostBase: Number(d.subCostBase),
+                        subCostPerUnit: Number(d.subCostPerUnit),
+                        customerPriceBase: Number(d.customerPriceBase),
+                        customerPricePerUnit: Number(d.customerPricePerUnit),
+                        volumeDiscountText: d.volumeDiscountText,
+                        volumeDiscountThreshold1: d.volumeDiscountThreshold1 === '' || d.volumeDiscountThreshold1 === null ? null : Number(d.volumeDiscountThreshold1),
+                        volumeDiscountRate1: d.volumeDiscountRate1 === '' || d.volumeDiscountRate1 === null ? null : Number(d.volumeDiscountRate1),
+                        volumeDiscountThreshold2: d.volumeDiscountThreshold2 === '' || d.volumeDiscountThreshold2 === null ? null : Number(d.volumeDiscountThreshold2),
+                        volumeDiscountRate2: d.volumeDiscountRate2 === '' || d.volumeDiscountRate2 === null ? null : Number(d.volumeDiscountRate2),
+                        isActive: d.isActive,
+                      })}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Subscription Packages" subtitle="Bundled monthly Lawncare tiers. &quot;Starting at&quot; marks a tier priced as a floor rather than a flat rate (e.g. Estate).">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-mist-dim">
+              <th className="px-3 py-2 text-left font-semibold text-steel">Package</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Description</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Monthly Price</th>
+              <th className="px-3 py-2 text-center font-semibold text-steel">Starting At</th>
+              <th className="px-3 py-2 text-center font-semibold text-steel">Enabled</th>
+              <th className="w-16" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-canvas">
+            {config.lawncarePackages.map((pkg: any) => {
+              const d = drafts[pkg.id] ?? pkg;
+              return (
+                <tr key={pkg.id}>
+                  <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{pkg.label}</td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.description} onChange={(e) => setField(pkg.id, 'description', e.target.value)} className="w-72 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.monthlyPrice} onChange={(e) => setField(pkg.id, 'monthlyPrice', e.target.value)} className="w-24 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={d.isStartingAt} onChange={(e) => setField(pkg.id, 'isStartingAt', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={d.isActive} onChange={(e) => setField(pkg.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <SaveButton
+                      dirty={isDirty(pkg, d)}
+                      saving={saving.has(pkg.id)}
+                      onClick={() => save('lawncarePackage', pkg.id, {
+                        description: d.description,
+                        monthlyPrice: Number(d.monthlyPrice),
+                        isStartingAt: d.isStartingAt,
+                        isActive: d.isActive,
+                      })}
+                    />
                   </td>
                 </tr>
               );

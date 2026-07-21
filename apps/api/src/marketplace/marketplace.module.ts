@@ -10,6 +10,8 @@ import { MarketplaceAddOn } from './entities/marketplace-add-on.entity';
 import { MarketplaceFrequencyDiscount } from './entities/marketplace-frequency-discount.entity';
 import { MarketplaceSubscription } from './entities/marketplace-subscription.entity';
 import { MarketplaceSubscriptionEvent } from './entities/marketplace-subscription-event.entity';
+import { MarketplaceLawncareService } from './entities/marketplace-lawncare-service.entity';
+import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { UsersModule } from '../users/users.module';
@@ -22,7 +24,8 @@ import { ServiceRequestsModule } from '../service-requests/service-requests.modu
     TypeOrmModule.forFeature([
       MarketplaceCleaningPlan, MarketplaceRoomUnit, MarketplaceConditionMultiplier,
       MarketplaceAddOn, MarketplaceFrequencyDiscount, MarketplaceSubscription,
-      MarketplaceSubscriptionEvent, VendorCapability, ServicePrice,
+      MarketplaceSubscriptionEvent, MarketplaceLawncareService, MarketplaceLawncarePackage,
+      VendorCapability, ServicePrice,
     ]),
     UsersModule,
     SubscriptionsModule,

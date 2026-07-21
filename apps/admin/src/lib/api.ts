@@ -46,6 +46,9 @@ export const marketplaceApi = {
   updateCondition: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/conditions/${id}`, data).then((r) => r.data),
   updateAddOn: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/add-ons/${id}`, data).then((r) => r.data),
   updateFrequencyDiscount: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/frequency-discounts/${id}`, data).then((r) => r.data),
+  getLawncareConfig: () => api.get('/marketplace/lawncare/config').then((r) => r.data),
+  updateLawncareService: (id: string, data: any) => api.patch(`/marketplace/lawncare/services/${id}`, data).then((r) => r.data),
+  updateLawncarePackage: (id: string, data: any) => api.patch(`/marketplace/lawncare/packages/${id}`, data).then((r) => r.data),
 };
 
 export const inspectionConfigApi = {

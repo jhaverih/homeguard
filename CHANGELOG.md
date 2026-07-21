@@ -15,6 +15,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-07-20
 
 ### Added
+- **api, admin**: New Lawncare Subscription Marketplace vertical, mirroring House Cleaning's pattern — its own admin section, vendor capability ("Lawn & Landscaping"), and mobile Marketplace catalog listing. 18 à-la-carte services (Lawn Mowing through Landscape Lighting Maintenance) with sub cost, customer price, and volume discounts, plus 3 bundled subscription packages (Essential Lawn Care $295/mo, Premium Landscape Care $495/mo, Estate Package starting at $695/mo). Volume discount terms vary in shape across services (quantity thresholds vs. frequency/bundle commitments), so each service stores an always-accurate free-text discount description plus optional numeric threshold/rate pairs (up to 2 tiers) for services with genuine quantity tiers. This pass is admin/backend-only: no customer-facing configurator wizard, no satellite property-size measurement, no subscribe/quote flow yet — those are deferred follow-ups.
 - **api, vendor**: The vendor app's inspection checklist now shows the same 3 collapsible group headers (HVAC, Leak Inspection, Exterior Visual Inspection) as the admin Inspection Configurator, instead of a flat list of all 16 checklists — `GET /inspections/checklist` now includes each checklist's subgroup key/label, and active-job.tsx groups by it. Previously the admin-side grouping had no path to the vendor app at all.
 
 ### Changed

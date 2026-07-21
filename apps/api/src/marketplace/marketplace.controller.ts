@@ -105,4 +105,30 @@ export class MarketplaceController {
   updateFrequencyDiscount(@Param('id') id: string, @Body() data: any) {
     return this.service.updateFrequencyDiscount(id, data);
   }
+
+  @Get('lawncare/config')
+  @ApiOperation({ summary: 'Lawncare services and subscription packages' })
+  getLawncareConfig() {
+    return this.service.getLawncareConfig();
+  }
+
+  @Patch('lawncare/services/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a lawncare service (pricing, volume discount, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateLawncareService(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateLawncareService(id, data);
+  }
+
+  @Patch('lawncare/packages/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a lawncare subscription package (price, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateLawncarePackage(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateLawncarePackage(id, data);
+  }
 }
