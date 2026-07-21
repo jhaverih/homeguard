@@ -34,6 +34,14 @@ export interface ChecklistSection {
   key: string;
   label: string;
   tasks: ChecklistTask[];
+  // Admin-organizational grouping (Inspection Configurator's Group ->
+  // Subgroup -> Section hierarchy) — optional since the hardcoded
+  // GUTTER_CHECKLIST/HVAC_SECTIONS below don't have one. Sections sharing
+  // the same subgroupKey are always contiguous in the returned array, so
+  // the client can group by "subgroupKey changed since the last item"
+  // without needing a nested response shape.
+  subgroupKey?: string;
+  subgroupLabel?: string;
 }
 
 export const INSPECTION_CHECKLIST: ChecklistSection[] = [

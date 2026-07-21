@@ -73,13 +73,18 @@ export class InspectionsService {
   private async loadChecklist(): Promise<ChecklistSection[]> {
     const sections = await this.checklistSectionsRepo.find({
       where: { isActive: true },
-      relations: ['tasks'],
+      relations: ['tasks', 'subgroup'],
     });
     return sections
-      .sort((a, b) => a.sortOrder - b.sortOrder)
+      // Subgroup order first, then section order within it — sections
+      // sharing a subgroup must be contiguous so the client can group by
+      // "subgroupKey changed since the last item" on a flat array.
+      .sort((a, b) => (a.subgroup?.sortOrder ?? 0) - (b.subgroup?.sortOrder ?? 0) || a.sortOrder - b.sortOrder)
       .map((section) => ({
         key: section.key,
         label: section.label,
+        subgroupKey: section.subgroup?.key,
+        subgroupLabel: section.subgroup?.label,
         tasks: (section.tasks || [])
           .filter((t) => t.isActive)
           .sort((a, b) => a.sortOrder - b.sortOrder)

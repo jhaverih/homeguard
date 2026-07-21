@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, ActivityIndicator, Modal, Platform, Image,
@@ -386,6 +386,12 @@ export default function ActiveJobScreen() {
   const [taskResults, setTaskResults] = useState<Record<string, any>>({});
   const [progress, setProgress] = useState<{ total: number; completed: number; sections: any[] } | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  // Checklists sharing a subgroupKey (admin's Inspection Configurator
+  // grouping, e.g. "Leak Inspection") are always contiguous in `checklist`
+  // (see loadChecklist() server-side). Groups start expanded (empty Set),
+  // matching the admin page's own collapse convention — individual
+  // checklists underneath still start collapsed via expandedSections.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Task modal
   const [activeTask, setActiveTask] = useState<any>(null);
@@ -1063,72 +1069,96 @@ export default function ActiveJobScreen() {
               }
             </View>
 
-            {checklist.map((section: any) => {
+            {checklist.map((section: any, idx: number) => {
               const secProg = progress?.sections?.find((s: any) => s.key === section.key);
               const expanded = expandedSections.has(section.key);
               const sectionDone = secProg?.completed ?? 0;
               const sectionTotal = secProg?.total ?? section.tasks?.length ?? 0;
               const allDone = sectionDone >= sectionTotal;
+              // Sections sharing a subgroupKey are contiguous (see loadChecklist()
+              // server-side), so a group header only needs to render once, right
+              // before the first section of each new subgroup.
+              const showGroupHeader = !!section.subgroupKey && checklist[idx - 1]?.subgroupKey !== section.subgroupKey;
+              const groupCollapsed = section.subgroupKey ? collapsedGroups.has(section.subgroupKey) : false;
               return (
-                <View key={section.key} style={styles.sectionCard}>
-                  <TouchableOpacity
-                    style={styles.sectionHeader}
-                    onPress={() => {
-                      setExpandedSections((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(section.key)) next.delete(section.key); else next.add(section.key);
-                        return next;
-                      });
-                    }}
-                  >
-                    <View style={styles.sectionLeft}>
-                      <View style={[styles.sectionBadge, allDone && styles.sectionBadgeDone]}>
-                        <Text style={[styles.sectionBadgeText, allDone && { color: '#059669' }]}>
-                          {sectionDone}/{sectionTotal}
-                        </Text>
-                      </View>
-                      <Text style={styles.sectionLabel}>{section.label}</Text>
-                    </View>
-                    <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.steel} />
-                  </TouchableOpacity>
+                <Fragment key={section.key}>
+                  {showGroupHeader && (
+                    <TouchableOpacity
+                      style={styles.groupHeader}
+                      onPress={() => {
+                        setCollapsedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(section.subgroupKey)) next.delete(section.subgroupKey); else next.add(section.subgroupKey);
+                          return next;
+                        });
+                      }}
+                    >
+                      <Text style={styles.groupHeaderText}>{section.subgroupLabel}</Text>
+                      <Ionicons name={groupCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={colors.ink} />
+                    </TouchableOpacity>
+                  )}
+                  {!groupCollapsed && (
+                    <View style={styles.sectionCard}>
+                      <TouchableOpacity
+                        style={styles.sectionHeader}
+                        onPress={() => {
+                          setExpandedSections((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(section.key)) next.delete(section.key); else next.add(section.key);
+                            return next;
+                          });
+                        }}
+                      >
+                        <View style={styles.sectionLeft}>
+                          <View style={[styles.sectionBadge, allDone && styles.sectionBadgeDone]}>
+                            <Text style={[styles.sectionBadgeText, allDone && { color: '#059669' }]}>
+                              {sectionDone}/{sectionTotal}
+                            </Text>
+                          </View>
+                          <Text style={styles.sectionLabel}>{section.label}</Text>
+                        </View>
+                        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.steel} />
+                      </TouchableOpacity>
 
-                  {expanded && (
-                    <View style={styles.taskList}>
-                      {(section.tasks || []).map((task: any) => {
-                        const result = taskResults[task.key];
-                        const statusOpt = TASK_STATUS_OPTIONS.find((o) => o.key === result?.status);
-                        return (
-                          <TouchableOpacity
-                            key={task.key}
-                            style={[
-                              styles.taskRow,
-                              result && { borderLeftColor: statusOpt?.color || colors.border, borderLeftWidth: 3 },
-                              isCompleted && { opacity: 0.75 },
-                            ]}
-                            onPress={() => openTask(task)}
-                            disabled={isCompleted}
-                          >
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.taskRowLabel}>{task.label}</Text>
-                              {result && (
-                                <View style={[styles.taskStatusPill, { backgroundColor: statusOpt?.bg }]}>
-                                  <Text style={[styles.taskStatusPillText, { color: statusOpt?.color }]}>
-                                    {statusOpt?.label}
-                                  </Text>
+                      {expanded && (
+                        <View style={styles.taskList}>
+                          {(section.tasks || []).map((task: any) => {
+                            const result = taskResults[task.key];
+                            const statusOpt = TASK_STATUS_OPTIONS.find((o) => o.key === result?.status);
+                            return (
+                              <TouchableOpacity
+                                key={task.key}
+                                style={[
+                                  styles.taskRow,
+                                  result && { borderLeftColor: statusOpt?.color || colors.border, borderLeftWidth: 3 },
+                                  isCompleted && { opacity: 0.75 },
+                                ]}
+                                onPress={() => openTask(task)}
+                                disabled={isCompleted}
+                              >
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.taskRowLabel}>{task.label}</Text>
+                                  {result && (
+                                    <View style={[styles.taskStatusPill, { backgroundColor: statusOpt?.bg }]}>
+                                      <Text style={[styles.taskStatusPillText, { color: statusOpt?.color }]}>
+                                        {statusOpt?.label}
+                                      </Text>
+                                    </View>
+                                  )}
                                 </View>
-                              )}
-                            </View>
-                            <Ionicons
-                              name={result ? 'checkmark-circle' : (isCompleted ? 'ellipse-outline' : 'ellipse-outline')}
-                              size={22}
-                              color={result ? (statusOpt?.color || '#059669') : '#d1d5db'}
-                            />
-                          </TouchableOpacity>
-                        );
-                      })}
+                                <Ionicons
+                                  name={result ? 'checkmark-circle' : (isCompleted ? 'ellipse-outline' : 'ellipse-outline')}
+                                  size={22}
+                                  color={result ? (statusOpt?.color || '#059669') : '#d1d5db'}
+                                />
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      )}
                     </View>
                   )}
-                </View>
+                </Fragment>
               );
             })}
 
@@ -2122,6 +2152,8 @@ const styles = StyleSheet.create({
   progressTrack: { height: 8, backgroundColor: colors.border, borderRadius: 99, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.lanternDeep, borderRadius: 99 },
   progressHint: { fontSize: 12, color: colors.steel, marginTop: 6 },
+  groupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingVertical: 10, marginTop: 12, marginBottom: 4 },
+  groupHeaderText: { fontSize: 16, fontWeight: '700', color: colors.ink },
   sectionCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 8, overflow: 'hidden' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
   sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
