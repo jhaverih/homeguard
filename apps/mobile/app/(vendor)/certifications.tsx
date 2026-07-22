@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput, Platform,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput, Platform, Linking,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { vendorApi, uploadsApi } from '../../src/services/api';
+import { vendorApi, uploadsApi, userApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
 const CERT_TYPES = [
@@ -34,6 +34,11 @@ export default function CertificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Fetched fresh (not from the auth store) on every focus, matching profile.tsx's
+  // own isCompanyAdmin pattern — admin status can change after login/app-install,
+  // and this gates read/write access to compliance data so it shouldn't go stale.
+  const [isCompanyAdmin, setIsCompanyAdmin] = useState<boolean | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [certType, setCertType] = useState('HVAC');
   const [licenseNumber, setLicenseNumber] = useState('');
@@ -44,7 +49,12 @@ export default function CertificationsScreen() {
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
   const load = useCallback(() => {
-    vendorApi.getMyCertifications().then((res: any) => setCerts(res || [])).finally(() => setLoading(false));
+    userApi.getMe().then((res: any) => {
+      const admin = !!res?.vendorProfile?.isCompanyAdmin;
+      setIsCompanyAdmin(admin);
+      if (!admin) { setCerts([]); return; }
+      return vendorApi.getMyCertifications().then((r: any) => setCerts(r || []));
+    }).finally(() => setLoading(false));
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -90,24 +100,47 @@ export default function CertificationsScreen() {
     setExpirationDate(new Date());
     setDocument(null);
     setShowForm(false);
+    setEditingId(null);
+  };
+
+  const startEdit = (c: any) => {
+    setEditingId(c.id);
+    setCertType(c.certificationType);
+    setLicenseNumber(c.licenseNumber);
+    setIssuingState(c.issuingState || '');
+    setExpirationDate(c.expirationDate ? new Date(c.expirationDate) : new Date());
+    setDocument(null); // replacing the document is optional on edit — leave blank to keep the existing one
+    setShowForm(true);
+  };
+
+  const viewDocument = (c: any) => {
+    if (c.documentUrl) Linking.openURL(c.documentUrl);
   };
 
   const submit = async () => {
     if (!licenseNumber.trim()) { Alert.alert('Required', 'Enter the license number.'); return; }
     if (!issuingState.trim()) { Alert.alert('Required', 'Enter the issuing state.'); return; }
-    if (!document?.key) { Alert.alert('Required', 'Upload a photo of your license.'); return; }
+    if (!editingId && !document?.key) { Alert.alert('Required', 'Upload a photo of your license.'); return; }
     setSubmitting(true);
     try {
-      await vendorApi.submitCertification({
+      const payload = {
         certificationType: certType,
         licenseNumber: licenseNumber.trim(),
         issuingState: issuingState.trim().toUpperCase().slice(0, 2),
         expirationDate: expirationDate.toISOString(),
-        documentKey: document.key,
-      });
+        ...(document?.key ? { documentKey: document.key } : {}),
+      };
+      if (editingId) {
+        await vendorApi.updateCertification(editingId, payload);
+      } else {
+        await vendorApi.submitCertification({ ...payload, documentKey: document!.key! });
+      }
       resetForm();
       load();
-      Alert.alert('Submitted', 'Your certification is now pending admin review.');
+      Alert.alert(
+        editingId ? 'Updated' : 'Submitted',
+        editingId ? 'Your changes are now pending admin review.' : 'Your certification is now pending admin review.',
+      );
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -117,10 +150,18 @@ export default function CertificationsScreen() {
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
+  if (!isCompanyAdmin) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center', padding: 32 }]}>
+        <Text style={styles.subtitle}>Only your company's Vendor Admin can view or manage trade certifications.</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.title}>My Certifications</Text>
-      <Text style={styles.subtitle}>Submit trade licenses for admin review to unlock licensed-trade jobs.</Text>
+      <Text style={styles.title}>Team Certifications</Text>
+      <Text style={styles.subtitle}>Every license submitted by anyone on your team. Submit or revise for admin review to unlock licensed-trade jobs.</Text>
 
       {certs.map((c) => (
         <View key={c.id} style={styles.card}>
@@ -130,9 +171,20 @@ export default function CertificationsScreen() {
           </View>
           <Text style={styles.cardSub}>License #{c.licenseNumber} · {c.issuingState}</Text>
           <Text style={styles.cardSub}>Expires {new Date(c.expirationDate).toLocaleDateString()}</Text>
+          {c.user?.name && <Text style={styles.cardSub}>Submitted by {c.user.name}</Text>}
           {c.status === 'REJECTED' && c.reviewNotes && (
             <Text style={styles.rejectNote}>{c.reviewNotes}</Text>
           )}
+          <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+            {c.documentUrl && (
+              <TouchableOpacity onPress={() => viewDocument(c)}>
+                <Text style={styles.cardLink}>View Document</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => startEdit(c)}>
+              <Text style={styles.cardLink}>Edit</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ))}
 
@@ -184,7 +236,7 @@ export default function CertificationsScreen() {
             />
           )}
 
-          <Text style={styles.formLabel}>License Photo</Text>
+          <Text style={styles.formLabel}>License Photo{editingId ? ' (optional — leave blank to keep the existing document)' : ''}</Text>
           <TouchableOpacity style={styles.docBtn} onPress={pickDocument} disabled={uploadingDoc}>
             {uploadingDoc ? (
               <ActivityIndicator color={colors.lanternDeep} />
@@ -194,7 +246,7 @@ export default function CertificationsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={submitting}>
-            {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Submit Certification</Text>}
+            {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>{editingId ? 'Save Changes' : 'Submit Certification'}</Text>}
           </TouchableOpacity>
           <TouchableOpacity onPress={resetForm} style={styles.cancelBtn}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -218,6 +270,7 @@ const styles = StyleSheet.create({
   cardSub: { fontSize: 13, color: '#666', marginTop: 2 },
   statusBadge: { fontSize: 12, fontWeight: '700' },
   rejectNote: { fontSize: 12, color: '#dc2626', marginTop: 6, fontStyle: 'italic' },
+  cardLink: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep },
   addBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.lanternDeep, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   addBtnText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 15 },
   formCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: colors.border },

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { vendorApi, uploadsApi } from '@/lib/api';
 import { VerificationDocumentsSection } from '@/components/VerificationDocumentsSection';
 import { US_STATES } from '@/lib/us-states';
+import { usePermissions } from '@/lib/permissions';
 
 // Capabilities the user wants grouped as "Specialties" even though they don't
 // require a certification document today (premium marketplace verticals) —
@@ -18,8 +19,13 @@ const CERT_TYPE_LABEL: Record<string, string> = {
   GENERAL_CONTRACTOR: 'General Contractor',
   NABCEP: 'NABCEP PV IP (Solar)',
 };
+// Editing an existing certification isn't restricted to specialties the admin has
+// currently selected (unlike the add form) — the cert may predate that selection,
+// or the admin may just be fixing a data-entry mistake.
+const ALL_CERT_TYPES = Object.keys(CERT_TYPE_LABEL);
 
 export default function MyCapabilitiesPage() {
+  const { isCompanyAdmin } = usePermissions();
   const [catalog, setCatalog] = useState<any[]>([]);
   const [mine, setMine] = useState<any[]>([]);
   const [certifications, setCertifications] = useState<any[]>([]);
@@ -31,6 +37,11 @@ export default function MyCapabilitiesPage() {
     type: '', licenseNumber: '', issuingState: '', expirationDate: '', file: null,
   });
   const [submittingCert, setSubmittingCert] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ type: string; licenseNumber: string; issuingState: string; expirationDate: string; file: File | null }>({
+    type: '', licenseNumber: '', issuingState: '', expirationDate: '', file: null,
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const availableCertTypes = Array.from(
     new Set(mine.map((m: any) => m.requiredCertificationType).filter((t: string) => t && t !== 'NONE')),
@@ -45,8 +56,13 @@ export default function MyCapabilitiesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableCertTypes.join(',')]);
 
-  const load = () => Promise.all([vendorApi.getCapabilities(), vendorApi.getMyCapabilities(), vendorApi.getMyCertifications()])
-    .then(([cat, mine_, certs]) => { setCatalog(cat); setMine(mine_); setCertifications(certs); });
+  // Certifications are now company-admin-only server-side (403 for technicians) —
+  // don't even attempt the call for a non-admin, just leave the list empty.
+  const load = () => Promise.all([
+    vendorApi.getCapabilities(),
+    vendorApi.getMyCapabilities(),
+    isCompanyAdmin ? vendorApi.getMyCertifications() : Promise.resolve([]),
+  ]).then(([cat, mine_, certs]) => { setCatalog(cat); setMine(mine_); setCertifications(certs); });
 
   useEffect(() => {
     load().finally(() => setLoading(false));
@@ -57,7 +73,8 @@ export default function MyCapabilitiesPage() {
     const onFocus = () => load();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCompanyAdmin]);
 
   const mineIds = new Set(mine.map((m: any) => m.id));
 
@@ -113,6 +130,35 @@ export default function MyCapabilitiesPage() {
       await load();
     } finally {
       setSubmittingCert(false);
+    }
+  };
+
+  const startEdit = (c: any) => {
+    setEditingId(c.id);
+    setEditForm({
+      type: c.certificationType,
+      licenseNumber: c.licenseNumber,
+      issuingState: c.issuingState || '',
+      expirationDate: c.expirationDate ? new Date(c.expirationDate).toISOString().slice(0, 10) : '',
+      file: null,
+    });
+  };
+
+  const saveEdit = async (id: string) => {
+    setSavingEdit(true);
+    try {
+      const documentKey = editForm.file ? (await uploadsApi.upload(editForm.file, 'vendor-certifications')).key : undefined;
+      const updated = await vendorApi.updateCertification(id, {
+        certificationType: editForm.type,
+        licenseNumber: editForm.licenseNumber,
+        issuingState: editForm.issuingState,
+        expirationDate: editForm.expirationDate,
+        ...(documentKey ? { documentKey } : {}),
+      });
+      setCertifications((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      setEditingId(null);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -194,18 +240,102 @@ export default function MyCapabilitiesPage() {
         </div>
       </div>
 
+      {isCompanyAdmin && (
       <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
-        <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-4">My Certifications</h2>
+        <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Team Certifications</h2>
+        <p className="text-xs text-steel mb-4">Every license submitted by anyone on your team — only visible and editable by company admins.</p>
         {certifications.length === 0 ? (
           <p className="text-steel text-sm mb-4">None submitted yet.</p>
         ) : (
-          <div className="space-y-2 mb-4">
+          <div className="space-y-1 mb-4">
             {certifications.map((c) => (
-              <div key={c.id} className="flex justify-between text-sm border-b border-canvas pb-2">
-                <span>{CERT_TYPE_LABEL[c.certificationType] ?? c.certificationType} — #{c.licenseNumber} (exp. {new Date(c.expirationDate).toLocaleDateString()})</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${
-                  c.status === 'APPROVED' ? 'bg-green-50 text-green-700' : c.status === 'REJECTED' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'
-                }`}>{c.status}</span>
+              <div key={c.id} className="border-b border-canvas py-2">
+                {editingId === c.id ? (
+                  <div className="grid grid-cols-2 gap-3 py-1">
+                    <div>
+                      <label className="block text-xs font-medium text-steel mb-1">License Type</label>
+                      <select
+                        value={editForm.type}
+                        onChange={(e) => setEditForm((p) => ({ ...p, type: e.target.value }))}
+                        className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                      >
+                        {ALL_CERT_TYPES.map((t) => (
+                          <option key={t} value={t}>{CERT_TYPE_LABEL[t]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-steel mb-1">License Number</label>
+                      <input
+                        value={editForm.licenseNumber}
+                        onChange={(e) => setEditForm((p) => ({ ...p, licenseNumber: e.target.value }))}
+                        className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-steel mb-1">Issuing State</label>
+                      <select
+                        value={editForm.issuingState}
+                        onChange={(e) => setEditForm((p) => ({ ...p, issuingState: e.target.value }))}
+                        className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                      >
+                        <option value="">Select state</option>
+                        {US_STATES.map((s) => (
+                          <option key={s.code} value={s.code}>{s.name} ({s.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-steel mb-1">Expiration Date</label>
+                      <input
+                        type="date"
+                        value={editForm.expirationDate}
+                        onChange={(e) => setEditForm((p) => ({ ...p, expirationDate: e.target.value }))}
+                        className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-steel mb-1">Replace document (optional)</label>
+                      <input
+                        type="file"
+                        onChange={(e) => setEditForm((p) => ({ ...p, file: e.target.files?.[0] ?? null }))}
+                        className="text-sm w-full"
+                      />
+                    </div>
+                    <div className="col-span-2 flex items-center gap-2">
+                      <button
+                        onClick={() => saveEdit(c.id)}
+                        disabled={savingEdit}
+                        className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+                      >
+                        {savingEdit ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="text-steel hover:text-ink px-2 py-2 text-sm">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-start text-sm">
+                    <div>
+                      <div>{CERT_TYPE_LABEL[c.certificationType] ?? c.certificationType} — #{c.licenseNumber} (exp. {new Date(c.expirationDate).toLocaleDateString()})</div>
+                      {c.user?.name && <div className="text-xs text-steel mt-0.5">Submitted by {c.user.name}</div>}
+                      <div className="flex items-center gap-3 mt-1">
+                        {c.documentUrl && (
+                          <a href={c.documentUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">
+                            View Document
+                          </a>
+                        )}
+                        <button onClick={() => startEdit(c)} className="text-xs text-lantern-deep font-semibold hover:underline">
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg shrink-0 ${
+                      c.status === 'APPROVED' ? 'bg-green-50 text-green-700' : c.status === 'REJECTED' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'
+                    }`}>{c.status}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -275,6 +405,7 @@ export default function MyCapabilitiesPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

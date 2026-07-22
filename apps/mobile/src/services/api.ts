@@ -290,6 +290,9 @@ export const vendorApi = {
   submitCertification: (data: {
     certificationType: string; licenseNumber: string; issuingState?: string; expirationDate: string; documentKey: string;
   }, token?: string) => api.post('/vendor/me/certifications', data, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined),
+  updateCertification: (id: string, data: {
+    certificationType?: string; licenseNumber?: string; issuingState?: string; expirationDate?: string; documentKey?: string;
+  }) => api.patch(`/vendor/me/certifications/${id}`, data),
   getApplication: (): Promise<any> => api.get('/vendor/application') as any,
   submitApplication: (data: {
     ein?: string; stateRegistrationDocKey?: string; businessTaxLicenseDocKey?: string;

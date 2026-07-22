@@ -316,11 +316,13 @@ export default function VendorProfileScreen() {
             <Text style={styles.credentialRowText}>My Capabilities</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.steel} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.credentialRow} onPress={() => router.push('/(vendor)/certifications')}>
-            <Ionicons name="ribbon-outline" size={20} color={colors.lanternDeep} style={{ marginRight: 10 }} />
-            <Text style={styles.credentialRowText}>My Certifications</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.steel} />
-          </TouchableOpacity>
+          {isCompanyAdmin && (
+            <TouchableOpacity style={styles.credentialRow} onPress={() => router.push('/(vendor)/certifications')}>
+              <Ionicons name="ribbon-outline" size={20} color={colors.lanternDeep} style={{ marginRight: 10 }} />
+              <Text style={styles.credentialRowText}>Team Certifications</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.steel} />
+            </TouchableOpacity>
+          )}
           {isCompanyAdmin && (
             <TouchableOpacity style={[styles.credentialRow, { borderBottomWidth: 0 }]} onPress={() => router.push('/(vendor)/company-application')}>
               <Ionicons name="document-text-outline" size={20} color={colors.lanternDeep} style={{ marginRight: 10 }} />

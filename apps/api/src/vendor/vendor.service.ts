@@ -485,8 +485,23 @@ export class VendorService implements OnModuleInit {
     return this.acknowledgmentRepo.save(this.acknowledgmentRepo.create({ userId, capabilityId }));
   }
 
+  // Company-admin-only (enforced at the controller via @VendorAdminOnly()) — shows every
+  // certification submitted by anyone on the admin's team, not just their own, with a
+  // resolved signed document URL and submitter identity attached.
   async getMyCertifications(userId: string) {
-    return this.certificationRepo.find({ where: { userId }, order: { createdAt: 'DESC' } });
+    const teamIds = await this.usersService.getVendorTeamIds(userId);
+    const certs = await this.certificationRepo.find({ where: { userId: In(teamIds) }, order: { createdAt: 'DESC' } });
+    const submitterIds = [...new Set(certs.map((c) => c.userId))];
+    const submitters = submitterIds.length ? await this.usersRepo.find({ where: { id: In(submitterIds) } }) : [];
+    const submitterMap = new Map(submitters.map((u) => [u.id, u]));
+    return Promise.all(certs.map(async (c) => {
+      const submitter = submitterMap.get(c.userId);
+      return {
+        ...c,
+        documentUrl: c.documentKey ? await this.uploadsService.getSignedUrl(c.documentKey) : null,
+        user: submitter ? { id: submitter.id, name: `${submitter.firstName} ${submitter.lastName}`, email: submitter.email } : null,
+      };
+    }));
   }
 
   async submitCertification(userId: string, data: {
@@ -503,6 +518,35 @@ export class VendorService implements OnModuleInit {
       status: CertificationReviewStatus.PENDING_REVIEW,
     });
     return this.certificationRepo.save(cert);
+  }
+
+  // Editing a teammate's certification is company-admin-only (enforced at the
+  // controller); re-verify the target actually belongs to the admin's own team so a
+  // guessed ID from another company can't be edited (NotFoundException, not
+  // ForbiddenException, so existence of a foreign cert ID isn't leaked either).
+  async updateCertification(adminUserId: string, certId: string, data: {
+    certificationType?: CertificationType; licenseNumber?: string; issuingState?: string;
+    expirationDate?: string; documentKey?: string;
+  }) {
+    const teamIds = await this.usersService.getVendorTeamIds(adminUserId);
+    const cert = await this.certificationRepo.findOne({ where: { id: certId } });
+    if (!cert || !teamIds.includes(cert.userId)) throw new NotFoundException('Certification not found');
+
+    if (data.certificationType !== undefined) cert.certificationType = data.certificationType;
+    if (data.licenseNumber !== undefined) cert.licenseNumber = data.licenseNumber;
+    if (data.issuingState !== undefined) cert.issuingState = data.issuingState;
+    if (data.expirationDate !== undefined) cert.expirationDate = new Date(data.expirationDate);
+    if (data.documentKey !== undefined) cert.documentKey = data.documentKey;
+    // An edited license needs re-verification — same assumption Attenteve's own review flow makes.
+    cert.status = CertificationReviewStatus.PENDING_REVIEW;
+    cert.reviewedAt = null;
+    cert.reviewNotes = null;
+    const saved = await this.certificationRepo.save(cert);
+
+    return {
+      ...saved,
+      documentUrl: saved.documentKey ? await this.uploadsService.getSignedUrl(saved.documentKey) : null,
+    };
   }
 
   async getApplication(userId: string) {

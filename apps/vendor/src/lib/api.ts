@@ -74,6 +74,7 @@ export const vendorApi = {
   acknowledgeCapability: (capabilityId: string) => api.post(`/vendor/me/capabilities/${capabilityId}/acknowledge`).then((r) => r.data),
   getMyCertifications: () => api.get('/vendor/me/certifications').then((r) => r.data),
   submitCertification: (data: any) => api.post('/vendor/me/certifications', data).then((r) => r.data),
+  updateCertification: (id: string, data: any) => api.patch(`/vendor/me/certifications/${id}`, data).then((r) => r.data),
   getApplication: () => api.get('/vendor/application').then((r) => r.data),
   submitApplication: (data: any) => api.post('/vendor/application', data).then((r) => r.data),
 };

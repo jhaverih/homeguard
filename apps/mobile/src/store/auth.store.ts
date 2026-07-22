@@ -15,6 +15,10 @@ interface User {
   tosVersion?: string | null;
   vendorTermsAcceptedAt?: string | null;
   vendorTosVersion?: string | null;
+  // Already returned by /auth/login, /auth/register, and /users/me today — this
+  // was just never typed on the client before certification management needed
+  // to gate itself on company-admin status.
+  vendorProfile?: { isCompanyAdmin: boolean; companyId?: string | null } | null;
 }
 
 interface AuthState {

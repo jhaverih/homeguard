@@ -172,13 +172,15 @@ export class VendorController {
   }
 
   @Get('me/certifications')
-  @ApiOperation({ summary: 'My own submitted certifications' })
+  @VendorAdminOnly()
+  @ApiOperation({ summary: "Vendor Admin: every certification submitted by my team, with a viewable document link" })
   getMyCertifications(@Request() req) {
     return this.service.getMyCertifications(req.user.id);
   }
 
   @Post('me/certifications')
-  @ApiOperation({ summary: 'Submit a trade certification for review' })
+  @VendorAdminOnly()
+  @ApiOperation({ summary: 'Vendor Admin: submit a trade certification for review' })
   submitCertification(
     @Request() req,
     @Body() body: {
@@ -187,6 +189,20 @@ export class VendorController {
     },
   ) {
     return this.service.submitCertification(req.user.id, body);
+  }
+
+  @Patch('me/certifications/:id')
+  @VendorAdminOnly()
+  @ApiOperation({ summary: "Vendor Admin: revise a certification submitted by anyone on my team" })
+  updateCertification(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: {
+      certificationType?: CertificationType; licenseNumber?: string; issuingState?: string;
+      expirationDate?: string; documentKey?: string;
+    },
+  ) {
+    return this.service.updateCertification(req.user.id, id, body);
   }
 
   @Get('application')
