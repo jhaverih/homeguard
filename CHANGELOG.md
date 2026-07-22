@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-22
+
+### Fixed
+- **mobile, api, vendor**: The registration wizard's "State Licenses" step for new vendors was silently broken — the license photo was stripped out before submission and never uploaded, and there was no backend logic to create a real `VendorCertification` row from it, so licenses added at registration just vanished instead of reaching the admin review queue. Fixed by deferring the actual upload+submission until immediately after the account (and its accessToken) is created, reusing the existing `POST /uploads` and `POST /vendor/me/certifications` endpoints already used by the working post-registration Certifications screen — no parallel code path. Also now supports PDF license documents in addition to photos (`expo-document-picker`), and requires a real expiration date (date picker) and an attached document before a license can be added, instead of both being optional no-ops. Extended `CertificationType` (`api`) with `PEST_CONTROL`, `LANDSCAPING`, `PAINTING`, `POOL`, `OTHER` so the mobile license-type picker's existing options are all valid — 5 of them had no backend enum match and would have failed at the database layer.
+
 ## 2026-07-21 (8)
 
 ### Fixed

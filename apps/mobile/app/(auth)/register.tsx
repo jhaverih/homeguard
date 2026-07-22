@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Image, Linking,
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Image, Linking, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
-import { authApi, subscriptionsApi, api, TERMS_URL, API_URL } from '../../src/services/api';
+import { authApi, subscriptionsApi, uploadsApi, vendorApi, api, TERMS_URL, API_URL } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { colors } from '../../src/theme';
 
@@ -155,8 +157,10 @@ type License = {
   licenseType: string;
   licenseNumber: string;
   licenseState: string;
-  expiryDate: string;
-  imageUri?: string;
+  expiryDate: string; // ISO — uploaded/submitted only after the account itself is created
+  fileUri: string;
+  fileName: string;
+  mimeType: string;
 };
 
 let _licenseId = 0;
@@ -169,7 +173,12 @@ export default function RegisterScreen() {
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [licenses, setLicenses] = useState<License[]>([]);
-  const [adding, setAdding] = useState<Partial<License>>({ licenseType: 'GENERAL_CONTRACTOR' });
+  const [adding, setAdding] = useState<{
+    licenseType: string; licenseNumber: string; licenseState: string;
+    fileUri?: string; fileName?: string; mimeType?: string;
+  }>({ licenseType: 'GENERAL_CONTRACTOR', licenseNumber: '', licenseState: '' });
+  const [addingExpiryDate, setAddingExpiryDate] = useState(new Date());
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
   const [pendingAuth, setPendingAuth] = useState<{ user: any; accessToken: string } | null>(null);
   const [pendingEmail, setPendingEmail] = useState('');
   const [verifyCode, setVerifyCode] = useState('');
@@ -200,7 +209,8 @@ export default function RegisterScreen() {
     setSelectedRole(null);
     setSelectedPlanId('');
     setLicenses([]);
-    setAdding({ licenseType: 'GENERAL_CONTRACTOR' });
+    setAdding({ licenseType: 'GENERAL_CONTRACTOR', licenseNumber: '', licenseState: '' });
+    setAddingExpiryDate(new Date());
     setAddressValidated(false);
     setPickedAddress(null);
     setAcceptedTerms(false);
@@ -237,25 +247,56 @@ export default function RegisterScreen() {
   const addLicense = () => {
     if (!adding.licenseNumber?.trim()) { Alert.alert('Required', 'Enter the license number.'); return; }
     if (!adding.licenseState?.trim()) { Alert.alert('Required', 'Enter the issuing state.'); return; }
+    if (!adding.fileUri) { Alert.alert('Required', 'Attach a photo or PDF of the license.'); return; }
     setLicenses((prev) => [...prev, {
       id: String(++_licenseId),
       licenseType: adding.licenseType || 'GENERAL_CONTRACTOR',
       licenseNumber: adding.licenseNumber!.trim(),
       licenseState: adding.licenseState!.trim().toUpperCase().slice(0, 2),
-      expiryDate: adding.expiryDate || '',
-      imageUri: adding.imageUri,
+      expiryDate: addingExpiryDate.toISOString(),
+      fileUri: adding.fileUri!,
+      fileName: adding.fileName || 'license',
+      mimeType: adding.mimeType || 'image/jpeg',
     }]);
-    setAdding({ licenseType: 'GENERAL_CONTRACTOR' });
+    setAdding({ licenseType: 'GENERAL_CONTRACTOR', licenseNumber: '', licenseState: '' });
+    setAddingExpiryDate(new Date());
   };
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.6,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setAdding((prev) => ({ ...prev, imageUri: result.assets[0].uri }));
-    }
+  const pickDocument = () => {
+    Alert.alert('License Document', 'Choose source', [
+      {
+        text: 'Take Photo',
+        onPress: async () => {
+          const result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
+          if (!result.canceled && result.assets?.length) {
+            setAdding((prev) => ({ ...prev, fileUri: result.assets[0].uri, fileName: 'photo.jpg', mimeType: 'image/jpeg' }));
+          }
+        },
+      },
+      {
+        text: 'Photo Library',
+        onPress: async () => {
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.6,
+          });
+          if (!result.canceled && result.assets?.length) {
+            setAdding((prev) => ({ ...prev, fileUri: result.assets[0].uri, fileName: 'photo.jpg', mimeType: 'image/jpeg' }));
+          }
+        },
+      },
+      {
+        text: 'PDF Document',
+        onPress: async () => {
+          const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+          if (!result.canceled && result.assets?.length) {
+            const asset = result.assets[0];
+            setAdding((prev) => ({ ...prev, fileUri: asset.uri, fileName: asset.name || 'license.pdf', mimeType: 'application/pdf' }));
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const onSubmit = async (data: any) => {
@@ -265,13 +306,7 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      const payload: any = {
-        ...data,
-        roles: [selectedRole],
-        ...(isVendor && licenses.length > 0 && {
-          licenses: licenses.map(({ id, imageUri, ...l }) => l),
-        }),
-      };
+      const payload: any = { ...data, roles: [selectedRole] };
       const res: any = await authApi.register(payload);
       if (selectedRole === 'CUSTOMER' && selectedPlanId) {
         try {
@@ -279,6 +314,24 @@ export default function RegisterScreen() {
             headers: { Authorization: `Bearer ${res.accessToken}` },
           });
         } catch {}
+      }
+      // Licenses can only be uploaded/submitted once the account (and its
+      // accessToken) exists — the registration payload itself never carries
+      // them. A failed upload here shouldn't block onboarding; the vendor can
+      // always resubmit from the Certifications screen later.
+      if (isVendor && licenses.length > 0) {
+        for (const lic of licenses) {
+          try {
+            const uploaded: any = await uploadsApi.uploadDocument(lic.fileUri, 'vendor-licenses', lic.mimeType, lic.fileName, res.accessToken);
+            await vendorApi.submitCertification({
+              certificationType: lic.licenseType,
+              licenseNumber: lic.licenseNumber,
+              issuingState: lic.licenseState,
+              expirationDate: lic.expiryDate,
+              documentKey: uploaded.key,
+            }, res.accessToken);
+          } catch {}
+        }
       }
       setPendingEmail(data.email);
       setPendingAuth({ user: res.user, accessToken: res.accessToken });
@@ -580,11 +633,13 @@ export default function RegisterScreen() {
                         {LICENSE_TYPES.find((t) => t.value === lic.licenseType)?.label ?? lic.licenseType}
                       </Text>
                       <Text style={styles.licenseChipDetail}>
-                        {lic.licenseState} · {lic.licenseNumber}{lic.expiryDate ? ` · exp ${lic.expiryDate}` : ''}
+                        {lic.licenseState} · {lic.licenseNumber} · exp {new Date(lic.expiryDate).toLocaleDateString()}
                       </Text>
                     </View>
-                    {lic.imageUri && (
-                      <Image source={{ uri: lic.imageUri }} style={styles.licenseThumbSm} />
+                    {lic.mimeType.startsWith('image/') ? (
+                      <Image source={{ uri: lic.fileUri }} style={styles.licenseThumbSm} />
+                    ) : (
+                      <Ionicons name="document-text-outline" size={28} color={colors.lanternDeep} />
                     )}
                     <TouchableOpacity onPress={() => setLicenses((p) => p.filter((l) => l.id !== lic.id))}>
                       <Ionicons name="close-circle" size={22} color={colors.danger} />
@@ -630,23 +685,37 @@ export default function RegisterScreen() {
                 />
               </View>
 
-              <TextInput
-                style={[styles.input, { marginTop: 4 }]}
-                placeholder="Expiry Date (MM/YYYY) — optional"
-                placeholderTextColor={colors.steel}
-                keyboardType="numbers-and-punctuation"
-                value={adding.expiryDate || ''}
-                onChangeText={(v) => setAdding((p) => ({ ...p, expiryDate: v }))}
-              />
+              <Text style={styles.addBoxLabel}>Expiry Date</Text>
+              <TouchableOpacity style={[styles.input, { marginTop: 0 }]} onPress={() => setShowExpiryPicker(true)}>
+                <Text style={{ fontSize: 16, color: colors.ink }}>{addingExpiryDate.toLocaleDateString()}</Text>
+              </TouchableOpacity>
+              {showExpiryPicker && (
+                <RNDateTimePicker
+                  value={addingExpiryDate}
+                  mode="date"
+                  minimumDate={new Date()}
+                  onChange={(_, d) => {
+                    setShowExpiryPicker(Platform.OS === 'ios');
+                    if (d) setAddingExpiryDate(d);
+                  }}
+                />
+              )}
 
-              <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
+              <TouchableOpacity style={styles.uploadBtn} onPress={pickDocument}>
                 <Ionicons name="camera-outline" size={18} color={colors.lanternDeep} />
                 <Text style={styles.uploadBtnText}>
-                  {adding.imageUri ? 'Change Photo' : 'Upload License Photo (Optional)'}
+                  {adding.fileUri ? 'Change Document' : 'Attach License Photo or PDF'}
                 </Text>
               </TouchableOpacity>
-              {adding.imageUri && (
-                <Image source={{ uri: adding.imageUri }} style={styles.licenseThumb} />
+              {adding.fileUri && (
+                adding.mimeType?.startsWith('image/') ? (
+                  <Image source={{ uri: adding.fileUri }} style={styles.licenseThumb} />
+                ) : (
+                  <View style={styles.pdfPreview}>
+                    <Ionicons name="document-text-outline" size={22} color={colors.lanternDeep} />
+                    <Text style={styles.pdfPreviewText} numberOfLines={1}>{adding.fileName}</Text>
+                  </View>
+                )
               )}
 
               <TouchableOpacity style={[styles.button, styles.addLicenseBtn]} onPress={addLicense}>
@@ -874,6 +943,12 @@ const styles = StyleSheet.create({
   },
   uploadBtnText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
   licenseThumb: { width: '100%', height: 120, borderRadius: 10, marginTop: 8, resizeMode: 'cover' },
+  pdfPreview: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.canvas, borderRadius: 10, padding: 10, marginTop: 8,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  pdfPreviewText: { flex: 1, fontSize: 13, color: colors.ink },
 
   addLicenseBtn: { backgroundColor: colors.slate, marginTop: 12, marginBottom: 0 },
 

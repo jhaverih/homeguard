@@ -262,6 +262,23 @@ export const uploadsApi = {
       timeout: 30000,
     }) as any;
   },
+  // Sibling to uploadPhoto — takes an explicit mime type/filename so callers can
+  // upload PDFs (or any file) instead of always sending image/jpeg. `token` lets
+  // callers authenticate before the auth store's interceptor token is set yet,
+  // e.g. right after register() returns an accessToken but before email verification.
+  uploadDocument: async (
+    uri: string, folder: string, mimeType: string, filename: string, token?: string,
+  ): Promise<{ key: string; url: string }> => {
+    const formData = new FormData();
+    formData.append('file', { uri, type: mimeType, name: filename } as any);
+    return api.post(`/uploads?folder=${folder}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      timeout: 30000,
+    }) as any;
+  },
 };
 
 export const vendorApi = {
@@ -272,7 +289,7 @@ export const vendorApi = {
   getMyCertifications: (): Promise<any[]> => api.get('/vendor/me/certifications') as any,
   submitCertification: (data: {
     certificationType: string; licenseNumber: string; issuingState?: string; expirationDate: string; documentKey: string;
-  }) => api.post('/vendor/me/certifications', data),
+  }, token?: string) => api.post('/vendor/me/certifications', data, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined),
   getApplication: (): Promise<any> => api.get('/vendor/application') as any,
   submitApplication: (data: {
     ein?: string; stateRegistrationDocKey?: string; businessTaxLicenseDocKey?: string;

@@ -10,6 +10,11 @@ export enum CertificationType {
   ROOFING = 'ROOFING',
   GENERAL_CONTRACTOR = 'GENERAL_CONTRACTOR',
   NABCEP = 'NABCEP',
+  PEST_CONTROL = 'PEST_CONTROL',
+  LANDSCAPING = 'LANDSCAPING',
+  PAINTING = 'PAINTING',
+  POOL = 'POOL',
+  OTHER = 'OTHER',
 }
 
 @Entity('vendor_capabilities')
