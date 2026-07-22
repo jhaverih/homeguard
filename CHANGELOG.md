@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-21 (6)
+
+### Added
+- **api, mobile**: House Cleaning now persists the customer's room configuration (`houseConfig`) automatically after every successful subscribe or one-time booking, into a new `MarketplaceHouseCleaningPropertyProfile`, and pre-fills it on the wizard's next visit — no separate save step, no re-entering room counts. Mirrors the reusable-property-profile pattern already built for Lawncare and Pest Control, but as a plain jsonb blob rather than named columns since House Cleaning's fields are homogeneous counts against an already-catalog-driven room list.
+
 ## 2026-07-21 (5)
 
 ### Added

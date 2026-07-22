@@ -14,6 +14,7 @@ import { MarketplaceLawncareService } from './entities/marketplace-lawncare-serv
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
 import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawncare-property-profile.entity';
+import { MarketplaceHouseCleaningPropertyProfile } from './entities/marketplace-house-cleaning-property-profile.entity';
 import { MarketplacePestService } from './entities/marketplace-pest-service.entity';
 import { MarketplacePestPackage } from './entities/marketplace-pest-package.entity';
 import { MarketplacePestPackageSubscription } from './entities/marketplace-pest-package-subscription.entity';
@@ -82,6 +83,7 @@ export class MarketplaceService implements OnModuleInit {
     @InjectRepository(MarketplaceLawncarePackage) private lawncarePackagesRepo: Repository<MarketplaceLawncarePackage>,
     @InjectRepository(MarketplaceLawncarePackageSubscription) private lawncarePackageSubscriptionsRepo: Repository<MarketplaceLawncarePackageSubscription>,
     @InjectRepository(MarketplaceLawncarePropertyProfile) private lawncarePropertyProfileRepo: Repository<MarketplaceLawncarePropertyProfile>,
+    @InjectRepository(MarketplaceHouseCleaningPropertyProfile) private houseCleaningPropertyProfileRepo: Repository<MarketplaceHouseCleaningPropertyProfile>,
     @InjectRepository(MarketplacePestService) private pestServicesRepo: Repository<MarketplacePestService>,
     @InjectRepository(MarketplacePestPackage) private pestPackagesRepo: Repository<MarketplacePestPackage>,
     @InjectRepository(MarketplacePestPackageSubscription) private pestPackageSubscriptionsRepo: Repository<MarketplacePestPackageSubscription>,
@@ -576,6 +578,20 @@ Exterior Maintenance Add-Ons
     return { plans: plans.filter((p) => p.isActive), roomUnits, conditions, addOns, frequencyDiscounts };
   }
 
+  async getHouseCleaningPropertyProfile(customerId: string) {
+    return this.houseCleaningPropertyProfileRepo.findOne({ where: { customerId } });
+  }
+
+  // Called automatically after every successful subscribe()/
+  // bookOneTimeCleaning() — no separate save step for the customer, the
+  // profile just stays in sync with whatever houseConfig they last used.
+  private async syncHouseCleaningPropertyProfile(customerId: string, houseConfig: Record<string, number>) {
+    let profile = await this.houseCleaningPropertyProfileRepo.findOne({ where: { customerId } });
+    if (!profile) profile = this.houseCleaningPropertyProfileRepo.create({ customerId });
+    profile.roomConfig = houseConfig;
+    await this.houseCleaningPropertyProfileRepo.save(profile);
+  }
+
   async getLawncareConfig() {
     const [services, packages] = await Promise.all([
       this.lawncareServicesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
@@ -751,6 +767,8 @@ Exterior Maintenance Add-Ons
     const pi = invoice?.payment_intent as Stripe.PaymentIntent | undefined;
     const charged = pi?.status === 'succeeded';
 
+    await this.syncHouseCleaningPropertyProfile(customerId, dto.houseConfig);
+
     return {
       subscriptionId: saved.id,
       monthlyPrice: quote.monthlyPrice,
@@ -782,7 +800,7 @@ Exterior Maintenance Add-Ons
     const profile = customer.customerProfile;
     if (!profile) throw new BadRequestException('A saved address is required to book a cleaning.');
 
-    return this.serviceRequestsService.createMarketplaceBooking(customerId, {
+    const saved = await this.serviceRequestsService.createMarketplaceBooking(customerId, {
       servicePriceId: houseCleaningPrice.id,
       preferredDate: dto.preferredDate,
       price: quote.perVisitCost,
@@ -796,6 +814,10 @@ Exterior Maintenance Add-Ons
       // that customer is maintaining a home they're staying in.
       requireCoreSubscription: dto.cleaningType !== CleaningType.MOVE_OUT,
     });
+
+    await this.syncHouseCleaningPropertyProfile(customerId, dto.houseConfig);
+
+    return saved;
   }
 
   // ── Lawncare: quote / package subscribe (billing-only) / on-demand booking ─

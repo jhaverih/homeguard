@@ -32,11 +32,16 @@ export default function MarketplaceHouseCleaningScreen() {
   const quoteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    marketplaceApi.getConfig().then((c) => {
+    Promise.all([marketplaceApi.getConfig(), marketplaceApi.getHouseCleaningPropertyProfile()]).then(([c, savedProfile]) => {
       setConfig(c);
+      // Pre-fill from the customer's last-used room configuration (saved
+      // automatically after their previous subscribe/booking) if one
+      // exists, so they never re-enter this from scratch; otherwise fall
+      // back to the same defaults as before.
+      const saved = savedProfile?.roomConfig;
       const initial: Record<string, number> = {};
       const defaultToOne = new Set(['bedroom', 'kitchen', 'bathroom_full', 'dining_room', 'additional_living_room']);
-      for (const r of c.roomUnits) initial[r.key] = defaultToOne.has(r.key) ? 1 : 0;
+      for (const r of c.roomUnits) initial[r.key] = saved?.[r.key] ?? (defaultToOne.has(r.key) ? 1 : 0);
       setHouseConfig(initial);
     }).catch(() => Alert.alert('Error', 'Could not load House Cleaning options.')).finally(() => setLoading(false));
   }, []);

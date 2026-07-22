@@ -38,6 +38,14 @@ export class MarketplaceController {
     return this.service.getConfig();
   }
 
+  @Get('house-cleaning/property-profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: "Customer: fetch their saved House Cleaning room configuration (updated automatically after each subscribe/booking)" })
+  getHouseCleaningPropertyProfile(@Request() req) {
+    return this.service.getHouseCleaningPropertyProfile(req.user.id);
+  }
+
   @Post('house-cleaning/quote')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
