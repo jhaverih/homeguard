@@ -595,14 +595,23 @@ export default function ActiveJobScreen() {
 
   // ── Task modal ─────────────────────────────────────────────────────────────
 
-  const openTask = (task: any) => {
+  const openTask = async (task: any) => {
     if (isCompleted) return; // submitted inspections are locked
     const existing = taskResults[task.key];
     setActiveTask(task);
     setTaskStatus(existing?.status || '');
     setTaskFindings(existing?.findings || '');
-    setTaskStructured(existing?.structuredData || {});
     setTaskPhotos(existing?.photoUrls?.map((u: string) => ({ uri: u, key: '_saved' })) || []);
+
+    // AC Unit task: if nothing's been entered for THIS inspection yet,
+    // pre-fill from the customer's last-known units/filters instead of
+    // starting blank — same prefixed-key shape the renderer already uses.
+    if (!existing && task.key === 'hvac_visual.units_overview') {
+      const prefill = await inspectionsApi.getPropertyAcProfilePrefill(id).catch(() => null);
+      setTaskStructured(prefill || {});
+    } else {
+      setTaskStructured(existing?.structuredData || {});
+    }
     setTaskModalVisible(true);
   };
 

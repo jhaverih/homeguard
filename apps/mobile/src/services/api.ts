@@ -133,6 +133,8 @@ export const inspectionsApi = {
   getTasks: (requestId: string) => api.get(`/inspections/requests/${requestId}/tasks`),
   getProgress: (requestId: string) => api.get(`/inspections/requests/${requestId}/progress`),
   getCustomerTaskHistory: () => api.get('/inspections/customer/task-history'),
+  getPropertyAcProfilePrefill: (requestId: string): Promise<Record<string, any> | null> =>
+    api.get(`/inspections/requests/${requestId}/property-ac-profile-prefill`) as any,
 };
 
 export const pricingApi = {

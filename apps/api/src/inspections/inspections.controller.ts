@@ -56,6 +56,12 @@ export class InspectionsController {
     return this.service.getTaskResults(requestId);
   }
 
+  @Get('requests/:requestId/property-ac-profile-prefill')
+  @ApiOperation({ summary: "Vendor: fetch the customer's last-known AC unit/filter details to pre-fill a new inspection's AC Unit task" })
+  getPropertyAcProfilePrefill(@Param('requestId') requestId: string) {
+    return this.service.getPropertyAcProfilePrefill(requestId);
+  }
+
   @Get('requests/:requestId/progress')
   @ApiOperation({ summary: 'Get checklist completion progress for a service request' })
   getProgress(@Param('requestId') requestId: string) {

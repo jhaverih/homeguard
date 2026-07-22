@@ -3,14 +3,80 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { InspectionNote } from './entities/inspection.entity';
 import { InspectionTaskResult } from './entities/inspection-task-result.entity';
 import { InspectionChecklistSection } from './entities/inspection-checklist-section.entity';
 import { InspectionChecklistTask } from './entities/inspection-checklist-task.entity';
+import { PropertyAcProfile } from './entities/property-ac-profile.entity';
 import { UploadsService } from '../uploads/uploads.service';
 import { NoteType, TaskStatus, ServiceRequestStatus } from '../common/enums/role.enum';
 import { ServiceRequest, ServiceType } from '../service-requests/entities/service-request.entity';
 import { getSectionKey, ChecklistSection } from './checklists';
+
+// The one task this pass's carry-forward mechanism applies to — see
+// PropertyAcProfile. Not generalized to other dynamicGroups-based tasks yet.
+const AC_UNIT_TASK_KEY = 'hvac_visual.units_overview';
+
+// Reads the unit_{n}_.../unit_{n}_filter_{m}_... prefixed keys the vendor
+// app's dynamic-group renderer writes (active-job.tsx) into the normalized
+// PropertyAcProfile shape. There's no stable identity in the source data, so
+// this always assigns fresh ids — the profile is a wholesale snapshot of
+// "what was true on the visit that last saved this task."
+function extractAcUnitsFromStructuredData(sd: Record<string, any>): PropertyAcProfile['acUnits'] {
+  const unitCount = Math.min(parseInt(sd?.num_units, 10) || 0, 10);
+  const units: PropertyAcProfile['acUnits'] = [];
+  for (let n = 1; n <= unitCount; n++) {
+    const uPrefix = `unit_${n}`;
+    const filterCount = Math.min(parseInt(sd?.[`${uPrefix}_num_filters`], 10) || 0, 20);
+    const filters: PropertyAcProfile['acUnits'][number]['filters'] = [];
+    for (let m = 1; m <= filterCount; m++) {
+      const fPrefix = `${uPrefix}_filter_${m}`;
+      filters.push({
+        id: randomUUID(),
+        filterLocation: sd?.[`${fPrefix}_filter_location`] ?? '',
+        size: sd?.[`${fPrefix}_size`] ?? '',
+        dirtLevel: sd?.[`${fPrefix}_dirt_level`] ?? '',
+        merv: sd?.[`${fPrefix}_merv`] ?? '',
+        airflowCorrect: !!sd?.[`${fPrefix}_airflow_correct`],
+        nextReplacementDays: sd?.[`${fPrefix}_next_replacement_days`] ?? '',
+      });
+    }
+    units.push({
+      id: randomUUID(),
+      location: sd?.[`${uPrefix}_location`] ?? '',
+      makeModel: sd?.[`${uPrefix}_make_model`] ?? '',
+      serial: sd?.[`${uPrefix}_serial`] ?? '',
+      installDate: sd?.[`${uPrefix}_install_date`] ?? '',
+      filters,
+    });
+  }
+  return units;
+}
+
+// Reverse of extractAcUnitsFromStructuredData() — used to pre-fill a new
+// inspection's taskStructured with the customer's last-known units/filters.
+function flattenAcUnitsToStructuredData(acUnits: PropertyAcProfile['acUnits']): Record<string, any> {
+  const sd: Record<string, any> = { num_units: acUnits.length };
+  acUnits.forEach((unit, i) => {
+    const uPrefix = `unit_${i + 1}`;
+    sd[`${uPrefix}_location`] = unit.location;
+    sd[`${uPrefix}_make_model`] = unit.makeModel;
+    sd[`${uPrefix}_serial`] = unit.serial;
+    sd[`${uPrefix}_install_date`] = unit.installDate;
+    sd[`${uPrefix}_num_filters`] = unit.filters.length;
+    unit.filters.forEach((filter, j) => {
+      const fPrefix = `${uPrefix}_filter_${j + 1}`;
+      sd[`${fPrefix}_filter_location`] = filter.filterLocation;
+      sd[`${fPrefix}_size`] = filter.size;
+      sd[`${fPrefix}_dirt_level`] = filter.dirtLevel;
+      sd[`${fPrefix}_merv`] = filter.merv;
+      sd[`${fPrefix}_airflow_correct`] = filter.airflowCorrect;
+      sd[`${fPrefix}_next_replacement_days`] = filter.nextReplacementDays;
+    });
+  });
+  return sd;
+}
 
 @Injectable()
 export class InspectionsService {
@@ -25,6 +91,8 @@ export class InspectionsService {
     private checklistTasksRepo: Repository<InspectionChecklistTask>,
     @InjectRepository(ServiceRequest)
     private requestsRepo: Repository<ServiceRequest>,
+    @InjectRepository(PropertyAcProfile)
+    private propertyAcProfileRepo: Repository<PropertyAcProfile>,
     private uploadsService: UploadsService,
   ) {}
 
@@ -131,6 +199,7 @@ export class InspectionsService {
       where: { serviceRequestId, taskKey },
     });
 
+    let saved: InspectionTaskResult;
     if (existing) {
       existing.vendorId = vendorId;
       existing.sectionKey = sectionKey;
@@ -142,22 +211,52 @@ export class InspectionsService {
       if (dto.linkedAdditionalServiceId !== undefined) {
         existing.linkedAdditionalServiceId = dto.linkedAdditionalServiceId;
       }
-      return this.taskResultsRepo.save(existing);
+      saved = await this.taskResultsRepo.save(existing);
+    } else {
+      const result = this.taskResultsRepo.create({
+        serviceRequestId,
+        vendorId,
+        sectionKey,
+        taskKey,
+        status: dto.status,
+        findings: dto.findings,
+        recommendation: dto.recommendation,
+        structuredData: dto.structuredData,
+        photoKeys: dto.photoKeys || [],
+        linkedAdditionalServiceId: dto.linkedAdditionalServiceId,
+      });
+      saved = await this.taskResultsRepo.save(result);
     }
 
-    const result = this.taskResultsRepo.create({
-      serviceRequestId,
-      vendorId,
-      sectionKey,
-      taskKey,
-      status: dto.status,
-      findings: dto.findings,
-      recommendation: dto.recommendation,
-      structuredData: dto.structuredData,
-      photoKeys: dto.photoKeys || [],
-      linkedAdditionalServiceId: dto.linkedAdditionalServiceId,
-    });
-    return this.taskResultsRepo.save(result);
+    if (taskKey === AC_UNIT_TASK_KEY && saved.structuredData) {
+      await this.syncPropertyAcProfile(serviceRequestId, saved.structuredData);
+    }
+
+    return saved;
+  }
+
+  private async syncPropertyAcProfile(serviceRequestId: string, structuredData: Record<string, any>) {
+    const request = await this.requestsRepo.findOne({ where: { id: serviceRequestId } });
+    if (!request) return;
+
+    let profile = await this.propertyAcProfileRepo.findOne({ where: { customerId: request.customerId } });
+    if (!profile) profile = this.propertyAcProfileRepo.create({ customerId: request.customerId });
+    profile.acUnits = extractAcUnitsFromStructuredData(structuredData);
+    await this.propertyAcProfileRepo.save(profile);
+  }
+
+  // Pre-fill source for a new inspection's AC Unit task — flattened back
+  // into the same prefixed-key shape the vendor app's dynamic-group
+  // renderer already reads/writes, so no client-side format needs to
+  // change. Takes requestId (not customerId directly) to match every other
+  // request-scoped endpoint here — the mobile app already has the
+  // serviceRequestId open, not the customer's id.
+  async getPropertyAcProfilePrefill(serviceRequestId: string): Promise<Record<string, any> | null> {
+    const request = await this.requestsRepo.findOne({ where: { id: serviceRequestId } });
+    if (!request) return null;
+    const profile = await this.propertyAcProfileRepo.findOne({ where: { customerId: request.customerId } });
+    if (!profile || profile.acUnits.length === 0) return null;
+    return flattenAcUnitsToStructuredData(profile.acUnits);
   }
 
   async getTaskResults(serviceRequestId: string): Promise<any[]> {

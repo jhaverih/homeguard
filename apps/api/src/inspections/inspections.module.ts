@@ -11,13 +11,14 @@ import { InspectionChecklistGroup } from './entities/inspection-checklist-group.
 import { InspectionChecklistSubgroup } from './entities/inspection-checklist-subgroup.entity';
 import { InspectionChecklistSection } from './entities/inspection-checklist-section.entity';
 import { InspectionChecklistTask } from './entities/inspection-checklist-task.entity';
+import { PropertyAcProfile } from './entities/property-ac-profile.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      InspectionNote, InspectionTaskResult, ServiceRequest,
+      InspectionNote, InspectionTaskResult, ServiceRequest, PropertyAcProfile,
       InspectionChecklistGroup, InspectionChecklistSubgroup, InspectionChecklistSection, InspectionChecklistTask,
     ]),
     UploadsModule,
