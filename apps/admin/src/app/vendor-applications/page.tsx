@@ -27,7 +27,12 @@ const CERT_TYPE_LABEL: Record<string, string> = {
   PLUMBING: 'Plumbing',
   ROOFING: 'Roofing',
   GENERAL_CONTRACTOR: 'General Contractor',
-  NABCEP: 'NABCEP (Solar)',
+  NABCEP: 'NABCEP PV IP (Solar)',
+  PEST_CONTROL: 'Pest Control',
+  LANDSCAPING: 'Landscaping',
+  PAINTING: 'Painting',
+  POOL: 'Pool & Spa',
+  OTHER: 'Other',
 };
 
 function CompletenessBadge({ ok, label }: { ok: boolean; label: string }) {
@@ -317,7 +322,7 @@ export default function VendorApplicationsPage() {
                               <CompletenessBadge ok={item.completeness.stateRegistration} label="State Registration" />
                               <CompletenessBadge ok={item.completeness.ein} label="EIN" />
                               <CompletenessBadge ok={item.completeness.businessTaxLicense} label="Tax License" />
-                              <CompletenessBadge ok={item.completeness.coi} label="COI (valid)" />
+                              <CompletenessBadge ok={item.completeness.coi} label="General Liability Insurance (valid)" />
                               <CompletenessBadge ok={item.completeness.vendorAdminPhoto} label="Admin Photo" />
                             </div>
                             <p className="text-sm text-steel mb-1">EIN: <span className="font-mono">{item.ein || '—'}</span></p>
