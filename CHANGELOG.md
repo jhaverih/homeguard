@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-21 (5)
+
+### Added
+- **api, admin, mobile**: New **Pest Control** Marketplace vertical, mirroring Lawncare's architecture — 14 à-la-carte services (Initial/Quarterly Pest Treatment, Mosquito, Flea & Tick, Fire Ant, Rodent Inspection/Bait Stations, Wasp Nest Removal, Crawlspace/Attic Inspection, Emergency Visit, Annual Inspection) and 3 subscription packages (Basic/Premium/Ultimate Protection), with a new "Lawn & Landscaping"-style "Pest Control" vendor capability and Marketplace catalog listing (`ServiceCategory.PEST_CONTROL` was already pre-seeded, unused until now). Two new pricing mechanisms beyond what Lawncare needed: dual-axis pricing (Premium/Ultimate memberships scale by both home sq ft and lot acreage at once) and membership-conditional pricing (e.g. "Included with Ultimate", "10% with mosquito plan" — checked against the customer's real active package subscription, not just shown as text). Multi-property volume discounts ("2 properties: 5%", etc.) are intentionally not built this pass — the platform has no "multiple properties per customer" concept anywhere yet.
+
 ## 2026-07-21 (4)
 
 ### Added

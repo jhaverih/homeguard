@@ -62,11 +62,14 @@ export default function MarketplacePage() {
       return next;
     });
 
-  const load = () => Promise.all([marketplaceApi.getConfig(), marketplaceApi.getLawncareConfig()]).then(([c, lc]: any[]) => {
-    const merged = { ...c, lawncareServices: lc.services, lawncarePackages: lc.packages };
+  const load = () => Promise.all([marketplaceApi.getConfig(), marketplaceApi.getLawncareConfig(), marketplaceApi.getPestConfig()]).then(([c, lc, pc]: any[]) => {
+    const merged = {
+      ...c, lawncareServices: lc.services, lawncarePackages: lc.packages,
+      pestServices: pc.services, pestPackages: pc.packages,
+    };
     setConfig(merged);
     const d: Record<string, any> = {};
-    for (const row of [...c.plans, ...c.roomUnits, ...c.conditions, ...c.addOns, ...c.frequencyDiscounts, ...lc.services, ...lc.packages]) {
+    for (const row of [...c.plans, ...c.roomUnits, ...c.conditions, ...c.addOns, ...c.frequencyDiscounts, ...lc.services, ...lc.packages, ...pc.services, ...pc.packages]) {
       d[row.id] = { ...row };
     }
     setDrafts(d);
@@ -78,7 +81,7 @@ export default function MarketplacePage() {
 
   const isDirty = (original: any, draft: any) => JSON.stringify(original) !== JSON.stringify(draft);
 
-  const save = async (kind: 'plan' | 'roomUnit' | 'condition' | 'addOn' | 'frequencyDiscount' | 'lawncareService' | 'lawncarePackage', id: string, payload: any) => {
+  const save = async (kind: 'plan' | 'roomUnit' | 'condition' | 'addOn' | 'frequencyDiscount' | 'lawncareService' | 'lawncarePackage' | 'pestService' | 'pestPackage', id: string, payload: any) => {
     setSaving((p) => new Set(p).add(id));
     try {
       if (kind === 'plan') await marketplaceApi.updatePlan(id, payload);
@@ -87,7 +90,9 @@ export default function MarketplacePage() {
       else if (kind === 'addOn') await marketplaceApi.updateAddOn(id, payload);
       else if (kind === 'frequencyDiscount') await marketplaceApi.updateFrequencyDiscount(id, payload);
       else if (kind === 'lawncareService') await marketplaceApi.updateLawncareService(id, payload);
-      else await marketplaceApi.updateLawncarePackage(id, payload);
+      else if (kind === 'lawncarePackage') await marketplaceApi.updateLawncarePackage(id, payload);
+      else if (kind === 'pestService') await marketplaceApi.updatePestService(id, payload);
+      else await marketplaceApi.updatePestPackage(id, payload);
       await load();
     } finally {
       setSaving((p) => { const n = new Set(p); n.delete(id); return n; });
@@ -430,6 +435,142 @@ export default function MarketplacePage() {
                         description: d.description,
                         monthlyPrice: Number(d.monthlyPrice),
                         isStartingAt: d.isStartingAt,
+                        isActive: d.isActive,
+                      })}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </SectionCard>
+      </CollapsibleGroup>
+
+      <CollapsibleGroup
+        label="Pest Control"
+        collapsed={collapsedGroups.has('PEST_CONTROL')}
+        onToggle={() => toggleGroupCollapsed('PEST_CONTROL')}
+      >
+      <SectionCard title="Pest Control Services" subtitle="À-la-carte pricing per service. Dimension 2 (Per-Unit 2 / Included 2) only applies to the Premium/Ultimate memberships, which scale by both home sq ft and lot acreage at once — leave at 0 for every other service. Volume discount text is always the source of truth. Membership benefits (e.g. &quot;Included with Ultimate&quot;) and frequency discounts are seed-configured, not editable here yet.">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-mist-dim">
+              <th className="px-3 py-2 text-left font-semibold text-steel">Service</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Pricing Unit</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Frequency</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Sub Cost Base</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Sub Cost/Unit</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Cust. Price Base</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Cust. Price/Unit</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Cust. Price/Unit 2</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Volume Discount</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Threshold 1</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Rate 1 %</th>
+              <th className="px-3 py-2 text-center font-semibold text-steel">Enabled</th>
+              <th className="w-16" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-canvas">
+            {config.pestServices.map((s: any) => {
+              const d = drafts[s.id] ?? s;
+              return (
+                <tr key={s.id}>
+                  <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{s.label}</td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.pricingUnit} onChange={(e) => setField(s.id, 'pricingUnit', e.target.value)} className="w-32 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.recommendedFrequency} onChange={(e) => setField(s.id, 'recommendedFrequency', e.target.value)} className="w-28 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.subCostBase} onChange={(e) => setField(s.id, 'subCostBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.001" value={d.subCostPerUnit} onChange={(e) => setField(s.id, 'subCostPerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.customerPriceBase} onChange={(e) => setField(s.id, 'customerPriceBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.001" value={d.customerPricePerUnit} onChange={(e) => setField(s.id, 'customerPricePerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.customerPricePerUnit2} onChange={(e) => setField(s.id, 'customerPricePerUnit2', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.volumeDiscountText} onChange={(e) => setField(s.id, 'volumeDiscountText', e.target.value)} className="w-44 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.volumeDiscountThreshold1 ?? ''} onChange={(e) => setField(s.id, 'volumeDiscountThreshold1', e.target.value === '' ? null : e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.5" value={d.volumeDiscountRate1 ?? ''} onChange={(e) => setField(s.id, 'volumeDiscountRate1', e.target.value === '' ? null : e.target.value)} className="w-16 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={d.isActive} onChange={(e) => setField(s.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <SaveButton
+                      dirty={isDirty(s, d)}
+                      saving={saving.has(s.id)}
+                      onClick={() => save('pestService', s.id, {
+                        pricingUnit: d.pricingUnit,
+                        recommendedFrequency: d.recommendedFrequency,
+                        subCostBase: Number(d.subCostBase),
+                        subCostPerUnit: Number(d.subCostPerUnit),
+                        customerPriceBase: Number(d.customerPriceBase),
+                        customerPricePerUnit: Number(d.customerPricePerUnit),
+                        customerPricePerUnit2: Number(d.customerPricePerUnit2),
+                        volumeDiscountText: d.volumeDiscountText,
+                        volumeDiscountThreshold1: d.volumeDiscountThreshold1 === '' || d.volumeDiscountThreshold1 === null ? null : Number(d.volumeDiscountThreshold1),
+                        volumeDiscountRate1: d.volumeDiscountRate1 === '' || d.volumeDiscountRate1 === null ? null : Number(d.volumeDiscountRate1),
+                        isActive: d.isActive,
+                      })}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Subscription Packages" subtitle="Bundled monthly Pest Control tiers (Basic/Premium/Ultimate Protection). Composition (which services drive the computed price) is seed-configured, not editable here yet.">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-mist-dim">
+              <th className="px-3 py-2 text-left font-semibold text-steel">Package</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Description</th>
+              <th className="px-3 py-2 text-right font-semibold text-steel">Monthly Price</th>
+              <th className="px-3 py-2 text-center font-semibold text-steel">Enabled</th>
+              <th className="w-16" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-canvas">
+            {config.pestPackages.map((pkg: any) => {
+              const d = drafts[pkg.id] ?? pkg;
+              return (
+                <tr key={pkg.id}>
+                  <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{pkg.label}</td>
+                  <td className="px-3 py-2">
+                    <textarea value={d.description} onChange={(e) => setField(pkg.id, 'description', e.target.value)} rows={3} className="w-96 border border-border rounded px-2 py-1 whitespace-pre-wrap" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={d.monthlyPrice} onChange={(e) => setField(pkg.id, 'monthlyPrice', e.target.value)} className="w-24 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={d.isActive} onChange={(e) => setField(pkg.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <SaveButton
+                      dirty={isDirty(pkg, d)}
+                      saving={saving.has(pkg.id)}
+                      onClick={() => save('pestPackage', pkg.id, {
+                        description: d.description,
+                        monthlyPrice: Number(d.monthlyPrice),
                         isActive: d.isActive,
                       })}
                     />

@@ -49,6 +49,9 @@ export const marketplaceApi = {
   getLawncareConfig: () => api.get('/marketplace/lawncare/config').then((r) => r.data),
   updateLawncareService: (id: string, data: any) => api.patch(`/marketplace/lawncare/services/${id}`, data).then((r) => r.data),
   updateLawncarePackage: (id: string, data: any) => api.patch(`/marketplace/lawncare/packages/${id}`, data).then((r) => r.data),
+  getPestConfig: () => api.get('/marketplace/pest/config').then((r) => r.data),
+  updatePestService: (id: string, data: any) => api.patch(`/marketplace/pest/services/${id}`, data).then((r) => r.data),
+  updatePestPackage: (id: string, data: any) => api.patch(`/marketplace/pest/packages/${id}`, data).then((r) => r.data),
 };
 
 export const inspectionConfigApi = {

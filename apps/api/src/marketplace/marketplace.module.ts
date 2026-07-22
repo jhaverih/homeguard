@@ -14,6 +14,10 @@ import { MarketplaceLawncareService } from './entities/marketplace-lawncare-serv
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
 import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawncare-property-profile.entity';
+import { MarketplacePestService } from './entities/marketplace-pest-service.entity';
+import { MarketplacePestPackage } from './entities/marketplace-pest-package.entity';
+import { MarketplacePestPackageSubscription } from './entities/marketplace-pest-package-subscription.entity';
+import { MarketplacePestPropertyProfile } from './entities/marketplace-pest-property-profile.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { UsersModule } from '../users/users.module';
@@ -27,7 +31,9 @@ import { ServiceRequestsModule } from '../service-requests/service-requests.modu
       MarketplaceCleaningPlan, MarketplaceRoomUnit, MarketplaceConditionMultiplier,
       MarketplaceAddOn, MarketplaceFrequencyDiscount, MarketplaceSubscription,
       MarketplaceSubscriptionEvent, MarketplaceLawncareService, MarketplaceLawncarePackage,
-      MarketplaceLawncarePackageSubscription, MarketplaceLawncarePropertyProfile, VendorCapability, ServicePrice,
+      MarketplaceLawncarePackageSubscription, MarketplaceLawncarePropertyProfile,
+      MarketplacePestService, MarketplacePestPackage, MarketplacePestPackageSubscription, MarketplacePestPropertyProfile,
+      VendorCapability, ServicePrice,
     ]),
     UsersModule,
     SubscriptionsModule,

@@ -14,6 +14,10 @@ import { MarketplaceLawncareService } from './entities/marketplace-lawncare-serv
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
 import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawncare-property-profile.entity';
+import { MarketplacePestService } from './entities/marketplace-pest-service.entity';
+import { MarketplacePestPackage } from './entities/marketplace-pest-package.entity';
+import { MarketplacePestPackageSubscription } from './entities/marketplace-pest-package-subscription.entity';
+import { MarketplacePestPropertyProfile } from './entities/marketplace-pest-property-profile.entity';
 import {
   CleaningType, VisitFrequency, MarketplaceSubscriptionStatus, MarketplaceEventType,
 } from './enums/marketplace.enum';
@@ -22,10 +26,14 @@ import {
   computeMonthlySubscriptionPrice, QUOTE_REQUIRED,
 } from './marketplace-pricing.utils';
 import { computeLawncareServicePrice, resolveServiceQty, isManualQtyService } from './marketplace-lawncare-pricing.utils';
+import { computePestServicePrice, resolvePestServiceQty, resolvePestServiceQty2, isManualQtyPestService } from './marketplace-pest-pricing.utils';
 import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
 import {
   QuoteLawncareDto, BookLawncareServiceDto, SubscribeLawncarePackageDto, UpsertLawncarePropertyProfileDto,
 } from './dto/quote-lawncare.dto';
+import {
+  QuotePestDto, BookPestServiceDto, SubscribePestPackageDto, UpsertPestPropertyProfileDto,
+} from './dto/quote-pest.dto';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { ServiceCategory } from '../common/enums/service-category.enum';
@@ -40,6 +48,8 @@ export const CLEANING_SERVICES_CAPABILITY_NAME = 'Cleaning Services';
 export const HOUSE_CLEANING_CATALOG_NAME = 'House Cleaning';
 export const LAWN_CARE_CAPABILITY_NAME = 'Lawn & Landscaping';
 export const LAWNCARE_CATALOG_NAME = 'Lawncare Subscription';
+export const PEST_CONTROL_CAPABILITY_NAME = 'Pest Control';
+export const PEST_CONTROL_CATALOG_NAME = 'Pest Control Subscription';
 
 export interface HouseCleaningQuote {
   perVisitCost: number;
@@ -72,6 +82,10 @@ export class MarketplaceService implements OnModuleInit {
     @InjectRepository(MarketplaceLawncarePackage) private lawncarePackagesRepo: Repository<MarketplaceLawncarePackage>,
     @InjectRepository(MarketplaceLawncarePackageSubscription) private lawncarePackageSubscriptionsRepo: Repository<MarketplaceLawncarePackageSubscription>,
     @InjectRepository(MarketplaceLawncarePropertyProfile) private lawncarePropertyProfileRepo: Repository<MarketplaceLawncarePropertyProfile>,
+    @InjectRepository(MarketplacePestService) private pestServicesRepo: Repository<MarketplacePestService>,
+    @InjectRepository(MarketplacePestPackage) private pestPackagesRepo: Repository<MarketplacePestPackage>,
+    @InjectRepository(MarketplacePestPackageSubscription) private pestPackageSubscriptionsRepo: Repository<MarketplacePestPackageSubscription>,
+    @InjectRepository(MarketplacePestPropertyProfile) private pestPropertyProfileRepo: Repository<MarketplacePestPropertyProfile>,
     @InjectRepository(VendorCapability) private capabilityRepo: Repository<VendorCapability>,
     @InjectRepository(ServicePrice) private servicePriceRepo: Repository<ServicePrice>,
     private configService: ConfigService,
@@ -89,6 +103,8 @@ export class MarketplaceService implements OnModuleInit {
     await this.seedCapabilityAndCatalog();
     await this.seedLawncareConfig();
     await this.seedLawncareCapabilityAndCatalog();
+    await this.seedPestConfig();
+    await this.seedPestCapabilityAndCatalog();
   }
 
   // ── Seeding ────────────────────────────────────────────────────────────
@@ -370,6 +386,183 @@ Exterior Maintenance Add-Ons
     }
   }
 
+  // Base/per-unit rates are normalized to a single consistent unit per
+  // dimension (matching the "First X" normalization pattern used for
+  // Lawncare) — e.g. Pest Control Membership's "+$3 per additional 500 sq
+  // ft" is stored as $0.006/sq ft, and every "+$X per additional 1/2 acre"
+  // row is stored as $(X*2)/acre — so computePestServicePrice()'s formula
+  // never needs to know about the sheet's original block sizes, only
+  // includedQty/customerPricePerUnit in the row's own canonical unit
+  // (sq ft for home-size-scaled rows, acres for acreage-scaled rows).
+  // Premium/Ultimate memberships are the only rows using both dimensions at
+  // once (customerPricePerUnit2/includedQty2 for acreage, alongside the
+  // sqft-based customerPricePerUnit/includedQty).
+  private async seedPestConfig() {
+    const services: Partial<MarketplacePestService>[] = [
+      {
+        key: 'initial_pest_treatment', label: 'Initial Pest Treatment', pricingUnit: 'Per Property',
+        includedQty: 2000, recommendedFrequency: 'One-time', subCostBase: 90, subCostPerUnit: 0.012,
+        customerPriceBase: 149, customerPricePerUnit: 0.02, volumeDiscountText: '5% (2), 10% (5), 15% (10+) properties',
+        sortOrder: 1,
+      },
+      {
+        key: 'quarterly_pest_treatment', label: 'Quarterly Pest Treatment', pricingUnit: 'Per Visit',
+        includedQty: 2000, recommendedFrequency: 'Quarterly', subCostBase: 55, subCostPerUnit: 0.009,
+        customerPriceBase: 95, customerPricePerUnit: 0.015, volumeDiscountText: '5% (2), 10% (5), 15% (10+) properties',
+        sortOrder: 2,
+      },
+      {
+        key: 'pest_control_membership', label: 'Pest Control Membership', pricingUnit: 'Monthly',
+        includedQty: 2000, recommendedFrequency: 'Monthly', subCostBase: 22, subCostPerUnit: 0.0036,
+        customerPriceBase: 39, customerPricePerUnit: 0.006, volumeDiscountText: '10% additional properties',
+        sortOrder: 3,
+      },
+      {
+        key: 'premium_pest_mosquito_membership', label: 'Premium Pest + Mosquito Membership', pricingUnit: 'Monthly',
+        includedQty: 2000, includedQty2: 0.5, recommendedFrequency: 'Monthly', subCostBase: 40, subCostPerUnit: 0.006,
+        subCostPerUnit2: 12, customerPriceBase: 69, customerPricePerUnit: 0.01, customerPricePerUnit2: 20,
+        volumeDiscountText: '10% (2), 15% (5+) properties',
+        sortOrder: 4,
+      },
+      {
+        key: 'ultimate_protection_membership', label: 'Ultimate Protection Membership', pricingUnit: 'Monthly',
+        includedQty: 2000, includedQty2: 0.5, recommendedFrequency: 'Monthly', subCostBase: 58, subCostPerUnit: 0.006,
+        subCostPerUnit2: 12, customerPriceBase: 99, customerPricePerUnit: 0.01, customerPricePerUnit2: 20,
+        volumeDiscountText: '10% (2), 15% (5+) properties',
+        sortOrder: 5,
+      },
+      {
+        key: 'mosquito_treatment', label: 'Mosquito Treatment', pricingUnit: 'Per Visit',
+        includedQty: 0.5, recommendedFrequency: 'Every 45 Days', subCostBase: 46, subCostPerUnit: 24,
+        customerPriceBase: 79, customerPricePerUnit: 40,
+        volumeDiscountText: '10% for seasonal package',
+        frequencyDiscounts: [{ frequency: 'SEASONAL_PACKAGE', label: 'Seasonal Package', ratePercent: 10 }],
+        sortOrder: 6,
+      },
+      {
+        key: 'flea_tick_treatment', label: 'Flea & Tick Treatment', pricingUnit: 'Per Visit',
+        includedQty: 0.5, recommendedFrequency: 'As needed', subCostBase: 86, subCostPerUnit: 15,
+        customerPriceBase: 149, customerPricePerUnit: 50,
+        volumeDiscountText: '10% with mosquito plan',
+        membershipBenefit: { requiredPackageKeys: ['premium_protection', 'ultimate_protection'], type: 'PERCENT_OFF', ratePercent: 10 },
+        sortOrder: 7,
+      },
+      {
+        key: 'fire_ant_treatment', label: 'Fire Ant Treatment', pricingUnit: 'Per Property',
+        includedQty: 0.5, recommendedFrequency: 'As needed', subCostBase: 58, subCostPerUnit: 12,
+        customerPriceBase: 99, customerPricePerUnit: 40, volumeDiscountText: '10% (2+) properties',
+        sortOrder: 8,
+      },
+      {
+        key: 'rodent_inspection', label: 'Rodent Inspection', pricingUnit: 'Per Property',
+        includedQty: 0, recommendedFrequency: 'Quarterly', subCostBase: 58, subCostPerUnit: 0,
+        customerPriceBase: 99, customerPricePerUnit: 0, volumeDiscountText: 'Included with Ultimate',
+        membershipBenefit: { requiredPackageKeys: ['ultimate_protection'], type: 'FREE' },
+        sortOrder: 9,
+      },
+      {
+        key: 'rodent_bait_station_service', label: 'Rodent Bait Station Service', pricingUnit: 'Per Property (4 stations)',
+        includedQty: 4, recommendedFrequency: 'Quarterly', subCostBase: 88, subCostPerUnit: 15,
+        customerPriceBase: 149, customerPricePerUnit: 25, volumeDiscountText: '10% with membership',
+        membershipBenefit: { requiredPackageKeys: ['basic_protection', 'premium_protection', 'ultimate_protection'], type: 'PERCENT_OFF', ratePercent: 10 },
+        sortOrder: 10,
+      },
+      {
+        key: 'wasp_nest_removal', label: 'Wasp Nest Removal', pricingUnit: 'Per Nest',
+        includedQty: 1, recommendedFrequency: 'As needed', subCostBase: 52, subCostPerUnit: 24,
+        customerPriceBase: 89, customerPricePerUnit: 40, volumeDiscountText: '15% for 3+ nests',
+        volumeDiscountThreshold1: 3, volumeDiscountRate1: 15,
+        sortOrder: 11,
+      },
+      {
+        key: 'crawlspace_attic_inspection', label: 'Crawlspace/Attic Inspection', pricingUnit: 'Per Property',
+        includedQty: 0, recommendedFrequency: 'Annual', subCostBase: 46, subCostPerUnit: 0,
+        customerPriceBase: 79, customerPricePerUnit: 0, volumeDiscountText: 'Included with Ultimate',
+        membershipBenefit: { requiredPackageKeys: ['ultimate_protection'], type: 'FREE' },
+        sortOrder: 12,
+      },
+      {
+        key: 'emergency_pest_visit', label: 'Emergency Pest Visit', pricingUnit: 'Per Visit',
+        includedQty: 0, recommendedFrequency: 'One-Time / Follow-Up as Needed', subCostBase: 76, subCostPerUnit: 0,
+        customerPriceBase: 129, customerPricePerUnit: 0, volumeDiscountText: 'Free for Premium & Ultimate',
+        membershipBenefit: { requiredPackageKeys: ['premium_protection', 'ultimate_protection'], type: 'FREE' },
+        sortOrder: 13,
+      },
+      {
+        key: 'annual_pest_inspection', label: 'Annual Pest Inspection', pricingUnit: 'Per Property',
+        includedQty: 0, recommendedFrequency: 'Annual', subCostBase: 58, subCostPerUnit: 0,
+        customerPriceBase: 99, customerPricePerUnit: 0, volumeDiscountText: 'Included with Membership',
+        membershipBenefit: { requiredPackageKeys: ['basic_protection', 'premium_protection', 'ultimate_protection'], type: 'FREE' },
+        sortOrder: 14,
+      },
+    ];
+    for (const s of services) {
+      const existing = await this.pestServicesRepo.findOne({ where: { key: s.key } });
+      if (!existing) await this.pestServicesRepo.save(this.pestServicesRepo.create(s));
+    }
+
+    const packages: Partial<MarketplacePestPackage>[] = [
+      {
+        key: 'basic_protection', label: 'Basic Protection',
+        description: 'Quarterly pest control treatments to keep common household pests out year-round.',
+        composition: [{ serviceKey: 'quarterly_pest_treatment', visitsPerYear: 4 }],
+        monthlyPrice: 39, sortOrder: 1,
+      },
+      {
+        key: 'premium_protection', label: 'Premium Protection',
+        description: 'Quarterly pest control plus mosquito treatments every 45 days through mosquito season.',
+        composition: [
+          { serviceKey: 'quarterly_pest_treatment', visitsPerYear: 4 },
+          { serviceKey: 'mosquito_treatment', visitsPerYear: 8 },
+        ],
+        monthlyPrice: 69, sortOrder: 2,
+      },
+      {
+        key: 'ultimate_protection', label: 'Ultimate Protection',
+        description: 'Quarterly pest control, mosquito treatments, and quarterly rodent bait station service — our most complete coverage, including free Rodent Inspection, Crawlspace/Attic Inspection, and Emergency Pest Visits.',
+        composition: [
+          { serviceKey: 'quarterly_pest_treatment', visitsPerYear: 4 },
+          { serviceKey: 'mosquito_treatment', visitsPerYear: 8 },
+          { serviceKey: 'rodent_bait_station_service', visitsPerYear: 4 },
+        ],
+        monthlyPrice: 99, sortOrder: 3,
+      },
+    ];
+    for (const p of packages) {
+      const existing = await this.pestPackagesRepo.findOne({ where: { key: p.key } });
+      if (!existing) await this.pestPackagesRepo.save(this.pestPackagesRepo.create(p));
+    }
+  }
+
+  private async seedPestCapabilityAndCatalog() {
+    let capability = await this.capabilityRepo.findOne({ where: { name: PEST_CONTROL_CAPABILITY_NAME } });
+    if (!capability) {
+      capability = await this.capabilityRepo.save(this.capabilityRepo.create({ name: PEST_CONTROL_CAPABILITY_NAME }));
+      const vendors = await this.usersService.findAllActiveVendors();
+      if (vendors.length > 0) {
+        await this.notificationsService.notifyVendors(
+          vendors, NotificationType.NEW_CAPABILITY_AVAILABLE, 'New Capability Available',
+          `"${capability.name}" has been added — update your profile if you'd like to offer it.`,
+          { screen: 'capabilities' },
+        ).catch(() => {});
+      }
+    }
+
+    const existing = await this.servicePriceRepo.findOne({ where: { name: PEST_CONTROL_CATALOG_NAME } });
+    if (!existing) {
+      await this.servicePriceRepo.save(this.servicePriceRepo.create({
+        name: PEST_CONTROL_CATALOG_NAME,
+        description: 'Pest, mosquito, and rodent control, tailored to your property.',
+        basePrice: 0,
+        pricingMethod: PricingMethod.FLAT_PRICE,
+        category: ServiceCategory.PEST_CONTROL,
+        serviceGroups: [ServiceGroup.MARKETPLACE],
+        customerRequestable: true,
+        requiredCapabilityId: capability.id,
+      }));
+    }
+  }
+
   // ── Config lookups ─────────────────────────────────────────────────────
 
   async getConfig() {
@@ -400,6 +593,25 @@ Exterior Maintenance Add-Ons
     if (!profile) profile = this.lawncarePropertyProfileRepo.create({ customerId });
     Object.assign(profile, data);
     return this.lawncarePropertyProfileRepo.save(profile);
+  }
+
+  async getPestConfig() {
+    const [services, packages] = await Promise.all([
+      this.pestServicesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
+      this.pestPackagesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
+    ]);
+    return { services, packages };
+  }
+
+  async getPestPropertyProfile(customerId: string) {
+    return this.pestPropertyProfileRepo.findOne({ where: { customerId } });
+  }
+
+  async upsertPestPropertyProfile(customerId: string, data: UpsertPestPropertyProfileDto) {
+    let profile = await this.pestPropertyProfileRepo.findOne({ where: { customerId } });
+    if (!profile) profile = this.pestPropertyProfileRepo.create({ customerId });
+    Object.assign(profile, data);
+    return this.pestPropertyProfileRepo.save(profile);
   }
 
   private async getActivePlan(cleaningType: CleaningType): Promise<MarketplaceCleaningPlan> {
@@ -746,6 +958,168 @@ Exterior Maintenance Add-Ons
     });
   }
 
+  // ── Pest Control: quote / package subscribe (billing-only) / on-demand booking ─
+
+  private async computePestPackageMonthlyPrice(customerId: string, pkg: MarketplacePestPackage): Promise<number> {
+    const profile = await this.pestPropertyProfileRepo.findOne({ where: { customerId } });
+    if (!profile) throw new BadRequestException('Complete your property details first.');
+
+    const allServices = await this.pestServicesRepo.find();
+    const byKey = new Map(allServices.map((s) => [s.key, s]));
+
+    let annualTotal = 0;
+    for (const item of pkg.composition) {
+      const service = byKey.get(item.serviceKey);
+      if (!service) continue;
+      const qty = resolvePestServiceQty(service.key, profile) ?? 0;
+      const qty2 = resolvePestServiceQty2(service.key, profile);
+      // Membership benefits never apply to a package's own composition
+      // pricing — they only discount/comp on-demand add-on bookings made BY
+      // an existing member, so this is intentionally computed at full price.
+      const { price } = computePestServicePrice(service, qty, qty2);
+      annualTotal += price * item.visitsPerYear;
+    }
+    return Math.round((annualTotal / 12) * 100) / 100;
+  }
+
+  // Manual-qty services (Rodent Bait Station/Wasp Nest Removal) require an
+  // explicit qty; every other service defaults to the property-profile-
+  // resolved qty, overridable by the caller, same pattern as Lawncare.
+  private async resolvePestBookingQty(customerId: string, serviceKey: string, providedQty?: number): Promise<{ qty: number; qty2: number }> {
+    const profile = await this.pestPropertyProfileRepo.findOne({ where: { customerId } });
+    if (providedQty != null) return { qty: providedQty, qty2: resolvePestServiceQty2(serviceKey, profile) };
+    if (isManualQtyPestService(serviceKey)) {
+      throw new BadRequestException('A quantity is required for this service.');
+    }
+    if (!profile) throw new BadRequestException('Complete your property details first.');
+    return { qty: resolvePestServiceQty(serviceKey, profile) ?? 0, qty2: resolvePestServiceQty2(serviceKey, profile) };
+  }
+
+  // The customer's currently-active Pest Control package, if any — drives
+  // membership-conditional pricing (e.g. "Included with Ultimate"). Assumes
+  // at most one active pest package subscription per customer.
+  private async getActivePestMembershipPackageKey(customerId: string): Promise<string | null> {
+    const active = await this.pestPackageSubscriptionsRepo.findOne({
+      where: { customerId, status: MarketplaceSubscriptionStatus.ACTIVE },
+    });
+    return active?.packageKey ?? null;
+  }
+
+  async quotePest(customerId: string, dto: QuotePestDto): Promise<
+    { type: 'package'; monthlyPrice: number } | { type: 'service'; price: number; discountRate: number; comped: boolean }
+  > {
+    if (dto.mode === 'package') {
+      if (!dto.packageKey) throw new BadRequestException('packageKey is required for mode "package".');
+      const pkg = await this.pestPackagesRepo.findOne({ where: { key: dto.packageKey, isActive: true } });
+      if (!pkg) throw new NotFoundException('Package not found.');
+      const monthlyPrice = await this.computePestPackageMonthlyPrice(customerId, pkg);
+      return { type: 'package', monthlyPrice };
+    }
+
+    if (!dto.serviceKey) throw new BadRequestException('serviceKey is required for mode "service".');
+    const service = await this.pestServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
+    if (!service) throw new NotFoundException('Service not found.');
+    const { qty, qty2 } = await this.resolvePestBookingQty(customerId, service.key, dto.qty);
+    const membershipPackageKey = await this.getActivePestMembershipPackageKey(customerId);
+    const { price, discountRate, comped } = computePestServicePrice(service, qty, qty2, dto.frequency, membershipPackageKey);
+    return { type: 'service', price, discountRate, comped };
+  }
+
+  // Billing-only: charges a flat monthly Stripe subscription computed fresh
+  // from the package's composition against the customer's property profile.
+  async subscribePestPackage(customerId: string, dto: SubscribePestPackageDto): Promise<{
+    subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null;
+  }> {
+    const pkg = await this.pestPackagesRepo.findOne({ where: { key: dto.packageKey, isActive: true } });
+    if (!pkg) throw new NotFoundException('Package not found.');
+
+    const coreSubscription = await this.subscriptionsService.getActiveSubscription(customerId);
+    if (!coreSubscription) throw new BadRequestException('An active Attenteve plan is required to subscribe to Marketplace services.');
+
+    const monthlyPrice = await this.computePestPackageMonthlyPrice(customerId, pkg);
+
+    const stripeCustomerId = await this.subscriptionsService.getOrCreateStripeCustomer(customerId);
+    const customer = await this.stripe.customers.retrieve(stripeCustomerId);
+    const defaultPaymentMethod = !('deleted' in customer)
+      ? (customer.invoice_settings?.default_payment_method as string | null)
+      : null;
+    if (!defaultPaymentMethod) {
+      throw new BadRequestException('Add a payment method in Payments before subscribing to a Marketplace service.');
+    }
+
+    const product = await this.ensurePestPackageStripeProduct();
+
+    const stripeSub = await this.stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [{
+        price_data: {
+          currency: 'usd',
+          product: product.id,
+          unit_amount: Math.round(monthlyPrice * 100),
+          recurring: { interval: 'month' },
+        },
+      }],
+      default_payment_method: defaultPaymentMethod,
+      payment_behavior: 'default_incomplete',
+      expand: ['latest_invoice.payment_intent'],
+      metadata: { type: 'marketplace_pest_package', customerId, packageKey: dto.packageKey },
+    });
+
+    const saved = await this.pestPackageSubscriptionsRepo.save(this.pestPackageSubscriptionsRepo.create({
+      customerId,
+      packageKey: dto.packageKey,
+      computedMonthlyPrice: monthlyPrice,
+      status: MarketplaceSubscriptionStatus.ACTIVE,
+      startDate: new Date(),
+      stripeSubscriptionId: stripeSub.id,
+    }));
+
+    const invoice = stripeSub.latest_invoice as Stripe.Invoice;
+    const pi = invoice?.payment_intent as Stripe.PaymentIntent | undefined;
+    const charged = pi?.status === 'succeeded';
+
+    return {
+      subscriptionId: saved.id,
+      monthlyPrice,
+      charged,
+      clientSecret: charged ? null : (pi?.client_secret ?? null),
+    };
+  }
+
+  private async ensurePestPackageStripeProduct(): Promise<Stripe.Product> {
+    const products = await this.stripe.products.list({ limit: 100, active: true });
+    const existing = products.data.find((p) => p.name === 'Pest Control Package Subscription');
+    if (existing) return existing;
+    return this.stripe.products.create({ name: 'Pest Control Package Subscription' });
+  }
+
+  async bookPestService(customerId: string, dto: BookPestServiceDto) {
+    const service = await this.pestServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
+    if (!service) throw new NotFoundException('Service not found.');
+    const { qty, qty2 } = await this.resolvePestBookingQty(customerId, service.key, dto.qty);
+    const membershipPackageKey = await this.getActivePestMembershipPackageKey(customerId);
+    const { price } = computePestServicePrice(service, qty, qty2, dto.frequency, membershipPackageKey);
+
+    const pestCatalogPrice = await this.servicePriceRepo.findOne({ where: { name: PEST_CONTROL_CATALOG_NAME } });
+    if (!pestCatalogPrice) throw new NotFoundException('Pest Control is not currently available.');
+
+    const customer = await this.usersService.findById(customerId);
+    const profile = customer.customerProfile;
+    if (!profile) throw new BadRequestException('A saved address is required to book a Pest Control service.');
+
+    return this.serviceRequestsService.createMarketplaceBooking(customerId, {
+      servicePriceId: pestCatalogPrice.id,
+      preferredDate: dto.preferredDate,
+      price,
+      address: profile.address,
+      city: profile.city,
+      state: profile.state,
+      zipCode: profile.zipCode,
+      nameOverride: service.label,
+      descriptionOverride: `${service.label} — ${qty} (${service.pricingUnit})`,
+    });
+  }
+
   // ── Recurring visit generation (called by MarketplaceVisitSchedulerService) ─
 
   async generateDueVisits(): Promise<number> {
@@ -820,6 +1194,12 @@ Exterior Maintenance Add-Ons
         lawncareSub.status = MarketplaceSubscriptionStatus.ACTIVE;
         await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
       }
+
+      const pestSub = await this.pestPackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (pestSub && pestSub.status !== MarketplaceSubscriptionStatus.ACTIVE) {
+        pestSub.status = MarketplaceSubscriptionStatus.ACTIVE;
+        await this.pestPackageSubscriptionsRepo.save(pestSub);
+      }
     }
 
     if (event.type === 'invoice.payment_failed') {
@@ -841,6 +1221,12 @@ Exterior Maintenance Add-Ons
         lawncareSub.status = MarketplaceSubscriptionStatus.PAST_DUE;
         await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
       }
+
+      const pestSub = await this.pestPackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (pestSub) {
+        pestSub.status = MarketplaceSubscriptionStatus.PAST_DUE;
+        await this.pestPackageSubscriptionsRepo.save(pestSub);
+      }
     }
 
     if (event.type === 'customer.subscription.deleted') {
@@ -861,6 +1247,13 @@ Exterior Maintenance Add-Ons
         lawncareSub.status = MarketplaceSubscriptionStatus.CANCELLED;
         lawncareSub.cancelledAt = new Date();
         await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
+      }
+
+      const pestSub = await this.pestPackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSub.id } });
+      if (pestSub && pestSub.status !== MarketplaceSubscriptionStatus.CANCELLED) {
+        pestSub.status = MarketplaceSubscriptionStatus.CANCELLED;
+        pestSub.cancelledAt = new Date();
+        await this.pestPackageSubscriptionsRepo.save(pestSub);
       }
     }
   }
@@ -900,5 +1293,15 @@ Exterior Maintenance Add-Ons
   async updateLawncarePackage(id: string, data: Partial<MarketplaceLawncarePackage>) {
     await this.lawncarePackagesRepo.update(id, data);
     return this.lawncarePackagesRepo.findOne({ where: { id } });
+  }
+
+  async updatePestService(id: string, data: Partial<MarketplacePestService>) {
+    await this.pestServicesRepo.update(id, data);
+    return this.pestServicesRepo.findOne({ where: { id } });
+  }
+
+  async updatePestPackage(id: string, data: Partial<MarketplacePestPackage>) {
+    await this.pestPackagesRepo.update(id, data);
+    return this.pestPackagesRepo.findOne({ where: { id } });
   }
 }

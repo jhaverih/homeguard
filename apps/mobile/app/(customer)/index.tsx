@@ -21,11 +21,11 @@ const isServiceAvailable = (item: any, availableCapabilityIds: Set<string> | 'al
   !item.requiredCapabilityId || availableCapabilityIds === 'all' || availableCapabilityIds.has(item.requiredCapabilityId);
 
 // Categories with a dedicated configuration flow (bespoke pricing tables)
-// instead of the standard request.tsx browse-and-book screen — Pest Control
-// is still just a category placeholder with no catalog item yet.
+// instead of the standard request.tsx browse-and-book screen.
 const MARKETPLACE_ROUTES: Record<string, string> = {
   HOUSE_CLEANING: '/(customer)/marketplace-house-cleaning',
   LAWN_LANDSCAPING: '/(customer)/marketplace-lawncare',
+  PEST_CONTROL: '/(customer)/marketplace-pest-control',
 };
 const MARKETPLACE_CATEGORIES = new Set(Object.keys(MARKETPLACE_ROUTES));
 const routeForItem = (item: any) =>

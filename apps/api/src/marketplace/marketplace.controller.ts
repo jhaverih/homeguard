@@ -12,6 +12,9 @@ import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
 import {
   QuoteLawncareDto, SubscribeLawncarePackageDto, BookLawncareServiceDto, UpsertLawncarePropertyProfileDto,
 } from './dto/quote-lawncare.dto';
+import {
+  QuotePestDto, SubscribePestPackageDto, BookPestServiceDto, UpsertPestPropertyProfileDto,
+} from './dto/quote-pest.dto';
 import { IsDateString } from 'class-validator';
 
 class BookOneTimeCleaningDto extends QuoteHouseCleaningDto {
@@ -173,5 +176,71 @@ export class MarketplaceController {
   @MinAdminLevel(AdminLevel.ADMIN)
   updateLawncarePackage(@Param('id') id: string, @Body() data: any) {
     return this.service.updateLawncarePackage(id, data);
+  }
+
+  @Get('pest/config')
+  @ApiOperation({ summary: 'Pest Control services and subscription packages' })
+  getPestConfig() {
+    return this.service.getPestConfig();
+  }
+
+  @Get('pest/property-profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: fetch their saved Pest Control property profile (home sq ft, acreage)' })
+  getPestPropertyProfile(@Request() req) {
+    return this.service.getPestPropertyProfile(req.user.id);
+  }
+
+  @Put('pest/property-profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: create/update their Pest Control property profile — captured once, reused for every package/service price' })
+  upsertPestPropertyProfile(@Body() dto: UpsertPestPropertyProfileDto, @Request() req) {
+    return this.service.upsertPestPropertyProfile(req.user.id, dto);
+  }
+
+  @Post('pest/quote')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: compute a Pest Control price before committing (package computed from composition + property profile, or a single service)' })
+  quotePest(@Body() dto: QuotePestDto, @Request() req) {
+    return this.service.quotePest(req.user.id, dto);
+  }
+
+  @Post('pest/subscribe')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: subscribe to a Pest Control package (billing only, no auto-scheduled visits)' })
+  subscribePestPackage(@Body() dto: SubscribePestPackageDto, @Request() req) {
+    return this.service.subscribePestPackage(req.user.id, dto);
+  }
+
+  @Post('pest/book')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: book a single on-demand Pest Control service' })
+  bookPestService(@Body() dto: BookPestServiceDto, @Request() req) {
+    return this.service.bookPestService(req.user.id, dto);
+  }
+
+  @Patch('pest/services/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a Pest Control service (pricing, volume discount, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updatePestService(@Param('id') id: string, @Body() data: any) {
+    return this.service.updatePestService(id, data);
+  }
+
+  @Patch('pest/packages/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a Pest Control subscription package (price, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updatePestPackage(@Param('id') id: string, @Body() data: any) {
+    return this.service.updatePestPackage(id, data);
   }
 }
