@@ -131,7 +131,10 @@ export default function MarketplaceLawncareScreen() {
       if (next[service.key]) {
         delete next[service.key];
       } else {
-        const defaultQty = MANUAL_QTY_SERVICES.has(service.key) ? '' : String(displayQtyFromProfile(service.key, profile) ?? 0);
+        // lawn_mowing is tier-priced — qty is meaningless to the price, but
+        // book() still requires a positive number, so fix it at 1 and hide
+        // the input entirely rather than asking the customer to enter it.
+        const defaultQty = service.key === 'lawn_mowing' ? '1' : MANUAL_QTY_SERVICES.has(service.key) ? '' : String(displayQtyFromProfile(service.key, profile) ?? 0);
         next[service.key] = { qty: defaultQty, frequency: service.frequencyDiscounts?.length > 0 ? 'MONTHLY' : undefined };
       }
       return next;
@@ -368,15 +371,17 @@ export default function MarketplaceLawncareScreen() {
 
                       {selected && (
                         <View style={styles.addOnDetails}>
-                          <View style={styles.qtyRow}>
-                            <Text style={styles.qtyLabel}>Quantity ({s.pricingUnit})</Text>
-                            <TextInput
-                              style={styles.profileFieldInput}
-                              keyboardType="numeric"
-                              value={sel.qty}
-                              onChangeText={(v) => updateAddOnQty(s.key, v)}
-                            />
-                          </View>
+                          {s.key !== 'lawn_mowing' && (
+                            <View style={styles.qtyRow}>
+                              <Text style={styles.qtyLabel}>Quantity ({s.pricingUnit})</Text>
+                              <TextInput
+                                style={styles.profileFieldInput}
+                                keyboardType="numeric"
+                                value={sel.qty}
+                                onChangeText={(v) => updateAddOnQty(s.key, v)}
+                              />
+                            </View>
+                          )}
 
                           {s.frequencyDiscounts?.length > 0 && (
                             <View style={styles.freqRow}>
@@ -386,7 +391,7 @@ export default function MarketplaceLawncareScreen() {
                                   style={[styles.freqChip, sel.frequency === f.frequency && styles.freqChipActive]}
                                   onPress={() => updateAddOnFrequency(s.key, f.frequency)}
                                 >
-                                  <Text style={[styles.freqChipText, sel.frequency === f.frequency && styles.freqChipTextActive]}>{f.label} (-{f.ratePercent}%)</Text>
+                                  <Text style={[styles.freqChipText, sel.frequency === f.frequency && styles.freqChipTextActive]}>{f.label}{f.ratePercent > 0 ? ` (-${f.ratePercent}%)` : ''}</Text>
                                 </TouchableOpacity>
                               ))}
                             </View>

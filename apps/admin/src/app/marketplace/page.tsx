@@ -380,6 +380,7 @@ export default function MarketplacePage() {
           <tbody className="divide-y divide-canvas">
             {config.lawncareServices.map((s: any) => {
               const d = drafts[s.id] ?? s;
+              const tierPriced = s.key === 'lawn_mowing';
               return (
                 <tr key={s.id}>
                   <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{s.label}</td>
@@ -390,16 +391,16 @@ export default function MarketplacePage() {
                     <input type="text" value={d.recommendedFrequency} onChange={(e) => setField(s.id, 'recommendedFrequency', e.target.value)} className="w-28 border border-border rounded px-2 py-1" />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <input type="number" step="0.01" value={d.subCostBase} onChange={(e) => setField(s.id, 'subCostBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                    <input type="number" step="0.01" value={d.subCostBase} disabled={tierPriced} title={tierPriced ? 'Ignored — priced from Size Tiers below' : undefined} onChange={(e) => setField(s.id, 'subCostBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right disabled:opacity-30 disabled:bg-canvas" />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <input type="number" step="0.01" value={d.subCostPerUnit} onChange={(e) => setField(s.id, 'subCostPerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                    <input type="number" step="0.01" value={d.subCostPerUnit} disabled={tierPriced} title={tierPriced ? 'Ignored — priced from Size Tiers below' : undefined} onChange={(e) => setField(s.id, 'subCostPerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right disabled:opacity-30 disabled:bg-canvas" />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <input type="number" step="0.01" value={d.customerPriceBase} onChange={(e) => setField(s.id, 'customerPriceBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                    <input type="number" step="0.01" value={d.customerPriceBase} disabled={tierPriced} title={tierPriced ? 'Ignored — priced from Size Tiers below' : undefined} onChange={(e) => setField(s.id, 'customerPriceBase', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right disabled:opacity-30 disabled:bg-canvas" />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <input type="number" step="0.01" value={d.customerPricePerUnit} onChange={(e) => setField(s.id, 'customerPricePerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                    <input type="number" step="0.01" value={d.customerPricePerUnit} disabled={tierPriced} title={tierPriced ? 'Ignored — priced from Size Tiers below' : undefined} onChange={(e) => setField(s.id, 'customerPricePerUnit', e.target.value)} className="w-20 border border-border rounded px-2 py-1 text-right disabled:opacity-30 disabled:bg-canvas" />
                   </td>
                   <td className="px-3 py-2">
                     <input type="text" value={d.volumeDiscountText} onChange={(e) => setField(s.id, 'volumeDiscountText', e.target.value)} className="w-44 border border-border rounded px-2 py-1" />

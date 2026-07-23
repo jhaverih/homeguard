@@ -234,7 +234,7 @@ export class MarketplaceService implements OnModuleInit {
   // prices with no additional-unit component.
   private async seedLawncareConfig() {
     const services: Partial<MarketplaceLawncareService>[] = [
-      { key: 'lawn_mowing', label: 'Lawn Mowing', pricingUnit: 'Per Visit', includedQty: 0, recommendedFrequency: 'Weekly (Apr–Oct), Biweekly (Nov–Mar)', subCostBase: 35, subCostPerUnit: 5, customerPriceBase: 60, customerPricePerUnit: 8, volumeDiscountText: 'Weekly: 15%, Biweekly: 5%', frequencyDiscounts: [{ frequency: 'WEEKLY', label: 'Weekly', ratePercent: 15 }, { frequency: 'BIWEEKLY', label: 'Biweekly', ratePercent: 5 }], sortOrder: 1 },
+      { key: 'lawn_mowing', label: 'Lawn Mowing', pricingUnit: 'Per Visit', includedQty: 0, recommendedFrequency: 'Weekly (Apr–Oct), Biweekly (Nov–Mar)', subCostBase: 35, subCostPerUnit: 5, customerPriceBase: 60, customerPricePerUnit: 8, volumeDiscountText: 'Weekly: 15%, Biweekly: 5%', frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0 }, { frequency: 'WEEKLY', label: 'Weekly', ratePercent: 15 }, { frequency: 'BIWEEKLY', label: 'Biweekly', ratePercent: 5 }], sortOrder: 1 },
       { key: 'mulch_installation', label: 'Mulch Installation', pricingUnit: 'First 3 CY', includedQty: 3, recommendedFrequency: '1× per year', subCostBase: 80, subCostPerUnit: 20, customerPriceBase: 140, customerPricePerUnit: 35, volumeDiscountText: '10+ CY: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 2 },
       { key: 'shrub_trimming', label: 'Shrub Trimming', pricingUnit: 'First 5 shrubs', includedQty: 5, recommendedFrequency: '2–4× per year', subCostBase: 70, subCostPerUnit: 10, customerPriceBase: 125, customerPricePerUnit: 20, volumeDiscountText: '20+ shrubs: 10%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, sortOrder: 3 },
       { key: 'leaf_removal', label: 'Leaf Removal', pricingUnit: 'First 5,000 SF', includedQty: 5000, recommendedFrequency: '2–6× per Fall', subCostBase: 85, subCostPerUnit: 12, customerPriceBase: 150, customerPricePerUnit: 20, volumeDiscountText: 'Seasonal package: 15%', frequencyDiscounts: [{ frequency: 'SEASONAL_PACKAGE', label: 'Seasonal Package', ratePercent: 15 }], sortOrder: 4 },
@@ -271,6 +271,14 @@ export class MarketplaceService implements OnModuleInit {
           { key: 'ESTATE', label: 'Estate (2 to 5 acres)', maxSF: 20000, vendorBase: 95, vendorAddlRate: null, customerBase: 156, customerAddlRate: null, requiresQuote: false },
           { key: 'LARGE_ESTATE', label: 'Large Estate (over 5 acres)', maxSF: null, vendorBase: null, vendorAddlRate: null, customerBase: null, customerAddlRate: null, requiresQuote: true },
         ],
+      });
+    }
+    // One-time backfill: the row was already seeded (above `!existing` guard
+    // no longer applies) before Monthly existed as a selectable frequency —
+    // add it without disturbing an admin's own edits to the other entries.
+    if (lawnMowing && !lawnMowing.frequencyDiscounts?.some((f) => f.frequency === 'MONTHLY')) {
+      await this.lawncareServicesRepo.update(lawnMowing.id, {
+        frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0 }, ...(lawnMowing.frequencyDiscounts ?? [])],
       });
     }
 
