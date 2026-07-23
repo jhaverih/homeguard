@@ -28,6 +28,17 @@ export class QuoteLawncareDto {
   @IsOptional()
   @IsString()
   frequency?: string;
+
+  // Preview-only, mode "service" only: lets the customer see what a
+  // membershipBenefit-gated discount (e.g. Leaf Removal's Seasonal Package
+  // rate) would look like if they also subscribe to this package in the
+  // same order, before that subscription actually exists. NEVER trusted for
+  // real charging — bookLawncareService/subscribeLawncareService always
+  // resolve the customer's real active package subscription, ignoring
+  // anything client-supplied.
+  @IsOptional()
+  @IsString()
+  assumePackageKey?: string;
 }
 
 export class BookLawncareServiceDto {

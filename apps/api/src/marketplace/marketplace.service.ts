@@ -1050,7 +1050,12 @@ Exterior Maintenance Add-Ons
     if (!service) throw new NotFoundException('Service not found.');
     const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     const qty = this.resolveLawncareBookingQty(profile, service.key, dto.qty);
-    const membershipPackageKey = await this.getActiveLawncareMembershipPackageKey(customerId);
+    // assumePackageKey is preview-only (see QuoteLawncareDto) — lets the
+    // customer see what a membershipBenefit discount would look like if
+    // they also subscribe to that package in the same order, before the
+    // real subscription exists. bookLawncareService/subscribeLawncareService
+    // never accept or trust this — they only ever look up a real active one.
+    const membershipPackageKey = dto.assumePackageKey ?? await this.getActiveLawncareMembershipPackageKey(customerId);
     const { price, discountRate, requiresQuote, monthlyPrice } = computeLawncareServicePrice(service, qty, dto.frequency, profile, membershipPackageKey);
     return { type: 'service', price, discountRate, requiresQuote: !!requiresQuote, monthlyPrice };
   }

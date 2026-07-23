@@ -118,13 +118,15 @@ export default function MarketplaceLawncareScreen() {
     setPackageKey((prev) => (prev === key ? null : key));
   };
 
-  // Package mode: real computed price, depends on the saved profile.
+  // Package price stays live regardless of which tab is currently shown —
+  // the combined order summary at the bottom needs it whether the customer
+  // is browsing "Choose a Plan" or "Add-on Services".
   useEffect(() => {
-    if (mode !== 'package' || !selectedPackage || !hasProfile || editingProfile) { setPackageQuote(null); return; }
+    if (!selectedPackage || !hasProfile || editingProfile) { setPackageQuote(null); return; }
     setPackageQuoting(true);
     marketplaceApi.quoteLawncare({ mode: 'package', packageKey: selectedPackage.key })
       .then((q: any) => setPackageQuote(q)).catch(() => setPackageQuote(null)).finally(() => setPackageQuoting(false));
-  }, [mode, selectedPackage, hasProfile, editingProfile]);
+  }, [selectedPackage, hasProfile, editingProfile]);
 
   const toggleAddOn = (service: any) => {
     setSelectedAddOns((prev) => {
@@ -150,7 +152,11 @@ export default function MarketplaceLawncareScreen() {
     setSelectedAddOns((prev) => ({ ...prev, [key]: { ...prev[key], frequency } }));
   };
 
-  // Debounced live quote, per selected add-on row.
+  // Debounced live quote, per selected add-on row. Also re-quotes whenever
+  // the selected (not-yet-subscribed) package changes, since a
+  // membershipBenefit-gated discount (e.g. Leaf Removal's Seasonal Package
+  // rate) needs to preview correctly for a package the customer is about to
+  // subscribe to in this same order, not just one they already have active.
   useEffect(() => {
     for (const [key, sel] of Object.entries(selectedAddOns)) {
       if (quoteTimers.current[key]) clearTimeout(quoteTimers.current[key]);
@@ -158,7 +164,7 @@ export default function MarketplaceLawncareScreen() {
       if (!sel.qty || Number.isNaN(qtyNum) || qtyNum <= 0) { setAddOnQuotes((p) => { const n = { ...p }; delete n[key]; return n; }); continue; }
       setAddOnQuoting((p) => ({ ...p, [key]: true }));
       quoteTimers.current[key] = setTimeout(() => {
-        marketplaceApi.quoteLawncare({ mode: 'service', serviceKey: key, qty: qtyNum, frequency: sel.frequency })
+        marketplaceApi.quoteLawncare({ mode: 'service', serviceKey: key, qty: qtyNum, frequency: sel.frequency, assumePackageKey: selectedPackage?.key })
           .then((q: any) => setAddOnQuotes((p) => ({ ...p, [key]: q })))
           .catch(() => setAddOnQuotes((p) => { const n = { ...p }; delete n[key]; return n; }))
           .finally(() => setAddOnQuoting((p) => ({ ...p, [key]: false })));
@@ -172,7 +178,7 @@ export default function MarketplaceLawncareScreen() {
     });
     return () => { Object.values(quoteTimers.current).forEach(clearTimeout); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAddOns]);
+  }, [selectedAddOns, selectedPackage]);
 
   // Combined total across everything selected: subscribable rows contribute
   // their real monthly charge, one-time rows contribute their per-visit
@@ -189,6 +195,17 @@ export default function MarketplaceLawncareScreen() {
   const hasOneTimeSelection = selectedAddOnKeys.some((key) => !subscribableKeys.has(key));
   const quotedSelections = Object.entries(addOnQuotes).filter(([, q]) => !q.requiresQuote);
 
+  // Package + add-ons combine into one order, reviewed together and placed
+  // in a single tap — a customer can select a package (not yet subscribed)
+  // and add-ons (some of which may only be discounted because of that
+  // package) at the same time, from either tab.
+  const packageUsable = !!(selectedPackage && packageQuote && !packageQuote.requiresQuote);
+  const orderTotal = (packageUsable ? packageQuote!.monthlyPrice : 0) + addOnTotal;
+  const orderHasMonthlyComponent = packageUsable || subscribableSelections.length > 0;
+  const anyRequiresQuote = anyAddOnRequiresQuote || !!packageQuote?.requiresQuote;
+  const anyQuoting = anyAddOnQuoting || packageQuoting;
+  const hasAnySelection = !!selectedPackage || selectedAddOnKeys.length > 0;
+
   const presentStripeSheet = async (clientSecret: string | null): Promise<boolean> => {
     if (!clientSecret) return true;
     const { error: initError } = await initPaymentSheet({ paymentIntentClientSecret: clientSecret, merchantDisplayName: 'Attenteve', allowsDelayedPaymentMethods: false });
@@ -198,39 +215,23 @@ export default function MarketplaceLawncareScreen() {
     return true;
   };
 
-  const doSubscribe = async () => {
-    if (!selectedPackage) return;
+  // Package subscription + every selected add-on go out together as one
+  // order. The package (if any) is subscribed FIRST — by the time the
+  // add-ons are booked/subscribed, that package is a real active
+  // subscription, so any membershipBenefit-gated discount (e.g. Leaf
+  // Removal's Seasonal Package rate) applies automatically and correctly,
+  // no special-casing needed on the booking side.
+  const placeOrder = async () => {
+    if (!hasAnySelection || anyRequiresQuote) return;
     setSubmitting(true);
     try {
-      const res = await marketplaceApi.subscribeLawncarePackage({ packageKey: selectedPackage.key });
-      if (!res.charged) {
-        const ok = await presentStripeSheet(res.clientSecret);
-        if (!ok) return;
+      if (packageUsable) {
+        const res = await marketplaceApi.subscribeLawncarePackage({ packageKey: selectedPackage.key });
+        if (!res.charged) {
+          const ok = await presentStripeSheet(res.clientSecret);
+          if (!ok) { setSubmitting(false); return; } // stop entirely — add-ons priced assuming this package shouldn't proceed without it
+        }
       }
-      Alert.alert('Subscribed!', `Your ${selectedPackage.label} plan is active at ${fmtUSD(res.monthlyPrice)}/month.`, [{ text: 'OK', onPress: () => router.back() }]);
-    } catch (e: any) {
-      Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const submitPackage = () => {
-    if (!selectedPackage || !packageQuote) return;
-    Alert.alert(
-      'Confirm Subscription',
-      `You'll be billed ${fmtUSD(packageQuote.monthlyPrice)}/month starting today, using the card already on file.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Subscribe', onPress: doSubscribe },
-      ],
-    );
-  };
-
-  const submitAddOns = async () => {
-    if (selectedAddOnKeys.length === 0 || anyAddOnRequiresQuote) return;
-    setSubmitting(true);
-    try {
       for (const key of selectedAddOnKeys) {
         const sel = selectedAddOns[key];
         if (addOnQuotes[key]?.monthlyPrice != null) {
@@ -250,7 +251,8 @@ export default function MarketplaceLawncareScreen() {
           });
         }
       }
-      Alert.alert('Done!', 'One-time services are being matched to a vendor, and any monthly subscriptions are now active.', [{ text: 'OK', onPress: () => router.back() }]);
+      Alert.alert('Order Placed!', 'Any subscriptions are active now, and one-time services are being matched to a vendor.', [{ text: 'OK', onPress: () => router.back() }]);
+      setPackageKey(null);
       setSelectedAddOns({});
     } catch (e: any) {
       Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
@@ -259,13 +261,27 @@ export default function MarketplaceLawncareScreen() {
     }
   };
 
+  const confirmPlaceOrder = () => {
+    const lines: string[] = [];
+    if (packageUsable) lines.push(`${selectedPackage.label}: ${fmtUSD(packageQuote!.monthlyPrice)}/month`);
+    if (selectedAddOnKeys.length > 0) lines.push(`${selectedAddOnKeys.length} add-on service${selectedAddOnKeys.length > 1 ? 's' : ''} selected`);
+    Alert.alert(
+      'Confirm Order',
+      `${lines.join('\n')}\n\nSubscriptions are billed today using the card on file; one-time services are billed when completed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Place Order', onPress: placeOrder },
+      ],
+    );
+  };
+
   if (loading || !config) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Lawncare</Text>
-        <Text style={styles.subtitle}>Subscribe to a monthly plan, or add specific services whenever you need them.</Text>
+        <Text style={styles.subtitle}>Choose a monthly plan, add specific services, or both — review everything together before you place your order.</Text>
 
         <Text style={styles.sectionLabel}>Property Details</Text>
         {editingProfile ? (
@@ -342,7 +358,7 @@ export default function MarketplaceLawncareScreen() {
             {mode === 'package' ? (
               <>
                 <Text style={styles.sectionLabel}>Choose a Plan</Text>
-                <Text style={styles.helperText}>Tap a plan to select it; tap again to deselect.</Text>
+                <Text style={styles.helperText}>Tap a plan to select it; tap again to deselect. Add services from the other tab before placing your order — everything combines into one order below.</Text>
                 {config.packages.map((p) => {
                   const selected = p.key === packageKey;
                   return (
@@ -356,31 +372,6 @@ export default function MarketplaceLawncareScreen() {
                     </TouchableOpacity>
                   );
                 })}
-
-                <View style={styles.priceCard}>
-                  {packageQuoting ? (
-                    <ActivityIndicator color={colors.lanternDeep} />
-                  ) : packageQuote?.requiresQuote ? (
-                    <>
-                      <Text style={styles.priceAmount}>Custom Quote</Text>
-                      <Text style={styles.priceSub}>Your property size requires a custom quote — contact support.</Text>
-                    </>
-                  ) : packageQuote ? (
-                    <>
-                      <Text style={styles.priceLabel}>Billed monthly</Text>
-                      <Text style={styles.priceAmount}>{fmtUSD(packageQuote.monthlyPrice)}<Text style={styles.pricePer}>/mo</Text></Text>
-                      <Text style={styles.priceSub}>Computed from your property details</Text>
-                    </>
-                  ) : null}
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.submitBtn, (submitting || packageQuoting || !packageQuote || packageQuote.requiresQuote) && styles.submitBtnDisabled]}
-                  onPress={submitPackage}
-                  disabled={submitting || packageQuoting || !packageQuote || packageQuote.requiresQuote}
-                >
-                  {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Subscribe</Text>}
-                </TouchableOpacity>
               </>
             ) : (
               <>
@@ -453,62 +444,66 @@ export default function MarketplaceLawncareScreen() {
                   );
                 })}
 
-                {selectedAddOnKeys.length > 0 && (
+              </>
+            )}
+
+            {hasAnySelection && (
+              <>
+                {hasOneTimeSelection && (
                   <>
-                    {hasOneTimeSelection && (
-                      <>
-                        <Text style={styles.sectionLabel}>Preferred Date</Text>
-                        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
-                          <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-                          <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
-                        </TouchableOpacity>
-                        {showDate && (
-                          <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
-                        )}
-                      </>
-                    )}
-
-                    <View style={styles.priceCard}>
-                      {anyAddOnQuoting ? (
-                        <ActivityIndicator color={colors.lanternDeep} />
-                      ) : anyAddOnRequiresQuote ? (
-                        <>
-                          <Text style={styles.priceAmount}>Custom Quote</Text>
-                          <Text style={styles.priceSub}>One or more selected services require a custom quote — contact support.</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Text style={styles.priceLabel}>Estimated Total</Text>
-                          <Text style={styles.priceAmount}>
-                            {fmtUSD(addOnTotal)}{subscribableSelections.length > 0 ? <Text style={styles.pricePer}>/mo</Text> : null}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-
-                    {!anyAddOnQuoting && !anyAddOnRequiresQuote && quotedSelections.length > 0 && (
-                      <View style={styles.totalBreakdown}>
-                        {quotedSelections.map(([key, q]) => {
-                          const s = visibleServices.find((svc) => svc.key === key);
-                          const freqLabel = s?.frequencyDiscounts?.find((f: any) => f.frequency === selectedAddOns[key]?.frequency)?.label;
-                          const label = freqLabel ? `${s?.label ?? key} (${freqLabel})` : (s?.label ?? key);
-                          const priceText = q.monthlyPrice != null ? `${fmtUSD(q.monthlyPrice)}/mo · auto-billed` : `${fmtUSD(q.price)} · billed per visit`;
-                          return (
-                            <Text key={key} style={styles.totalBreakdownLine}>{label} — {priceText}</Text>
-                          );
-                        })}
-                      </View>
-                    )}
-
-                    <TouchableOpacity
-                      style={[styles.submitBtn, (submitting || anyAddOnQuoting || anyAddOnRequiresQuote) && styles.submitBtnDisabled]}
-                      onPress={submitAddOns}
-                      disabled={submitting || anyAddOnQuoting || anyAddOnRequiresQuote}
-                    >
-                      {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Request Selected Services</Text>}
+                    <Text style={styles.sectionLabel}>Preferred Date</Text>
+                    <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+                      <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                      <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
                     </TouchableOpacity>
+                    {showDate && (
+                      <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
+                    )}
                   </>
                 )}
+
+                <View style={styles.priceCard}>
+                  {anyQuoting ? (
+                    <ActivityIndicator color={colors.lanternDeep} />
+                  ) : anyRequiresQuote ? (
+                    <>
+                      <Text style={styles.priceAmount}>Custom Quote</Text>
+                      <Text style={styles.priceSub}>One or more selections require a custom quote — contact support.</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.priceLabel}>Order Total</Text>
+                      <Text style={styles.priceAmount}>
+                        {fmtUSD(orderTotal)}{orderHasMonthlyComponent ? <Text style={styles.pricePer}>/mo</Text> : null}
+                      </Text>
+                    </>
+                  )}
+                </View>
+
+                {!anyQuoting && !anyRequiresQuote && (packageUsable || quotedSelections.length > 0) && (
+                  <View style={styles.totalBreakdown}>
+                    {packageUsable && (
+                      <Text style={styles.totalBreakdownLine}>{selectedPackage!.label} — {fmtUSD(packageQuote!.monthlyPrice)}/mo · auto-billed</Text>
+                    )}
+                    {quotedSelections.map(([key, q]) => {
+                      const s = visibleServices.find((svc) => svc.key === key);
+                      const freqLabel = s?.frequencyDiscounts?.find((f: any) => f.frequency === selectedAddOns[key]?.frequency)?.label;
+                      const label = freqLabel ? `${s?.label ?? key} (${freqLabel})` : (s?.label ?? key);
+                      const priceText = q.monthlyPrice != null ? `${fmtUSD(q.monthlyPrice)}/mo · auto-billed` : `${fmtUSD(q.price)} · billed per visit`;
+                      return (
+                        <Text key={key} style={styles.totalBreakdownLine}>{label} — {priceText}</Text>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.submitBtn, (submitting || anyQuoting || anyRequiresQuote) && styles.submitBtnDisabled]}
+                  onPress={confirmPlaceOrder}
+                  disabled={submitting || anyQuoting || anyRequiresQuote}
+                >
+                  {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Place Order</Text>}
+                </TouchableOpacity>
               </>
             )}
           </>
