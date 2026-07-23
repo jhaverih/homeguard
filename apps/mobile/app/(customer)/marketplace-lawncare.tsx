@@ -12,7 +12,7 @@ import { colors } from '../../src/theme';
 
 type Mode = 'package' | 'service';
 type AddOnSelection = { qty: string; frequency?: string };
-type ServiceQuote = { price: number; discountRate: number; requiresQuote?: boolean };
+type ServiceQuote = { price: number; discountRate: number; requiresQuote?: boolean; monthlyPrice?: number };
 
 // One-off project services — quantity varies per project, not a standing
 // property attribute, so these don't get a property-profile-derived default.
@@ -173,10 +173,15 @@ export default function MarketplaceLawncareScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAddOns]);
 
-  const addOnTotal = Object.values(addOnQuotes).reduce((sum, q) => sum + (q.requiresQuote ? 0 : q.price), 0);
+  // Subscribable rows (monthlyPrice set) are billed as their own recurring
+  // subscription, not part of the one-time "Total" charged together.
+  const addOnTotal = Object.values(addOnQuotes).reduce((sum, q) => sum + (q.requiresQuote || q.monthlyPrice != null ? 0 : q.price), 0);
   const anyAddOnQuoting = Object.values(addOnQuoting).some(Boolean);
   const anyAddOnRequiresQuote = Object.values(addOnQuotes).some((q) => q.requiresQuote);
   const selectedAddOnKeys = Object.keys(selectedAddOns);
+  const subscribableSelections = Object.entries(addOnQuotes).filter(([, q]) => q.monthlyPrice != null);
+  const subscribableKeys = new Set(subscribableSelections.map(([key]) => key));
+  const hasOneTimeSelection = selectedAddOnKeys.some((key) => !subscribableKeys.has(key));
 
   const presentStripeSheet = async (clientSecret: string | null): Promise<boolean> => {
     if (!clientSecret) return true;
@@ -222,14 +227,24 @@ export default function MarketplaceLawncareScreen() {
     try {
       for (const key of selectedAddOnKeys) {
         const sel = selectedAddOns[key];
-        await marketplaceApi.bookLawncareService({
-          serviceKey: key,
-          qty: Number(sel.qty),
-          frequency: sel.frequency,
-          preferredDate: preferredDate.toISOString(),
-        });
+        if (addOnQuotes[key]?.monthlyPrice != null) {
+          // Subscribable (e.g. Lawn Mowing Weekly/Biweekly) — real recurring
+          // monthly Stripe subscription, not a one-time booking.
+          const res = await marketplaceApi.subscribeLawncareService({ serviceKey: key, frequency: sel.frequency });
+          if (!res.charged) {
+            const ok = await presentStripeSheet(res.clientSecret);
+            if (!ok) continue;
+          }
+        } else {
+          await marketplaceApi.bookLawncareService({
+            serviceKey: key,
+            qty: Number(sel.qty),
+            frequency: sel.frequency,
+            preferredDate: preferredDate.toISOString(),
+          });
+        }
       }
-      Alert.alert('Services Requested!', 'We are finding available vendors. You will be notified as they accept.', [{ text: 'OK', onPress: () => router.back() }]);
+      Alert.alert('Done!', 'One-time services are being matched to a vendor, and any monthly subscriptions are now active.', [{ text: 'OK', onPress: () => router.back() }]);
       setSelectedAddOns({});
     } catch (e: any) {
       Alert.alert('Error', e.message === 'NETWORK_ERROR' ? 'Cannot connect to server.' : e.message);
@@ -365,7 +380,9 @@ export default function MarketplaceLawncareScreen() {
                           <Text style={styles.serviceMeta}>{s.pricingUnit} · {s.recommendedFrequency}</Text>
                         </View>
                         {quote && (
-                          <Text style={styles.addOnPrice}>{quote.requiresQuote ? 'Custom Quote' : fmtUSD(quote.price)}</Text>
+                          <Text style={styles.addOnPrice}>
+                            {quote.requiresQuote ? 'Custom Quote' : quote.monthlyPrice != null ? `${fmtUSD(quote.monthlyPrice)}/mo` : fmtUSD(quote.price)}
+                          </Text>
                         )}
                       </TouchableOpacity>
 
@@ -396,9 +413,14 @@ export default function MarketplaceLawncareScreen() {
                               ))}
                             </View>
                           )}
+                          {(() => {
+                            const selectedFreqDescription = s.frequencyDiscounts?.find((f: any) => f.frequency === sel.frequency)?.description;
+                            return selectedFreqDescription ? <Text style={styles.helperText}>{selectedFreqDescription}</Text> : null;
+                          })()}
 
                           {quotingRow && <ActivityIndicator color={colors.lanternDeep} style={{ marginTop: 8 }} />}
                           {quote?.requiresQuote && <Text style={styles.helperText}>Your selected property size requires a custom quote — contact support.</Text>}
+                          {quote?.monthlyPrice != null && <Text style={styles.helperText}>Billed monthly while active — not part of the one-time total below.</Text>}
                         </View>
                       )}
                     </View>
@@ -407,30 +429,49 @@ export default function MarketplaceLawncareScreen() {
 
                 {selectedAddOnKeys.length > 0 && (
                   <>
-                    <Text style={styles.sectionLabel}>Preferred Date</Text>
-                    <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
-                      <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-                      <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
-                    </TouchableOpacity>
-                    {showDate && (
-                      <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
+                    {subscribableSelections.length > 0 && (
+                      <View style={styles.subscribeSummary}>
+                        <Text style={styles.subscribeSummaryTitle}>Billed monthly, starting today:</Text>
+                        {subscribableSelections.map(([key, q]) => {
+                          const s = visibleServices.find((svc) => svc.key === key);
+                          const freqLabel = s?.frequencyDiscounts?.find((f: any) => f.frequency === selectedAddOns[key]?.frequency)?.label ?? '';
+                          return (
+                            <Text key={key} style={styles.subscribeSummaryLine}>
+                              {s?.label ?? key} ({freqLabel}) — {fmtUSD(q.monthlyPrice!)}/mo
+                            </Text>
+                          );
+                        })}
+                      </View>
                     )}
 
-                    <View style={styles.priceCard}>
-                      {anyAddOnQuoting ? (
-                        <ActivityIndicator color={colors.lanternDeep} />
-                      ) : anyAddOnRequiresQuote ? (
-                        <>
-                          <Text style={styles.priceAmount}>Custom Quote</Text>
-                          <Text style={styles.priceSub}>One or more selected services require a custom quote — contact support.</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Text style={styles.priceLabel}>Total</Text>
-                          <Text style={styles.priceAmount}>{fmtUSD(addOnTotal)}</Text>
-                        </>
-                      )}
-                    </View>
+                    {hasOneTimeSelection && (
+                      <>
+                        <Text style={styles.sectionLabel}>Preferred Date</Text>
+                        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+                          <Text style={styles.dateBtnText}>{preferredDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                          <Ionicons name="calendar-outline" size={18} color={colors.lanternDeep} />
+                        </TouchableOpacity>
+                        {showDate && (
+                          <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
+                        )}
+
+                        <View style={styles.priceCard}>
+                          {anyAddOnQuoting ? (
+                            <ActivityIndicator color={colors.lanternDeep} />
+                          ) : anyAddOnRequiresQuote ? (
+                            <>
+                              <Text style={styles.priceAmount}>Custom Quote</Text>
+                              <Text style={styles.priceSub}>One or more selected services require a custom quote — contact support.</Text>
+                            </>
+                          ) : (
+                            <>
+                              <Text style={styles.priceLabel}>Total</Text>
+                              <Text style={styles.priceAmount}>{fmtUSD(addOnTotal)}</Text>
+                            </>
+                          )}
+                        </View>
+                      </>
+                    )}
 
                     <TouchableOpacity
                       style={[styles.submitBtn, (submitting || anyAddOnQuoting || anyAddOnRequiresQuote) && styles.submitBtnDisabled]}
@@ -498,6 +539,9 @@ const styles = StyleSheet.create({
   freqChipActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   freqChipText: { fontSize: 11, color: colors.steel, fontWeight: '600' },
   freqChipTextActive: { color: colors.lanternDeep },
+  subscribeSummary: { backgroundColor: colors.mist, borderRadius: 10, padding: 12, marginTop: 16 },
+  subscribeSummaryTitle: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
+  subscribeSummaryLine: { fontSize: 12, color: colors.ink, marginTop: 2 },
   dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateBtnText: { fontSize: 15, color: colors.lanternDeep, fontWeight: '500' },
   priceCard: { backgroundColor: colors.ink, borderRadius: 14, padding: 18, marginTop: 24, alignItems: 'center', minHeight: 80, justifyContent: 'center' },

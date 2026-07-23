@@ -25,21 +25,36 @@ import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawnc
 // independently for vendor and customer columns, both discounted by the same
 // discountRate resolved below (unchanged mechanism) — this is also the first
 // place vendor cost is actually computed anywhere in the Lawncare quote path.
+//
+// A frequencyDiscounts entry may also carry `visitsPerYear` (e.g. Lawn
+// Mowing's Weekly/Biweekly) — when present, the resulting per-visit `price`
+// is annualized and divided by 12 into `monthlyPrice`, the real recurring
+// subscription amount (subscribeLawncareService), matching exactly how
+// Lawncare Packages already annualize per-visit prices. This is generic
+// (keyed off visitsPerYear's presence, not hardcoded to lawn_mowing), so it
+// stays a no-op for every other service today.
 export function computeLawncareServicePrice(
   service: MarketplaceLawncareService,
   qty: number,
   frequency?: string,
   profile?: MarketplaceLawncarePropertyProfile | null,
-): { price: number; vendorPrice: number; discountRate: number; requiresQuote?: boolean } {
+): { price: number; vendorPrice: number; discountRate: number; requiresQuote?: boolean; monthlyPrice?: number } {
   let discountRate = 0;
+  let visitsPerYear: number | undefined;
   const frequencyMatch = frequency ? service.frequencyDiscounts?.find((f) => f.frequency === frequency) : undefined;
   if (frequencyMatch) {
     discountRate = Number(frequencyMatch.ratePercent);
+    visitsPerYear = frequencyMatch.visitsPerYear ?? undefined;
   } else if (service.volumeDiscountThreshold2 != null && qty >= Number(service.volumeDiscountThreshold2)) {
     discountRate = Number(service.volumeDiscountRate2);
   } else if (service.volumeDiscountThreshold1 != null && qty >= Number(service.volumeDiscountThreshold1)) {
     discountRate = Number(service.volumeDiscountRate1);
   }
+
+  const withMonthly = <T extends { price: number; requiresQuote?: boolean }>(result: T): T & { monthlyPrice?: number } => {
+    if (result.requiresQuote || !visitsPerYear) return result;
+    return { ...result, monthlyPrice: Math.round(result.price * visitsPerYear / 12 * 100) / 100 };
+  };
 
   if (service.key === 'lawn_mowing' && service.sizeTiers?.length) {
     const tier = service.sizeTiers.find((t) => t.key === profile?.propertySizeTier);
@@ -51,7 +66,7 @@ export function computeLawncareServicePrice(
     const vendorRaw = Number(tier.vendorBase ?? 0) + Number(tier.vendorAddlRate ?? 0) * addlUnits;
     const price = Math.round(customerRaw * (1 - discountRate / 100) * 100) / 100;
     const vendorPrice = Math.round(vendorRaw * (1 - discountRate / 100) * 100) / 100;
-    return { price, vendorPrice, discountRate };
+    return withMonthly({ price, vendorPrice, discountRate });
   }
 
   const billableQty = Math.max(0, qty - Number(service.includedQty ?? 0));
@@ -59,7 +74,17 @@ export function computeLawncareServicePrice(
   const vendorRaw = Number(service.subCostBase) + Number(service.subCostPerUnit) * billableQty;
   const price = Math.round(raw * (1 - discountRate / 100) * 100) / 100;
   const vendorPrice = Math.round(vendorRaw * (1 - discountRate / 100) * 100) / 100;
-  return { price, vendorPrice, discountRate };
+  return withMonthly({ price, vendorPrice, discountRate });
+}
+
+// True iff the given frequency resolves to a frequencyDiscounts entry that
+// carries visitsPerYear — i.e. it's meant to be a recurring monthly
+// subscription (subscribeLawncareService), not a one-time booking
+// (bookLawncareService rejects these to prevent bypassing the subscription).
+export function isSubscribableFrequency(service: MarketplaceLawncareService, frequency?: string): boolean {
+  if (!frequency) return false;
+  const match = service.frequencyDiscounts?.find((f) => f.frequency === frequency);
+  return !!match?.visitsPerYear;
 }
 
 // The 3 project-sized services (a one-off job whose size varies per

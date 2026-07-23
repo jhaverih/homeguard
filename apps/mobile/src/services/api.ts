@@ -161,10 +161,12 @@ export const marketplaceApi = {
     api.get('/marketplace/lawncare/config') as any,
   quoteLawncare: (body: any): Promise<
     { type: 'package'; monthlyPrice: number; requiresQuote: boolean }
-    | { type: 'service'; price: number; discountRate: number; requiresQuote: boolean }
+    | { type: 'service'; price: number; discountRate: number; requiresQuote: boolean; monthlyPrice?: number }
   > => api.post('/marketplace/lawncare/quote', body) as any,
   subscribeLawncarePackage: (body: any): Promise<{ subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null }> =>
     api.post('/marketplace/lawncare/subscribe', body) as any,
+  subscribeLawncareService: (body: any): Promise<{ subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null }> =>
+    api.post('/marketplace/lawncare/service-subscribe', body) as any,
   bookLawncareService: (body: any) => api.post('/marketplace/lawncare/book', body),
   getLawncarePropertyProfile: (): Promise<any | null> => api.get('/marketplace/lawncare/property-profile') as any,
   saveLawncarePropertyProfile: (body: any) => api.put('/marketplace/lawncare/property-profile', body),

@@ -13,6 +13,7 @@ import { MarketplaceSubscriptionEvent } from './entities/marketplace-subscriptio
 import { MarketplaceLawncareService } from './entities/marketplace-lawncare-service.entity';
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
+import { MarketplaceLawncareServiceSubscription } from './entities/marketplace-lawncare-service-subscription.entity';
 import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawncare-property-profile.entity';
 import { MarketplaceLawncarePropertyDetailField } from './entities/marketplace-lawncare-property-detail-field.entity';
 import { MarketplaceHouseCleaningPropertyProfile } from './entities/marketplace-house-cleaning-property-profile.entity';
@@ -27,11 +28,11 @@ import {
   computeBCU, computeConditionMultiplier, computeAddOnsTotal, computePerVisitCost,
   computeMonthlySubscriptionPrice, QUOTE_REQUIRED,
 } from './marketplace-pricing.utils';
-import { computeLawncareServicePrice, resolveServiceQty, isManualQtyService } from './marketplace-lawncare-pricing.utils';
+import { computeLawncareServicePrice, resolveServiceQty, isManualQtyService, isSubscribableFrequency } from './marketplace-lawncare-pricing.utils';
 import { computePestServicePrice, resolvePestServiceQty, resolvePestServiceQty2, isManualQtyPestService } from './marketplace-pest-pricing.utils';
 import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
 import {
-  QuoteLawncareDto, BookLawncareServiceDto, SubscribeLawncarePackageDto, UpsertLawncarePropertyProfileDto,
+  QuoteLawncareDto, BookLawncareServiceDto, SubscribeLawncarePackageDto, SubscribeLawncareServiceDto, UpsertLawncarePropertyProfileDto,
 } from './dto/quote-lawncare.dto';
 import {
   QuotePestDto, BookPestServiceDto, SubscribePestPackageDto, UpsertPestPropertyProfileDto,
@@ -83,6 +84,7 @@ export class MarketplaceService implements OnModuleInit {
     @InjectRepository(MarketplaceLawncareService) private lawncareServicesRepo: Repository<MarketplaceLawncareService>,
     @InjectRepository(MarketplaceLawncarePackage) private lawncarePackagesRepo: Repository<MarketplaceLawncarePackage>,
     @InjectRepository(MarketplaceLawncarePackageSubscription) private lawncarePackageSubscriptionsRepo: Repository<MarketplaceLawncarePackageSubscription>,
+    @InjectRepository(MarketplaceLawncareServiceSubscription) private lawncareServiceSubscriptionsRepo: Repository<MarketplaceLawncareServiceSubscription>,
     @InjectRepository(MarketplaceLawncarePropertyProfile) private lawncarePropertyProfileRepo: Repository<MarketplaceLawncarePropertyProfile>,
     @InjectRepository(MarketplaceLawncarePropertyDetailField) private lawncarePropertyDetailFieldsRepo: Repository<MarketplaceLawncarePropertyDetailField>,
     @InjectRepository(MarketplaceHouseCleaningPropertyProfile) private houseCleaningPropertyProfileRepo: Repository<MarketplaceHouseCleaningPropertyProfile>,
@@ -234,7 +236,11 @@ export class MarketplaceService implements OnModuleInit {
   // prices with no additional-unit component.
   private async seedLawncareConfig() {
     const services: Partial<MarketplaceLawncareService>[] = [
-      { key: 'lawn_mowing', label: 'Lawn Mowing', pricingUnit: 'Per Visit', includedQty: 0, recommendedFrequency: 'Weekly (Apr–Oct), Biweekly (Nov–Mar)', subCostBase: 35, subCostPerUnit: 5, customerPriceBase: 60, customerPricePerUnit: 8, volumeDiscountText: 'Weekly: 15%, Biweekly: 5%', frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0 }, { frequency: 'WEEKLY', label: 'Weekly', ratePercent: 15 }, { frequency: 'BIWEEKLY', label: 'Biweekly', ratePercent: 5 }], sortOrder: 1 },
+      { key: 'lawn_mowing', label: 'Lawn Mowing', pricingUnit: 'Per Visit', includedQty: 0, recommendedFrequency: 'Weekly/Biweekly (Apr–Oct); as-needed (Nov–Mar)', subCostBase: 35, subCostPerUnit: 5, customerPriceBase: 60, customerPricePerUnit: 8, volumeDiscountText: 'Weekly: 15%, Biweekly: 5%', frequencyDiscounts: [
+        { frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0, description: 'Pay per visit, no recurring commitment' },
+        { frequency: 'WEEKLY', label: 'Weekly', ratePercent: 15, visitsPerYear: 52, description: 'Weekly visits Apr–Oct, as-needed Nov–Mar' },
+        { frequency: 'BIWEEKLY', label: 'Biweekly', ratePercent: 5, visitsPerYear: 26, description: 'Biweekly visits Apr–Oct, as-needed Nov–Mar' },
+      ], sortOrder: 1 },
       { key: 'mulch_installation', label: 'Mulch Installation', pricingUnit: 'First 3 CY', includedQty: 3, recommendedFrequency: '1× per year', subCostBase: 80, subCostPerUnit: 20, customerPriceBase: 140, customerPricePerUnit: 35, volumeDiscountText: '10+ CY: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 2 },
       { key: 'shrub_trimming', label: 'Shrub Trimming', pricingUnit: 'First 5 shrubs', includedQty: 5, recommendedFrequency: '2–4× per year', subCostBase: 70, subCostPerUnit: 10, customerPriceBase: 125, customerPricePerUnit: 20, volumeDiscountText: '20+ shrubs: 10%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, sortOrder: 3 },
       { key: 'leaf_removal', label: 'Leaf Removal', pricingUnit: 'First 5,000 SF', includedQty: 5000, recommendedFrequency: '2–6× per Fall', subCostBase: 85, subCostPerUnit: 12, customerPriceBase: 150, customerPricePerUnit: 20, volumeDiscountText: 'Seasonal package: 15%', frequencyDiscounts: [{ frequency: 'SEASONAL_PACKAGE', label: 'Seasonal Package', ratePercent: 15 }], sortOrder: 4 },
@@ -274,11 +280,24 @@ export class MarketplaceService implements OnModuleInit {
       });
     }
     // One-time backfill: the row was already seeded (above `!existing` guard
-    // no longer applies) before Monthly existed as a selectable frequency —
-    // add it without disturbing an admin's own edits to the other entries.
-    if (lawnMowing && !lawnMowing.frequencyDiscounts?.some((f) => f.frequency === 'MONTHLY')) {
+    // no longer applies) before Monthly/visitsPerYear/description existed —
+    // gated on WEEKLY still lacking visitsPerYear so it runs exactly once and
+    // never clobbers a future admin edit to these entries.
+    if (lawnMowing && !lawnMowing.frequencyDiscounts?.some((f) => f.frequency === 'WEEKLY' && f.visitsPerYear)) {
       await this.lawncareServicesRepo.update(lawnMowing.id, {
-        frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0 }, ...(lawnMowing.frequencyDiscounts ?? [])],
+        frequencyDiscounts: [
+          { frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0, description: 'Pay per visit, no recurring commitment' },
+          { frequency: 'WEEKLY', label: 'Weekly', ratePercent: 15, visitsPerYear: 52, description: 'Weekly visits Apr–Oct, as-needed Nov–Mar' },
+          { frequency: 'BIWEEKLY', label: 'Biweekly', ratePercent: 5, visitsPerYear: 26, description: 'Biweekly visits Apr–Oct, as-needed Nov–Mar' },
+        ],
+      });
+    }
+    // Separate one-time backfill for the summary text, gated on it still
+    // being the known-stale original default so a hypothetical admin edit
+    // in between is respected.
+    if (lawnMowing && lawnMowing.recommendedFrequency === 'Weekly (Apr–Oct), Biweekly (Nov–Mar)') {
+      await this.lawncareServicesRepo.update(lawnMowing.id, {
+        recommendedFrequency: 'Weekly/Biweekly (Apr–Oct); as-needed (Nov–Mar)',
       });
     }
 
@@ -959,7 +978,7 @@ Exterior Maintenance Add-Ons
 
   async quoteLawncare(customerId: string, dto: QuoteLawncareDto): Promise<
     { type: 'package'; monthlyPrice: number; requiresQuote: boolean }
-    | { type: 'service'; price: number; discountRate: number; requiresQuote: boolean }
+    | { type: 'service'; price: number; discountRate: number; requiresQuote: boolean; monthlyPrice?: number }
   > {
     if (dto.mode === 'package') {
       if (!dto.packageKey) throw new BadRequestException('packageKey is required for mode "package".');
@@ -974,8 +993,8 @@ Exterior Maintenance Add-Ons
     if (!service) throw new NotFoundException('Service not found.');
     const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     const qty = this.resolveLawncareBookingQty(profile, service.key, dto.qty);
-    const { price, discountRate, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, profile);
-    return { type: 'service', price, discountRate, requiresQuote: !!requiresQuote };
+    const { price, discountRate, requiresQuote, monthlyPrice } = computeLawncareServicePrice(service, qty, dto.frequency, profile);
+    return { type: 'service', price, discountRate, requiresQuote: !!requiresQuote, monthlyPrice };
   }
 
   // Billing-only: charges a flat monthly Stripe subscription computed fresh
@@ -1045,6 +1064,86 @@ Exterior Maintenance Add-Ons
     };
   }
 
+  // Billing-only, same shape as subscribeLawncarePackage — for a standalone
+  // service subscribed at a frequency whose frequencyDiscounts entry carries
+  // visitsPerYear (today: Lawn Mowing Weekly/Biweekly). No recurring visit is
+  // generated from this row; the contractor is still paid per completed
+  // visit at computedPerVisitVendorPrice (snapshot, ops reference only).
+  async subscribeLawncareService(customerId: string, dto: SubscribeLawncareServiceDto): Promise<{
+    subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null;
+  }> {
+    const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
+    if (!service) throw new NotFoundException('Service not found.');
+    if (!isSubscribableFrequency(service, dto.frequency)) {
+      throw new BadRequestException('This service/frequency is not available as a subscription.');
+    }
+
+    const existing = await this.lawncareServiceSubscriptionsRepo.findOne({
+      where: { customerId, serviceKey: dto.serviceKey, status: MarketplaceSubscriptionStatus.ACTIVE },
+    });
+    if (existing) throw new BadRequestException('You already have an active subscription for this service.');
+
+    const coreSubscription = await this.subscriptionsService.getActiveSubscription(customerId);
+    if (!coreSubscription) throw new BadRequestException('An active Attenteve plan is required to subscribe to Marketplace services.');
+
+    // Never trust a stale client-side number — recompute fresh right before charging.
+    const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
+    const qty = resolveServiceQty(service.key, profile) ?? 0;
+    const { monthlyPrice, vendorPrice, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, profile);
+    if (requiresQuote || monthlyPrice == null) {
+      throw new BadRequestException('Your selected property size requires a custom quote — please contact support.');
+    }
+
+    const stripeCustomerId = await this.subscriptionsService.getOrCreateStripeCustomer(customerId);
+    const customer = await this.stripe.customers.retrieve(stripeCustomerId);
+    const defaultPaymentMethod = !('deleted' in customer)
+      ? (customer.invoice_settings?.default_payment_method as string | null)
+      : null;
+    if (!defaultPaymentMethod) {
+      throw new BadRequestException('Add a payment method in Payments before subscribing to a Marketplace service.');
+    }
+
+    const product = await this.ensureLawncarePackageStripeProduct();
+
+    const stripeSub = await this.stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [{
+        price_data: {
+          currency: 'usd',
+          product: product.id,
+          unit_amount: Math.round(monthlyPrice * 100),
+          recurring: { interval: 'month' },
+        },
+      }],
+      default_payment_method: defaultPaymentMethod,
+      payment_behavior: 'default_incomplete',
+      expand: ['latest_invoice.payment_intent'],
+      metadata: { type: 'marketplace_lawncare_service', customerId, serviceKey: dto.serviceKey, frequency: dto.frequency },
+    });
+
+    const saved = await this.lawncareServiceSubscriptionsRepo.save(this.lawncareServiceSubscriptionsRepo.create({
+      customerId,
+      serviceKey: dto.serviceKey,
+      frequency: dto.frequency,
+      computedMonthlyPrice: monthlyPrice,
+      computedPerVisitVendorPrice: vendorPrice,
+      status: MarketplaceSubscriptionStatus.ACTIVE,
+      startDate: new Date(),
+      stripeSubscriptionId: stripeSub.id,
+    }));
+
+    const invoice = stripeSub.latest_invoice as Stripe.Invoice;
+    const pi = invoice?.payment_intent as Stripe.PaymentIntent | undefined;
+    const charged = pi?.status === 'succeeded';
+
+    return {
+      subscriptionId: saved.id,
+      monthlyPrice,
+      charged,
+      clientSecret: charged ? null : (pi?.client_secret ?? null),
+    };
+  }
+
   private async ensureLawncarePackageStripeProduct(): Promise<Stripe.Product> {
     const products = await this.stripe.products.list({ limit: 100, active: true });
     const existing = products.data.find((p) => p.name === 'Lawncare Package Subscription');
@@ -1059,6 +1158,9 @@ Exterior Maintenance Add-Ons
   async bookLawncareService(customerId: string, dto: BookLawncareServiceDto) {
     const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
     if (!service) throw new NotFoundException('Service not found.');
+    if (isSubscribableFrequency(service, dto.frequency)) {
+      throw new BadRequestException('This frequency is billed as a monthly subscription — use the subscribe flow instead of booking a one-time visit.');
+    }
     const propertyProfile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     const qty = this.resolveLawncareBookingQty(propertyProfile, service.key, dto.qty);
     const { price, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, propertyProfile);
@@ -1323,6 +1425,12 @@ Exterior Maintenance Add-Ons
         await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
       }
 
+      const lawncareServiceSub = await this.lawncareServiceSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (lawncareServiceSub && lawncareServiceSub.status !== MarketplaceSubscriptionStatus.ACTIVE) {
+        lawncareServiceSub.status = MarketplaceSubscriptionStatus.ACTIVE;
+        await this.lawncareServiceSubscriptionsRepo.save(lawncareServiceSub);
+      }
+
       const pestSub = await this.pestPackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
       if (pestSub && pestSub.status !== MarketplaceSubscriptionStatus.ACTIVE) {
         pestSub.status = MarketplaceSubscriptionStatus.ACTIVE;
@@ -1350,6 +1458,12 @@ Exterior Maintenance Add-Ons
         await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
       }
 
+      const lawncareServiceSub = await this.lawncareServiceSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
+      if (lawncareServiceSub) {
+        lawncareServiceSub.status = MarketplaceSubscriptionStatus.PAST_DUE;
+        await this.lawncareServiceSubscriptionsRepo.save(lawncareServiceSub);
+      }
+
       const pestSub = await this.pestPackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSubId } });
       if (pestSub) {
         pestSub.status = MarketplaceSubscriptionStatus.PAST_DUE;
@@ -1375,6 +1489,13 @@ Exterior Maintenance Add-Ons
         lawncareSub.status = MarketplaceSubscriptionStatus.CANCELLED;
         lawncareSub.cancelledAt = new Date();
         await this.lawncarePackageSubscriptionsRepo.save(lawncareSub);
+      }
+
+      const lawncareServiceSub = await this.lawncareServiceSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSub.id } });
+      if (lawncareServiceSub && lawncareServiceSub.status !== MarketplaceSubscriptionStatus.CANCELLED) {
+        lawncareServiceSub.status = MarketplaceSubscriptionStatus.CANCELLED;
+        lawncareServiceSub.cancelledAt = new Date();
+        await this.lawncareServiceSubscriptionsRepo.save(lawncareServiceSub);
       }
 
       const pestSub = await this.pestPackageSubscriptionsRepo.findOne({ where: { stripeSubscriptionId: stripeSub.id } });

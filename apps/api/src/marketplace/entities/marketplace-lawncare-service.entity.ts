@@ -60,7 +60,15 @@ export class MarketplaceLawncareService {
   // (the two shapes never co-occur on the same row). The mobile add-on
   // wizard shows a frequency picker only when this array is non-empty.
   @Column({ type: 'jsonb', default: [] })
-  frequencyDiscounts: { frequency: string; label: string; ratePercent: number }[];
+  frequencyDiscounts: {
+    frequency: string; label: string; ratePercent: number;
+    // Present only on entries meant to be a real recurring monthly
+    // subscription (e.g. Lawn Mowing Weekly/Biweekly) — see
+    // computeLawncareServicePrice()/isSubscribableFrequency() in
+    // marketplace-lawncare-pricing.utils.ts.
+    visitsPerYear?: number;
+    description?: string;
+  }[];
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   volumeDiscountThreshold1: number | null;

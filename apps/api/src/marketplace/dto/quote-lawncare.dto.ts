@@ -59,6 +59,17 @@ export class SubscribeLawncarePackageDto {
   packageKey: string;
 }
 
+export class SubscribeLawncareServiceDto {
+  @IsString()
+  serviceKey: string;
+
+  // Must resolve to a frequencyDiscounts entry with visitsPerYear set (e.g.
+  // Lawn Mowing's WEEKLY/BIWEEKLY) — enforced in MarketplaceService via
+  // isSubscribableFrequency(), not here, since the set is admin-editable.
+  @IsString()
+  frequency: string;
+}
+
 export class UpsertLawncarePropertyProfileDto {
   // One of the 8 lawn_mowing.sizeTiers keys (XS/S/M/L/XL/XXL/ESTATE/
   // LARGE_ESTATE) — drives Lawn Mowing's tiered pricing directly. Validated

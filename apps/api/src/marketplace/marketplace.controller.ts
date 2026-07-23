@@ -10,7 +10,7 @@ import { AdminLevel } from '../common/enums/admin-level.enum';
 import { MarketplaceService } from './marketplace.service';
 import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
 import {
-  QuoteLawncareDto, SubscribeLawncarePackageDto, BookLawncareServiceDto, UpsertLawncarePropertyProfileDto,
+  QuoteLawncareDto, SubscribeLawncarePackageDto, SubscribeLawncareServiceDto, BookLawncareServiceDto, UpsertLawncarePropertyProfileDto,
 } from './dto/quote-lawncare.dto';
 import {
   QuotePestDto, SubscribePestPackageDto, BookPestServiceDto, UpsertPestPropertyProfileDto,
@@ -156,6 +156,14 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Customer: subscribe to a Lawncare package (billing only, no auto-scheduled visits)' })
   subscribeLawncarePackage(@Body() dto: SubscribeLawncarePackageDto, @Request() req) {
     return this.service.subscribeLawncarePackage(req.user.id, dto);
+  }
+
+  @Post('lawncare/service-subscribe')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Customer: subscribe to a standalone Lawncare service at a recurring frequency (e.g. Lawn Mowing Weekly/Biweekly) — billing only, no auto-scheduled visits' })
+  subscribeLawncareService(@Body() dto: SubscribeLawncareServiceDto, @Request() req) {
+    return this.service.subscribeLawncareService(req.user.id, dto);
   }
 
   @Post('lawncare/book')
