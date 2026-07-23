@@ -1025,8 +1025,11 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     // Comprehensive Inspection — no content specified yet; seeded as an empty,
     // ready-to-build skeleton. Admin populates it via the Configurator's
     // existing "+ New Checklist" / "+ Add Task" UI, same as any other group.
-    const comprehensiveGroup = await this.ensureGroup('COMPREHENSIVE_INSPECTION', 'Comprehensive Inspection', 2);
-    await this.ensureSubgroup(comprehensiveGroup.id, 'COMPREHENSIVE_INSPECTION_MAIN', 'Comprehensive Inspection', 0);
+    // Label matches the real bookable catalog item's name ("Comprehensive Home
+    // Inspection", pre-existing since 2026-07-18) — the group KEY is what
+    // resolution logic actually keys off, this is purely for admin-UI clarity.
+    const comprehensiveGroup = await this.ensureGroup('COMPREHENSIVE_INSPECTION', 'Comprehensive Home Inspection', 2);
+    await this.ensureSubgroup(comprehensiveGroup.id, 'COMPREHENSIVE_INSPECTION_MAIN', 'Comprehensive Home Inspection', 0);
   }
 
   private async ensureGroup(key: string, label: string, sortOrder: number) {

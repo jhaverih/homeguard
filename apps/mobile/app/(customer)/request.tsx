@@ -77,7 +77,7 @@ const CATEGORY_ORDER = ['INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUST
 // everything else keeps its existing relative order (stable sort, ranks Infinity).
 const INSPECTION_ORDER: Record<string, number> = {
   'General Inspection': 0,
-  'Comprehensive Inspection': 1,
+  'Comprehensive Home Inspection': 1,
   'HVAC Full Inspection': 2,
 };
 const inspectionRank = (name: string) => INSPECTION_ORDER[name] ?? Infinity;

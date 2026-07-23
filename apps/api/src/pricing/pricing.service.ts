@@ -200,9 +200,16 @@ export class PricingService implements OnModuleInit {
     // update pattern as the quantityLabel backfill directly above.
     await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { checklistGroupKey: 'HVAC_FULL_INSPECTION' });
     await this.pricesRepo.update({ name: 'General Inspection' }, { checklistGroupKey: 'GENERAL_HOME_INSPECTION' });
+    // "Comprehensive Home Inspection" already existed as a real, bookable catalog
+    // item (created 2026-07-18, $500/$575, PER_UNIT by SqFt) before this checklist
+    // work — missed during research, which only found a same-named dead reference
+    // in a mobile display-order map and wrongly assumed nothing real existed. A
+    // separate "Comprehensive Inspection" ($249) was mistakenly seeded as a
+    // duplicate; deactivated live via psql and seedComprehensiveInspection() below
+    // removed. This just links the REAL existing item to its checklist group.
+    await this.pricesRepo.update({ name: 'Comprehensive Home Inspection' }, { checklistGroupKey: 'COMPREHENSIVE_INSPECTION' });
     await this.seedPrices();
     await this.seedMonitoringService();
-    await this.seedComprehensiveInspection();
     await this.seedTradeServices();
     await this.seedHandymanCategoryServices();
     await this.backfillTieredPricingDefaults();
@@ -274,25 +281,6 @@ export class PricingService implements OnModuleInit {
       requiredCapabilityId: capability.id,
     }));
     this.logger.log('Seeded "Home Monitoring Setup" service ($149, Yolink-capability-gated, Attenteve-triggered only).');
-  }
-
-  // New standalone paid add-on, same $-per-visit pattern as "HVAC Full
-  // Inspection" — resolves to the new COMPREHENSIVE_INSPECTION checklist group
-  // (see inspection-checklist-seed.service.ts). category left null, matching
-  // the other inspection-named catalog items (sorted via the mobile app's own
-  // INSPECTION_ORDER map, not the generic category grouping).
-  private async seedComprehensiveInspection() {
-    const existing = await this.pricesRepo.findOne({ where: { name: 'Comprehensive Inspection' } });
-    if (existing) return;
-
-    await this.pricesRepo.save(this.pricesRepo.create({
-      name: 'Comprehensive Inspection',
-      description: 'In-depth whole-home inspection covering systems and areas beyond the standard General Inspection.',
-      basePrice: 249, // placeholder — trivially adjustable via the Admin Services Catalog page
-      pricingMethod: PricingMethod.FLAT_PRICE,
-      checklistGroupKey: 'COMPREHENSIVE_INSPECTION',
-    }));
-    this.logger.log('Seeded "Comprehensive Inspection" service ($249 placeholder, COMPREHENSIVE_INSPECTION checklist group).');
   }
 
   // Separate from seedPrices() for the same reason as seedMonitoringService() —
