@@ -54,7 +54,12 @@ export class AuthService {
   }
 
   async verifyEmail(email: string, code: string): Promise<{ message: string }> {
-    const user = await this.usersRepo.findOne({ where: { email: emailEquals(email) } });
+    // emailVerificationCode is select: false by default (see user.entity.ts) — opt
+    // back in explicitly here, the one legitimate place that needs to compare it.
+    const user = await this.usersRepo.findOne({
+      where: { email: emailEquals(email) },
+      select: ['id', 'email', 'isEmailVerified', 'emailVerificationCode', 'emailVerificationExpiry'],
+    });
     if (!user) throw new NotFoundException('User not found');
     if (user.isEmailVerified) return { message: 'Already verified' };
 
