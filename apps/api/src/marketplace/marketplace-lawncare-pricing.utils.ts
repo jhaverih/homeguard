@@ -33,22 +33,37 @@ import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawnc
 // Lawncare Packages already annualize per-visit prices. This is generic
 // (keyed off visitsPerYear's presence, not hardcoded to lawn_mowing), so it
 // stays a no-op for every other service today.
+//
+// `activeMembershipPackageKey` (the customer's currently-active Lawncare
+// package subscription, if any) takes precedence over both the frequency and
+// volume-threshold discount paths when the service has a matching
+// membershipBenefit — mirrors Pest Control's identical mechanism
+// (computePestServicePrice). Not customer-selectable; the caller resolves
+// this from subscription status, not from any request field. Pass
+// `undefined`/`null` for package-composition pricing, which never applies
+// membership benefits (same rule as Pest Control).
 export function computeLawncareServicePrice(
   service: MarketplaceLawncareService,
   qty: number,
   frequency?: string,
   profile?: MarketplaceLawncarePropertyProfile | null,
+  activeMembershipPackageKey?: string | null,
 ): { price: number; vendorPrice: number; discountRate: number; requiresQuote?: boolean; monthlyPrice?: number } {
   let discountRate = 0;
   let visitsPerYear: number | undefined;
-  const frequencyMatch = frequency ? service.frequencyDiscounts?.find((f) => f.frequency === frequency) : undefined;
-  if (frequencyMatch) {
-    discountRate = Number(frequencyMatch.ratePercent);
-    visitsPerYear = frequencyMatch.visitsPerYear ?? undefined;
-  } else if (service.volumeDiscountThreshold2 != null && qty >= Number(service.volumeDiscountThreshold2)) {
-    discountRate = Number(service.volumeDiscountRate2);
-  } else if (service.volumeDiscountThreshold1 != null && qty >= Number(service.volumeDiscountThreshold1)) {
-    discountRate = Number(service.volumeDiscountRate1);
+  const benefit = service.membershipBenefit;
+  if (benefit && activeMembershipPackageKey && benefit.requiredPackageKeys.includes(activeMembershipPackageKey)) {
+    discountRate = benefit.type === 'FREE' ? 100 : Number(benefit.ratePercent ?? 0);
+  } else {
+    const frequencyMatch = frequency ? service.frequencyDiscounts?.find((f) => f.frequency === frequency) : undefined;
+    if (frequencyMatch) {
+      discountRate = Number(frequencyMatch.ratePercent);
+      visitsPerYear = frequencyMatch.visitsPerYear ?? undefined;
+    } else if (service.volumeDiscountThreshold2 != null && qty >= Number(service.volumeDiscountThreshold2)) {
+      discountRate = Number(service.volumeDiscountRate2);
+    } else if (service.volumeDiscountThreshold1 != null && qty >= Number(service.volumeDiscountThreshold1)) {
+      discountRate = Number(service.volumeDiscountRate1);
+    }
   }
 
   const withMonthly = <T extends { price: number; requiresQuote?: boolean }>(result: T): T & { monthlyPrice?: number } => {

@@ -241,10 +241,16 @@ export class MarketplaceService implements OnModuleInit {
         { frequency: 'WEEKLY', label: 'Weekly', ratePercent: 15, visitsPerYear: 52, description: 'Weekly visits Apr–Oct, as-needed Nov–Mar' },
         { frequency: 'BIWEEKLY', label: 'Biweekly', ratePercent: 5, visitsPerYear: 26, description: 'Biweekly visits Apr–Oct, as-needed Nov–Mar' },
       ], sortOrder: 1 },
-      { key: 'mulch_installation', label: 'Mulch Installation', pricingUnit: 'First 3 CY', includedQty: 3, recommendedFrequency: '1× per year', subCostBase: 80, subCostPerUnit: 20, customerPriceBase: 140, customerPricePerUnit: 35, volumeDiscountText: '10+ CY: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 2 },
+      { key: 'mulch_installation', label: 'Bed Mulching', pricingUnit: 'First 3 CY', includedQty: 3, recommendedFrequency: '1× per year', subCostBase: 80, subCostPerUnit: 20, customerPriceBase: 140, customerPricePerUnit: 35, volumeDiscountText: '10+ CY: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 2 },
       { key: 'shrub_trimming', label: 'Shrub Trimming', pricingUnit: 'First 5 shrubs', includedQty: 5, recommendedFrequency: '2–4× per year', subCostBase: 70, subCostPerUnit: 10, customerPriceBase: 125, customerPricePerUnit: 20, volumeDiscountText: '20+ shrubs: 10%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, sortOrder: 3 },
-      { key: 'leaf_removal', label: 'Leaf Removal', pricingUnit: 'First 5,000 SF', includedQty: 5000, recommendedFrequency: '2–6× per Fall', subCostBase: 85, subCostPerUnit: 12, customerPriceBase: 150, customerPricePerUnit: 20, volumeDiscountText: 'Seasonal package: 15%', frequencyDiscounts: [{ frequency: 'SEASONAL_PACKAGE', label: 'Seasonal Package', ratePercent: 15 }], sortOrder: 4 },
-      { key: 'bed_weeding', label: 'Bed Weeding', pricingUnit: 'First 200 SF', includedQty: 200, recommendedFrequency: 'Monthly', subCostBase: 60, subCostPerUnit: 0.15, customerPriceBase: 100, customerPricePerUnit: 0.30, volumeDiscountText: 'Monthly: 10%', frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 10 }], sortOrder: 5 },
+      // Seasonal Package discount is no longer customer-selectable — it
+      // activates automatically only for customers with an active Seasonal
+      // Maintenance Package subscription (membershipBenefit below), same
+      // mechanism as Pest Control's "Included with Ultimate" etc.
+      { key: 'leaf_removal', label: 'Leaf Removal', pricingUnit: 'First 5,000 SF', includedQty: 5000, recommendedFrequency: '2–6× per Fall', subCostBase: 85, subCostPerUnit: 12, customerPriceBase: 150, customerPricePerUnit: 20, volumeDiscountText: '15% off with an active Seasonal Maintenance Package', frequencyDiscounts: [], membershipBenefit: { requiredPackageKeys: ['premium_landscape_care'], type: 'PERCENT_OFF', ratePercent: 15 }, sortOrder: 4 },
+      // Always monthly — no other cadence exists for this service, so there's
+      // no real discount tradeoff to offer; kept at 0% intentionally.
+      { key: 'bed_weeding', label: 'Bed Weeding', pricingUnit: 'First 200 SF', includedQty: 200, recommendedFrequency: 'Monthly', subCostBase: 60, subCostPerUnit: 0.15, customerPriceBase: 100, customerPricePerUnit: 0.30, volumeDiscountText: 'Always billed monthly', frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0 }], sortOrder: 5 },
       { key: 'sod_installation', label: 'Sod Installation', pricingUnit: 'Per SF', includedQty: 0, recommendedFrequency: 'One-time', subCostBase: 0, subCostPerUnit: 1.10, customerPriceBase: 0, customerPricePerUnit: 1.95, volumeDiscountText: '5,000+ SF: 10%; 10,000+ SF: 15%', volumeDiscountThreshold1: 5000, volumeDiscountRate1: 10, volumeDiscountThreshold2: 10000, volumeDiscountRate2: 15, sortOrder: 6 },
       { key: 'plant_installation', label: 'Plant Installation', pricingUnit: 'Per Plant', includedQty: 0, recommendedFrequency: 'As needed', subCostBase: 0, subCostPerUnit: 35, customerPriceBase: 0, customerPricePerUnit: 60, volumeDiscountText: '20+ plants: 10%; 50+: 15%', volumeDiscountThreshold1: 20, volumeDiscountRate1: 10, volumeDiscountThreshold2: 50, volumeDiscountRate2: 15, sortOrder: 7 },
       { key: 'gravel_rock_installation', label: 'Gravel/Rock Installation', pricingUnit: 'Per SF', includedQty: 0, recommendedFrequency: 'One-time', subCostBase: 0, subCostPerUnit: 1.75, customerPriceBase: 0, customerPricePerUnit: 3.00, volumeDiscountText: '2,000+ SF: 10%', volumeDiscountThreshold1: 2000, volumeDiscountRate1: 10, sortOrder: 8 },
@@ -298,6 +304,33 @@ export class MarketplaceService implements OnModuleInit {
     if (lawnMowing && lawnMowing.recommendedFrequency === 'Weekly (Apr–Oct), Biweekly (Nov–Mar)') {
       await this.lawncareServicesRepo.update(lawnMowing.id, {
         recommendedFrequency: 'Weekly/Biweekly (Apr–Oct); as-needed (Nov–Mar)',
+      });
+    }
+    // One-time rename backfill: 'Mulch Installation' -> 'Bed Mulching'.
+    const mulchInstallation = await this.lawncareServicesRepo.findOne({ where: { key: 'mulch_installation' } });
+    if (mulchInstallation && mulchInstallation.label === 'Mulch Installation') {
+      await this.lawncareServicesRepo.update(mulchInstallation.id, { label: 'Bed Mulching' });
+    }
+    // One-time backfill: Leaf Removal's Seasonal Package discount moves from
+    // a customer-selectable frequency chip to a membershipBenefit gated on
+    // an active Seasonal Maintenance Package subscription — gated on the old
+    // SEASONAL_PACKAGE frequencyDiscounts entry still being present.
+    const leafRemoval = await this.lawncareServicesRepo.findOne({ where: { key: 'leaf_removal' } });
+    if (leafRemoval && leafRemoval.frequencyDiscounts?.some((f) => f.frequency === 'SEASONAL_PACKAGE')) {
+      await this.lawncareServicesRepo.update(leafRemoval.id, {
+        frequencyDiscounts: [],
+        membershipBenefit: { requiredPackageKeys: ['premium_landscape_care'], type: 'PERCENT_OFF', ratePercent: 15 },
+        volumeDiscountText: '15% off with an active Seasonal Maintenance Package',
+      });
+    }
+    // One-time backfill: Bed Weeding is always monthly (no other cadence
+    // exists), so its 10% Monthly discount is intentionally zeroed out —
+    // gated on the old 10% value still being present.
+    const bedWeeding = await this.lawncareServicesRepo.findOne({ where: { key: 'bed_weeding' } });
+    if (bedWeeding && bedWeeding.frequencyDiscounts?.some((f) => f.frequency === 'MONTHLY' && f.ratePercent === 10)) {
+      await this.lawncareServicesRepo.update(bedWeeding.id, {
+        frequencyDiscounts: [{ frequency: 'MONTHLY', label: 'Monthly', ratePercent: 0 }],
+        volumeDiscountText: 'Always billed monthly',
       });
     }
 
@@ -987,6 +1020,19 @@ Exterior Maintenance Add-Ons
     return resolveServiceQty(serviceKey, profile) ?? 0;
   }
 
+  // The customer's currently-active Lawncare PACKAGE subscription, if any —
+  // drives membershipBenefit-conditional pricing (e.g. Leaf Removal's
+  // Seasonal Package discount, only available with an active Seasonal
+  // Maintenance Package). Mirrors Pest Control's identical
+  // getActivePestMembershipPackageKey(). Assumes at most one active
+  // lawncare package subscription per customer.
+  private async getActiveLawncareMembershipPackageKey(customerId: string): Promise<string | null> {
+    const active = await this.lawncarePackageSubscriptionsRepo.findOne({
+      where: { customerId, status: MarketplaceSubscriptionStatus.ACTIVE },
+    });
+    return active?.packageKey ?? null;
+  }
+
   async quoteLawncare(customerId: string, dto: QuoteLawncareDto): Promise<
     { type: 'package'; monthlyPrice: number; requiresQuote: boolean }
     | { type: 'service'; price: number; discountRate: number; requiresQuote: boolean; monthlyPrice?: number }
@@ -1004,7 +1050,8 @@ Exterior Maintenance Add-Ons
     if (!service) throw new NotFoundException('Service not found.');
     const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     const qty = this.resolveLawncareBookingQty(profile, service.key, dto.qty);
-    const { price, discountRate, requiresQuote, monthlyPrice } = computeLawncareServicePrice(service, qty, dto.frequency, profile);
+    const membershipPackageKey = await this.getActiveLawncareMembershipPackageKey(customerId);
+    const { price, discountRate, requiresQuote, monthlyPrice } = computeLawncareServicePrice(service, qty, dto.frequency, profile, membershipPackageKey);
     return { type: 'service', price, discountRate, requiresQuote: !!requiresQuote, monthlyPrice };
   }
 
@@ -1100,7 +1147,8 @@ Exterior Maintenance Add-Ons
     // Never trust a stale client-side number — recompute fresh right before charging.
     const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     const qty = resolveServiceQty(service.key, profile) ?? 0;
-    const { monthlyPrice, vendorPrice, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, profile);
+    const membershipPackageKey = await this.getActiveLawncareMembershipPackageKey(customerId);
+    const { monthlyPrice, vendorPrice, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, profile, membershipPackageKey);
     if (requiresQuote || monthlyPrice == null) {
       throw new BadRequestException('Your selected property size requires a custom quote — please contact support.');
     }
@@ -1174,7 +1222,8 @@ Exterior Maintenance Add-Ons
     }
     const propertyProfile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     const qty = this.resolveLawncareBookingQty(propertyProfile, service.key, dto.qty);
-    const { price, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, propertyProfile);
+    const membershipPackageKey = await this.getActiveLawncareMembershipPackageKey(customerId);
+    const { price, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, propertyProfile, membershipPackageKey);
     if (requiresQuote) {
       throw new BadRequestException('Your selected property size requires a custom quote — please contact support.');
     }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
-  Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
@@ -50,6 +50,7 @@ export default function MarketplaceLawncareScreen() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Record<string, string>>({});
   const [tierDraft, setTierDraft] = useState<string>('');
+  const [tierPickerOpen, setTierPickerOpen] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -272,19 +273,35 @@ export default function MarketplaceLawncareScreen() {
             <Text style={styles.helperText}>Entered once and reused for every Lawncare price — no need to enter it again.</Text>
 
             <Text style={styles.profileFieldLabel}>Estimated Property Size</Text>
-            {sizeTiers.map((t) => (
-              <TouchableOpacity
-                key={t.key}
-                style={[styles.tierRow, tierDraft === t.key && styles.tierRowActive]}
-                onPress={() => setTierDraft(t.key)}
-              >
-                <Ionicons name={tierDraft === t.key ? 'radio-button-on' : 'radio-button-off'} size={18} color={tierDraft === t.key ? colors.lanternDeep : colors.steel} />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.tierRowLabel}>{t.label}</Text>
-                  <Text style={styles.tierRowSub}>{t.maxSF != null ? `up to ${Number(t.maxSF).toLocaleString('en-US')} sq ft` : 'over 5 acres — custom quote'}</Text>
-                </View>
+            <TouchableOpacity style={styles.dropdownField} onPress={() => setTierPickerOpen(true)}>
+              <Text style={sizeTiers.find((t) => t.key === tierDraft) ? styles.dropdownValueText : styles.dropdownPlaceholderText}>
+                {sizeTiers.find((t) => t.key === tierDraft)?.label ?? 'Select property size'}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.steel} />
+            </TouchableOpacity>
+
+            <Modal visible={tierPickerOpen} transparent animationType="fade" onRequestClose={() => setTierPickerOpen(false)}>
+              <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setTierPickerOpen(false)}>
+                <TouchableOpacity style={styles.modalSheet} activeOpacity={1} onPress={() => {}}>
+                  <Text style={styles.modalTitle}>Estimated Property Size</Text>
+                  <ScrollView>
+                    {sizeTiers.map((t) => (
+                      <TouchableOpacity
+                        key={t.key}
+                        style={[styles.tierRow, tierDraft === t.key && styles.tierRowActive]}
+                        onPress={() => { setTierDraft(t.key); setTierPickerOpen(false); }}
+                      >
+                        <Ionicons name={tierDraft === t.key ? 'radio-button-on' : 'radio-button-off'} size={18} color={tierDraft === t.key ? colors.lanternDeep : colors.steel} />
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text style={styles.tierRowLabel}>{t.label}</Text>
+                          <Text style={styles.tierRowSub}>{t.maxSF != null ? `up to ${Number(t.maxSF).toLocaleString('en-US')} sq ft` : 'over 5 acres — custom quote'}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </TouchableOpacity>
               </TouchableOpacity>
-            ))}
+            </Modal>
 
             {propertyDetailFields.map((f) => (
               <View key={f.key} style={styles.profileFieldRow}>
@@ -521,6 +538,12 @@ const styles = StyleSheet.create({
   choiceBtnActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   choiceBtnText: { fontSize: 13, fontWeight: '600', color: colors.steel, textAlign: 'center' },
   choiceBtnTextActive: { color: colors.lanternDeep },
+  dropdownField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
+  dropdownValueText: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  dropdownPlaceholderText: { fontSize: 14, color: colors.steel },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: colors.canvas, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20, maxHeight: '75%' },
+  modalTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
   tierRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
   tierRowActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   tierRowLabel: { fontSize: 13, fontWeight: '600', color: colors.ink },

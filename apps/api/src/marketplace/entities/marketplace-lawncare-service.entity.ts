@@ -70,6 +70,19 @@ export class MarketplaceLawncareService {
     description?: string;
   }[];
 
+  // Conditional on the customer's currently-active Lawncare PACKAGE
+  // subscription — mirrors Pest Control's identical mechanism
+  // (MarketplacePestService.membershipBenefit /
+  // computePestServicePrice). Only applies to on-demand add-on bookings
+  // (quoteLawncare/bookLawncareService/subscribeLawncareService), never to a
+  // package's own composition pricing. Not customer-selectable — activates
+  // automatically based on subscription status, taking precedence over any
+  // frequencyDiscounts/volumeDiscount match. e.g. Leaf Removal's old
+  // customer-selectable "Seasonal Package" 15% off is now this: only
+  // available to customers with an active Seasonal Maintenance Package.
+  @Column({ type: 'jsonb', nullable: true })
+  membershipBenefit: { requiredPackageKeys: string[]; type: 'PERCENT_OFF' | 'FREE'; ratePercent?: number } | null;
+
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   volumeDiscountThreshold1: number | null;
 
