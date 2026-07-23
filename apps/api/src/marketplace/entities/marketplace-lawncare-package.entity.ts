@@ -23,8 +23,12 @@ export class MarketplaceLawncarePackage {
   // is computed fresh at quote/subscribe time from this composition against
   // the customer's own MarketplaceLawncarePropertyProfile, the same way
   // House Cleaning derives its price from BCU x rate x frequency.
+  // `frequency`, when set, must match one of that service's own
+  // frequencyDiscounts[].frequency values — computeLawncarePackageMonthlyPrice
+  // uses it to apply that service's real discount instead of pricing it at
+  // full undiscounted rate. Left unset where no such mapping is unambiguous.
   @Column({ type: 'jsonb', default: [] })
-  composition: { serviceKey: string; visitsPerYear: number }[];
+  composition: { serviceKey: string; visitsPerYear: number; frequency?: string }[];
 
   // Typical/"starting at" reference price shown in marketing copy only —
   // NOT the authoritative charged amount (that's always freshly computed

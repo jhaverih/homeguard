@@ -173,15 +173,20 @@ export default function MarketplaceLawncareScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAddOns]);
 
-  // Subscribable rows (monthlyPrice set) are billed as their own recurring
-  // subscription, not part of the one-time "Total" charged together.
-  const addOnTotal = Object.values(addOnQuotes).reduce((sum, q) => sum + (q.requiresQuote || q.monthlyPrice != null ? 0 : q.price), 0);
+  // Combined total across everything selected: subscribable rows contribute
+  // their real monthly charge, one-time rows contribute their per-visit
+  // price — added together into one number, since that's what the customer
+  // actually wants to see, with a per-row breakdown clarifying which parts
+  // are auto-billed vs. billed per visit (the underlying billing mechanics
+  // genuinely differ; the combined number doesn't paper over that).
+  const addOnTotal = Object.values(addOnQuotes).reduce((sum, q) => sum + (q.requiresQuote ? 0 : (q.monthlyPrice ?? q.price)), 0);
   const anyAddOnQuoting = Object.values(addOnQuoting).some(Boolean);
   const anyAddOnRequiresQuote = Object.values(addOnQuotes).some((q) => q.requiresQuote);
   const selectedAddOnKeys = Object.keys(selectedAddOns);
   const subscribableSelections = Object.entries(addOnQuotes).filter(([, q]) => q.monthlyPrice != null);
   const subscribableKeys = new Set(subscribableSelections.map(([key]) => key));
   const hasOneTimeSelection = selectedAddOnKeys.some((key) => !subscribableKeys.has(key));
+  const quotedSelections = Object.entries(addOnQuotes).filter(([, q]) => !q.requiresQuote);
 
   const presentStripeSheet = async (clientSecret: string | null): Promise<boolean> => {
     if (!clientSecret) return true;
@@ -391,12 +396,16 @@ export default function MarketplaceLawncareScreen() {
                           {s.key !== 'lawn_mowing' && (
                             <View style={styles.qtyRow}>
                               <Text style={styles.qtyLabel}>Quantity ({s.pricingUnit})</Text>
-                              <TextInput
-                                style={styles.profileFieldInput}
-                                keyboardType="numeric"
-                                value={sel.qty}
-                                onChangeText={(v) => updateAddOnQty(s.key, v)}
-                              />
+                              {MANUAL_QTY_SERVICES.has(s.key) ? (
+                                <TextInput
+                                  style={styles.profileFieldInput}
+                                  keyboardType="numeric"
+                                  value={sel.qty}
+                                  onChangeText={(v) => updateAddOnQty(s.key, v)}
+                                />
+                              ) : (
+                                <Text style={styles.qtyValue}>{sel.qty || '0'}</Text>
+                              )}
                             </View>
                           )}
 
@@ -420,7 +429,7 @@ export default function MarketplaceLawncareScreen() {
 
                           {quotingRow && <ActivityIndicator color={colors.lanternDeep} style={{ marginTop: 8 }} />}
                           {quote?.requiresQuote && <Text style={styles.helperText}>Your selected property size requires a custom quote — contact support.</Text>}
-                          {quote?.monthlyPrice != null && <Text style={styles.helperText}>Billed monthly while active — not part of the one-time total below.</Text>}
+                          {quote?.monthlyPrice != null && <Text style={styles.helperText}>Billed automatically each month while active.</Text>}
                         </View>
                       )}
                     </View>
@@ -429,21 +438,6 @@ export default function MarketplaceLawncareScreen() {
 
                 {selectedAddOnKeys.length > 0 && (
                   <>
-                    {subscribableSelections.length > 0 && (
-                      <View style={styles.subscribeSummary}>
-                        <Text style={styles.subscribeSummaryTitle}>Billed monthly, starting today:</Text>
-                        {subscribableSelections.map(([key, q]) => {
-                          const s = visibleServices.find((svc) => svc.key === key);
-                          const freqLabel = s?.frequencyDiscounts?.find((f: any) => f.frequency === selectedAddOns[key]?.frequency)?.label ?? '';
-                          return (
-                            <Text key={key} style={styles.subscribeSummaryLine}>
-                              {s?.label ?? key} ({freqLabel}) — {fmtUSD(q.monthlyPrice!)}/mo
-                            </Text>
-                          );
-                        })}
-                      </View>
-                    )}
-
                     {hasOneTimeSelection && (
                       <>
                         <Text style={styles.sectionLabel}>Preferred Date</Text>
@@ -454,23 +448,39 @@ export default function MarketplaceLawncareScreen() {
                         {showDate && (
                           <RNDateTimePicker value={preferredDate} mode="date" minimumDate={new Date()} onChange={(_, d) => { setShowDate(Platform.OS === 'ios'); if (d) setPreferredDate(d); }} />
                         )}
-
-                        <View style={styles.priceCard}>
-                          {anyAddOnQuoting ? (
-                            <ActivityIndicator color={colors.lanternDeep} />
-                          ) : anyAddOnRequiresQuote ? (
-                            <>
-                              <Text style={styles.priceAmount}>Custom Quote</Text>
-                              <Text style={styles.priceSub}>One or more selected services require a custom quote — contact support.</Text>
-                            </>
-                          ) : (
-                            <>
-                              <Text style={styles.priceLabel}>Total</Text>
-                              <Text style={styles.priceAmount}>{fmtUSD(addOnTotal)}</Text>
-                            </>
-                          )}
-                        </View>
                       </>
+                    )}
+
+                    <View style={styles.priceCard}>
+                      {anyAddOnQuoting ? (
+                        <ActivityIndicator color={colors.lanternDeep} />
+                      ) : anyAddOnRequiresQuote ? (
+                        <>
+                          <Text style={styles.priceAmount}>Custom Quote</Text>
+                          <Text style={styles.priceSub}>One or more selected services require a custom quote — contact support.</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.priceLabel}>Estimated Total</Text>
+                          <Text style={styles.priceAmount}>
+                            {fmtUSD(addOnTotal)}{subscribableSelections.length > 0 ? <Text style={styles.pricePer}>/mo</Text> : null}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+
+                    {!anyAddOnQuoting && !anyAddOnRequiresQuote && quotedSelections.length > 0 && (
+                      <View style={styles.totalBreakdown}>
+                        {quotedSelections.map(([key, q]) => {
+                          const s = visibleServices.find((svc) => svc.key === key);
+                          const freqLabel = s?.frequencyDiscounts?.find((f: any) => f.frequency === selectedAddOns[key]?.frequency)?.label;
+                          const label = freqLabel ? `${s?.label ?? key} (${freqLabel})` : (s?.label ?? key);
+                          const priceText = q.monthlyPrice != null ? `${fmtUSD(q.monthlyPrice)}/mo · auto-billed` : `${fmtUSD(q.price)} · billed per visit`;
+                          return (
+                            <Text key={key} style={styles.totalBreakdownLine}>{label} — {priceText}</Text>
+                          );
+                        })}
+                      </View>
                     )}
 
                     <TouchableOpacity
@@ -534,14 +544,14 @@ const styles = StyleSheet.create({
   serviceMeta: { fontSize: 11, color: colors.steel, marginTop: 2 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   qtyLabel: { fontSize: 13, color: colors.ink, flex: 1 },
+  qtyValue: { fontSize: 13, fontWeight: '600', color: colors.ink },
   freqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   freqChip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.canvas },
   freqChipActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   freqChipText: { fontSize: 11, color: colors.steel, fontWeight: '600' },
   freqChipTextActive: { color: colors.lanternDeep },
-  subscribeSummary: { backgroundColor: colors.mist, borderRadius: 10, padding: 12, marginTop: 16 },
-  subscribeSummaryTitle: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
-  subscribeSummaryLine: { fontSize: 12, color: colors.ink, marginTop: 2 },
+  totalBreakdown: { backgroundColor: colors.mist, borderRadius: 10, padding: 12, marginTop: 10 },
+  totalBreakdownLine: { fontSize: 12, color: colors.ink, marginTop: 2 },
   dateBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateBtnText: { fontSize: 15, color: colors.lanternDeep, fontWeight: '500' },
   priceCard: { backgroundColor: colors.ink, borderRadius: 14, padding: 18, marginTop: 24, alignItems: 'center', minHeight: 80, justifyContent: 'center' },

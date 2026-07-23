@@ -334,8 +334,8 @@ export class MarketplaceService implements OnModuleInit {
 Landscape Beds
 ✅ Monthly bed weeding`,
         composition: [
-          { serviceKey: 'lawn_mowing', visitsPerYear: 52 },
-          { serviceKey: 'bed_weeding', visitsPerYear: 12 },
+          { serviceKey: 'lawn_mowing', visitsPerYear: 52, frequency: 'WEEKLY' },
+          { serviceKey: 'bed_weeding', visitsPerYear: 12, frequency: 'MONTHLY' },
         ],
         monthlyPrice: 295,
         sortOrder: 1,
@@ -356,8 +356,8 @@ Seasonal Services
 ✅ Spring cleanup
 ✅ Fall cleanup`,
         composition: [
-          { serviceKey: 'lawn_mowing', visitsPerYear: 52 },
-          { serviceKey: 'bed_weeding', visitsPerYear: 12 },
+          { serviceKey: 'lawn_mowing', visitsPerYear: 52, frequency: 'WEEKLY' },
+          { serviceKey: 'bed_weeding', visitsPerYear: 12, frequency: 'MONTHLY' },
           { serviceKey: 'shrub_trimming', visitsPerYear: 1 },
           { serviceKey: 'spring_cleanup', visitsPerYear: 2 },
         ],
@@ -403,13 +403,13 @@ Exterior Maintenance Add-Ons
 ✅ Pressure washing coordination
 ✅ Exterior property condition reports`,
         composition: [
-          { serviceKey: 'lawn_mowing', visitsPerYear: 52 },
-          { serviceKey: 'bed_weeding', visitsPerYear: 12 },
+          { serviceKey: 'lawn_mowing', visitsPerYear: 52, frequency: 'WEEKLY' },
+          { serviceKey: 'bed_weeding', visitsPerYear: 12, frequency: 'MONTHLY' },
           { serviceKey: 'shrub_trimming', visitsPerYear: 4 },
-          { serviceKey: 'irrigation_startup', visitsPerYear: 1 },
-          { serviceKey: 'irrigation_winterization', visitsPerYear: 1 },
+          { serviceKey: 'irrigation_startup', visitsPerYear: 1, frequency: 'BUNDLE' },
+          { serviceKey: 'irrigation_winterization', visitsPerYear: 1, frequency: 'BUNDLE' },
           { serviceKey: 'spring_cleanup', visitsPerYear: 3 },
-          { serviceKey: 'gutter_cleaning', visitsPerYear: 2 },
+          { serviceKey: 'gutter_cleaning', visitsPerYear: 2, frequency: 'SEMIANNUAL' },
         ],
         monthlyPrice: 695,
         isStartingAt: true,
@@ -419,6 +419,17 @@ Exterior Maintenance Add-Ons
     for (const p of packages) {
       const existing = await this.lawncarePackagesRepo.findOne({ where: { key: p.key } });
       if (!existing) await this.lawncarePackagesRepo.save(this.lawncarePackagesRepo.create(p));
+    }
+    // One-time backfill: the 3 packages were already seeded (above
+    // `!existing` guard no longer applies) before composition items carried
+    // a `frequency` — add each item's, gated per-package on the composition
+    // not already containing any `frequency` value, so a future admin edit
+    // to composition (if that ever becomes editable) isn't clobbered.
+    for (const p of packages) {
+      const existingPkg = await this.lawncarePackagesRepo.findOne({ where: { key: p.key } });
+      if (existingPkg && !existingPkg.composition?.some((item) => item.frequency)) {
+        await this.lawncarePackagesRepo.update(existingPkg.id, { composition: p.composition });
+      }
     }
   }
 
@@ -955,7 +966,7 @@ Exterior Maintenance Add-Ons
       const service = byKey.get(item.serviceKey);
       if (!service) continue;
       const qty = resolveServiceQty(service.key, profile) ?? 0;
-      const { price, requiresQuote: rq } = computeLawncareServicePrice(service, qty, undefined, profile);
+      const { price, requiresQuote: rq } = computeLawncareServicePrice(service, qty, item.frequency, profile);
       if (rq) { requiresQuote = true; continue; }
       annualTotal += price * item.visitsPerYear;
     }
