@@ -14,6 +14,7 @@ import { MarketplaceLawncareService } from './entities/marketplace-lawncare-serv
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
 import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawncare-property-profile.entity';
+import { MarketplaceLawncarePropertyDetailField } from './entities/marketplace-lawncare-property-detail-field.entity';
 import { MarketplaceHouseCleaningPropertyProfile } from './entities/marketplace-house-cleaning-property-profile.entity';
 import { MarketplacePestService } from './entities/marketplace-pest-service.entity';
 import { MarketplacePestPackage } from './entities/marketplace-pest-package.entity';
@@ -83,6 +84,7 @@ export class MarketplaceService implements OnModuleInit {
     @InjectRepository(MarketplaceLawncarePackage) private lawncarePackagesRepo: Repository<MarketplaceLawncarePackage>,
     @InjectRepository(MarketplaceLawncarePackageSubscription) private lawncarePackageSubscriptionsRepo: Repository<MarketplaceLawncarePackageSubscription>,
     @InjectRepository(MarketplaceLawncarePropertyProfile) private lawncarePropertyProfileRepo: Repository<MarketplaceLawncarePropertyProfile>,
+    @InjectRepository(MarketplaceLawncarePropertyDetailField) private lawncarePropertyDetailFieldsRepo: Repository<MarketplaceLawncarePropertyDetailField>,
     @InjectRepository(MarketplaceHouseCleaningPropertyProfile) private houseCleaningPropertyProfileRepo: Repository<MarketplaceHouseCleaningPropertyProfile>,
     @InjectRepository(MarketplacePestService) private pestServicesRepo: Repository<MarketplacePestService>,
     @InjectRepository(MarketplacePestPackage) private pestPackagesRepo: Repository<MarketplacePestPackage>,
@@ -251,6 +253,45 @@ export class MarketplaceService implements OnModuleInit {
       { key: 'drainage_correction', label: 'Drainage Correction', pricingUnit: 'Per Project', includedQty: 0, recommendedFrequency: 'One-time', subCostBase: 650, subCostPerUnit: 0, customerPriceBase: 1200, customerPricePerUnit: 0, volumeDiscountText: 'Projects >$5k: 10%', sortOrder: 17 },
       { key: 'landscape_lighting_maintenance', label: 'Landscape Lighting Maintenance', pricingUnit: 'Service Call', includedQty: 0, recommendedFrequency: 'Annual', subCostBase: 75, subCostPerUnit: 15, customerPriceBase: 125, customerPricePerUnit: 25, volumeDiscountText: '10+ fixtures: 10%', volumeDiscountThreshold1: 10, volumeDiscountRate1: 10, sortOrder: 18 },
     ];
+    // Lawn Mowing's 8 property-size pricing tiers (XS..Large Estate) — see
+    // MarketplaceLawncareService.sizeTiers and computeLawncareServicePrice().
+    // One-time backfill only (gated on sizeTiers still being null), NOT an
+    // unconditional update, so admin edits made via the Configurator survive
+    // every subsequent restart/deploy.
+    const lawnMowing = await this.lawncareServicesRepo.findOne({ where: { key: 'lawn_mowing' } });
+    if (lawnMowing && !lawnMowing.sizeTiers) {
+      await this.lawncareServicesRepo.update(lawnMowing.id, {
+        sizeTiers: [
+          { key: 'XS', label: 'XS (up to 0.15 acre)', maxSF: 2500, vendorBase: 30, vendorAddlRate: 5, customerBase: 50, customerAddlRate: 8, requiresQuote: false },
+          { key: 'S', label: 'S (0.15 to 0.25 acre)', maxSF: 4000, vendorBase: 35, vendorAddlRate: 5, customerBase: 60, customerAddlRate: 8, requiresQuote: false },
+          { key: 'M', label: 'M (0.25 to 0.50 acre)', maxSF: 6000, vendorBase: 45, vendorAddlRate: 5, customerBase: 76, customerAddlRate: 8, requiresQuote: false },
+          { key: 'L', label: 'L (0.50 to 0.75 acre)', maxSF: 8000, vendorBase: 55, vendorAddlRate: 5, customerBase: 92, customerAddlRate: 8, requiresQuote: false },
+          { key: 'XL', label: 'XL (0.75 to 1.00 acre)', maxSF: 10000, vendorBase: 65, vendorAddlRate: 5, customerBase: 108, customerAddlRate: 8, requiresQuote: false },
+          { key: 'XXL', label: 'XXL (1 to 2 acres)', maxSF: 15000, vendorBase: 80, vendorAddlRate: 5, customerBase: 132, customerAddlRate: 8, requiresQuote: false },
+          { key: 'ESTATE', label: 'Estate (2 to 5 acres)', maxSF: 20000, vendorBase: 95, vendorAddlRate: null, customerBase: 156, customerAddlRate: null, requiresQuote: false },
+          { key: 'LARGE_ESTATE', label: 'Large Estate (over 5 acres)', maxSF: null, vendorBase: null, vendorAddlRate: null, customerBase: null, customerAddlRate: null, requiresQuote: true },
+        ],
+      });
+    }
+
+    // Initial Property Details field set — admin can rename/reorder/remove/
+    // add from here via the Configurator; `key` stays stable since
+    // resolveServiceQty() (marketplace-lawncare-pricing.utils.ts) reads by it.
+    const propertyDetailFields: Partial<MarketplaceLawncarePropertyDetailField>[] = [
+      { key: 'shrubPlantCount', label: 'Number of Shrubs/Plants', unit: 'count', sortOrder: 1 },
+      { key: 'bedSqFt', label: 'Bed Square Footage', unit: 'sq ft', sortOrder: 2 },
+      { key: 'gutterLinearFt', label: 'Gutter Linear Footage', unit: 'ft', sortOrder: 3 },
+      { key: 'irrigationZones', label: 'Irrigation Zones', unit: 'zones', sortOrder: 4 },
+      { key: 'treeCountSmall', label: "Small Trees (<20')", unit: 'count', sortOrder: 5 },
+      { key: 'treeCountMedium', label: "Medium Trees (20-40')", unit: 'count', sortOrder: 6 },
+      { key: 'treeCountLarge', label: "Large Trees (40-60')", unit: 'count', sortOrder: 7 },
+      { key: 'lightingFixtureCount', label: 'Landscape Lighting Fixtures', unit: 'count', sortOrder: 8 },
+    ];
+    for (const f of propertyDetailFields) {
+      const existing = await this.lawncarePropertyDetailFieldsRepo.findOne({ where: { key: f.key } });
+      if (!existing) await this.lawncarePropertyDetailFieldsRepo.save(this.lawncarePropertyDetailFieldsRepo.create(f));
+    }
+
     for (const s of services) {
       const existing = await this.lawncareServicesRepo.findOne({ where: { key: s.key } });
       if (!existing) await this.lawncareServicesRepo.save(this.lawncareServicesRepo.create(s));
@@ -593,11 +634,12 @@ Exterior Maintenance Add-Ons
   }
 
   async getLawncareConfig() {
-    const [services, packages] = await Promise.all([
+    const [services, packages, propertyDetailFields] = await Promise.all([
       this.lawncareServicesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
       this.lawncarePackagesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
+      this.lawncarePropertyDetailFieldsRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
     ]);
-    return { services, packages };
+    return { services, packages, propertyDetailFields };
   }
 
   async getLawncarePropertyProfile(customerId: string) {
@@ -607,8 +649,54 @@ Exterior Maintenance Add-Ons
   async upsertLawncarePropertyProfile(customerId: string, data: UpsertLawncarePropertyProfileDto) {
     let profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     if (!profile) profile = this.lawncarePropertyProfileRepo.create({ customerId });
-    Object.assign(profile, data);
+    const { propertySizeTier, fieldValues, ...rest } = data;
+    Object.assign(profile, rest);
+    if (fieldValues) profile.fieldValues = { ...profile.fieldValues, ...fieldValues };
+    // Derive propertySizeSqFt from the tier's own SF ceiling whenever the
+    // tier changes, so leaf_removal's existing qty formula (a continuous SF
+    // number) keeps working with zero changes of its own.
+    if (propertySizeTier !== undefined) {
+      profile.propertySizeTier = propertySizeTier;
+      const lawnMowing = await this.lawncareServicesRepo.findOne({ where: { key: 'lawn_mowing' } });
+      const tier = lawnMowing?.sizeTiers?.find((t) => t.key === propertySizeTier);
+      profile.propertySizeSqFt = tier?.maxSF ?? null;
+    }
     return this.lawncarePropertyProfileRepo.save(profile);
+  }
+
+  // ── Lawncare: Property Details field definitions (admin) ─────────────────
+
+  async getLawncarePropertyDetailFields() {
+    return this.lawncarePropertyDetailFieldsRepo.find({ order: { sortOrder: 'ASC' } });
+  }
+
+  async createLawncarePropertyDetailField(label: string, unit: string) {
+    const count = await this.lawncarePropertyDetailFieldsRepo.count();
+    const key = this.uniqueFieldKey(label);
+    return this.lawncarePropertyDetailFieldsRepo.save(this.lawncarePropertyDetailFieldsRepo.create({
+      key, label, unit, sortOrder: count, isActive: true,
+    }));
+  }
+
+  async updateLawncarePropertyDetailField(
+    id: string,
+    data: Partial<Pick<MarketplaceLawncarePropertyDetailField, 'label' | 'unit' | 'isActive' | 'sortOrder'>>,
+  ) {
+    await this.lawncarePropertyDetailFieldsRepo.update(id, data);
+    return this.lawncarePropertyDetailFieldsRepo.findOneOrFail({ where: { id } });
+  }
+
+  async removeLawncarePropertyDetailField(id: string): Promise<void> {
+    await this.lawncarePropertyDetailFieldsRepo.delete(id);
+  }
+
+  // Field `key` isn't shown to admins — an internal identifier
+  // resolveServiceQty() reads by name — a slug plus a short timestamp
+  // suffix is simplest way to guarantee uniqueness, same convention as
+  // InspectionConfigService.uniqueKey().
+  private uniqueFieldKey(label: string): string {
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'field';
+    return `${slug}_${Date.now().toString(36)}`;
   }
 
   async getPestConfig() {
@@ -827,7 +915,7 @@ Exterior Maintenance Add-Ons
   // annualizes to a monthly Stripe-billed amount — the same "annual total /
   // 12" shape House Cleaning uses (computeMonthlySubscriptionPrice), just
   // generalized to a heterogeneous set of services instead of one BCU calc.
-  private async computeLawncarePackageMonthlyPrice(customerId: string, pkg: MarketplaceLawncarePackage): Promise<number> {
+  private async computeLawncarePackageMonthlyPrice(customerId: string, pkg: MarketplaceLawncarePackage): Promise<{ monthlyPrice: number; requiresQuote: boolean }> {
     const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     if (!profile) throw new BadRequestException('Complete your property details first.');
 
@@ -835,14 +923,16 @@ Exterior Maintenance Add-Ons
     const byKey = new Map(allServices.map((s) => [s.key, s]));
 
     let annualTotal = 0;
+    let requiresQuote = false;
     for (const item of pkg.composition) {
       const service = byKey.get(item.serviceKey);
       if (!service) continue;
       const qty = resolveServiceQty(service.key, profile) ?? 0;
-      const { price } = computeLawncareServicePrice(service, qty);
+      const { price, requiresQuote: rq } = computeLawncareServicePrice(service, qty, undefined, profile);
+      if (rq) { requiresQuote = true; continue; }
       annualTotal += price * item.visitsPerYear;
     }
-    return Math.round((annualTotal / 12) * 100) / 100;
+    return { monthlyPrice: Math.round((annualTotal / 12) * 100) / 100, requiresQuote };
   }
 
   // Manual-qty services (Sod/Plant/Gravel-Rock Installation) require an
@@ -850,33 +940,34 @@ Exterior Maintenance Add-Ons
   // property-profile-resolved qty, but the mobile add-on UI pre-fills that
   // value and lets the customer edit it for this specific booking — so a
   // provided qty always wins when present, for any service.
-  private async resolveLawncareBookingQty(customerId: string, serviceKey: string, providedQty?: number): Promise<number> {
+  private resolveLawncareBookingQty(profile: MarketplaceLawncarePropertyProfile | null, serviceKey: string, providedQty?: number): number {
     if (providedQty != null) return providedQty;
     if (isManualQtyService(serviceKey)) {
       throw new BadRequestException('A quantity is required for this service.');
     }
-    const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
     if (!profile) throw new BadRequestException('Complete your property details first.');
     return resolveServiceQty(serviceKey, profile) ?? 0;
   }
 
   async quoteLawncare(customerId: string, dto: QuoteLawncareDto): Promise<
-    { type: 'package'; monthlyPrice: number } | { type: 'service'; price: number; discountRate: number }
+    { type: 'package'; monthlyPrice: number; requiresQuote: boolean }
+    | { type: 'service'; price: number; discountRate: number; requiresQuote: boolean }
   > {
     if (dto.mode === 'package') {
       if (!dto.packageKey) throw new BadRequestException('packageKey is required for mode "package".');
       const pkg = await this.lawncarePackagesRepo.findOne({ where: { key: dto.packageKey, isActive: true } });
       if (!pkg) throw new NotFoundException('Package not found.');
-      const monthlyPrice = await this.computeLawncarePackageMonthlyPrice(customerId, pkg);
-      return { type: 'package', monthlyPrice };
+      const { monthlyPrice, requiresQuote } = await this.computeLawncarePackageMonthlyPrice(customerId, pkg);
+      return { type: 'package', monthlyPrice, requiresQuote };
     }
 
     if (!dto.serviceKey) throw new BadRequestException('serviceKey is required for mode "service".');
     const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
     if (!service) throw new NotFoundException('Service not found.');
-    const qty = await this.resolveLawncareBookingQty(customerId, service.key, dto.qty);
-    const { price, discountRate } = computeLawncareServicePrice(service, qty, dto.frequency);
-    return { type: 'service', price, discountRate };
+    const profile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
+    const qty = this.resolveLawncareBookingQty(profile, service.key, dto.qty);
+    const { price, discountRate, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, profile);
+    return { type: 'service', price, discountRate, requiresQuote: !!requiresQuote };
   }
 
   // Billing-only: charges a flat monthly Stripe subscription computed fresh
@@ -893,7 +984,10 @@ Exterior Maintenance Add-Ons
     if (!coreSubscription) throw new BadRequestException('An active Attenteve plan is required to subscribe to Marketplace services.');
 
     // Never trust a stale client-side number — recompute fresh right before charging.
-    const monthlyPrice = await this.computeLawncarePackageMonthlyPrice(customerId, pkg);
+    const { monthlyPrice, requiresQuote } = await this.computeLawncarePackageMonthlyPrice(customerId, pkg);
+    if (requiresQuote) {
+      throw new BadRequestException('Your selected property size requires a custom quote — please contact support.');
+    }
 
     const stripeCustomerId = await this.subscriptionsService.getOrCreateStripeCustomer(customerId);
     const customer = await this.stripe.customers.retrieve(stripeCustomerId);
@@ -957,8 +1051,12 @@ Exterior Maintenance Add-Ons
   async bookLawncareService(customerId: string, dto: BookLawncareServiceDto) {
     const service = await this.lawncareServicesRepo.findOne({ where: { key: dto.serviceKey, isActive: true } });
     if (!service) throw new NotFoundException('Service not found.');
-    const qty = await this.resolveLawncareBookingQty(customerId, service.key, dto.qty);
-    const { price } = computeLawncareServicePrice(service, qty, dto.frequency);
+    const propertyProfile = await this.lawncarePropertyProfileRepo.findOne({ where: { customerId } });
+    const qty = this.resolveLawncareBookingQty(propertyProfile, service.key, dto.qty);
+    const { price, requiresQuote } = computeLawncareServicePrice(service, qty, dto.frequency, propertyProfile);
+    if (requiresQuote) {
+      throw new BadRequestException('Your selected property size requires a custom quote — please contact support.');
+    }
 
     const lawncareCatalogPrice = await this.servicePriceRepo.findOne({ where: { name: LAWNCARE_CATALOG_NAME } });
     if (!lawncareCatalogPrice) throw new NotFoundException('Lawncare is not currently available.');

@@ -157,10 +157,11 @@ export const marketplaceApi = {
   bookOneTime: (body: any) => api.post('/marketplace/house-cleaning/one-time', body),
   getHouseCleaningPropertyProfile: (): Promise<{ roomConfig: Record<string, number> } | null> =>
     api.get('/marketplace/house-cleaning/property-profile') as any,
-  getLawncareConfig: (): Promise<{ services: any[]; packages: any[] }> =>
+  getLawncareConfig: (): Promise<{ services: any[]; packages: any[]; propertyDetailFields: any[] }> =>
     api.get('/marketplace/lawncare/config') as any,
   quoteLawncare: (body: any): Promise<
-    { type: 'package'; monthlyPrice: number } | { type: 'service'; price: number; discountRate: number }
+    { type: 'package'; monthlyPrice: number; requiresQuote: boolean }
+    | { type: 'service'; price: number; discountRate: number; requiresQuote: boolean }
   > => api.post('/marketplace/lawncare/quote', body) as any,
   subscribeLawncarePackage: (body: any): Promise<{ subscriptionId: string; monthlyPrice: number; charged: boolean; clientSecret: string | null }> =>
     api.post('/marketplace/lawncare/subscribe', body) as any,

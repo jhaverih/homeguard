@@ -14,6 +14,7 @@ import { MarketplaceLawncareService } from './entities/marketplace-lawncare-serv
 import { MarketplaceLawncarePackage } from './entities/marketplace-lawncare-package.entity';
 import { MarketplaceLawncarePackageSubscription } from './entities/marketplace-lawncare-package-subscription.entity';
 import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawncare-property-profile.entity';
+import { MarketplaceLawncarePropertyDetailField } from './entities/marketplace-lawncare-property-detail-field.entity';
 import { MarketplaceHouseCleaningPropertyProfile } from './entities/marketplace-house-cleaning-property-profile.entity';
 import { MarketplacePestService } from './entities/marketplace-pest-service.entity';
 import { MarketplacePestPackage } from './entities/marketplace-pest-package.entity';
@@ -33,6 +34,7 @@ import { ServiceRequestsModule } from '../service-requests/service-requests.modu
       MarketplaceAddOn, MarketplaceFrequencyDiscount, MarketplaceSubscription,
       MarketplaceSubscriptionEvent, MarketplaceLawncareService, MarketplaceLawncarePackage,
       MarketplaceLawncarePackageSubscription, MarketplaceLawncarePropertyProfile,
+      MarketplaceLawncarePropertyDetailField,
       MarketplaceHouseCleaningPropertyProfile,
       MarketplacePestService, MarketplacePestPackage, MarketplacePestPackageSubscription, MarketplacePestPropertyProfile,
       VendorCapability, ServicePrice,

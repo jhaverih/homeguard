@@ -65,11 +65,12 @@ export default function MarketplacePage() {
   const load = () => Promise.all([marketplaceApi.getConfig(), marketplaceApi.getLawncareConfig(), marketplaceApi.getPestConfig()]).then(([c, lc, pc]: any[]) => {
     const merged = {
       ...c, lawncareServices: lc.services, lawncarePackages: lc.packages,
+      lawncarePropertyDetailFields: lc.propertyDetailFields,
       pestServices: pc.services, pestPackages: pc.packages,
     };
     setConfig(merged);
     const d: Record<string, any> = {};
-    for (const row of [...c.plans, ...c.roomUnits, ...c.conditions, ...c.addOns, ...c.frequencyDiscounts, ...lc.services, ...lc.packages, ...pc.services, ...pc.packages]) {
+    for (const row of [...c.plans, ...c.roomUnits, ...c.conditions, ...c.addOns, ...c.frequencyDiscounts, ...lc.services, ...lc.packages, ...lc.propertyDetailFields, ...pc.services, ...pc.packages]) {
       d[row.id] = { ...row };
     }
     setDrafts(d);
@@ -81,7 +82,7 @@ export default function MarketplacePage() {
 
   const isDirty = (original: any, draft: any) => JSON.stringify(original) !== JSON.stringify(draft);
 
-  const save = async (kind: 'plan' | 'roomUnit' | 'condition' | 'addOn' | 'frequencyDiscount' | 'lawncareService' | 'lawncarePackage' | 'pestService' | 'pestPackage', id: string, payload: any) => {
+  const save = async (kind: 'plan' | 'roomUnit' | 'condition' | 'addOn' | 'frequencyDiscount' | 'lawncareService' | 'lawncarePackage' | 'lawncarePropertyDetailField' | 'pestService' | 'pestPackage', id: string, payload: any) => {
     setSaving((p) => new Set(p).add(id));
     try {
       if (kind === 'plan') await marketplaceApi.updatePlan(id, payload);
@@ -91,11 +92,60 @@ export default function MarketplacePage() {
       else if (kind === 'frequencyDiscount') await marketplaceApi.updateFrequencyDiscount(id, payload);
       else if (kind === 'lawncareService') await marketplaceApi.updateLawncareService(id, payload);
       else if (kind === 'lawncarePackage') await marketplaceApi.updateLawncarePackage(id, payload);
+      else if (kind === 'lawncarePropertyDetailField') await marketplaceApi.updateLawncarePropertyDetailField(id, payload);
       else if (kind === 'pestService') await marketplaceApi.updatePestService(id, payload);
       else await marketplaceApi.updatePestPackage(id, payload);
       await load();
     } finally {
       setSaving((p) => { const n = new Set(p); n.delete(id); return n; });
+    }
+  };
+
+  const [addingField, setAddingField] = useState(false);
+  const addPropertyDetailField = async () => {
+    setAddingField(true);
+    try {
+      await marketplaceApi.createLawncarePropertyDetailField('New Field', 'count');
+      await load();
+    } finally {
+      setAddingField(false);
+    }
+  };
+
+  const [removingFieldId, setRemovingFieldId] = useState<string | null>(null);
+  const removePropertyDetailField = async (id: string) => {
+    setRemovingFieldId(id);
+    try {
+      await marketplaceApi.removeLawncarePropertyDetailField(id);
+      await load();
+    } finally {
+      setRemovingFieldId(null);
+    }
+  };
+
+  // Local-only draft state for the Lawn Mowing size-tier table — a nested
+  // array field on one service row, doesn't fit the generic flat-field
+  // drafts/setField mechanism above.
+  const [tierDrafts, setTierDrafts] = useState<any[] | null>(null);
+  const [savingTiers, setSavingTiers] = useState(false);
+  const lawnMowingService = config?.lawncareServices?.find((s: any) => s.key === 'lawn_mowing');
+  const activeTierDrafts = tierDrafts ?? lawnMowingService?.sizeTiers ?? [];
+  const tiersDirty = tierDrafts != null && JSON.stringify(tierDrafts) !== JSON.stringify(lawnMowingService?.sizeTiers ?? []);
+  const setTierField = (index: number, field: string, value: any) => {
+    setTierDrafts((prev) => {
+      const base = prev ?? lawnMowingService?.sizeTiers ?? [];
+      return base.map((t: any, i: number) => (i === index ? { ...t, [field]: value } : t));
+    });
+  };
+  const saveTiers = async () => {
+    if (!lawnMowingService || !tierDrafts) return;
+    setSavingTiers(true);
+    try {
+      await marketplaceApi.updateLawncareService(lawnMowingService.id, { sizeTiers: tierDrafts });
+      setTierDrafts(null);
+      await load();
+    } finally {
+      setSavingTiers(false);
     }
   };
 
@@ -395,6 +445,106 @@ export default function MarketplacePage() {
           </tbody>
         </table>
         </div>
+      </SectionCard>
+
+      {lawnMowingService && (
+        <SectionCard title="Lawn Mowing Size Tiers" subtitle="What actually prices Lawn Mowing now — the Sub Cost/Cust. Price columns above are ignored for this service. Price = Base + Add'l Rate × (Max SF ÷ 1000). Leave Add'l Rate blank and check Custom Quote for a tier with no computed price (e.g. Large Estate).">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-mist-dim">
+                <th className="px-3 py-2 text-left font-semibold text-steel">Tier</th>
+                <th className="px-3 py-2 text-right font-semibold text-steel">Max SF</th>
+                <th className="px-3 py-2 text-right font-semibold text-steel">Vendor Base</th>
+                <th className="px-3 py-2 text-right font-semibold text-steel">Vendor Add'l/1000 SF</th>
+                <th className="px-3 py-2 text-right font-semibold text-steel">Cust. Base</th>
+                <th className="px-3 py-2 text-right font-semibold text-steel">Cust. Add'l/1000 SF</th>
+                <th className="px-3 py-2 text-center font-semibold text-steel">Custom Quote</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-canvas">
+              {activeTierDrafts.map((t: any, i: number) => (
+                <tr key={t.key}>
+                  <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{t.label}</td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="1" value={t.maxSF ?? ''} onChange={(e) => setTierField(i, 'maxSF', e.target.value === '' ? null : Number(e.target.value))} className="w-24 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={t.vendorBase ?? ''} onChange={(e) => setTierField(i, 'vendorBase', e.target.value === '' ? null : Number(e.target.value))} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={t.vendorAddlRate ?? ''} onChange={(e) => setTierField(i, 'vendorAddlRate', e.target.value === '' ? null : Number(e.target.value))} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={t.customerBase ?? ''} onChange={(e) => setTierField(i, 'customerBase', e.target.value === '' ? null : Number(e.target.value))} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <input type="number" step="0.01" value={t.customerAddlRate ?? ''} onChange={(e) => setTierField(i, 'customerAddlRate', e.target.value === '' ? null : Number(e.target.value))} className="w-20 border border-border rounded px-2 py-1 text-right" />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={!!t.requiresQuote} onChange={(e) => setTierField(i, 'requiresQuote', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+          <div className="mt-4">
+            <SaveButton dirty={tiersDirty} saving={savingTiers} onClick={saveTiers} />
+          </div>
+        </SectionCard>
+      )}
+
+      <SectionCard title="Property Details" subtitle="Admin-manageable fields shown on the customer's Lawncare property-details form (Property Size is separate — see Size Tiers above). Add/remove take effect immediately; label/unit edits use Save like every other table.">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-mist-dim">
+              <th className="px-3 py-2 text-left font-semibold text-steel">Label</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Unit</th>
+              <th className="px-3 py-2 text-center font-semibold text-steel">Enabled</th>
+              <th className="w-32" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-canvas">
+            {(config.lawncarePropertyDetailFields ?? []).map((f: any) => {
+              const d = drafts[f.id] ?? f;
+              return (
+                <tr key={f.id}>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.label} onChange={(e) => setField(f.id, 'label', e.target.value)} className="w-56 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.unit} onChange={(e) => setField(f.id, 'unit', e.target.value)} className="w-24 border border-border rounded px-2 py-1" />
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={d.isActive} onChange={(e) => setField(f.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
+                  </td>
+                  <td className="px-3 py-2 flex items-center gap-2">
+                    <SaveButton
+                      dirty={isDirty(f, d)}
+                      saving={saving.has(f.id)}
+                      onClick={() => save('lawncarePropertyDetailField', f.id, { label: d.label, unit: d.unit, isActive: d.isActive })}
+                    />
+                    <button
+                      onClick={() => removePropertyDetailField(f.id)}
+                      disabled={removingFieldId === f.id}
+                      className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30"
+                    >
+                      ✕ Remove
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <button
+          onClick={addPropertyDetailField}
+          disabled={addingField}
+          className="mt-4 bg-lantern text-ink px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-lantern-deep disabled:opacity-50 transition-colors"
+        >
+          {addingField ? 'Adding…' : '+ New Field'}
+        </button>
       </SectionCard>
 
       <SectionCard title="Subscription Packages" subtitle="Bundled monthly Lawncare tiers. &quot;Starting at&quot; marks a tier priced as a floor rather than a flat rate (e.g. Estate).">

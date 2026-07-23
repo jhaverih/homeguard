@@ -12,59 +12,51 @@ import { colors } from '../../src/theme';
 
 type Mode = 'package' | 'service';
 type AddOnSelection = { qty: string; frequency?: string };
-type ServiceQuote = { price: number; discountRate: number };
+type ServiceQuote = { price: number; discountRate: number; requiresQuote?: boolean };
 
 // One-off project services — quantity varies per project, not a standing
 // property attribute, so these don't get a property-profile-derived default.
 const MANUAL_QTY_SERVICES = new Set(['sod_installation', 'plant_installation', 'gravel_rock_installation']);
 
-const PROFILE_FIELDS: { key: string; label: string; unit: string }[] = [
-  { key: 'propertySizeSqFt', label: 'Property (Lawn) Size', unit: 'sq ft' },
-  { key: 'shrubPlantCount', label: 'Number of Shrubs/Plants', unit: 'count' },
-  { key: 'bedSqFt', label: 'Bed Square Footage', unit: 'sq ft' },
-  { key: 'gutterLinearFt', label: 'Gutter Linear Footage', unit: 'ft' },
-  { key: 'irrigationZones', label: 'Irrigation Zones', unit: 'zones' },
-  { key: 'treeCountSmall', label: "Small Trees (<20')", unit: 'count' },
-  { key: 'treeCountMedium', label: "Medium Trees (20-40')", unit: 'count' },
-  { key: 'treeCountLarge', label: "Large Trees (40-60')", unit: 'count' },
-  { key: 'lightingFixtureCount', label: 'Landscape Lighting Fixtures', unit: 'count' },
-];
-
 // Mirrors the qty portion of resolveServiceQty() in
 // apps/api/src/marketplace/marketplace-lawncare-pricing.utils.ts, purely to
 // pre-fill the editable qty input — the actual charged price always comes
-// from the live quoteLawncare() call, never computed client-side.
+// from the live quoteLawncare() call, never computed client-side. The 7
+// non-size fields now live in profile.fieldValues (admin-manageable), keyed
+// the same way as MarketplaceLawncarePropertyDetailField.key.
 function displayQtyFromProfile(serviceKey: string, profile: any): number | null {
   if (!profile) return null;
+  const field = (key: string) => Number(profile.fieldValues?.[key]) || 0;
   switch (serviceKey) {
-    case 'mulch_installation': return Math.round(((Number(profile.bedSqFt) || 0) * 0.25) / 27);
-    case 'bed_weeding': return Number(profile.bedSqFt) || 0;
+    case 'mulch_installation': return Math.round((field('bedSqFt') * 0.25) / 27);
+    case 'bed_weeding': return field('bedSqFt');
     case 'leaf_removal': return Number(profile.propertySizeSqFt) || 0;
-    case 'shrub_trimming': return Number(profile.shrubPlantCount) || 0;
-    case 'gutter_cleaning': return Number(profile.gutterLinearFt) || 0;
+    case 'shrub_trimming': return field('shrubPlantCount');
+    case 'gutter_cleaning': return field('gutterLinearFt');
     case 'irrigation_startup':
-    case 'irrigation_winterization': return Number(profile.irrigationZones) || 0;
-    case 'small_tree_trimming': return Number(profile.treeCountSmall) || 0;
-    case 'medium_tree_trimming': return Number(profile.treeCountMedium) || 0;
-    case 'large_tree_trimming': return Number(profile.treeCountLarge) || 0;
-    case 'landscape_lighting_maintenance': return Number(profile.lightingFixtureCount) || 0;
+    case 'irrigation_winterization': return field('irrigationZones');
+    case 'small_tree_trimming': return field('treeCountSmall');
+    case 'medium_tree_trimming': return field('treeCountMedium');
+    case 'large_tree_trimming': return field('treeCountLarge');
+    case 'landscape_lighting_maintenance': return field('lightingFixtureCount');
     default: return null; // flat services (lawn_mowing, spring_cleanup, seasonal_maintenance, drainage_correction)
   }
 }
 
 export default function MarketplaceLawncareScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const [config, setConfig] = useState<{ services: any[]; packages: any[] } | null>(null);
+  const [config, setConfig] = useState<{ services: any[]; packages: any[]; propertyDetailFields: any[] } | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Record<string, string>>({});
+  const [tierDraft, setTierDraft] = useState<string>('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [mode, setMode] = useState<Mode>('package');
   const [packageKey, setPackageKey] = useState<string | null>(null);
-  const [packageQuote, setPackageQuote] = useState<{ monthlyPrice: number } | null>(null);
+  const [packageQuote, setPackageQuote] = useState<{ monthlyPrice: number; requiresQuote: boolean } | null>(null);
   const [packageQuoting, setPackageQuoting] = useState(false);
 
   const [selectedAddOns, setSelectedAddOns] = useState<Record<string, AddOnSelection>>({});
@@ -90,20 +82,27 @@ export default function MarketplaceLawncareScreen() {
   const hasProfile = !!profile;
   const includedServiceKeys = new Set(selectedPackage?.composition?.map((c: any) => c.serviceKey) ?? []);
   const visibleServices = config?.services.filter((s) => !includedServiceKeys.has(s.key)) ?? [];
+  const sizeTiers: any[] = config?.services.find((s) => s.key === 'lawn_mowing')?.sizeTiers ?? [];
+  const propertyDetailFields: any[] = config?.propertyDetailFields ?? [];
+  const selectedTier = sizeTiers.find((t) => t.key === profile?.propertySizeTier) ?? null;
 
   const openProfileEditor = () => {
-    setProfileDraft(Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, profile?.[f.key] != null ? String(profile[f.key]) : ''])));
+    setProfileDraft(Object.fromEntries(propertyDetailFields.map((f) => [f.key, profile?.fieldValues?.[f.key] != null ? String(profile.fieldValues[f.key]) : ''])));
+    setTierDraft(profile?.propertySizeTier ?? '');
     setEditingProfile(true);
   };
 
   const saveProfile = async () => {
+    if (!tierDraft) { Alert.alert('Property Size Required', 'Please select your estimated property size.'); return; }
     setSavingProfile(true);
     try {
-      const payload: Record<string, number> = {};
-      for (const f of PROFILE_FIELDS) {
+      const fieldValues: Record<string, number> = {};
+      for (const f of propertyDetailFields) {
         const raw = profileDraft[f.key];
-        if (raw != null && raw !== '') payload[f.key] = Number(raw);
+        if (raw != null && raw !== '') fieldValues[f.key] = Number(raw);
       }
+      const payload: any = { fieldValues };
+      if (tierDraft) payload.propertySizeTier = tierDraft;
       const saved = await marketplaceApi.saveLawncarePropertyProfile(payload);
       setProfile(saved);
       setEditingProfile(false);
@@ -171,8 +170,9 @@ export default function MarketplaceLawncareScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAddOns]);
 
-  const addOnTotal = Object.values(addOnQuotes).reduce((sum, q) => sum + q.price, 0);
+  const addOnTotal = Object.values(addOnQuotes).reduce((sum, q) => sum + (q.requiresQuote ? 0 : q.price), 0);
   const anyAddOnQuoting = Object.values(addOnQuoting).some(Boolean);
+  const anyAddOnRequiresQuote = Object.values(addOnQuotes).some((q) => q.requiresQuote);
   const selectedAddOnKeys = Object.keys(selectedAddOns);
 
   const presentStripeSheet = async (clientSecret: string | null): Promise<boolean> => {
@@ -214,7 +214,7 @@ export default function MarketplaceLawncareScreen() {
   };
 
   const submitAddOns = async () => {
-    if (selectedAddOnKeys.length === 0) return;
+    if (selectedAddOnKeys.length === 0 || anyAddOnRequiresQuote) return;
     setSubmitting(true);
     try {
       for (const key of selectedAddOnKeys) {
@@ -247,7 +247,23 @@ export default function MarketplaceLawncareScreen() {
         {editingProfile ? (
           <>
             <Text style={styles.helperText}>Entered once and reused for every Lawncare price — no need to enter it again.</Text>
-            {PROFILE_FIELDS.map((f) => (
+
+            <Text style={styles.profileFieldLabel}>Estimated Property Size</Text>
+            {sizeTiers.map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.tierRow, tierDraft === t.key && styles.tierRowActive]}
+                onPress={() => setTierDraft(t.key)}
+              >
+                <Ionicons name={tierDraft === t.key ? 'radio-button-on' : 'radio-button-off'} size={18} color={tierDraft === t.key ? colors.lanternDeep : colors.steel} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.tierRowLabel}>{t.label}</Text>
+                  <Text style={styles.tierRowSub}>{t.maxSF != null ? `up to ${Number(t.maxSF).toLocaleString('en-US')} sq ft` : 'over 5 acres — custom quote'}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {propertyDetailFields.map((f) => (
               <View key={f.key} style={styles.profileFieldRow}>
                 <Text style={styles.profileFieldLabel}>{f.label}</Text>
                 <TextInput
@@ -267,7 +283,7 @@ export default function MarketplaceLawncareScreen() {
         ) : (
           <TouchableOpacity style={styles.profileSummary} onPress={openProfileEditor}>
             <Ionicons name="home-outline" size={18} color={colors.lanternDeep} />
-            <Text style={styles.profileSummaryText}>Property details saved</Text>
+            <Text style={styles.profileSummaryText}>{selectedTier ? `Property size: ${selectedTier.label}` : 'Property details saved'}</Text>
             <Text style={styles.profileEditLink}>Edit</Text>
           </TouchableOpacity>
         )}
@@ -304,6 +320,11 @@ export default function MarketplaceLawncareScreen() {
                 <View style={styles.priceCard}>
                   {packageQuoting ? (
                     <ActivityIndicator color={colors.lanternDeep} />
+                  ) : packageQuote?.requiresQuote ? (
+                    <>
+                      <Text style={styles.priceAmount}>Custom Quote</Text>
+                      <Text style={styles.priceSub}>Your property size requires a custom quote — contact support.</Text>
+                    </>
                   ) : packageQuote ? (
                     <>
                       <Text style={styles.priceLabel}>Billed monthly</Text>
@@ -314,9 +335,9 @@ export default function MarketplaceLawncareScreen() {
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.submitBtn, (submitting || packageQuoting || !packageQuote) && styles.submitBtnDisabled]}
+                  style={[styles.submitBtn, (submitting || packageQuoting || !packageQuote || packageQuote.requiresQuote) && styles.submitBtnDisabled]}
                   onPress={submitPackage}
-                  disabled={submitting || packageQuoting || !packageQuote}
+                  disabled={submitting || packageQuoting || !packageQuote || packageQuote.requiresQuote}
                 >
                   {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Subscribe</Text>}
                 </TouchableOpacity>
@@ -340,7 +361,9 @@ export default function MarketplaceLawncareScreen() {
                           <Text style={styles.serviceLabel}>{s.label}</Text>
                           <Text style={styles.serviceMeta}>{s.pricingUnit} · {s.recommendedFrequency}</Text>
                         </View>
-                        {quote && <Text style={styles.addOnPrice}>{fmtUSD(quote.price)}</Text>}
+                        {quote && (
+                          <Text style={styles.addOnPrice}>{quote.requiresQuote ? 'Custom Quote' : fmtUSD(quote.price)}</Text>
+                        )}
                       </TouchableOpacity>
 
                       {selected && (
@@ -370,6 +393,7 @@ export default function MarketplaceLawncareScreen() {
                           )}
 
                           {quotingRow && <ActivityIndicator color={colors.lanternDeep} style={{ marginTop: 8 }} />}
+                          {quote?.requiresQuote && <Text style={styles.helperText}>Your selected property size requires a custom quote — contact support.</Text>}
                         </View>
                       )}
                     </View>
@@ -390,6 +414,11 @@ export default function MarketplaceLawncareScreen() {
                     <View style={styles.priceCard}>
                       {anyAddOnQuoting ? (
                         <ActivityIndicator color={colors.lanternDeep} />
+                      ) : anyAddOnRequiresQuote ? (
+                        <>
+                          <Text style={styles.priceAmount}>Custom Quote</Text>
+                          <Text style={styles.priceSub}>One or more selected services require a custom quote — contact support.</Text>
+                        </>
                       ) : (
                         <>
                           <Text style={styles.priceLabel}>Total</Text>
@@ -399,9 +428,9 @@ export default function MarketplaceLawncareScreen() {
                     </View>
 
                     <TouchableOpacity
-                      style={[styles.submitBtn, (submitting || anyAddOnQuoting) && styles.submitBtnDisabled]}
+                      style={[styles.submitBtn, (submitting || anyAddOnQuoting || anyAddOnRequiresQuote) && styles.submitBtnDisabled]}
                       onPress={submitAddOns}
-                      disabled={submitting || anyAddOnQuoting}
+                      disabled={submitting || anyAddOnQuoting || anyAddOnRequiresQuote}
                     >
                       {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Request Selected Services</Text>}
                     </TouchableOpacity>
@@ -436,6 +465,10 @@ const styles = StyleSheet.create({
   choiceBtnActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   choiceBtnText: { fontSize: 13, fontWeight: '600', color: colors.steel, textAlign: 'center' },
   choiceBtnTextActive: { color: colors.lanternDeep },
+  tierRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
+  tierRowActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
+  tierRowLabel: { fontSize: 13, fontWeight: '600', color: colors.ink },
+  tierRowSub: { fontSize: 11, color: colors.steel, marginTop: 2 },
   profileFieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
   profileFieldLabel: { fontSize: 13, color: colors.ink, flex: 1 },
   profileFieldInput: { width: 90, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, textAlign: 'right', color: colors.ink },

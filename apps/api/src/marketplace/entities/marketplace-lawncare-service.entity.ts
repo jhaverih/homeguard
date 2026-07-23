@@ -74,6 +74,22 @@ export class MarketplaceLawncareService {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   volumeDiscountRate2: number | null;
 
+  // Lawn Mowing only — a fixed set of 8 property-size tiers (XS..Large
+  // Estate), each with its own base + per-1000-SF-of-the-tier's-own-ceiling
+  // additional rate, replacing the linear customerPriceBase/PerUnit formula
+  // above for this one service. Null/empty for every other service, which
+  // still use the linear formula unchanged. See computeLawncareServicePrice()
+  // in marketplace-lawncare-pricing.utils.ts for the exact formula, and
+  // resolveServiceQty()/MarketplaceLawncarePropertyProfile.propertySizeTier
+  // for how a customer's selected tier flows in.
+  @Column({ type: 'jsonb', nullable: true })
+  sizeTiers: {
+    key: string; label: string; maxSF: number | null;
+    vendorBase: number | null; vendorAddlRate: number | null;
+    customerBase: number | null; customerAddlRate: number | null;
+    requiresQuote: boolean;
+  }[] | null;
+
   @Column({ default: 0 })
   sortOrder: number;
 

@@ -1,5 +1,5 @@
 import {
-  IsIn, IsInt, IsOptional, IsNumber, IsString, IsDateString, Min,
+  IsIn, IsInt, IsOptional, IsNumber, IsObject, IsString, IsDateString, Min,
 } from 'class-validator';
 
 export class QuoteLawncareDto {
@@ -60,48 +60,18 @@ export class SubscribeLawncarePackageDto {
 }
 
 export class UpsertLawncarePropertyProfileDto {
+  // One of the 8 lawn_mowing.sizeTiers keys (XS/S/M/L/XL/XXL/ESTATE/
+  // LARGE_ESTATE) — drives Lawn Mowing's tiered pricing directly. Validated
+  // against the live tier list server-side (MarketplaceService), not here,
+  // since the set is admin-editable.
   @IsOptional()
-  @IsNumber()
-  @Min(0)
-  propertySizeSqFt?: number;
+  @IsString()
+  propertySizeTier?: string;
 
+  // Every other property-detail measurement, keyed by
+  // MarketplaceLawncarePropertyDetailField.key (e.g. { shrubPlantCount: 12 }) —
+  // admin-manageable field set, so no fixed per-field validators here.
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  shrubPlantCount?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  bedSqFt?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  gutterLinearFt?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  irrigationZones?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  treeCountSmall?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  treeCountMedium?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  treeCountLarge?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  lightingFixtureCount?: number;
+  @IsObject()
+  fieldValues?: Record<string, number>;
 }

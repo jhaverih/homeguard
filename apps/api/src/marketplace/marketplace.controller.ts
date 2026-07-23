@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -184,6 +184,36 @@ export class MarketplaceController {
   @MinAdminLevel(AdminLevel.ADMIN)
   updateLawncarePackage(@Param('id') id: string, @Body() data: any) {
     return this.service.updateLawncarePackage(id, data);
+  }
+
+  @Post('lawncare/property-detail-fields')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: add a new Lawncare property-detail field' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  createLawncarePropertyDetailField(@Body() body: { label: string; unit: string }) {
+    return this.service.createLawncarePropertyDetailField(body.label, body.unit);
+  }
+
+  @Patch('lawncare/property-detail-fields/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a Lawncare property-detail field (label/unit/enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateLawncarePropertyDetailField(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateLawncarePropertyDetailField(id, data);
+  }
+
+  @Delete('lawncare/property-detail-fields/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: remove a Lawncare property-detail field' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  removeLawncarePropertyDetailField(@Param('id') id: string) {
+    return this.service.removeLawncarePropertyDetailField(id);
   }
 
   @Get('pest/config')

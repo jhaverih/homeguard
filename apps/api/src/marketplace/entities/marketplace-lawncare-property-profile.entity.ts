@@ -21,32 +21,31 @@ export class MarketplaceLawncarePropertyProfile {
   @Column({ unique: true })
   customerId: string;
 
+  // Which of MarketplaceLawncareService's lawn_mowing.sizeTiers entries the
+  // customer picked (a dropdown selection, e.g. "XS"/"S"/... — not a raw SF
+  // number). Special-cased vs. the generic fieldValues below because it
+  // drives Lawn Mowing's tiered pricing directly, not just a service qty.
+  @Column({ nullable: true })
+  propertySizeTier: string | null;
+
+  // Derived automatically from propertySizeTier's maxSF whenever the tier
+  // changes (see MarketplaceService.upsertLawncarePropertyProfile) — kept so
+  // leaf_removal's existing qty formula (a continuous SF number) needs no
+  // changes. Never set directly by the customer anymore.
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   propertySizeSqFt: number | null;
 
-  @Column({ type: 'int', nullable: true })
-  shrubPlantCount: number | null;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  bedSqFt: number | null;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  gutterLinearFt: number | null;
-
-  @Column({ type: 'int', nullable: true })
-  irrigationZones: number | null;
-
-  @Column({ type: 'int', nullable: true })
-  treeCountSmall: number | null;
-
-  @Column({ type: 'int', nullable: true })
-  treeCountMedium: number | null;
-
-  @Column({ type: 'int', nullable: true })
-  treeCountLarge: number | null;
-
-  @Column({ type: 'int', nullable: true })
-  lightingFixtureCount: number | null;
+  // Every other property-detail measurement (shrub count, bed sq ft, gutter
+  // linear ft, tree counts, ...) — admin-manageable field set (add/remove/
+  // reorder/relabel via MarketplaceLawncarePropertyDetailField), so a fixed
+  // column per field can't work: this stores { [fieldKey]: value }. Field
+  // `key`s are stable identifiers resolveServiceQty() reads by name — admin
+  // can freely rename a field's label/unit, but deleting a field a service
+  // depends on (e.g. shrubPlantCount for shrub_trimming) makes that
+  // service's quantity resolve to 0 going forward, same as if it were never
+  // filled in.
+  @Column({ type: 'jsonb', default: {} })
+  fieldValues: Record<string, number>;
 
   @CreateDateColumn()
   createdAt: Date;

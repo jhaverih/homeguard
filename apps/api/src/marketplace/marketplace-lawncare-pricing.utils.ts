@@ -17,14 +17,20 @@ import { MarketplaceLawncarePropertyProfile } from './entities/marketplace-lawnc
 // question: if a matching frequencyDiscounts entry is found, it's used
 // exclusively; otherwise the qty-threshold path runs as before (a no-op for
 // rows that only have frequency-based discounts).
+//
+// Lawn Mowing is a special case (service.sizeTiers non-empty): instead of the
+// linear formula, price = tier.base + tier.addlRate × (tier.maxSF / 1000) —
+// using the TIER'S OWN fixed SF ceiling, not qty, since the customer picks a
+// tier from a dropdown rather than entering a continuous SF number. Computed
+// independently for vendor and customer columns, both discounted by the same
+// discountRate resolved below (unchanged mechanism) — this is also the first
+// place vendor cost is actually computed anywhere in the Lawncare quote path.
 export function computeLawncareServicePrice(
   service: MarketplaceLawncareService,
   qty: number,
   frequency?: string,
-): { price: number; discountRate: number } {
-  const billableQty = Math.max(0, qty - Number(service.includedQty ?? 0));
-  const raw = Number(service.customerPriceBase) + Number(service.customerPricePerUnit) * billableQty;
-
+  profile?: MarketplaceLawncarePropertyProfile | null,
+): { price: number; vendorPrice: number; discountRate: number; requiresQuote?: boolean } {
   let discountRate = 0;
   const frequencyMatch = frequency ? service.frequencyDiscounts?.find((f) => f.frequency === frequency) : undefined;
   if (frequencyMatch) {
@@ -35,8 +41,25 @@ export function computeLawncareServicePrice(
     discountRate = Number(service.volumeDiscountRate1);
   }
 
+  if (service.key === 'lawn_mowing' && service.sizeTiers?.length) {
+    const tier = service.sizeTiers.find((t) => t.key === profile?.propertySizeTier);
+    if (!tier || tier.requiresQuote) {
+      return { price: 0, vendorPrice: 0, discountRate, requiresQuote: true };
+    }
+    const addlUnits = (tier.maxSF ?? 0) / 1000;
+    const customerRaw = Number(tier.customerBase ?? 0) + Number(tier.customerAddlRate ?? 0) * addlUnits;
+    const vendorRaw = Number(tier.vendorBase ?? 0) + Number(tier.vendorAddlRate ?? 0) * addlUnits;
+    const price = Math.round(customerRaw * (1 - discountRate / 100) * 100) / 100;
+    const vendorPrice = Math.round(vendorRaw * (1 - discountRate / 100) * 100) / 100;
+    return { price, vendorPrice, discountRate };
+  }
+
+  const billableQty = Math.max(0, qty - Number(service.includedQty ?? 0));
+  const raw = Number(service.customerPriceBase) + Number(service.customerPricePerUnit) * billableQty;
+  const vendorRaw = Number(service.subCostBase) + Number(service.subCostPerUnit) * billableQty;
   const price = Math.round(raw * (1 - discountRate / 100) * 100) / 100;
-  return { price, discountRate };
+  const vendorPrice = Math.round(vendorRaw * (1 - discountRate / 100) * 100) / 100;
+  return { price, vendorPrice, discountRate };
 }
 
 // The 3 project-sized services (a one-off job whose size varies per
@@ -50,13 +73,16 @@ export function isManualQtyService(serviceKey: string): boolean {
 }
 
 // Maps each of the 18 service keys to the property-profile field that
-// supplies its quantity. Lawn Mowing has no "First X" basis in the source
-// pricing sheet to scale from, so it's treated as flat per visit (qty 0,
-// full customerPricePerUnit never applies) rather than inventing an
-// ungrounded conversion factor. Spring Cleanup/Seasonal Maintenance/Drainage
-// Correction are similarly flat per-project prices. Mulch Installation's
-// unit is cubic yards, derived from bed square footage assuming a standard
-// 3" application depth (CY = bedSqFt × 0.25 / 27).
+// supplies its quantity. Lawn Mowing now reads its tier's own SF ceiling
+// (propertySizeSqFt, auto-derived from propertySizeTier) purely for display/
+// consistency — computeLawncareServicePrice() ignores this qty for
+// lawn_mowing and looks up the tier directly. Spring Cleanup/Seasonal
+// Maintenance/Drainage Correction are flat per-project prices. Mulch
+// Installation's unit is cubic yards, derived from bed square footage
+// assuming a standard 3" application depth (CY = bedSqFt × 0.25 / 27).
+// The other fields (shrub count, bed sq ft, ...) now live in the admin-
+// manageable profile.fieldValues map rather than fixed columns — key names
+// below must match MarketplaceLawncarePropertyDetailField.key exactly.
 export function resolveServiceQty(
   serviceKey: string,
   profile: MarketplaceLawncarePropertyProfile | null,
@@ -64,33 +90,36 @@ export function resolveServiceQty(
   if (isManualQtyService(serviceKey)) return null;
   if (!profile) return null;
 
+  const field = (key: string) => Number(profile.fieldValues?.[key]) || 0;
+
   switch (serviceKey) {
     case 'lawn_mowing':
+      return Number(profile.propertySizeSqFt) || 0;
     case 'spring_cleanup':
     case 'seasonal_maintenance':
     case 'drainage_correction':
       return 0;
     case 'mulch_installation':
-      return Math.round(((Number(profile.bedSqFt) || 0) * 0.25) / 27);
+      return Math.round((field('bedSqFt') * 0.25) / 27);
     case 'bed_weeding':
-      return Number(profile.bedSqFt) || 0;
+      return field('bedSqFt');
     case 'leaf_removal':
       return Number(profile.propertySizeSqFt) || 0;
     case 'shrub_trimming':
-      return Number(profile.shrubPlantCount) || 0;
+      return field('shrubPlantCount');
     case 'gutter_cleaning':
-      return Number(profile.gutterLinearFt) || 0;
+      return field('gutterLinearFt');
     case 'irrigation_startup':
     case 'irrigation_winterization':
-      return Number(profile.irrigationZones) || 0;
+      return field('irrigationZones');
     case 'small_tree_trimming':
-      return Number(profile.treeCountSmall) || 0;
+      return field('treeCountSmall');
     case 'medium_tree_trimming':
-      return Number(profile.treeCountMedium) || 0;
+      return field('treeCountMedium');
     case 'large_tree_trimming':
-      return Number(profile.treeCountLarge) || 0;
+      return field('treeCountLarge');
     case 'landscape_lighting_maintenance':
-      return Number(profile.lightingFixtureCount) || 0;
+      return field('lightingFixtureCount');
     default:
       return 0;
   }
