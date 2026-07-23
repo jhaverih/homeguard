@@ -133,17 +133,20 @@ export class InspectionsService {
 
   // ── Task results ──────────────────────────────────────────────────────────
 
-  // General Inspection Checklist — admin-configurable via the Inspection
-  // Configurator (Group -> Subgroup -> Section -> Task). Shape returned here
+  // A named checklist — admin-configurable via the Inspection Configurator
+  // (Group -> Subgroup -> Section -> Task). Scoped to one Group (General Home
+  // Inspection / HVAC Full Inspection / Comprehensive Inspection, ...) so a job
+  // only ever sees the tasks for what was actually booked. Shape returned here
   // matches the old hardcoded INSPECTION_CHECKLIST exactly (ChecklistSection[])
-  // so the vendor app needs no changes. GUTTER_CHECKLIST/HVAC_SECTIONS in
-  // ./checklists.ts are separate, unrelated checklists and stay hardcoded.
-  private async loadChecklist(): Promise<ChecklistSection[]> {
+  // so the vendor app's rendering needs no changes. GUTTER_CHECKLIST in
+  // ./checklists.ts is a separate, unrelated checklist and stays hardcoded.
+  private async loadChecklist(groupKey: string): Promise<ChecklistSection[]> {
     const sections = await this.checklistSectionsRepo.find({
       where: { isActive: true },
-      relations: ['tasks', 'subgroup'],
+      relations: ['tasks', 'subgroup', 'subgroup.group'],
     });
     return sections
+      .filter((section) => section.subgroup?.group?.key === groupKey)
       // Subgroup order first, then section order within it — sections
       // sharing a subgroup must be contiguous so the client can group by
       // "subgroupKey changed since the last item" on a flat array.
@@ -167,8 +170,22 @@ export class InspectionsService {
       }));
   }
 
-  async getChecklist(): Promise<ChecklistSection[]> {
-    return this.loadChecklist();
+  // Called once, from ServiceRequestsService.updateStatus() when a job first
+  // enters IN_PROGRESS, to freeze that job's checklist config at that moment.
+  async buildChecklistSnapshot(groupKey: string): Promise<ChecklistSection[]> {
+    return this.loadChecklist(groupKey);
+  }
+
+  // Job-scoped: resolves which checklist Group applies to this specific
+  // ServiceRequest and returns its frozen snapshot if the job has already
+  // started, else the live (current-admin-config) checklist. Returns [] for a
+  // job with no checklistGroupKey — not an inspection-type job at all (gutters,
+  // solar, marketplace bookings), matching today's behavior for those.
+  async getChecklist(serviceRequestId: string): Promise<ChecklistSection[]> {
+    const request = await this.requestsRepo.findOne({ where: { id: serviceRequestId } });
+    if (!request?.checklistGroupKey) return [];
+    if (request.checklistSnapshot) return request.checklistSnapshot;
+    return this.loadChecklist(request.checklistGroupKey);
   }
 
   async upsertTaskResult(
@@ -185,7 +202,9 @@ export class InspectionsService {
     },
   ): Promise<InspectionTaskResult> {
     const taskDef = await this.checklistTasksRepo.findOne({ where: { key: taskKey } });
-    const isSpecialKey = taskKey === 'hvac_report' || taskKey.startsWith('gutter_');
+    // 'hvac_report' retired — HVAC Full Inspection now has real seeded task
+    // definitions (hvac_full_*), same as every other checklist group.
+    const isSpecialKey = taskKey.startsWith('gutter_');
     if (!taskDef && !isSpecialKey) throw new NotFoundException(`Unknown task key: ${taskKey}`);
 
     if (taskDef && dto.status !== TaskStatus.OK && (!dto.photoKeys || dto.photoKeys.length === 0)) {
@@ -274,7 +293,7 @@ export class InspectionsService {
   }> {
     const results = await this.taskResultsRepo.find({ where: { serviceRequestId } });
     const doneKeys = new Set(results.map((r) => r.taskKey));
-    const checklist = await this.loadChecklist();
+    const checklist = await this.getChecklist(serviceRequestId);
 
     const sections = checklist.map((section) => ({
       key: section.key,
@@ -294,7 +313,8 @@ export class InspectionsService {
     const count = await this.taskResultsRepo.count({ where: { serviceRequestId } });
     // If no tasks at all, allow completion (legacy job)
     if (count === 0) return true;
-    const taskTotal = await this.checklistTasksRepo.count({ where: { isActive: true } });
+    const checklist = await this.getChecklist(serviceRequestId);
+    const taskTotal = checklist.reduce((sum, s) => sum + s.tasks.length, 0);
     return count >= taskTotal;
   }
 

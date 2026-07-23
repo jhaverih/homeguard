@@ -82,6 +82,12 @@ export class ServicePrice {
   @Column({ default: false })
   isQuotaInspection: boolean;
 
+  // Which InspectionChecklistGroup.key a standalone booking of this catalog item
+  // resolves to (e.g. "HVAC Full Inspection" -> HVAC_FULL_INSPECTION) — null for
+  // every non-inspection catalog item. See ServiceRequestsService.createStandaloneService().
+  @Column({ nullable: true })
+  checklistGroupKey: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

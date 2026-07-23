@@ -14,10 +14,10 @@ export class InspectionsController {
 
   // ── Checklist definition ───────────────────────────────────────────────────
 
-  @Get('checklist')
-  @ApiOperation({ summary: 'Get the full inspection checklist definition' })
-  getChecklist() {
-    return this.service.getChecklist();
+  @Get('checklist/:serviceRequestId')
+  @ApiOperation({ summary: "Get this job's checklist — its frozen snapshot if already started, else the live config" })
+  getChecklist(@Param('serviceRequestId') serviceRequestId: string) {
+    return this.service.getChecklist(serviceRequestId);
   }
 
   // ── Legacy notes ───────────────────────────────────────────────────────────

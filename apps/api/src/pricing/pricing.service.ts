@@ -195,8 +195,14 @@ export class PricingService implements OnModuleInit {
     // soon-to-be-removed enum value, so this couldn't safely run as
     // application code — it's done and verified, not reintroduced here).
     await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { quantityLabel: UnitLabel.AC_UNIT });
+    // Links this catalog item to the new HVAC_FULL_INSPECTION checklist group
+    // (see inspection-checklist-seed.service.ts) — same always-run, idempotent
+    // update pattern as the quantityLabel backfill directly above.
+    await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { checklistGroupKey: 'HVAC_FULL_INSPECTION' });
+    await this.pricesRepo.update({ name: 'General Inspection' }, { checklistGroupKey: 'GENERAL_HOME_INSPECTION' });
     await this.seedPrices();
     await this.seedMonitoringService();
+    await this.seedComprehensiveInspection();
     await this.seedTradeServices();
     await this.seedHandymanCategoryServices();
     await this.backfillTieredPricingDefaults();
@@ -268,6 +274,25 @@ export class PricingService implements OnModuleInit {
       requiredCapabilityId: capability.id,
     }));
     this.logger.log('Seeded "Home Monitoring Setup" service ($149, Yolink-capability-gated, Attenteve-triggered only).');
+  }
+
+  // New standalone paid add-on, same $-per-visit pattern as "HVAC Full
+  // Inspection" — resolves to the new COMPREHENSIVE_INSPECTION checklist group
+  // (see inspection-checklist-seed.service.ts). category left null, matching
+  // the other inspection-named catalog items (sorted via the mobile app's own
+  // INSPECTION_ORDER map, not the generic category grouping).
+  private async seedComprehensiveInspection() {
+    const existing = await this.pricesRepo.findOne({ where: { name: 'Comprehensive Inspection' } });
+    if (existing) return;
+
+    await this.pricesRepo.save(this.pricesRepo.create({
+      name: 'Comprehensive Inspection',
+      description: 'In-depth whole-home inspection covering systems and areas beyond the standard General Inspection.',
+      basePrice: 249, // placeholder — trivially adjustable via the Admin Services Catalog page
+      pricingMethod: PricingMethod.FLAT_PRICE,
+      checklistGroupKey: 'COMPREHENSIVE_INSPECTION',
+    }));
+    this.logger.log('Seeded "Comprehensive Inspection" service ($249 placeholder, COMPREHENSIVE_INSPECTION checklist group).');
   }
 
   // Separate from seedPrices() for the same reason as seedMonitoringService() —

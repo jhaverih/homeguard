@@ -46,175 +46,6 @@ const formatCurrencyInput = (text: string): string => {
 };
 const parseCurrencyRaw = (s: string): number => parseFloat(s.replace(/[$,]/g, '')) || 0;
 
-const EQUIP_COLS = [
-  { key: 'make', label: 'Make/Brand' },
-  { key: 'model_num', label: 'Model #' },
-  { key: 'serial_num', label: 'Serial #' },
-  { key: 'install_year', label: 'Install Year' },
-];
-
-const HVAC_SECTIONS = [
-  {
-    key: 'system_id', num: 1, title: 'System Identification',
-    infoFields: [
-      { key: 'equipment_location', label: 'Equipment Location', type: 'text', placeholder: 'e.g. Basement, attic' },
-      { key: 'unit_age', label: 'Unit Age (years)', type: 'number', placeholder: 'e.g. 8' },
-      { key: 'warranty_status', label: 'Warranty Status', type: 'select', options: ['Under warranty', 'Out of warranty', 'Unknown'] },
-      { key: 'service_history', label: 'Service History / Notes', type: 'textarea', placeholder: 'Prior service records...' },
-    ],
-    equipmentRows: [
-      { key: 'air_handler', label: 'Air Handler / Furnace' },
-      { key: 'condenser', label: 'Condenser / Heat Pump' },
-      { key: 'thermostat', label: 'Thermostat' },
-      { key: 'humidifier', label: 'Humidifier / Dehumidifier' },
-    ],
-    checks: [] as { key: string; label: string }[],
-  },
-  {
-    key: 'thermostat_ctrl', num: 2, title: 'Thermostat & Controls',
-    infoFields: [
-      { key: 'type', label: 'Thermostat Type', type: 'select', options: ['Manual', 'Programmable', 'Smart/WiFi'] },
-      { key: 'brand_model', label: 'Brand / Model', type: 'text', placeholder: 'e.g. Ecobee SmartThermostat' },
-      { key: 'location', label: 'Location', type: 'text', placeholder: 'e.g. Main hallway' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'display', label: 'Thermostat display functional' },
-      { key: 'temp_response', label: 'Temperature setting responds correctly' },
-      { key: 'heat_mode', label: 'Heating mode tested' },
-      { key: 'cool_mode', label: 'Cooling mode tested' },
-      { key: 'fan_mode', label: 'Fan mode tested (Auto/On)' },
-      { key: 'schedule', label: 'Schedule / programming verified' },
-      { key: 'smart_features', label: 'Smart features connected (if applicable)' },
-      { key: 'wiring', label: 'Wiring connections secure' },
-    ],
-  },
-  {
-    key: 'air_filter', num: 3, title: 'Air Filter & Airflow',
-    infoFields: [
-      { key: 'filter_size', label: 'Filter Size', type: 'text', placeholder: 'e.g. 16x20x1' },
-      { key: 'filter_type', label: 'Filter Type', type: 'text', placeholder: 'e.g. Pleated, HEPA' },
-      { key: 'filter_merv', label: 'MERV Rating', type: 'number', placeholder: 'e.g. 8' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'filter_clean', label: 'Filter in clean / acceptable condition' },
-      { key: 'airflow_normal', label: 'Airflow normal — no restriction' },
-      { key: 'filter_access', label: 'Filter slot accessible and sealed' },
-      { key: 'return_air', label: 'Return air registers unobstructed' },
-    ],
-  },
-  {
-    key: 'heating', num: 4, title: 'Heating System',
-    infoFields: [
-      { key: 'fuel_type', label: 'Fuel Type', type: 'select', options: ['Natural gas', 'Propane', 'Electric', 'Heat pump', 'Oil'] },
-      { key: 'temp_rise', label: 'Temperature Rise', type: 'text', placeholder: 'e.g. 45°F (normal 35–70°F)' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'heat_exchanger', label: 'Heat exchanger — no cracks or corrosion' },
-      { key: 'burner_flame', label: 'Burner flame — blue, stable (N/A: heat pump)' },
-      { key: 'ignition', label: 'Ignition sequence normal' },
-      { key: 'flue_venting', label: 'Flue / venting — no damage or improper clearance' },
-      { key: 'gas_valve', label: 'Gas valve and supply line — no corrosion or leaks' },
-      { key: 'blower_operation', label: 'Blower operates normally — no noise' },
-      { key: 'combustion_residue', label: 'No soot or scorch marks observed' },
-    ],
-  },
-  {
-    key: 'cooling', num: 5, title: 'Cooling System',
-    infoFields: [
-      { key: 'refrigerant_type', label: 'Refrigerant Type', type: 'select', options: ['R-22', 'R-410A', 'R-32', 'Unknown'] },
-      { key: 'temp_diff', label: 'Temperature Differential', type: 'text', placeholder: 'e.g. 18°F (normal 14–22°F)' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'condenser_unit', label: 'Condenser unit — clean, no damage' },
-      { key: 'evap_coil', label: 'Evaporator coil — clean, no frost' },
-      { key: 'compressor_op', label: 'Compressor operates normally' },
-      { key: 'refrigerant_level', label: 'Refrigerant level — normal (no signs of leak)' },
-      { key: 'line_insulation', label: 'Refrigerant line insulation — intact' },
-      { key: 'condenser_fan', label: 'Condenser fan operates normally' },
-    ],
-  },
-  {
-    key: 'electrical', num: 6, title: 'Electrical System',
-    infoFields: [
-      { key: 'voltage', label: 'Voltage Reading', type: 'text', placeholder: 'e.g. 240V' },
-      { key: 'amperage', label: 'Amperage Reading', type: 'text', placeholder: 'e.g. 14A' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'wiring_condition', label: 'Wiring — no loose connections or corrosion' },
-      { key: 'disconnect_box', label: 'Disconnect box accessible and in good condition' },
-      { key: 'breaker_sizing', label: 'Breaker correctly sized for equipment' },
-      { key: 'safety_switches', label: 'Safety shutoffs functional' },
-      { key: 'control_board', label: 'Control board — no error codes or burn marks' },
-    ],
-  },
-  {
-    key: 'ductwork', num: 7, title: 'Air Distribution & Ductwork',
-    infoFields: [
-      { key: 'duct_material', label: 'Duct Material', type: 'select', options: ['Flex duct', 'Sheet metal', 'Fiberglass board', 'Mixed'] },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'duct_condition', label: 'Ducts — no significant leakage or disconnection' },
-      { key: 'duct_insulation', label: 'Duct insulation intact in unconditioned areas' },
-      { key: 'airflow_balance', label: 'Supply / return balance acceptable' },
-      { key: 'supply_registers', label: 'Supply registers unobstructed and functional' },
-      { key: 'duct_noise', label: 'No unusual duct noise or vibration' },
-    ],
-  },
-  {
-    key: 'condensate', num: 8, title: 'Condensate Management',
-    infoFields: [] as { key: string; label: string; type: string; placeholder?: string; options?: string[] }[],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'drain_line', label: 'Condensate drain line — clear, draining properly' },
-      { key: 'condensate_pump', label: 'Condensate pump functional (if present)' },
-      { key: 'drip_pan', label: 'Drip pan — clean, no rust or standing water' },
-      { key: 'safety_float', label: 'Safety float switch installed and functional' },
-    ],
-  },
-  {
-    key: 'safety', num: 9, title: 'Safety & Compliance',
-    infoFields: [
-      { key: 'emergency_shutoff', label: 'Emergency Shutoff Location', type: 'text', placeholder: 'Describe location' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'co_detector', label: 'CO detector present near equipment' },
-      { key: 'high_limit', label: 'High-limit safety controls functional' },
-      { key: 'clearances', label: 'Equipment clearances adequate' },
-      { key: 'combustion_air', label: 'Combustion air supply adequate (N/A: electric)' },
-      { key: 'pressure_relief', label: 'Pressure relief devices in place' },
-    ],
-  },
-  {
-    key: 'performance', num: 10, title: 'Operational Performance',
-    infoFields: [
-      { key: 'summary_notes', label: 'Defects & Findings Summary', type: 'textarea', placeholder: 'Summarize all findings...' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [
-      { key: 'heating_cycle', label: 'Heating cycle completes normally' },
-      { key: 'cooling_cycle', label: 'Cooling cycle completes normally' },
-      { key: 'noise_level', label: 'System noise — within normal range' },
-      { key: 'no_odors', label: 'No unusual odors during operation' },
-      { key: 'system_functional', label: 'System fully functional at time of inspection' },
-    ],
-  },
-  {
-    key: 'photos', num: 11, title: 'Photo Documentation',
-    infoFields: [
-      { key: 'photo_notes', label: 'Photo Notes', type: 'textarea', placeholder: 'Describe what each photo shows (data plate, filter, heat exchanger, condenser, electrical, ductwork issues)' },
-    ],
-    equipmentRows: [] as { key: string; label: string }[],
-    checks: [] as { key: string; label: string }[],
-  },
-];
-
 function getServiceKey(job: any): 'inspection' | 'gutters' | 'solar' | 'hvac' | 'other' {
   const name = (job.additionalServices?.[0]?.name || '').toLowerCase();
   if (name.includes('gutter')) return 'gutters';
@@ -445,15 +276,6 @@ export default function ActiveJobScreen() {
   const [counterDate, setCounterDate] = useState(new Date());
   const [consultationBusy, setConsultationBusy] = useState(false);
 
-  // HVAC inspection report
-  const [hvacData, setHvacData] = useState<Record<string, string>>({});
-  const [hvacActiveTab, setHvacActiveTab] = useState('system_id');
-  const [hvacSaved, setHvacSaved] = useState(false);
-  const [savingHvac, setSavingHvac] = useState(false);
-  const [hvacRecNotes, setHvacRecNotes] = useState('');
-  const [hvacRecPrice, setHvacRecPrice] = useState('');
-  const [sendingHvacRec, setSendingHvacRec] = useState(false);
-
   // Location tracking
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -494,7 +316,7 @@ export default function ActiveJobScreen() {
 
   const loadChecklistData = useCallback(async () => {
     const [cl, results, prog] = await Promise.all([
-      inspectionsApi.getChecklist().catch(() => []),
+      inspectionsApi.getChecklist(id).catch(() => []),
       inspectionsApi.getTasks(id).catch(() => []),
       inspectionsApi.getProgress(id).catch(() => null),
     ]);
@@ -503,8 +325,6 @@ export default function ActiveJobScreen() {
     for (const r of ((results as any[]) || [])) map[r.taskKey] = r;
     setTaskResults(map);
     setProgress((prog as any) || null);
-    const hvacTask = (results as any[])?.find((r) => r.taskKey === 'hvac_report');
-    if (hvacTask?.structuredData) { setHvacData(hvacTask.structuredData); setHvacSaved(true); }
   }, [id]);
 
   useEffect(() => {
@@ -790,10 +610,6 @@ export default function ActiveJobScreen() {
       Alert.alert('Checklist incomplete', `${GUTTER_CHECKLIST.length - gutterCompletedCount} gutter items still need a status.`);
       return;
     }
-    if (job && getServiceKey(job) === 'hvac' && !hvacSaved) {
-      Alert.alert('HVAC Report required', 'Please save the HVAC inspection report before completing the job.');
-      return;
-    }
     const keys = readyKeys(completionPhotos);
     if (keys.length === 0) { Alert.alert('Photos required', 'Attach at least 1 completion photo.'); return; }
     if (completionPhotos.some((p) => !p.key)) { Alert.alert('Please wait', 'Photos are still uploading.'); return; }
@@ -910,9 +726,11 @@ export default function ActiveJobScreen() {
   const showChecklist = ['IN_PROGRESS', 'COMPLETED'].includes(job.status);
   const isCompleted = job.status === 'COMPLETED';
   const isService = job.type === 'ADDITIONAL_SERVICE';
-  const showInspectionChecklist = showChecklist && serviceKey === 'inspection';
+  // 'hvac' jobs render through the same generic checklist UI as 'inspection'
+  // jobs now — the data differs per job (getChecklist(id) is job-scoped to
+  // whichever checklist group applies), not the rendering code.
+  const showInspectionChecklist = showChecklist && (serviceKey === 'inspection' || serviceKey === 'hvac');
   const showGutterChecklist = showChecklist && serviceKey === 'gutters';
-  const showHvacForm = showChecklist && serviceKey === 'hvac';
   const showSolarPanel = serviceKey === 'solar';
 
   const completedCount = progress?.completed ?? 0;
@@ -1346,308 +1164,6 @@ export default function ActiveJobScreen() {
           </>
         )}
 
-        {/* ── HVAC Inspection Form ── */}
-        {showHvacForm && (
-          <>
-            <View style={styles.completeSeparator} />
-            <Text style={styles.sectionTitle}>HVAC Inspection Report</Text>
-            {hvacSaved
-              ? <Text style={[styles.sectionHint, { color: '#059669' }]}>✓ Report saved. You can update and re-save at any time.</Text>
-              : <Text style={styles.sectionHint}>Complete all sections and tap Save Report when done.</Text>
-            }
-
-            {/* Section tab bar */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={hvacSt.tabBar} contentContainerStyle={{ paddingVertical: 4, gap: 8 }}>
-              {HVAC_SECTIONS.map((sec) => (
-                <TouchableOpacity
-                  key={sec.key}
-                  style={[hvacSt.tab, hvacActiveTab === sec.key && hvacSt.tabActive]}
-                  onPress={() => setHvacActiveTab(sec.key)}
-                >
-                  <Text style={[hvacSt.tabText, hvacActiveTab === sec.key && hvacSt.tabTextActive]}>{sec.num}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {HVAC_SECTIONS.map((section) => {
-              if (section.key !== hvacActiveTab) return null;
-              return (
-                <View key={section.key}>
-                  {/* Dark navy header with orange badge */}
-                  <View style={hvacSt.secHeader}>
-                    <View style={hvacSt.badge}><Text style={hvacSt.badgeText}>{section.num}</Text></View>
-                    <Text style={hvacSt.secTitle}>{section.title}</Text>
-                  </View>
-
-                  {/* Equipment table (System ID section only) */}
-                  {section.equipmentRows.length > 0 && (
-                    <View style={hvacSt.tableWrap}>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-                        <View>
-                          <View style={hvacSt.tableHeaderRow}>
-                            <View style={[hvacSt.tableFirstCol, { backgroundColor: colors.slate }]}>
-                              <Text style={hvacSt.tableHeaderText}>Equipment</Text>
-                            </View>
-                            {EQUIP_COLS.map((col) => (
-                              <View key={col.key} style={[hvacSt.tableCol, { backgroundColor: colors.slate }]}>
-                                <Text style={hvacSt.tableHeaderText}>{col.label}</Text>
-                              </View>
-                            ))}
-                          </View>
-                          {section.equipmentRows.map((row, rIdx) => (
-                            <View key={row.key} style={[hvacSt.tableDataRow, rIdx % 2 === 1 && { backgroundColor: '#f8fafc' }]}>
-                              <View style={hvacSt.tableFirstCol}>
-                                <Text style={hvacSt.tableRowLabelText}>{row.label}</Text>
-                              </View>
-                              {EQUIP_COLS.map((col) => {
-                                const fKey = `equip_${row.key}_${col.key}`;
-                                return (
-                                  <View key={col.key} style={hvacSt.tableCol}>
-                                    <TextInput
-                                      style={hvacSt.tableCellInput}
-                                      placeholder="—"
-                                      placeholderTextColor="#cbd5e0"
-                                      value={hvacData[fKey] || ''}
-                                      onChangeText={(v) => setHvacData((p) => ({ ...p, [fKey]: v }))}
-                                    />
-                                  </View>
-                                );
-                              })}
-                            </View>
-                          ))}
-                        </View>
-                      </ScrollView>
-                    </View>
-                  )}
-
-                  {/* Info fields */}
-                  {section.infoFields.map((field) => {
-                    const fKey = section.key + '_' + field.key;
-                    const val = hvacData[fKey] || '';
-                    return (
-                      <View key={fKey} style={hvacSt.fieldBlock}>
-                        <Text style={hvacSt.fieldLabel}>{field.label}</Text>
-                        {(field as any).type === 'select' ? (
-                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                            {((field as any).options || []).map((opt: string) => (
-                              <TouchableOpacity
-                                key={opt}
-                                style={[hvacSt.chip, val === opt && hvacSt.chipActive]}
-                                onPress={() => setHvacData((p) => ({ ...p, [fKey]: opt }))}
-                              >
-                                <Text style={[hvacSt.chipText, val === opt && hvacSt.chipTextActive]}>{opt}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        ) : (
-                          <TextInput
-                            style={[(field as any).type === 'textarea' ? hvacSt.textArea : hvacSt.textInput]}
-                            placeholder={(field as any).placeholder || ''}
-                            placeholderTextColor={colors.steel}
-                            keyboardType={(field as any).type === 'number' ? 'decimal-pad' : 'default'}
-                            multiline={(field as any).type === 'textarea'}
-                            numberOfLines={(field as any).type === 'textarea' ? 3 : 1}
-                            value={val}
-                            onChangeText={(v) => setHvacData((p) => ({ ...p, [fKey]: v }))}
-                          />
-                        )}
-                      </View>
-                    );
-                  })}
-
-                  {/* Check items with PASS / FAIL / N/A */}
-                  {section.checks.length > 0 && (
-                    <View style={hvacSt.checksCard}>
-                      {section.checks.map((check, cIdx) => {
-                        const statusKey = section.key + '_' + check.key + '_status';
-                        const notesKey = section.key + '_' + check.key + '_notes';
-                        const status = hvacData[statusKey] || '';
-                        const notes = hvacData[notesKey] || '';
-                        return (
-                          <View key={check.key} style={[hvacSt.checkRow, cIdx > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
-                            <Text style={hvacSt.checkLabel}>{check.label}</Text>
-                            <View style={hvacSt.checkControls}>
-                              {(['PASS', 'FAIL', 'N/A'] as const).map((opt) => (
-                                <TouchableOpacity
-                                  key={opt}
-                                  style={[
-                                    hvacSt.pfnBtn,
-                                    opt === 'PASS' && status === opt && hvacSt.pfnPass,
-                                    opt === 'FAIL' && status === opt && hvacSt.pfnFail,
-                                    opt === 'N/A' && status === opt && hvacSt.pfnNA,
-                                  ]}
-                                  onPress={() => setHvacData((p) => ({ ...p, [statusKey]: opt }))}
-                                >
-                                  <Text style={[hvacSt.pfnText, status === opt && { color: '#fff' }]}>{opt}</Text>
-                                </TouchableOpacity>
-                              ))}
-                              <TextInput
-                                style={hvacSt.checkNotes}
-                                placeholder="Notes..."
-                                placeholderTextColor={colors.steel}
-                                value={notes}
-                                onChangeText={(v) => setHvacData((p) => ({ ...p, [notesKey]: v }))}
-                              />
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  )}
-
-                  {/* Prev / Next navigation */}
-                  <View style={hvacSt.navRow}>
-                    {section.num > 1 && (
-                      <TouchableOpacity style={hvacSt.navBtnPrev} onPress={() => setHvacActiveTab(HVAC_SECTIONS[section.num - 2].key)}>
-                        <Text style={hvacSt.navPrevText}>← Previous</Text>
-                      </TouchableOpacity>
-                    )}
-                    {section.num < HVAC_SECTIONS.length && (
-                      <TouchableOpacity style={hvacSt.navBtnNext} onPress={() => setHvacActiveTab(HVAC_SECTIONS[section.num].key)}>
-                        <Text style={hvacSt.navNextText}>Next →</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-
-            {/* Recommended Actions */}
-            <View style={[styles.sectionCard, { marginBottom: 8 }]}>
-              <Text style={[styles.sectionLabel, { paddingLeft: 4, paddingBottom: 8 }]}>Recommended Actions</Text>
-              <Text style={styles.fieldLabel}>Recommendation Notes</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Describe recommended repairs or replacements..."
-                placeholderTextColor={colors.steel}
-                multiline
-                numberOfLines={3}
-                value={hvacRecNotes}
-                onChangeText={setHvacRecNotes}
-              />
-              <Text style={styles.fieldLabel}>Estimated Price ($)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. $850"
-                placeholderTextColor={colors.steel}
-                keyboardType="decimal-pad"
-                value={hvacRecPrice}
-                onChangeText={(v) => setHvacRecPrice(formatCurrencyInput(v))}
-              />
-              {hvacRecNotes.trim() && hvacRecPrice.trim() && (
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: '#7c3aed', marginTop: 4 }, sendingHvacRec && styles.saveBtnDisabled]}
-                  disabled={sendingHvacRec}
-                  onPress={async () => {
-                    const price = parseCurrencyRaw(hvacRecPrice);
-                    if (isNaN(price) || price < 0) { Alert.alert('Invalid price', 'Enter a valid amount (0 or more).'); return; }
-                    setSendingHvacRec(true);
-                    try {
-                      await requestsApi.recommendService(id, { name: 'HVAC Recommended Service', description: hvacRecNotes.trim(), price });
-                      setHvacRecNotes('');
-                      setHvacRecPrice('');
-                      Alert.alert('Sent', 'Recommendation sent to customer for approval.');
-                      loadJob();
-                    } catch (e: any) { Alert.alert('Error', e.message); }
-                    finally { setSendingHvacRec(false); }
-                  }}
-                >
-                  {sendingHvacRec ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Send to Customer</Text>}
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Save report button */}
-            <TouchableOpacity
-              style={[styles.saveBtn, savingHvac && styles.saveBtnDisabled]}
-              disabled={savingHvac}
-              onPress={async () => {
-                setSavingHvac(true);
-                const dto = { status: 'OK', structuredData: hvacData };
-                try {
-                  await inspectionsApi.upsertTask(id, 'hvac_report', dto);
-                  setHvacSaved(true);
-                  Alert.alert('Saved', 'HVAC inspection report saved.');
-                } catch {
-                  await enqueueTaskResult(id, 'hvac_report', dto);
-                  setHvacSaved(true);
-                  Alert.alert('Saved offline', 'Report will sync when connection is restored.');
-                } finally { setSavingHvac(false); }
-              }}
-            >
-              {savingHvac ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Save HVAC Report</Text>}
-            </TouchableOpacity>
-
-            {job.status === 'IN_PROGRESS' && (
-              <>
-                <View style={styles.completeSeparator} />
-                <Text style={styles.sectionTitle}>Complete Job</Text>
-                <Text style={styles.sectionHint}>
-                  {hvacSaved ? 'Attach before/after photos and close the job.' : 'Save the HVAC report first, then attach completion photos.'}
-                </Text>
-                <Text style={styles.photoLabel}>Completion Photos <Text style={styles.required}>* min 1</Text></Text>
-                <PhotoStrip
-                  photos={completionPhotos}
-                  onAdd={() => pickAndUpload('completion', completionPhotos, setCompletionPhotos, setUploadingCompletion, 5)}
-                  onRemove={(i) => setCompletionPhotos((p) => p.filter((_, idx) => idx !== i))}
-                  uploading={uploadingCompletion}
-                  maxPhotos={5}
-                />
-                <TouchableOpacity
-                  style={[styles.completeBtn, (!hvacSaved || readyKeys(completionPhotos).length === 0 || completingJob) && styles.saveBtnDisabled]}
-                  onPress={markComplete}
-                  disabled={!hvacSaved || readyKeys(completionPhotos).length === 0 || completingJob}
-                >
-                  {completingJob ? <ActivityIndicator color="#fff" /> : <><Ionicons name="checkmark-circle" size={20} color="#fff" /><Text style={styles.completeBtnText}> Mark Job Complete</Text></>}
-                </TouchableOpacity>
-              </>
-            )}
-          </>
-        )}
-
-        {/* ── Generic service completion ── */}
-        {showChecklist && serviceKey === 'other' && (
-          <>
-            <View style={styles.completeSeparator} />
-            <Text style={styles.sectionTitle}>Notes (optional)</Text>
-            <Text style={styles.sectionHint}>Visible to the homeowner.</Text>
-            <TextInput
-              style={styles.generalNotesInput}
-              placeholder="Any notes about the work done..."
-              placeholderTextColor={colors.steel}
-              value={generalNotes}
-              onChangeText={setGeneralNotes}
-              multiline
-              numberOfLines={3}
-            />
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: savingNotes ? colors.steel : colors.lanternDeep, marginTop: 8 }]}
-              onPress={saveGeneralNotes}
-              disabled={savingNotes}
-            >
-              <Text style={styles.actionBtnText}>{savingNotes ? 'Saving…' : 'Save Notes'}</Text>
-            </TouchableOpacity>
-
-            <View style={styles.completeSeparator} />
-            <Text style={styles.sectionTitle}>Complete Job</Text>
-            <Text style={styles.sectionHint}>Attach completion photos to close the job.</Text>
-            <Text style={styles.photoLabel}>Completion Photos <Text style={styles.required}>* min 1</Text></Text>
-            <PhotoStrip
-              photos={completionPhotos}
-              onAdd={() => pickAndUpload('completion', completionPhotos, setCompletionPhotos, setUploadingCompletion, 5)}
-              onRemove={(i) => setCompletionPhotos((p) => p.filter((_, idx) => idx !== i))}
-              uploading={uploadingCompletion}
-              maxPhotos={5}
-            />
-            <TouchableOpacity
-              style={[styles.completeBtn, (readyKeys(completionPhotos).length === 0 || completingJob) && styles.saveBtnDisabled]}
-              onPress={markComplete}
-              disabled={readyKeys(completionPhotos).length === 0 || completingJob}
-            >
-              {completingJob ? <ActivityIndicator color="#fff" /> : <><Ionicons name="checkmark-circle" size={20} color="#fff" /><Text style={styles.completeBtnText}> Mark Job Complete</Text></>}
-            </TouchableOpacity>
-          </>
-        )}
 
         {/* ── Solar Panel ── */}
         {showSolarPanel && (
@@ -2255,45 +1771,3 @@ const styles = StyleSheet.create({
   cancelText: { color: colors.steel },
 });
 
-const hvacSt = StyleSheet.create({
-  tabBar: { marginBottom: 12 },
-  tab: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  tabActive: { backgroundColor: colors.ink },
-  tabText: { fontSize: 14, fontWeight: '700', color: colors.steel },
-  tabTextActive: { color: colors.mist },
-  secHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.ink, borderRadius: 12, padding: 14, marginBottom: 12, gap: 10 },
-  badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.lantern, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontSize: 13, fontWeight: '800', color: colors.ink },
-  secTitle: { fontSize: 15, fontWeight: '700', color: colors.mist, flex: 1 },
-  tableWrap: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 12, overflow: 'hidden' },
-  tableHeaderRow: { flexDirection: 'row' },
-  tableDataRow: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.border },
-  tableFirstCol: { width: 140, padding: 8, justifyContent: 'center', borderRightWidth: 1, borderRightColor: colors.slate },
-  tableCol: { width: 100, padding: 8, borderRightWidth: 1, borderRightColor: colors.border, justifyContent: 'center' },
-  tableHeaderText: { fontSize: 11, fontWeight: '700', color: colors.mist },
-  tableRowLabelText: { fontSize: 11, fontWeight: '600', color: colors.slate },
-  tableCellInput: { fontSize: 12, color: colors.ink, padding: 0, minHeight: 24 },
-  fieldBlock: { marginBottom: 12 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.slate, marginBottom: 6 },
-  textInput: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, fontSize: 14, color: colors.ink },
-  textArea: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, fontSize: 14, color: colors.ink, height: 80, textAlignVertical: 'top' },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#f8fafc' },
-  chipActive: { backgroundColor: colors.mist, borderColor: colors.lanternDeep },
-  chipText: { fontSize: 12, color: colors.steel, fontWeight: '600' },
-  chipTextActive: { color: colors.lanternDeep, fontWeight: '700' },
-  checksCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 12, overflow: 'hidden' },
-  checkRow: { padding: 12 },
-  checkLabel: { fontSize: 13, fontWeight: '600', color: colors.lanternDeep, marginBottom: 8 },
-  checkControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  pfnBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 6, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#f8fafc' },
-  pfnPass: { backgroundColor: '#059669', borderColor: '#059669' },
-  pfnFail: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
-  pfnNA: { backgroundColor: '#6b7280', borderColor: '#6b7280' },
-  pfnText: { fontSize: 11, fontWeight: '700', color: colors.steel },
-  checkNotes: { flex: 1, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, color: colors.slate, minHeight: 30 },
-  navRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  navBtnPrev: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: colors.border, borderWidth: 1, borderColor: colors.border },
-  navBtnNext: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', backgroundColor: colors.lantern },
-  navPrevText: { fontSize: 14, fontWeight: '700', color: colors.slate },
-  navNextText: { fontSize: 14, fontWeight: '700', color: colors.ink },
-});

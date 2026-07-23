@@ -127,7 +127,7 @@ export const inspectionsApi = {
   addNote: (requestId: string, data: any) => api.post(`/inspections/requests/${requestId}/notes`, data),
   getNotes: (requestId: string) => api.get(`/inspections/requests/${requestId}/notes`),
   getHistory: () => api.get('/inspections/history'),
-  getChecklist: () => api.get('/inspections/checklist'),
+  getChecklist: (serviceRequestId: string) => api.get(`/inspections/checklist/${serviceRequestId}`),
   upsertTask: (requestId: string, taskKey: string, dto: any) =>
     api.put(`/inspections/requests/${requestId}/tasks/${taskKey}`, dto),
   getTasks: (requestId: string) => api.get(`/inspections/requests/${requestId}/tasks`),

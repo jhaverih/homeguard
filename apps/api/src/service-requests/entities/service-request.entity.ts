@@ -97,6 +97,21 @@ export class ServiceRequest {
   @Column({ nullable: true })
   servicePriceId: string | null;
 
+  // Which InspectionChecklistGroup.key this job's checklist resolves to — resolved
+  // once at creation (always GENERAL_HOME_INSPECTION for the base subscription
+  // inspection; from the booked ServicePrice.checklistGroupKey for a standalone
+  // add-on like HVAC Full Inspection). Null for non-inspection jobs (gutters, solar,
+  // marketplace bookings), which never enter the checklist system.
+  @Column({ nullable: true })
+  checklistGroupKey: string | null;
+
+  // Frozen copy of that group's checklist (sections/tasks) taken the first time the
+  // job enters IN_PROGRESS — so an admin editing the Configurator later doesn't
+  // change what an already-started job shows. Null until the job starts; new jobs
+  // read the live config until then. See ServiceRequestsService.updateStatus().
+  @Column({ type: 'jsonb', nullable: true })
+  checklistSnapshot: any | null;
+
   // Set for a visit generated from a MarketplaceSubscription's recurring
   // cadence (MarketplaceVisitSchedulerService) — signals the completion-charge
   // flow (ServiceRequestsService.updateStatus) to skip creating a per-visit

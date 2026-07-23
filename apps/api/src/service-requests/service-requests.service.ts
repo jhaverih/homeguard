@@ -198,6 +198,7 @@ export class ServiceRequestsService {
       zipCode: dto.zipCode,
       isPaidAddon: !!addonPrice,
       addonPrice,
+      checklistGroupKey: 'GENERAL_HOME_INSPECTION',
     }));
 
     const vendors = await this.usersService.findAvailableVendors();
@@ -268,6 +269,7 @@ export class ServiceRequestsService {
       addonPrice: customerPrice,
       servicePriceId: servicePrice.id,
       bookingGroupId: dto.bookingGroupId ?? null,
+      checklistGroupKey: servicePrice.checklistGroupKey ?? null,
     }));
 
     // Pre-create the approved additional service so vendor sees it immediately
@@ -545,11 +547,19 @@ export class ServiceRequestsService {
       });
       const quotaCoveredCount = approvedServices.filter((s) => s.isQuotaCovered).length;
 
-      if (request.type !== ServiceType.ADDITIONAL_SERVICE) {
+      // Checklist completion is gated by whether this job resolves to ANY
+      // checklist group (General Home Inspection, HVAC Full Inspection,
+      // Comprehensive Inspection, ...) — not by request.type, so standalone
+      // add-on inspections (e.g. HVAC) are held to the same standard as the
+      // base subscription inspection, not just SCHEDULED_INSPECTION requests.
+      if (request.checklistGroupKey) {
         const checklistDone = await this.inspectionsService.isChecklistComplete(requestId);
         if (!checklistDone) {
           throw new BadRequestException('All inspection checklist items must be completed before closing the job');
         }
+      }
+
+      if (request.type !== ServiceType.ADDITIONAL_SERVICE) {
         await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
       } else if (quotaCoveredCount > 0) {
         for (let i = 0; i < quotaCoveredCount; i++) {
@@ -627,6 +637,13 @@ export class ServiceRequestsService {
     if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
       request.vendorEnRouteAt = new Date();
       request.stuckJobAlertSentAt = null;
+    }
+    // Freeze the checklist config the job actually started with — guarded so a
+    // job cycling IN_PROGRESS -> ACCEPTED -> IN_PROGRESS again (reschedule()) keeps
+    // its original snapshot rather than picking up whatever an admin has since
+    // edited in the Configurator. New jobs (no snapshot yet) always read live.
+    if (status === ServiceRequestStatus.IN_PROGRESS && !request.checklistSnapshot && request.checklistGroupKey) {
+      request.checklistSnapshot = await this.inspectionsService.buildChecklistSnapshot(request.checklistGroupKey);
     }
     const saved = await this.requestsRepo.save(request);
 

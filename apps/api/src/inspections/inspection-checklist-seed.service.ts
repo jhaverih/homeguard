@@ -687,6 +687,241 @@ const VEGETATION_TASKS: SeedTask[] = [
   },
 ];
 
+// Every task below is transcribed verbatim from the pre-existing hardcoded
+// HVAC_SECTIONS in apps/mobile/app/(vendor)/active-job.tsx (the old bespoke
+// "HVAC Inspection Report" form) — replacing it with real, admin-editable
+// checklist sections/tasks under the new HVAC_FULL_INSPECTION group. Each
+// section's free-form infoFields become one ".info" task; each fixed
+// equipment identification row becomes its own task; each PASS/FAIL/N/A
+// check becomes its own task using the same generic status/findings/photo
+// mechanism every other checklist task already uses — this is what makes
+// each check individually admin-editable (label/description/enable-disable).
+const HVAC_FULL_SYSTEM_ID_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_system_id.info',
+    label: 'System Information',
+    description: 'Equipment location, unit age, warranty status, and prior service history.',
+    promptFields: [
+      { key: 'equipment_location', label: 'Equipment Location', type: 'text', placeholder: 'e.g. Basement, attic' },
+      { key: 'unit_age', label: 'Unit Age (years)', type: 'number', placeholder: 'e.g. 8' },
+      { key: 'warranty_status', label: 'Warranty Status', type: 'select', options: ['Under warranty', 'Out of warranty', 'Unknown'] },
+      { key: 'service_history', label: 'Service History / Notes', type: 'text', placeholder: 'Prior service records...' },
+    ],
+    catalogLinks: [],
+  },
+  {
+    key: 'hvac_full_system_id.equip_air_handler',
+    label: 'Air Handler / Furnace — Equipment ID',
+    description: 'Record the make, model, serial number, and install date of the air handler or furnace.',
+    promptFields: [
+      { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Carrier 24ACC636A003' },
+      { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
+      { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
+    ],
+    catalogLinks: [],
+  },
+  {
+    key: 'hvac_full_system_id.equip_condenser',
+    label: 'Condenser / Heat Pump — Equipment ID',
+    description: 'Record the make, model, serial number, and install date of the condenser or heat pump.',
+    promptFields: [
+      { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Carrier 24ACC636A003' },
+      { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
+      { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
+    ],
+    catalogLinks: [],
+  },
+  {
+    key: 'hvac_full_system_id.equip_thermostat',
+    label: 'Thermostat — Equipment ID',
+    description: 'Record the make, model, serial number, and install date of the thermostat.',
+    promptFields: [
+      { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Ecobee SmartThermostat' },
+      { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
+      { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
+    ],
+    catalogLinks: [],
+  },
+  {
+    key: 'hvac_full_system_id.equip_humidifier',
+    label: 'Humidifier / Dehumidifier — Equipment ID',
+    description: 'Record the make, model, serial number, and install date of the humidifier or dehumidifier, if present.',
+    promptFields: [
+      { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Aprilaire 600' },
+      { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
+      { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
+    ],
+    catalogLinks: [],
+  },
+];
+
+const HVAC_FULL_THERMOSTAT_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_thermostat.info',
+    label: 'Thermostat Details',
+    description: 'Thermostat type, brand/model, and location.',
+    promptFields: [
+      { key: 'type', label: 'Thermostat Type', type: 'select', options: ['Manual', 'Programmable', 'Smart/WiFi'] },
+      { key: 'brand_model', label: 'Brand / Model', type: 'text', placeholder: 'e.g. Ecobee SmartThermostat' },
+      { key: 'location', label: 'Location', type: 'text', placeholder: 'e.g. Main hallway' },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_thermostat.display', label: 'Thermostat display functional', description: 'Confirm the thermostat display is legible and functioning.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_thermostat.temp_response', label: 'Temperature setting responds correctly', description: 'Confirm the setpoint responds correctly when adjusted.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_thermostat.heat_mode', label: 'Heating mode tested', description: 'Test heating mode engages correctly.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_thermostat.cool_mode', label: 'Cooling mode tested', description: 'Test cooling mode engages correctly.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_thermostat.fan_mode', label: 'Fan mode tested (Auto/On)', description: 'Test fan mode in both Auto and On settings.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_thermostat.schedule', label: 'Schedule / programming verified', description: 'Verify programmed schedule, if applicable.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_thermostat.smart_features', label: 'Smart features connected (if applicable)', description: 'Confirm WiFi/smart features are connected and functioning.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_thermostat.wiring', label: 'Wiring connections secure', description: 'Inspect thermostat wiring connections for security and condition.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_AIR_FILTER_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_air_filter.info',
+    label: 'Filter Details',
+    description: 'Filter size, type, and MERV rating.',
+    promptFields: [
+      { key: 'filter_size', label: 'Filter Size', type: 'text', placeholder: 'e.g. 16x20x1' },
+      { key: 'filter_type', label: 'Filter Type', type: 'text', placeholder: 'e.g. Pleated, HEPA' },
+      { key: 'filter_merv', label: 'MERV Rating', type: 'number', placeholder: 'e.g. 8' },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_air_filter.filter_clean', label: 'Filter in clean / acceptable condition', description: 'Inspect the filter for dirt/clog level.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_air_filter.airflow_normal', label: 'Airflow normal — no restriction', description: 'Confirm airflow is not restricted at the filter.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_air_filter.filter_access', label: 'Filter slot accessible and sealed', description: 'Confirm the filter slot is accessible and properly sealed.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_air_filter.return_air', label: 'Return air registers unobstructed', description: 'Confirm return air registers are unobstructed.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_HEATING_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_heating.info',
+    label: 'Heating System Details',
+    description: 'Fuel type and measured temperature rise.',
+    promptFields: [
+      { key: 'fuel_type', label: 'Fuel Type', type: 'select', options: ['Natural gas', 'Propane', 'Electric', 'Heat pump', 'Oil'] },
+      { key: 'temp_rise', label: 'Temperature Rise', type: 'text', placeholder: 'e.g. 45°F (normal 35–70°F)' },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_heating.heat_exchanger', label: 'Heat exchanger — no cracks or corrosion', description: 'Inspect the heat exchanger for cracks or corrosion.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_heating.burner_flame', label: 'Burner flame — blue, stable (N/A: heat pump)', description: 'Confirm burner flame is blue and stable; not applicable for heat pumps.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_heating.ignition', label: 'Ignition sequence normal', description: 'Confirm the ignition sequence operates normally.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_heating.flue_venting', label: 'Flue / venting — no damage or improper clearance', description: 'Inspect flue/venting for damage or improper clearance.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_heating.gas_valve', label: 'Gas valve and supply line — no corrosion or leaks', description: 'Inspect gas valve and supply line for corrosion or leaks.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_heating.blower_operation', label: 'Blower operates normally — no noise', description: 'Confirm the blower operates normally with no unusual noise.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_heating.combustion_residue', label: 'No soot or scorch marks observed', description: 'Inspect for soot or scorch marks around the combustion area.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_COOLING_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_cooling.info',
+    label: 'Cooling System Details',
+    description: 'Refrigerant type and measured temperature differential.',
+    promptFields: [
+      { key: 'refrigerant_type', label: 'Refrigerant Type', type: 'select', options: ['R-22', 'R-410A', 'R-32', 'Unknown'] },
+      { key: 'temp_diff', label: 'Temperature Differential', type: 'text', placeholder: 'e.g. 18°F (normal 14–22°F)' },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_cooling.condenser_unit', label: 'Condenser unit — clean, no damage', description: 'Inspect the condenser unit for cleanliness and physical damage.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_cooling.evap_coil', label: 'Evaporator coil — clean, no frost', description: 'Inspect the evaporator coil for cleanliness and frost buildup.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_cooling.compressor_op', label: 'Compressor operates normally', description: 'Confirm the compressor operates normally.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_cooling.refrigerant_level', label: 'Refrigerant level — normal (no signs of leak)', description: 'Confirm refrigerant level is normal with no signs of a leak.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_cooling.line_insulation', label: 'Refrigerant line insulation — intact', description: 'Inspect refrigerant line insulation for damage.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_cooling.condenser_fan', label: 'Condenser fan operates normally', description: 'Confirm the condenser fan operates normally.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_ELECTRICAL_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_electrical.info',
+    label: 'Electrical Readings',
+    description: 'Voltage and amperage readings.',
+    promptFields: [
+      { key: 'voltage', label: 'Voltage Reading', type: 'text', placeholder: 'e.g. 240V' },
+      { key: 'amperage', label: 'Amperage Reading', type: 'text', placeholder: 'e.g. 14A' },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_electrical.wiring_condition', label: 'Wiring — no loose connections or corrosion', description: 'Inspect wiring for loose connections or corrosion.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_electrical.disconnect_box', label: 'Disconnect box accessible and in good condition', description: 'Confirm the disconnect box is accessible and in good condition.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_electrical.breaker_sizing', label: 'Breaker correctly sized for equipment', description: 'Confirm the breaker is correctly sized for the equipment.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_electrical.safety_switches', label: 'Safety shutoffs functional', description: 'Confirm safety shutoff switches are functional.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_electrical.control_board', label: 'Control board — no error codes or burn marks', description: 'Inspect the control board for error codes or burn marks.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_DUCTWORK_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_ductwork.info',
+    label: 'Ductwork Details',
+    description: 'Duct material.',
+    promptFields: [
+      { key: 'duct_material', label: 'Duct Material', type: 'select', options: ['Flex duct', 'Sheet metal', 'Fiberglass board', 'Mixed'] },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_ductwork.duct_condition', label: 'Ducts — no significant leakage or disconnection', description: 'Inspect ducts for significant leakage or disconnection.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_ductwork.duct_insulation', label: 'Duct insulation intact in unconditioned areas', description: 'Confirm duct insulation is intact in unconditioned areas.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_ductwork.airflow_balance', label: 'Supply / return balance acceptable', description: 'Confirm supply/return airflow balance is acceptable.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_ductwork.supply_registers', label: 'Supply registers unobstructed and functional', description: 'Confirm supply registers are unobstructed and functional.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_ductwork.duct_noise', label: 'No unusual duct noise or vibration', description: 'Confirm no unusual duct noise or vibration during operation.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_CONDENSATE_TASKS: SeedTask[] = [
+  { key: 'hvac_full_condensate.drain_line', label: 'Condensate drain line — clear, draining properly', description: 'Confirm the condensate drain line is clear and draining properly.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_condensate.condensate_pump', label: 'Condensate pump functional (if present)', description: 'Confirm the condensate pump is functional, if present.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_condensate.drip_pan', label: 'Drip pan — clean, no rust or standing water', description: 'Inspect the drip pan for cleanliness, rust, or standing water.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_condensate.safety_float', label: 'Safety float switch installed and functional', description: 'Confirm the safety float switch is installed and functional.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_SAFETY_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_safety.info',
+    label: 'Safety Details',
+    description: 'Emergency shutoff location.',
+    promptFields: [
+      { key: 'emergency_shutoff', label: 'Emergency Shutoff Location', type: 'text', placeholder: 'Describe location' },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_safety.co_detector', label: 'CO detector present near equipment', description: 'Confirm a CO detector is present near the equipment.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_safety.high_limit', label: 'High-limit safety controls functional', description: 'Confirm high-limit safety controls are functional.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_safety.clearances', label: 'Equipment clearances adequate', description: 'Confirm equipment clearances are adequate.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_safety.combustion_air', label: 'Combustion air supply adequate (N/A: electric)', description: 'Confirm combustion air supply is adequate; not applicable for electric systems.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_safety.pressure_relief', label: 'Pressure relief devices in place', description: 'Confirm pressure relief devices are in place.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_PERFORMANCE_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_performance.info',
+    label: 'Defects & Findings Summary',
+    description: 'Summarize all findings from the inspection.',
+    promptFields: [
+      { key: 'summary_notes', label: 'Defects & Findings Summary', type: 'text', placeholder: 'Summarize all findings...' },
+    ],
+    catalogLinks: [],
+  },
+  { key: 'hvac_full_performance.heating_cycle', label: 'Heating cycle completes normally', description: 'Confirm the heating cycle completes normally.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_performance.cooling_cycle', label: 'Cooling cycle completes normally', description: 'Confirm the cooling cycle completes normally.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_performance.noise_level', label: 'System noise — within normal range', description: 'Confirm system noise is within the normal range.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_performance.no_odors', label: 'No unusual odors during operation', description: 'Confirm no unusual odors are present during operation.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_performance.system_functional', label: 'System fully functional at time of inspection', description: 'Confirm the system is fully functional at the time of inspection.', promptFields: [], catalogLinks: [] },
+];
+
+const HVAC_FULL_PHOTOS_TASKS: SeedTask[] = [
+  {
+    key: 'hvac_full_photos.info',
+    label: 'Photo Documentation',
+    description: 'Describe what each photo shows (data plate, filter, heat exchanger, condenser, electrical, ductwork issues).',
+    promptFields: [
+      { key: 'photo_notes', label: 'Photo Notes', type: 'text', placeholder: 'Describe what each photo shows (data plate, filter, heat exchanger, condenser, electrical, ductwork issues)' },
+    ],
+    catalogLinks: [],
+  },
+];
+
 @Injectable()
 export class InspectionChecklistSeedService implements OnModuleInit {
   private readonly logger = new Logger(InspectionChecklistSeedService.name);
@@ -756,6 +991,42 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     await this.ensureTasks(deckPorchSection.id, DECK_PORCH_TASKS);
     await this.ensureTasks(concreteSection.id, CONCRETE_TASKS);
     await this.ensureTasks(vegetationSection.id, VEGETATION_TASKS);
+
+    // HVAC Full Inspection — replaces the old hardcoded HVAC_SECTIONS form in
+    // active-job.tsx. Flat structure (one subgroup) matching the old form's
+    // flat 11-tab layout, no invented sub-grouping.
+    const hvacFullGroup = await this.ensureGroup('HVAC_FULL_INSPECTION', 'HVAC Full Inspection', 1);
+    const hvacFullSub = await this.ensureSubgroup(hvacFullGroup.id, 'HVAC_FULL_CHECKLIST', 'HVAC Full Inspection', 0);
+
+    const hvacSystemIdSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_system_id', 'System Identification', 0);
+    const hvacThermostatSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_thermostat', 'Thermostat & Controls', 1);
+    const hvacAirFilterSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_air_filter', 'Air Filter & Airflow', 2);
+    const hvacHeatingSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_heating', 'Heating System', 3);
+    const hvacCoolingSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_cooling', 'Cooling System', 4);
+    const hvacElectricalSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_electrical', 'Electrical System', 5);
+    const hvacDuctworkSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_ductwork', 'Air Distribution & Ductwork', 6);
+    const hvacCondensateSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_condensate', 'Condensate Management', 7);
+    const hvacSafetySection = await this.ensureSection(hvacFullSub.id, 'hvac_full_safety', 'Safety & Compliance', 8);
+    const hvacPerformanceSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_performance', 'Operational Performance', 9);
+    const hvacPhotosSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_photos', 'Photo Documentation', 10);
+
+    await this.ensureTasks(hvacSystemIdSection.id, HVAC_FULL_SYSTEM_ID_TASKS);
+    await this.ensureTasks(hvacThermostatSection.id, HVAC_FULL_THERMOSTAT_TASKS);
+    await this.ensureTasks(hvacAirFilterSection.id, HVAC_FULL_AIR_FILTER_TASKS);
+    await this.ensureTasks(hvacHeatingSection.id, HVAC_FULL_HEATING_TASKS);
+    await this.ensureTasks(hvacCoolingSection.id, HVAC_FULL_COOLING_TASKS);
+    await this.ensureTasks(hvacElectricalSection.id, HVAC_FULL_ELECTRICAL_TASKS);
+    await this.ensureTasks(hvacDuctworkSection.id, HVAC_FULL_DUCTWORK_TASKS);
+    await this.ensureTasks(hvacCondensateSection.id, HVAC_FULL_CONDENSATE_TASKS);
+    await this.ensureTasks(hvacSafetySection.id, HVAC_FULL_SAFETY_TASKS);
+    await this.ensureTasks(hvacPerformanceSection.id, HVAC_FULL_PERFORMANCE_TASKS);
+    await this.ensureTasks(hvacPhotosSection.id, HVAC_FULL_PHOTOS_TASKS);
+
+    // Comprehensive Inspection — no content specified yet; seeded as an empty,
+    // ready-to-build skeleton. Admin populates it via the Configurator's
+    // existing "+ New Checklist" / "+ Add Task" UI, same as any other group.
+    const comprehensiveGroup = await this.ensureGroup('COMPREHENSIVE_INSPECTION', 'Comprehensive Inspection', 2);
+    await this.ensureSubgroup(comprehensiveGroup.id, 'COMPREHENSIVE_INSPECTION_MAIN', 'Comprehensive Inspection', 0);
   }
 
   private async ensureGroup(key: string, label: string, sortOrder: number) {
