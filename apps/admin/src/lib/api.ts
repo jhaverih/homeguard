@@ -40,19 +40,23 @@ export const subscriptionsApi = {
 };
 
 export const marketplaceApi = {
-  getConfig: () => api.get('/marketplace/house-cleaning/config').then((r) => r.data),
+  // ?all=true (same convention as pricingApi.getAll) so disabled rows stay
+  // visible/re-enableable in admin instead of vanishing the moment they're
+  // turned off — the customer-facing apps call these same routes without
+  // the param and keep getting active-only, unchanged.
+  getConfig: () => api.get('/marketplace/house-cleaning/config?all=true').then((r) => r.data),
   updatePlan: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/plans/${id}`, data).then((r) => r.data),
   updateRoomUnit: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/room-units/${id}`, data).then((r) => r.data),
   updateCondition: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/conditions/${id}`, data).then((r) => r.data),
   updateAddOn: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/add-ons/${id}`, data).then((r) => r.data),
   updateFrequencyDiscount: (id: string, data: any) => api.patch(`/marketplace/house-cleaning/frequency-discounts/${id}`, data).then((r) => r.data),
-  getLawncareConfig: () => api.get('/marketplace/lawncare/config').then((r) => r.data),
+  getLawncareConfig: () => api.get('/marketplace/lawncare/config?all=true').then((r) => r.data),
   updateLawncareService: (id: string, data: any) => api.patch(`/marketplace/lawncare/services/${id}`, data).then((r) => r.data),
   updateLawncarePackage: (id: string, data: any) => api.patch(`/marketplace/lawncare/packages/${id}`, data).then((r) => r.data),
   createLawncarePropertyDetailField: (label: string, unit: string) => api.post('/marketplace/lawncare/property-detail-fields', { label, unit }).then((r) => r.data),
   updateLawncarePropertyDetailField: (id: string, data: any) => api.patch(`/marketplace/lawncare/property-detail-fields/${id}`, data).then((r) => r.data),
   removeLawncarePropertyDetailField: (id: string) => api.delete(`/marketplace/lawncare/property-detail-fields/${id}`).then((r) => r.data),
-  getPestConfig: () => api.get('/marketplace/pest/config').then((r) => r.data),
+  getPestConfig: () => api.get('/marketplace/pest/config?all=true').then((r) => r.data),
   updatePestService: (id: string, data: any) => api.patch(`/marketplace/pest/services/${id}`, data).then((r) => r.data),
   updatePestPackage: (id: string, data: any) => api.patch(`/marketplace/pest/packages/${id}`, data).then((r) => r.data),
 };

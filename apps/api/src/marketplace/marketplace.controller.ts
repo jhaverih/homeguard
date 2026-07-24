@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -33,9 +33,9 @@ export class MarketplaceController {
   constructor(private readonly service: MarketplaceService) {}
 
   @Get('house-cleaning/config')
-  @ApiOperation({ summary: 'Cleaning plans, room units, condition multipliers, add-ons, and frequency discounts' })
-  getConfig() {
-    return this.service.getConfig();
+  @ApiOperation({ summary: 'Cleaning plans, room units, condition multipliers, and frequency discounts. Public callers always get active-only; ?all=true (used by the admin Marketplace page) also includes disabled rows, since those otherwise become invisible/impossible to re-enable once turned off.' })
+  getConfig(@Query('all') all?: string) {
+    return this.service.getConfig(all === 'true');
   }
 
   @Get('house-cleaning/property-profile')
@@ -121,9 +121,9 @@ export class MarketplaceController {
   }
 
   @Get('lawncare/config')
-  @ApiOperation({ summary: 'Lawncare services and subscription packages' })
-  getLawncareConfig() {
-    return this.service.getLawncareConfig();
+  @ApiOperation({ summary: 'Lawncare services, subscription packages, and property-detail fields. Public callers always get active-only; ?all=true (used by the admin Marketplace page) also includes disabled rows.' })
+  getLawncareConfig(@Query('all') all?: string) {
+    return this.service.getLawncareConfig(all === 'true');
   }
 
   @Get('lawncare/property-profile')
@@ -225,9 +225,9 @@ export class MarketplaceController {
   }
 
   @Get('pest/config')
-  @ApiOperation({ summary: 'Pest Control services and subscription packages' })
-  getPestConfig() {
-    return this.service.getPestConfig();
+  @ApiOperation({ summary: 'Pest Control services and subscription packages. Public callers always get active-only; ?all=true (used by the admin Marketplace page) also includes disabled rows.' })
+  getPestConfig(@Query('all') all?: string) {
+    return this.service.getPestConfig(all === 'true');
   }
 
   @Get('pest/property-profile')

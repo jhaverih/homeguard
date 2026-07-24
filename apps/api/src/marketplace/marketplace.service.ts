@@ -679,15 +679,20 @@ Exterior Maintenance Add-Ons
 
   // ── Config lookups ─────────────────────────────────────────────────────
 
-  async getConfig() {
+  // includeInactive: the admin Marketplace page passes true (via ?all=true,
+  // same convention as PricingController's getAll) so a disabled row stays
+  // visible/re-enableable there — every other caller (the customer apps)
+  // omits it and gets the original active-only behavior, unchanged.
+  async getConfig(includeInactive = false) {
+    const activeOnly = includeInactive ? {} : { isActive: true };
     const [plans, roomUnits, conditions, addOns, frequencyDiscounts] = await Promise.all([
       this.plansRepo.find({ order: { cleaningType: 'ASC' } }),
-      this.roomUnitsRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
-      this.conditionsRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
-      this.addOnsRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
-      this.frequencyDiscountsRepo.find({ where: { isActive: true } }),
+      this.roomUnitsRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
+      this.conditionsRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
+      this.addOnsRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
+      this.frequencyDiscountsRepo.find({ where: activeOnly }),
     ]);
-    return { plans: plans.filter((p) => p.isActive), roomUnits, conditions, addOns, frequencyDiscounts };
+    return { plans: includeInactive ? plans : plans.filter((p) => p.isActive), roomUnits, conditions, addOns, frequencyDiscounts };
   }
 
   async getHouseCleaningPropertyProfile(customerId: string) {
@@ -704,11 +709,12 @@ Exterior Maintenance Add-Ons
     await this.houseCleaningPropertyProfileRepo.save(profile);
   }
 
-  async getLawncareConfig() {
+  async getLawncareConfig(includeInactive = false) {
+    const activeOnly = includeInactive ? {} : { isActive: true };
     const [services, packages, propertyDetailFields] = await Promise.all([
-      this.lawncareServicesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
-      this.lawncarePackagesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
-      this.lawncarePropertyDetailFieldsRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
+      this.lawncareServicesRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
+      this.lawncarePackagesRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
+      this.lawncarePropertyDetailFieldsRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
     ]);
     return { services, packages, propertyDetailFields };
   }
@@ -770,10 +776,11 @@ Exterior Maintenance Add-Ons
     return `${slug}_${Date.now().toString(36)}`;
   }
 
-  async getPestConfig() {
+  async getPestConfig(includeInactive = false) {
+    const activeOnly = includeInactive ? {} : { isActive: true };
     const [services, packages] = await Promise.all([
-      this.pestServicesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
-      this.pestPackagesRepo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }),
+      this.pestServicesRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
+      this.pestPackagesRepo.find({ where: activeOnly, order: { sortOrder: 'ASC' } }),
     ]);
     return { services, packages };
   }
