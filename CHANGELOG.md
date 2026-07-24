@@ -14,6 +14,12 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-07-23
 
+### Added
+- **api**: New "Flooring Services" catalog item (Request Quote, no fixed price) — added to the existing `REQUEST_QUOTE_CATALOG` seed alongside similar project-based services (Large Drywall Repair, Whole-House Painting, etc.), category-gated the same way (Interior Repairs & Maintenance capability), no new mechanism needed.
+
+### Changed
+- **admin**: The Marketplace page's House Cleaning/Lawncare/Pest Control sections now behave as an accordion — opening one collapses whichever other was open, and all three start collapsed on page load, instead of each toggling independently (and all three being expanded by default).
+
 ### Fixed
 - **api, admin**: The admin Marketplace page's House Cleaning/Lawncare/Pest Control tables loaded via the same public, `isActive: true`-filtered config endpoints the customer apps use — so the moment an admin disabled anything (a service, package, room unit, condition, add-on, frequency discount, or property-detail field), it vanished from the admin table on the next reload, with no way to see it again or turn it back on through the UI. Reported as "I disabled Premium Pest + Mosquito and Ultimate Protection Membership but they still show up on Add-on Services" — investigation found `ultimate_protection_membership` actually had saved correctly (`isActive: false`), but `premium_pest_mosquito_membership` hadn't; the disappearing-row behavior made it easy to lose track of which of two just-unchecked rows had actually been saved, since each row has its own individual Save button. Fixed by giving `GET .../config` an optional `?all=true` (same convention already established for `GET /pricing?all=true`) that includes disabled rows — customer apps are unaffected (still call it without the param); the admin page now always passes it. `premium_pest_mosquito_membership` was directly corrected to `isActive: false` to match the original intent.
 

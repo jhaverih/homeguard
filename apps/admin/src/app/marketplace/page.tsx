@@ -53,14 +53,12 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Accordion: at most one group open at a time — opening one collapses
+  // whichever other was open. null means everything starts collapsed.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const toggleGroupCollapsed = (key: string) =>
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
+    setOpenGroup((prev) => (prev === key ? null : key));
 
   const load = () => Promise.all([marketplaceApi.getConfig(), marketplaceApi.getLawncareConfig(), marketplaceApi.getPestConfig()]).then(([c, lc, pc]: any[]) => {
     const merged = {
@@ -158,7 +156,7 @@ export default function MarketplacePage() {
 
       <CollapsibleGroup
         label="House Cleaning"
-        collapsed={collapsedGroups.has('HOUSE_CLEANING')}
+        collapsed={openGroup !== 'HOUSE_CLEANING'}
         onToggle={() => toggleGroupCollapsed('HOUSE_CLEANING')}
       >
       <SectionCard title="Cleaning Plans" subtitle="Cost/unit (internal), retail/unit (customer-facing), and which visit frequencies each plan allows.">
@@ -353,7 +351,7 @@ export default function MarketplacePage() {
 
       <CollapsibleGroup
         label="Lawncare"
-        collapsed={collapsedGroups.has('LAWN_LANDSCAPING')}
+        collapsed={openGroup !== 'LAWN_LANDSCAPING'}
         onToggle={() => toggleGroupCollapsed('LAWN_LANDSCAPING')}
       >
       <SectionCard title="Lawncare Services" subtitle="À-la-carte pricing per service. Sub cost is paid to the vendor; customer price is what the customer is charged. Base + per-unit covers services priced per additional unit beyond what's included. Volume discount text is always the source of truth (shown to customers/vendors) — the numeric tiers are optional structured data for a future quote engine.">
@@ -600,7 +598,7 @@ export default function MarketplacePage() {
 
       <CollapsibleGroup
         label="Pest Control"
-        collapsed={collapsedGroups.has('PEST_CONTROL')}
+        collapsed={openGroup !== 'PEST_CONTROL'}
         onToggle={() => toggleGroupCollapsed('PEST_CONTROL')}
       >
       <SectionCard title="Pest Control Services" subtitle="À-la-carte pricing per service. Dimension 2 (Per-Unit 2 / Included 2) only applies to the Premium/Ultimate memberships, which scale by both home sq ft and lot acreage at once — leave at 0 for every other service. Volume discount text is always the source of truth. Membership benefits (e.g. &quot;Included with Ultimate&quot;) and frequency discounts are seed-configured, not editable here yet.">

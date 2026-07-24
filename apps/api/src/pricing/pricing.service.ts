@@ -171,6 +171,7 @@ const REQUEST_QUOTE_CATALOG: { name: string; description: string; category: Serv
   { name: 'Wheelchair Ramp Installation', description: 'Design and install a wheelchair ramp.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
   { name: 'Whole-House Painting', description: 'Interior or exterior painting for an entire home.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
   { name: 'Seasonal Maintenance Package', description: 'Bundled seasonal home maintenance visit.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
+  { name: 'Flooring Services', description: 'Flooring installation, repair, and replacement.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
 ];
 
 @Injectable()
