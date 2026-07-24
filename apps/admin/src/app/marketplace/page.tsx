@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { marketplaceApi, pricingApi } from '@/lib/api';
+import { marketplaceApi, pricingApi, adminApi } from '@/lib/api';
 
 const CLEANING_TYPE_LABELS: Record<string, string> = { STANDARD: 'Standard', DEEP: 'Deep', MOVE_OUT: 'Move-Out' };
 const FREQUENCY_LABELS: Record<string, string> = { ONE_TIME: 'One-time', MONTHLY: 'Monthly', BIWEEKLY: 'Bi-weekly', WEEKLY: 'Weekly' };
@@ -60,18 +60,26 @@ export default function MarketplacePage() {
   const toggleGroupCollapsed = (key: string) =>
     setOpenGroup((prev) => (prev === key ? null : key));
 
-  const load = () => Promise.all([marketplaceApi.getConfig(), marketplaceApi.getLawncareConfig(), marketplaceApi.getPestConfig(), pricingApi.getAll()]).then(([c, lc, pc, catalog]: any[]) => {
+  const load = () => Promise.all([marketplaceApi.getConfig(), marketplaceApi.getLawncareConfig(), marketplaceApi.getPestConfig(), pricingApi.getAll(), adminApi.getCapabilities()]).then(([c, lc, pc, catalog, capabilities]: any[]) => {
     // Catalog items (the general ServicePrice table, managed day-to-day on
     // the Pricing page) that are also tagged serviceGroups: MARKETPLACE —
     // e.g. Flooring Services — so they're visible/editable here too, not
     // just buried in the full catalog. Not a 4th dedicated vertical (no
     // packages/property-profile of its own): just the same rows, filtered.
-    const otherMarketplaceServices = catalog.filter((s: any) => s.serviceGroups?.includes('MARKETPLACE'));
+    // Excludes the 3 placeholder catalog rows ('House Cleaning', 'Lawncare
+    // Subscription', 'Pest Control Subscription') that back the 3 dedicated
+    // verticals above — their real config is already shown/edited there;
+    // these stub rows' own price fields are unused, so surfacing them here
+    // too would just be confusing dead fields (see MarketplaceService's
+    // HOUSE_CLEANING_CATALOG_NAME/LAWNCARE_CATALOG_NAME/
+    // PEST_CONTROL_CATALOG_NAME).
+    const MARKETPLACE_STUB_NAMES = new Set(['House Cleaning', 'Lawncare Subscription', 'Pest Control Subscription']);
+    const otherMarketplaceServices = catalog.filter((s: any) => s.serviceGroups?.includes('MARKETPLACE') && !MARKETPLACE_STUB_NAMES.has(s.name));
     const merged = {
       ...c, lawncareServices: lc.services, lawncarePackages: lc.packages,
       lawncarePropertyDetailFields: lc.propertyDetailFields,
       pestServices: pc.services, pestPackages: pc.packages,
-      otherMarketplaceServices,
+      otherMarketplaceServices, capabilities,
     };
     setConfig(merged);
     const d: Record<string, any> = {};
@@ -126,6 +134,31 @@ export default function MarketplacePage() {
       await load();
     } finally {
       setRemovingFieldId(null);
+    }
+  };
+
+  const [addingOffer, setAddingOffer] = useState(false);
+  const addMarketplaceOffer = async () => {
+    setAddingOffer(true);
+    try {
+      await pricingApi.create({
+        name: 'New Marketplace Offer', description: '', basePrice: 0,
+        pricingMethod: 'REQUEST_QUOTE', requiresQuote: true, serviceGroups: ['MARKETPLACE'], isActive: true,
+      });
+      await load();
+    } finally {
+      setAddingOffer(false);
+    }
+  };
+
+  const [removingOfferId, setRemovingOfferId] = useState<string | null>(null);
+  const removeMarketplaceOffer = async (id: string) => {
+    setRemovingOfferId(id);
+    try {
+      await pricingApi.remove(id);
+      await load();
+    } finally {
+      setRemovingOfferId(null);
     }
   };
 
@@ -741,19 +774,20 @@ export default function MarketplacePage() {
       </CollapsibleGroup>
 
       <CollapsibleGroup
-        label="Other Marketplace Services"
+        label="Marketplace Offers"
         collapsed={openGroup !== 'OTHER_MARKETPLACE'}
         onToggle={() => toggleGroupCollapsed('OTHER_MARKETPLACE')}
       >
-      <SectionCard title="Marketplace-Tagged Catalog Services" subtitle="General Service Catalog items (managed day-to-day on the Pricing page) that also carry the Marketplace tag — shown here for visibility since that's how customers reach them, via the Marketplace tab on the home screen. Full field editing (category, capability, pricing method) stays on the Pricing page; this is just name/description/price/enabled.">
+      <SectionCard title="Marketplace Offers" subtitle="Standalone offers on the Marketplace tab of the customer app (alongside House Cleaning/Lawncare/Pest Control) that don't need their own dedicated packages or property profile — e.g. Flooring Services. Create/edit/remove here; full field editing (category, pricing method, volume tiers) stays on the Pricing page.">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-mist-dim">
-              <th className="px-3 py-2 text-left font-semibold text-steel">Service</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Offer</th>
               <th className="px-3 py-2 text-left font-semibold text-steel">Description</th>
               <th className="px-3 py-2 text-right font-semibold text-steel">Price</th>
+              <th className="px-3 py-2 text-left font-semibold text-steel">Capability</th>
               <th className="px-3 py-2 text-center font-semibold text-steel">Enabled</th>
-              <th className="w-16" />
+              <th className="w-32" />
             </tr>
           </thead>
           <tbody className="divide-y divide-canvas">
@@ -761,9 +795,11 @@ export default function MarketplacePage() {
               const d = drafts[s.id] ?? s;
               return (
                 <tr key={s.id}>
-                  <td className="px-3 py-2 font-medium text-ink whitespace-nowrap">{s.name}</td>
                   <td className="px-3 py-2">
-                    <input type="text" value={d.description ?? ''} onChange={(e) => setField(s.id, 'description', e.target.value)} className="w-72 border border-border rounded px-2 py-1" />
+                    <input type="text" value={d.name ?? ''} onChange={(e) => setField(s.id, 'name', e.target.value)} className="w-48 border border-border rounded px-2 py-1 font-medium" />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="text" value={d.description ?? ''} onChange={(e) => setField(s.id, 'description', e.target.value)} className="w-64 border border-border rounded px-2 py-1" />
                   </td>
                   <td className="px-3 py-2 text-right">
                     {d.requiresQuote ? (
@@ -772,25 +808,49 @@ export default function MarketplacePage() {
                       <input type="number" step="0.01" value={d.basePrice} onChange={(e) => setField(s.id, 'basePrice', e.target.value)} className="w-24 border border-border rounded px-2 py-1 text-right" />
                     )}
                   </td>
+                  <td className="px-3 py-2">
+                    <select value={d.requiredCapabilityId ?? ''} onChange={(e) => setField(s.id, 'requiredCapabilityId', e.target.value || null)} className="w-44 border border-border rounded px-2 py-1">
+                      <option value="">Any vendor</option>
+                      {(config.capabilities ?? []).map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-3 py-2 text-center">
                     <input type="checkbox" checked={d.isActive} onChange={(e) => setField(s.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 flex items-center gap-2">
                     <SaveButton
                       dirty={isDirty(s, d)}
                       saving={saving.has(s.id)}
                       onClick={() => save('catalogService', s.id, {
+                        name: d.name,
                         description: d.description,
                         basePrice: d.requiresQuote ? s.basePrice : Number(d.basePrice),
+                        requiredCapabilityId: d.requiredCapabilityId || null,
                         isActive: d.isActive,
                       })}
                     />
+                    <button
+                      onClick={() => removeMarketplaceOffer(s.id)}
+                      disabled={removingOfferId === s.id}
+                      className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30"
+                    >
+                      ✕ Remove
+                    </button>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        <button
+          onClick={addMarketplaceOffer}
+          disabled={addingOffer}
+          className="mt-4 bg-lantern text-ink px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-lantern-deep disabled:opacity-50 transition-colors"
+        >
+          {addingOffer ? 'Adding…' : '+ Add Marketplace Offer'}
+        </button>
       </SectionCard>
       </CollapsibleGroup>
     </div>

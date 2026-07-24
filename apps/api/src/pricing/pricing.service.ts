@@ -222,6 +222,7 @@ export class PricingService implements OnModuleInit {
     await this.backfillTieredPricingDefaults();
     await this.seedVolumePricingCatalog();
     await this.seedQuoteCatalog();
+    await this.seedFlooringCapability();
   }
 
   // One-time-per-row backfill: gives every pre-existing PER_UNIT service tier
@@ -446,6 +447,26 @@ export class PricingService implements OnModuleInit {
         requiredCapabilityId: capability.id,
       }));
       this.logger.log(`Seeded "${item.name}" quote-based service (${capabilityName}-capability-gated, category ${item.category}).`);
+    }
+  }
+
+  // "Flooring Services" was seeded above sharing Interior Repairs &
+  // Maintenance's capability — it needs its own dedicated one (shown under
+  // the vendor Capabilities page's "Specialties" group via
+  // SPECIALTY_NAME_OVERRIDES in apps/vendor/src/app/capabilities/page.tsx,
+  // same treatment as Cleaning Services/Lawn & Landscaping/Pest Control).
+  // Same shape as MarketplaceService's seedLawncareCapabilityAndCatalog(),
+  // minus the placeholder catalog row — Flooring Services already IS the
+  // real catalog row, just needs re-pointing at the new capability once.
+  private async seedFlooringCapability() {
+    let capability = await this.capabilityRepo.findOne({ where: { name: 'Flooring' } });
+    if (!capability) {
+      capability = await this.capabilityRepo.save(this.capabilityRepo.create({ name: 'Flooring' }));
+    }
+
+    const flooringServices = await this.pricesRepo.findOne({ where: { name: 'Flooring Services' } });
+    if (flooringServices && flooringServices.requiredCapabilityId !== capability.id) {
+      await this.pricesRepo.update(flooringServices.id, { requiredCapabilityId: capability.id });
     }
   }
 

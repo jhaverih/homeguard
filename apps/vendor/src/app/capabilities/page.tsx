@@ -8,7 +8,7 @@ import { usePermissions } from '@/lib/permissions';
 // Capabilities the user wants grouped as "Specialties" even though they don't
 // require a certification document today (premium marketplace verticals) —
 // every capability that DOES require one is picked up automatically below.
-const SPECIALTY_NAME_OVERRIDES = new Set(['Cleaning Services', 'Lawn & Landscaping', 'Pest Control']);
+const SPECIALTY_NAME_OVERRIDES = new Set(['Cleaning Services', 'Lawn & Landscaping', 'Pest Control', 'Flooring']);
 const isSpecialty = (c: any) => c.requiredCertificationType !== 'NONE' || SPECIALTY_NAME_OVERRIDES.has(c.name);
 
 const CERT_TYPE_LABEL: Record<string, string> = {

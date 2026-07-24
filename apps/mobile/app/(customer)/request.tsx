@@ -279,7 +279,11 @@ export default function RequestScreen() {
         .catch(() => setAvailableCapabilityIds('all'));
       pricingApi.getAll()
         .then((items: any) => {
-          const fresh = (items || []).filter((i: any) => i.customerRequestable !== false);
+          // Marketplace-tagged items (House Cleaning/Lawncare/Pest
+          // Control's own catalog stubs, plus general items like Flooring
+          // Services) are reachable only via the home screen's Marketplace
+          // tab — they don't belong in this generic browse-everything list.
+          const fresh = (items || []).filter((i: any) => i.customerRequestable !== false && !i.serviceGroups?.includes('MARKETPLACE'));
           setCatalog(fresh);
           // Keep an in-progress selection's entered quantities, just refresh
           // the underlying item data (name/price/flags) against the latest catalog.
