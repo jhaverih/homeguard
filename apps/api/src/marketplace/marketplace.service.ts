@@ -21,6 +21,12 @@ import { MarketplacePestService } from './entities/marketplace-pest-service.enti
 import { MarketplacePestPackage } from './entities/marketplace-pest-package.entity';
 import { MarketplacePestPackageSubscription } from './entities/marketplace-pest-package-subscription.entity';
 import { MarketplacePestPropertyProfile } from './entities/marketplace-pest-property-profile.entity';
+import { MarketplaceOfferTemplate } from './entities/marketplace-offer-template.entity';
+import { MarketplaceTemplatePackage } from './entities/marketplace-template-package.entity';
+import { MarketplaceTemplatePropertyField } from './entities/marketplace-template-property-field.entity';
+import { MarketplaceTemplateFactor } from './entities/marketplace-template-factor.entity';
+import { MarketplaceTemplateService } from './entities/marketplace-template-service.entity';
+import { MarketplaceTemplateFrequencyDiscount } from './entities/marketplace-template-frequency-discount.entity';
 import {
   CleaningType, VisitFrequency, MarketplaceSubscriptionStatus, MarketplaceEventType,
 } from './enums/marketplace.enum';
@@ -30,6 +36,7 @@ import {
 } from './marketplace-pricing.utils';
 import { computeLawncareServicePrice, resolveServiceQty, isManualQtyService, isSubscribableFrequency } from './marketplace-lawncare-pricing.utils';
 import { computePestServicePrice, resolvePestServiceQty, resolvePestServiceQty2, isManualQtyPestService } from './marketplace-pest-pricing.utils';
+import { computeTemplateServicePrice, computeTemplatePackageMonthlyPrice } from './marketplace-template-pricing.utils';
 import { QuoteHouseCleaningDto } from './dto/quote-house-cleaning.dto';
 import {
   QuoteLawncareDto, BookLawncareServiceDto, SubscribeLawncarePackageDto, SubscribeLawncareServiceDto, UpsertLawncarePropertyProfileDto,
@@ -92,6 +99,12 @@ export class MarketplaceService implements OnModuleInit {
     @InjectRepository(MarketplacePestPackage) private pestPackagesRepo: Repository<MarketplacePestPackage>,
     @InjectRepository(MarketplacePestPackageSubscription) private pestPackageSubscriptionsRepo: Repository<MarketplacePestPackageSubscription>,
     @InjectRepository(MarketplacePestPropertyProfile) private pestPropertyProfileRepo: Repository<MarketplacePestPropertyProfile>,
+    @InjectRepository(MarketplaceOfferTemplate) private offerTemplatesRepo: Repository<MarketplaceOfferTemplate>,
+    @InjectRepository(MarketplaceTemplatePackage) private templatePackagesRepo: Repository<MarketplaceTemplatePackage>,
+    @InjectRepository(MarketplaceTemplatePropertyField) private templatePropertyFieldsRepo: Repository<MarketplaceTemplatePropertyField>,
+    @InjectRepository(MarketplaceTemplateFactor) private templateFactorsRepo: Repository<MarketplaceTemplateFactor>,
+    @InjectRepository(MarketplaceTemplateService) private templateServicesRepo: Repository<MarketplaceTemplateService>,
+    @InjectRepository(MarketplaceTemplateFrequencyDiscount) private templateFrequencyDiscountsRepo: Repository<MarketplaceTemplateFrequencyDiscount>,
     @InjectRepository(VendorCapability) private capabilityRepo: Repository<VendorCapability>,
     @InjectRepository(ServicePrice) private servicePriceRepo: Repository<ServicePrice>,
     private configService: ConfigService,
@@ -111,6 +124,24 @@ export class MarketplaceService implements OnModuleInit {
     await this.seedLawncareCapabilityAndCatalog();
     await this.seedPestConfig();
     await this.seedPestCapabilityAndCatalog();
+    await this.backfillSpecialtyCapabilities();
+  }
+
+  // One-time backfill: capabilities that used to be identified as
+  // "Specialties" on the vendor Capabilities page only via a hardcoded
+  // name set (apps/vendor/src/app/capabilities/page.tsx's now-removed
+  // SPECIALTY_NAME_OVERRIDES) now carry that as a real isSpecialty column,
+  // so a future Offer Template's capability never needs a code change to
+  // group correctly. Idempotent — only touches rows still isSpecialty=false.
+  private async backfillSpecialtyCapabilities() {
+    const legacyNames = [CLEANING_SERVICES_CAPABILITY_NAME, LAWN_CARE_CAPABILITY_NAME, PEST_CONTROL_CAPABILITY_NAME, 'Flooring'];
+    await this.capabilityRepo
+      .createQueryBuilder()
+      .update(VendorCapability)
+      .set({ isSpecialty: true })
+      .where('name IN (:...names)', { names: legacyNames })
+      .andWhere('isSpecialty = false')
+      .execute();
   }
 
   // ── Seeding ────────────────────────────────────────────────────────────
@@ -1624,5 +1655,173 @@ Exterior Maintenance Add-Ons
   async updatePestPackage(id: string, data: Partial<MarketplacePestPackage>) {
     await this.pestPackagesRepo.update(id, data);
     return this.pestPackagesRepo.findOne({ where: { id } });
+  }
+
+  // ── Marketplace Offer Templates (self-service, admin-created verticals) ──
+
+  private uniqueSlug(label: string): string {
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'offer';
+    return `${slug}-${Date.now().toString(36)}`;
+  }
+
+  async getOfferTemplates(includeInactive = false) {
+    const where = includeInactive ? {} : { isActive: true };
+    return this.offerTemplatesRepo.find({ where, order: { sortOrder: 'ASC' } });
+  }
+
+  async createOfferTemplate(name = 'New Marketplace Offer') {
+    const count = await this.offerTemplatesRepo.count();
+    return this.offerTemplatesRepo.save(this.offerTemplatesRepo.create({
+      name, slug: this.uniqueSlug(name), sortOrder: count, isActive: true,
+    }));
+  }
+
+  async updateOfferTemplate(id: string, data: Partial<MarketplaceOfferTemplate>) {
+    await this.offerTemplatesRepo.update(id, data);
+    return this.offerTemplatesRepo.findOneOrFail({ where: { id } });
+  }
+
+  async removeOfferTemplate(id: string): Promise<void> {
+    await Promise.all([
+      this.templatePackagesRepo.delete({ templateId: id }),
+      this.templatePropertyFieldsRepo.delete({ templateId: id }),
+      this.templateFactorsRepo.delete({ templateId: id }),
+      this.templateServicesRepo.delete({ templateId: id }),
+      this.templateFrequencyDiscountsRepo.delete({ templateId: id }),
+    ]);
+    await this.offerTemplatesRepo.delete(id);
+  }
+
+  async getOfferTemplateConfig(templateId: string, includeInactive = false) {
+    const activeOnly = includeInactive ? {} : { isActive: true };
+    const [template, packages, propertyFields, factors, services, frequencyDiscounts] = await Promise.all([
+      this.offerTemplatesRepo.findOneOrFail({ where: { id: templateId } }),
+      this.templatePackagesRepo.find({ where: { templateId, ...activeOnly }, order: { sortOrder: 'ASC' } }),
+      this.templatePropertyFieldsRepo.find({ where: { templateId, ...activeOnly }, order: { sortOrder: 'ASC' } }),
+      this.templateFactorsRepo.find({ where: { templateId, ...activeOnly }, order: { sortOrder: 'ASC' } }),
+      this.templateServicesRepo.find({ where: { templateId, ...activeOnly }, order: { sortOrder: 'ASC' } }),
+      this.templateFrequencyDiscountsRepo.find({ where: { templateId, ...activeOnly }, order: { sortOrder: 'ASC' } }),
+    ]);
+    return { template, packages, propertyFields, factors, services, frequencyDiscounts };
+  }
+
+  async createTemplatePackage(templateId: string) {
+    const count = await this.templatePackagesRepo.count({ where: { templateId } });
+    return this.templatePackagesRepo.save(this.templatePackagesRepo.create({
+      templateId, name: 'New Subscription Package', sortOrder: count, isActive: true,
+    }));
+  }
+
+  async updateTemplatePackage(id: string, data: Partial<MarketplaceTemplatePackage>) {
+    await this.templatePackagesRepo.update(id, data);
+    return this.templatePackagesRepo.findOneOrFail({ where: { id } });
+  }
+
+  async removeTemplatePackage(id: string): Promise<void> {
+    await this.templatePackagesRepo.delete(id);
+  }
+
+  async createTemplatePropertyField(templateId: string, label = 'New Field', unit = 'count') {
+    const count = await this.templatePropertyFieldsRepo.count({ where: { templateId } });
+    return this.templatePropertyFieldsRepo.save(this.templatePropertyFieldsRepo.create({
+      templateId, key: this.uniqueFieldKey(label), label, unit, sortOrder: count, isActive: true,
+    }));
+  }
+
+  async updateTemplatePropertyField(id: string, data: Partial<MarketplaceTemplatePropertyField>) {
+    await this.templatePropertyFieldsRepo.update(id, data);
+    return this.templatePropertyFieldsRepo.findOneOrFail({ where: { id } });
+  }
+
+  async removeTemplatePropertyField(id: string): Promise<void> {
+    await this.templatePropertyFieldsRepo.delete(id);
+  }
+
+  async createTemplateFactor(templateId: string, label = 'New Factor') {
+    const count = await this.templateFactorsRepo.count({ where: { templateId } });
+    return this.templateFactorsRepo.save(this.templateFactorsRepo.create({
+      templateId, key: this.uniqueFieldKey(label), label, multiplier: 1, sortOrder: count, isActive: true,
+    }));
+  }
+
+  async updateTemplateFactor(id: string, data: Partial<MarketplaceTemplateFactor>) {
+    await this.templateFactorsRepo.update(id, data);
+    return this.templateFactorsRepo.findOneOrFail({ where: { id } });
+  }
+
+  async removeTemplateFactor(id: string): Promise<void> {
+    await this.templateFactorsRepo.delete(id);
+  }
+
+  async createTemplateService(templateId: string, label = 'New Service') {
+    const count = await this.templateServicesRepo.count({ where: { templateId } });
+    return this.templateServicesRepo.save(this.templateServicesRepo.create({
+      templateId, key: this.uniqueFieldKey(label), label, pricingUnit: 'unit', recommendedFrequency: 'One-time',
+      sortOrder: count, isActive: true,
+    }));
+  }
+
+  async updateTemplateService(id: string, data: Partial<MarketplaceTemplateService>) {
+    await this.templateServicesRepo.update(id, data as any);
+    return this.templateServicesRepo.findOneOrFail({ where: { id } });
+  }
+
+  async removeTemplateService(id: string): Promise<void> {
+    await this.templateServicesRepo.delete(id);
+  }
+
+  async createTemplateFrequencyDiscount(templateId: string, label = 'New Frequency') {
+    const count = await this.templateFrequencyDiscountsRepo.count({ where: { templateId } });
+    return this.templateFrequencyDiscountsRepo.save(this.templateFrequencyDiscountsRepo.create({
+      templateId, label, discountPercent: 0, sortOrder: count, isActive: true,
+    }));
+  }
+
+  async updateTemplateFrequencyDiscount(id: string, data: Partial<MarketplaceTemplateFrequencyDiscount>) {
+    await this.templateFrequencyDiscountsRepo.update(id, data);
+    return this.templateFrequencyDiscountsRepo.findOneOrFail({ where: { id } });
+  }
+
+  async removeTemplateFrequencyDiscount(id: string): Promise<void> {
+    await this.templateFrequencyDiscountsRepo.delete(id);
+  }
+
+  // dto: { mode: 'service'|'package', serviceId?, packageId?, propertyValues?: Record<string, number>, factorIds?: string[], frequencyDiscountId? }
+  // Verifiable end-to-end via curl without any mobile UI — see plan's Verification section.
+  async quoteTemplate(templateId: string, dto: {
+    mode: 'service' | 'package';
+    serviceId?: string;
+    packageId?: string;
+    propertyValues?: Record<string, number>;
+    factorIds?: string[];
+    frequencyDiscountId?: string;
+  }) {
+    const [services, factors, packages, frequencyDiscounts] = await Promise.all([
+      this.templateServicesRepo.find({ where: { templateId } }),
+      this.templateFactorsRepo.find({ where: { templateId } }),
+      this.templatePackagesRepo.find({ where: { templateId } }),
+      this.templateFrequencyDiscountsRepo.find({ where: { templateId } }),
+    ]);
+    const propertyValues = dto.propertyValues ?? {};
+
+    if (dto.mode === 'package') {
+      const pkg = packages.find((p) => p.id === dto.packageId);
+      if (!pkg) throw new NotFoundException('Package not found for this template.');
+      const monthlyPrice = computeTemplatePackageMonthlyPrice(pkg, services, propertyValues, factors);
+      return { type: 'package', monthlyPrice };
+    }
+
+    const service = services.find((s) => s.id === dto.serviceId);
+    if (!service) throw new NotFoundException('Service not found for this template.');
+    const activePackage = dto.packageId ? packages.find((p) => p.id === dto.packageId) ?? null : null;
+    const frequencyDiscount = dto.frequencyDiscountId
+      ? frequencyDiscounts.find((f) => f.id === dto.frequencyDiscountId && f.isActive)
+      : undefined;
+    const qty = service.propertyFieldId ? Number(propertyValues[service.propertyFieldId] ?? 0) : 0;
+    const qty2 = service.propertyField2Id ? Number(propertyValues[service.propertyField2Id] ?? 0) : 0;
+    const result = computeTemplateServicePrice(
+      service, qty, qty2, factors, dto.factorIds ?? [], Number(frequencyDiscount?.discountPercent ?? 0), activePackage,
+    );
+    return { type: 'service', ...result };
   }
 }

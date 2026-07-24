@@ -5,11 +5,11 @@ import { VerificationDocumentsSection } from '@/components/VerificationDocuments
 import { US_STATES } from '@/lib/us-states';
 import { usePermissions } from '@/lib/permissions';
 
-// Capabilities the user wants grouped as "Specialties" even though they don't
-// require a certification document today (premium marketplace verticals) —
-// every capability that DOES require one is picked up automatically below.
-const SPECIALTY_NAME_OVERRIDES = new Set(['Cleaning Services', 'Lawn & Landscaping', 'Pest Control', 'Flooring']);
-const isSpecialty = (c: any) => c.requiredCertificationType !== 'NONE' || SPECIALTY_NAME_OVERRIDES.has(c.name);
+// A capability groups under "Specialties" if it requires a certification
+// document, or was explicitly flagged isSpecialty (premium marketplace
+// verticals like Cleaning Services/Lawn & Landscaping/Pest Control/Flooring
+// that don't need an uploaded license but should still read as a specialty).
+const isSpecialty = (c: any) => c.requiredCertificationType !== 'NONE' || c.isSpecialty === true;
 
 const CERT_TYPE_LABEL: Record<string, string> = {
   HVAC: 'HVAC',

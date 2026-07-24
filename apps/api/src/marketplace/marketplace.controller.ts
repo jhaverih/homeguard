@@ -289,4 +289,204 @@ export class MarketplaceController {
   updatePestPackage(@Param('id') id: string, @Body() data: any) {
     return this.service.updatePestPackage(id, data);
   }
+
+  // ── Marketplace Offer Templates (self-service, admin-created verticals) ──
+
+  @Get('templates')
+  @ApiOperation({ summary: 'List Marketplace Offer Templates. Public callers get active-only; ?all=true (admin Marketplace page) also includes disabled ones.' })
+  getOfferTemplates(@Query('all') all?: string) {
+    return this.service.getOfferTemplates(all === 'true');
+  }
+
+  @Post('templates')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: create a new Marketplace Offer Template' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  createOfferTemplate(@Body() body: { name?: string }) {
+    return this.service.createOfferTemplate(body?.name);
+  }
+
+  @Patch('templates/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a Marketplace Offer Template (name, description, capability, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateOfferTemplate(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateOfferTemplate(id, data);
+  }
+
+  @Delete('templates/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: remove a Marketplace Offer Template and all its packages/property fields/factors/services/frequency discounts' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  removeOfferTemplate(@Param('id') id: string) {
+    return this.service.removeOfferTemplate(id);
+  }
+
+  @Get('templates/:id/config')
+  @ApiOperation({ summary: 'Full nested config for one Marketplace Offer Template (packages, property fields, factors, services, frequency discounts). ?all=true (admin Marketplace page) also includes disabled rows.' })
+  getOfferTemplateConfig(@Param('id') id: string, @Query('all') all?: string) {
+    return this.service.getOfferTemplateConfig(id, all === 'true');
+  }
+
+  @Post('templates/:id/quote')
+  @ApiOperation({ summary: 'Compute a price for one service or package under a Marketplace Offer Template (property values, selected factors, active package/frequency)' })
+  quoteTemplate(@Param('id') id: string, @Body() dto: any) {
+    return this.service.quoteTemplate(id, dto);
+  }
+
+  @Post('templates/:templateId/packages')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: add a new Subscription Package to a Marketplace Offer Template' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  createTemplatePackage(@Param('templateId') templateId: string) {
+    return this.service.createTemplatePackage(templateId);
+  }
+
+  @Patch('templates/packages/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a template Subscription Package (name, description, monthly price, bundle discount %, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateTemplatePackage(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateTemplatePackage(id, data);
+  }
+
+  @Delete('templates/packages/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: remove a template Subscription Package' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  removeTemplatePackage(@Param('id') id: string) {
+    return this.service.removeTemplatePackage(id);
+  }
+
+  @Post('templates/:templateId/property-fields')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: add a new Service Property field to a Marketplace Offer Template' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  createTemplatePropertyField(@Param('templateId') templateId: string, @Body() body: { label?: string; unit?: string }) {
+    return this.service.createTemplatePropertyField(templateId, body?.label, body?.unit);
+  }
+
+  @Patch('templates/property-fields/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a template Service Property field (label, unit, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateTemplatePropertyField(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateTemplatePropertyField(id, data);
+  }
+
+  @Delete('templates/property-fields/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: remove a template Service Property field' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  removeTemplatePropertyField(@Param('id') id: string) {
+    return this.service.removeTemplatePropertyField(id);
+  }
+
+  @Post('templates/:templateId/factors')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: add a new Service Factor to a Marketplace Offer Template' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  createTemplateFactor(@Param('templateId') templateId: string, @Body() body: { label?: string }) {
+    return this.service.createTemplateFactor(templateId, body?.label);
+  }
+
+  @Patch('templates/factors/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a template Service Factor (label, multiplier, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateTemplateFactor(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateTemplateFactor(id, data);
+  }
+
+  @Delete('templates/factors/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: remove a template Service Factor' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  removeTemplateFactor(@Param('id') id: string) {
+    return this.service.removeTemplateFactor(id);
+  }
+
+  @Post('templates/:templateId/services')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: add a new Add-on Service to a Marketplace Offer Template' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  createTemplateService(@Param('templateId') templateId: string, @Body() body: { label?: string }) {
+    return this.service.createTemplateService(templateId, body?.label);
+  }
+
+  @Patch('templates/services/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a template Add-on Service (pricing, property fields, factors, package visibility, volume discount, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateTemplateService(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateTemplateService(id, data);
+  }
+
+  @Delete('templates/services/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: remove a template Add-on Service' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  removeTemplateService(@Param('id') id: string) {
+    return this.service.removeTemplateService(id);
+  }
+
+  @Post('templates/:templateId/frequency-discounts')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: add a new Frequency Discount to a Marketplace Offer Template' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  createTemplateFrequencyDiscount(@Param('templateId') templateId: string, @Body() body: { label?: string }) {
+    return this.service.createTemplateFrequencyDiscount(templateId, body?.label);
+  }
+
+  @Patch('templates/frequency-discounts/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: update a template Frequency Discount (label, discount %, enabled)' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  updateTemplateFrequencyDiscount(@Param('id') id: string, @Body() data: any) {
+    return this.service.updateTemplateFrequencyDiscount(id, data);
+  }
+
+  @Delete('templates/frequency-discounts/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: remove a template Frequency Discount' })
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
+  @Roles(UserRole.ADMIN)
+  @MinAdminLevel(AdminLevel.ADMIN)
+  removeTemplateFrequencyDiscount(@Param('id') id: string) {
+    return this.service.removeTemplateFrequencyDiscount(id);
+  }
 }

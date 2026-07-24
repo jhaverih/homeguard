@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { pricingApi, subscriptionsApi, adminApi } from '@/lib/api';
+import { pricingApi, subscriptionsApi, adminApi, templateApi } from '@/lib/api';
 
 const STRIPE_RATE = 0.029;
 const STRIPE_FIXED = 0.30;
@@ -255,6 +255,30 @@ export default function PricingPage() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [savingAll, setSavingAll] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
+
+  // "+ Add a Service" router modal — a single admin-wide starting point for
+  // creating any kind of service, so the admin never has to already know
+  // whether it belongs on this page or the Marketplace page before they can
+  // start. Pure navigation/routing, no new creation logic of its own — each
+  // destination triggers the same create action that page already has.
+  const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
+  const [routerTemplates, setRouterTemplates] = useState<any[]>([]);
+  const [routerTemplateId, setRouterTemplateId] = useState('');
+  useEffect(() => {
+    if (addServiceModalOpen) templateApi.getTemplates().then(setRouterTemplates);
+  }, [addServiceModalOpen]);
+  const routeToGeneralCatalog = () => {
+    setAddServiceModalOpen(false);
+    setAddingRow(true);
+    document.getElementById('additional-services-catalog')?.scrollIntoView({ behavior: 'smooth' });
+  };
+  const routeToMarketplaceOffer = () => {
+    window.location.href = '/marketplace?openGroup=OTHER_MARKETPLACE&action=addOffer';
+  };
+  const routeToTemplateService = () => {
+    if (!routerTemplateId) return;
+    window.location.href = `/marketplace?openGroup=OFFER_TEMPLATES&templateId=${routerTemplateId}&action=addService`;
+  };
 
   useEffect(() => {
     Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
@@ -706,8 +730,55 @@ export default function PricingPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-lantern-deep mb-2">Services Management</h1>
-      <p className="text-steel mb-8">Edit service names, descriptions, pricing notes, and rates. Press Save on a row to apply your changes.</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-lantern-deep mb-2">Services Management</h1>
+          <p className="text-steel">Edit service names, descriptions, pricing notes, and rates. Press Save on a row to apply your changes.</p>
+        </div>
+        <button
+          onClick={() => setAddServiceModalOpen(true)}
+          className="bg-lantern-deep text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep/90 transition-colors flex-shrink-0"
+        >
+          + Add a Service
+        </button>
+      </div>
+
+      {addServiceModalOpen && (
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4" onClick={() => setAddServiceModalOpen(false)}>
+          <div className="bg-white rounded-2xl border border-mist-dim p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-lantern-deep mb-1">Where does this service belong?</h2>
+            <p className="text-sm text-steel mb-4">Pick a destination — you'll land on the right screen with the right create action already started.</p>
+            <div className="flex flex-col gap-2">
+              <button onClick={routeToGeneralCatalog} className="text-left border border-border rounded-lg px-4 py-3 hover:bg-canvas transition-colors">
+                <div className="font-semibold text-ink text-sm">General Service Catalog</div>
+                <div className="text-xs text-steel mt-0.5">A regular flat/tiered-price service, shown in the app's general "+Request Service" browse screen.</div>
+              </button>
+              <button onClick={routeToMarketplaceOffer} className="text-left border border-border rounded-lg px-4 py-3 hover:bg-canvas transition-colors">
+                <div className="font-semibold text-ink text-sm">Marketplace — flat offer</div>
+                <div className="text-xs text-steel mt-0.5">A simple Marketplace-only offer with a flat price or Request Quote (e.g. Flooring Services).</div>
+              </button>
+              <div className="border border-border rounded-lg px-4 py-3">
+                <div className="font-semibold text-ink text-sm mb-2">Marketplace — Offer Template add-on</div>
+                <div className="text-xs text-steel mb-2">An add-on service under an existing rich Marketplace Offer Template (packages, property inputs, factors).</div>
+                <div className="flex items-center gap-2">
+                  <select value={routerTemplateId} onChange={(e) => setRouterTemplateId(e.target.value)} className="flex-1 border border-border rounded px-2 py-1.5 text-sm">
+                    <option value="">Select a template…</option>
+                    {routerTemplates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <button
+                    onClick={routeToTemplateService}
+                    disabled={!routerTemplateId}
+                    className="bg-lantern text-ink px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+                  >
+                    Go
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setAddServiceModalOpen(false)} className="mt-4 text-xs text-steel hover:text-ink font-semibold">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* Automatic Backups */}
       <div className="bg-white rounded-2xl border border-mist-dim mb-8">
@@ -861,7 +932,7 @@ export default function PricingPage() {
       </div>
 
       {/* Service Prices */}
-      <div className="bg-white rounded-2xl border border-mist-dim">
+      <div id="additional-services-catalog" className="bg-white rounded-2xl border border-mist-dim">
         <div className="p-6 border-b border-mist-dim flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-lg font-bold text-lantern-deep">Additional Services Catalog</h2>

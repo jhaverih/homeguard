@@ -61,6 +61,39 @@ export const marketplaceApi = {
   updatePestPackage: (id: string, data: any) => api.patch(`/marketplace/pest/packages/${id}`, data).then((r) => r.data),
 };
 
+export const templateApi = {
+  getTemplates: () => api.get('/marketplace/templates?all=true').then((r) => r.data),
+  createTemplate: (name?: string) => api.post('/marketplace/templates', { name }).then((r) => r.data),
+  updateTemplate: (id: string, data: any) => api.patch(`/marketplace/templates/${id}`, data).then((r) => r.data),
+  removeTemplate: (id: string) => api.delete(`/marketplace/templates/${id}`).then((r) => r.data),
+  getTemplateConfig: (id: string) => api.get(`/marketplace/templates/${id}/config?all=true`).then((r) => r.data),
+  quoteTemplate: (id: string, dto: any) => api.post(`/marketplace/templates/${id}/quote`, dto).then((r) => r.data),
+
+  createTemplatePackage: (templateId: string) => api.post(`/marketplace/templates/${templateId}/packages`).then((r) => r.data),
+  updateTemplatePackage: (id: string, data: any) => api.patch(`/marketplace/templates/packages/${id}`, data).then((r) => r.data),
+  removeTemplatePackage: (id: string) => api.delete(`/marketplace/templates/packages/${id}`).then((r) => r.data),
+
+  createTemplatePropertyField: (templateId: string, label?: string, unit?: string) =>
+    api.post(`/marketplace/templates/${templateId}/property-fields`, { label, unit }).then((r) => r.data),
+  updateTemplatePropertyField: (id: string, data: any) => api.patch(`/marketplace/templates/property-fields/${id}`, data).then((r) => r.data),
+  removeTemplatePropertyField: (id: string) => api.delete(`/marketplace/templates/property-fields/${id}`).then((r) => r.data),
+
+  createTemplateFactor: (templateId: string, label?: string) =>
+    api.post(`/marketplace/templates/${templateId}/factors`, { label }).then((r) => r.data),
+  updateTemplateFactor: (id: string, data: any) => api.patch(`/marketplace/templates/factors/${id}`, data).then((r) => r.data),
+  removeTemplateFactor: (id: string) => api.delete(`/marketplace/templates/factors/${id}`).then((r) => r.data),
+
+  createTemplateService: (templateId: string, label?: string) =>
+    api.post(`/marketplace/templates/${templateId}/services`, { label }).then((r) => r.data),
+  updateTemplateService: (id: string, data: any) => api.patch(`/marketplace/templates/services/${id}`, data).then((r) => r.data),
+  removeTemplateService: (id: string) => api.delete(`/marketplace/templates/services/${id}`).then((r) => r.data),
+
+  createTemplateFrequencyDiscount: (templateId: string, label?: string) =>
+    api.post(`/marketplace/templates/${templateId}/frequency-discounts`, { label }).then((r) => r.data),
+  updateTemplateFrequencyDiscount: (id: string, data: any) => api.patch(`/marketplace/templates/frequency-discounts/${id}`, data).then((r) => r.data),
+  removeTemplateFrequencyDiscount: (id: string) => api.delete(`/marketplace/templates/frequency-discounts/${id}`).then((r) => r.data),
+};
+
 export const inspectionConfigApi = {
   getTree: () => api.get('/inspection-config').then((r) => r.data),
   updateSection: (id: string, data: any) => api.patch(`/inspection-config/sections/${id}`, data).then((r) => r.data),

@@ -21,6 +21,12 @@ import { MarketplacePestService } from './entities/marketplace-pest-service.enti
 import { MarketplacePestPackage } from './entities/marketplace-pest-package.entity';
 import { MarketplacePestPackageSubscription } from './entities/marketplace-pest-package-subscription.entity';
 import { MarketplacePestPropertyProfile } from './entities/marketplace-pest-property-profile.entity';
+import { MarketplaceOfferTemplate } from './entities/marketplace-offer-template.entity';
+import { MarketplaceTemplatePackage } from './entities/marketplace-template-package.entity';
+import { MarketplaceTemplatePropertyField } from './entities/marketplace-template-property-field.entity';
+import { MarketplaceTemplateFactor } from './entities/marketplace-template-factor.entity';
+import { MarketplaceTemplateService } from './entities/marketplace-template-service.entity';
+import { MarketplaceTemplateFrequencyDiscount } from './entities/marketplace-template-frequency-discount.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { UsersModule } from '../users/users.module';
@@ -38,6 +44,8 @@ import { ServiceRequestsModule } from '../service-requests/service-requests.modu
       MarketplaceLawncarePropertyDetailField,
       MarketplaceHouseCleaningPropertyProfile,
       MarketplacePestService, MarketplacePestPackage, MarketplacePestPackageSubscription, MarketplacePestPropertyProfile,
+      MarketplaceOfferTemplate, MarketplaceTemplatePackage, MarketplaceTemplatePropertyField,
+      MarketplaceTemplateFactor, MarketplaceTemplateService, MarketplaceTemplateFrequencyDiscount,
       VendorCapability, ServicePrice,
     ]),
     UsersModule,
