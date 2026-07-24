@@ -7,6 +7,7 @@ import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { UnitLabel } from '../common/enums/unit-label.enum';
 import { ServiceCategory, SERVICE_CATEGORY_META } from '../common/enums/service-category.enum';
+import { ServiceGroup } from '../common/enums/service-group.enum';
 import { formatPriceDisplay, formatCustomerPriceDisplay } from './pricing.utils';
 
 // Trimmed to only what's still live — several of the original entries here
@@ -157,7 +158,7 @@ const VOLUME_PRICING_CATALOG: VolumePricingItem[] = [
 // from the start. Seeded the same way seedTradeServices() seeds Solar/
 // Roofing/Masonry: basePrice 0, requiresQuote true, category-capability-gated
 // like the tiered catalog above (not a specific trade license).
-const REQUEST_QUOTE_CATALOG: { name: string; description: string; category: ServiceCategory }[] = [
+const REQUEST_QUOTE_CATALOG: { name: string; description: string; category: ServiceCategory; serviceGroups?: ServiceGroup[] }[] = [
   { name: 'Large Drywall Repair', description: 'Replace drywall sections, tape, and finish.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
   { name: 'Interior Painting', description: 'Prep and paint walls.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
   { name: 'Furniture Assembly', description: 'Assemble customer-provided furniture.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
@@ -171,7 +172,12 @@ const REQUEST_QUOTE_CATALOG: { name: string; description: string; category: Serv
   { name: 'Wheelchair Ramp Installation', description: 'Design and install a wheelchair ramp.', category: ServiceCategory.CARPENTRY_ASSEMBLY },
   { name: 'Whole-House Painting', description: 'Interior or exterior painting for an entire home.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
   { name: 'Seasonal Maintenance Package', description: 'Bundled seasonal home maintenance visit.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
-  { name: 'Flooring Services', description: 'Flooring installation, repair, and replacement.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE },
+  // Marketplace, not the general catalog — shows under the customer home
+  // screen's "Marketplace" tab (filtered by serviceGroups, a separate tag
+  // from category) rather than Repair/Improve, same as how House
+  // Cleaning/Lawncare/Pest Control reach customers, just without a bespoke
+  // multi-step flow since it's a single Request-Quote item.
+  { name: 'Flooring Services', description: 'Flooring installation, repair, and replacement.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, serviceGroups: [ServiceGroup.MARKETPLACE] },
 ];
 
 @Injectable()
@@ -433,6 +439,7 @@ export class PricingService implements OnModuleInit {
         name: item.name,
         description: item.description,
         category: item.category,
+        serviceGroups: item.serviceGroups ?? null,
         basePrice: 0,
         pricingMethod: PricingMethod.REQUEST_QUOTE,
         requiresQuote: true,

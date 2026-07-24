@@ -17,6 +17,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ### Added
 - **api**: New "Flooring Services" catalog item (Request Quote, no fixed price) — added to the existing `REQUEST_QUOTE_CATALOG` seed alongside similar project-based services (Large Drywall Repair, Whole-House Painting, etc.), category-gated the same way (Interior Repairs & Maintenance capability), no new mechanism needed.
 
+### Fixed
+- **api**: "Flooring Services" landed under the customer app's general catalog (Repair/Improve tabs) instead of the "Marketplace" tab, since the app filters that tab by a `serviceGroups` tag — a separate dimension from `category` that the initial seed didn't set. Tagged `serviceGroups: [MARKETPLACE]` (mirrors how House Cleaning/Lawncare/Pest Control reach customers via that same tab, just via the ordinary Request-Quote flow instead of a bespoke screen, since Flooring is a single item with no packages/subscriptions). Live row corrected directly since the seed is idempotent-per-name and wouldn't retroactively update it.
+
 ### Changed
 - **admin**: The Marketplace page's House Cleaning/Lawncare/Pest Control sections now behave as an accordion — opening one collapses whichever other was open, and all three start collapsed on page load, instead of each toggling independently (and all three being expanded by default).
 
