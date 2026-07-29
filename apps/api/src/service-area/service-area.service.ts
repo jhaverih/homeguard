@@ -8,7 +8,7 @@ import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { WaitlistSignup } from './entities/waitlist-signup.entity';
 import { UsersService } from '../users/users.service';
-import { getZipCentroid, getCountyFipsForZip, haversineMiles } from '../common/utils/geo.utils';
+import { getZipCentroid, getCountyFipsForZip } from '../common/utils/geo.utils';
 
 @Injectable()
 export class ServiceAreaService {
@@ -41,18 +41,18 @@ export class ServiceAreaService {
     });
 
     for (const company of companies) {
-      if (this.companyCoversZip(company, countyFips, centroid, false)) return { available: true };
+      if (this.companyCoversZip(company, countyFips, false)) return { available: true };
     }
     return { available: false };
   }
 
   // Companies within the target zip's coverage, approved. Unlike
-  // checkAvailability above, a company with no serviceCounties/legacy
-  // baseZipCode+radius set counts as in-range (fail open) rather than being
-  // skipped — that company's location data being incomplete shouldn't
-  // silently hide every service its team can perform for every customer
-  // everywhere. Deliberately different from the public marketing "check your
-  // zip" widget, which stays conservative on purpose there.
+  // checkAvailability above, a company with no serviceCounties set counts as
+  // in-range (fail open) rather than being skipped — that company's location
+  // data being incomplete shouldn't silently hide every service its team can
+  // perform for every customer everywhere. Deliberately different from the
+  // public marketing "check your zip" widget, which stays conservative on
+  // purpose there.
   private async findNearbyCompanies(zip: string): Promise<VendorCompany[]> {
     const countyFips = getCountyFipsForZip(zip);
     const centroid = getZipCentroid(zip);
@@ -61,28 +61,19 @@ export class ServiceAreaService {
     });
     if (!countyFips && !centroid) return companies; // can't resolve the zip at all — fail open, don't hide anything
 
-    return companies.filter((company) => this.companyCoversZip(company, countyFips, centroid, true));
+    return companies.filter((company) => this.companyCoversZip(company, countyFips, true));
   }
 
-  // Primary coverage model is serviceCounties (exact county match). A
-  // company that hasn't migrated yet falls back to the legacy
-  // baseZipCode+serviceRadiusMiles haversine check. A company with neither
-  // set — or whose data can't be resolved against these ZIP datasets —
-  // defers to the caller's own conservative-vs-fail-open default.
+  // Coverage model is serviceCounties (exact county match) only. A company
+  // with no counties set — or whose target zip can't be resolved to a county
+  // — defers to the caller's own conservative-vs-fail-open default.
   private companyCoversZip(
     company: VendorCompany,
     countyFips: string | null,
-    centroid: { lat: number; lng: number } | null,
     failOpen: boolean,
   ): boolean {
     if (company.serviceCounties && company.serviceCounties.length > 0) {
       return countyFips !== null && company.serviceCounties.includes(countyFips);
-    }
-    if (company.baseZipCode && company.serviceRadiusMiles) {
-      const base = getZipCentroid(company.baseZipCode);
-      if (base && centroid) {
-        return haversineMiles(centroid.lat, centroid.lng, base.lat, base.lng) <= company.serviceRadiusMiles;
-      }
     }
     return failOpen;
   }

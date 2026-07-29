@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { marketplaceApi, pricingApi, adminApi, templateApi } from '@/lib/api';
+import { marketplaceApi, pricingApi, adminApi, templateApi, userApi } from '@/lib/api';
 
 const CLEANING_TYPE_LABELS: Record<string, string> = { STANDARD: 'Standard', DEEP: 'Deep', MOVE_OUT: 'Move-Out' };
 const FREQUENCY_LABELS: Record<string, string> = { ONE_TIME: 'One-time', MONTHLY: 'Monthly', BIWEEKLY: 'Bi-weekly', WEEKLY: 'Weekly' };
@@ -61,6 +61,7 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tConfig, setTConfig] = useState<any>(null);
   const [capabilities, setCapabilities] = useState<any[]>([]);
+  const [isSuperUser, setIsSuperUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tDrafts, setTDrafts] = useState<Record<string, any>>({});
   const [tSaving, setTSaving] = useState<Set<string>>(new Set());
@@ -89,6 +90,7 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
   };
 
   useEffect(() => {
+    userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
     Promise.all([loadTemplates(), adminApi.getCapabilities().then(setCapabilities)])
       .then(([list]) => {
         const preferred = initialTemplateId && list.some((t: any) => t.id === initialTemplateId) ? initialTemplateId : null;
@@ -196,7 +198,13 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
     }
   };
 
+  const ROW_KIND_LABEL: Record<RowKind, string> = {
+    package: 'Subscription Package', propertyField: 'Service Property', factor: 'Service Factor',
+    service: 'Add-on Service', frequencyDiscount: 'Frequency Discount',
+  };
+
   const removeRow = async (kind: RowKind, id: string) => {
+    if (!window.confirm(`Remove this ${ROW_KIND_LABEL[kind]}? This cannot be undone.`)) return;
     setRemovingRowId(id);
     try {
       await removers[kind](id);
@@ -230,7 +238,7 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
               >
                 {creatingTemplate ? 'Creating…' : '+ Create New Marketplace Offer Template'}
               </button>
-              {selectedId && (
+              {selectedId && isSuperUser && (
                 <button
                   onClick={removeTemplate}
                   disabled={removingTemplate}
@@ -328,7 +336,9 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
                                   isActive: d.isActive,
                                 })}
                               />
-                              <button onClick={() => removeRow('package', pkg.id)} disabled={removingRowId === pkg.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              {isSuperUser && (
+                                <button onClick={() => removeRow('package', pkg.id)} disabled={removingRowId === pkg.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -360,7 +370,9 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
                             <td className="px-3 py-2 text-center"><input type="checkbox" checked={d.isActive} onChange={(e) => tSetField(f.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" /></td>
                             <td className="px-3 py-2 flex items-center gap-2">
                               <SaveButton dirty={tIsDirty(f, d)} saving={tSaving.has(f.id)} onClick={() => saveRow('propertyField', f.id, { label: d.label, unit: d.unit, isActive: d.isActive })} />
-                              <button onClick={() => removeRow('propertyField', f.id)} disabled={removingRowId === f.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              {isSuperUser && (
+                                <button onClick={() => removeRow('propertyField', f.id)} disabled={removingRowId === f.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -392,7 +404,9 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
                             <td className="px-3 py-2 text-center"><input type="checkbox" checked={d.isActive} onChange={(e) => tSetField(f.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" /></td>
                             <td className="px-3 py-2 flex items-center gap-2">
                               <SaveButton dirty={tIsDirty(f, d)} saving={tSaving.has(f.id)} onClick={() => saveRow('factor', f.id, { label: d.label, multiplier: Number(d.multiplier), isActive: d.isActive })} />
-                              <button onClick={() => removeRow('factor', f.id)} disabled={removingRowId === f.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              {isSuperUser && (
+                                <button onClick={() => removeRow('factor', f.id)} disabled={removingRowId === f.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -513,7 +527,9 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
                                   isActive: d.isActive,
                                 })}
                               />
-                              <button onClick={() => removeRow('service', s.id)} disabled={removingRowId === s.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              {isSuperUser && (
+                                <button onClick={() => removeRow('service', s.id)} disabled={removingRowId === s.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -546,7 +562,9 @@ function OfferTemplatesSection({ collapsed, onToggle, initialTemplateId, autoAdd
                             <td className="px-3 py-2 text-center"><input type="checkbox" checked={d.isActive} onChange={(e) => tSetField(f.id, 'isActive', e.target.checked)} className="w-4 h-4 accent-lantern cursor-pointer" /></td>
                             <td className="px-3 py-2 flex items-center gap-2">
                               <SaveButton dirty={tIsDirty(f, d)} saving={tSaving.has(f.id)} onClick={() => saveRow('frequencyDiscount', f.id, { label: d.label, discountPercent: Number(d.discountPercent), isActive: d.isActive })} />
-                              <button onClick={() => removeRow('frequencyDiscount', f.id)} disabled={removingRowId === f.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              {isSuperUser && (
+                                <button onClick={() => removeRow('frequencyDiscount', f.id)} disabled={removingRowId === f.id} className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30">✕ Remove</button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -683,17 +701,6 @@ function MarketplacePageInner() {
       await load();
     } finally {
       setAddingOffer(false);
-    }
-  };
-
-  const [removingOfferId, setRemovingOfferId] = useState<string | null>(null);
-  const removeMarketplaceOffer = async (id: string) => {
-    setRemovingOfferId(id);
-    try {
-      await pricingApi.remove(id);
-      await load();
-    } finally {
-      setRemovingOfferId(null);
     }
   };
 
@@ -1313,7 +1320,7 @@ function MarketplacePageInner() {
         collapsed={openGroup !== 'OTHER_MARKETPLACE'}
         onToggle={() => toggleGroupCollapsed('OTHER_MARKETPLACE')}
       >
-      <SectionCard title="Marketplace Offers" subtitle="Standalone offers on the Marketplace tab of the customer app (alongside House Cleaning/Lawncare/Pest Control) that don't need their own dedicated packages or property profile — e.g. Flooring Services. Create/edit/remove here; full field editing (category, pricing method, volume tiers) stays on the Pricing page.">
+      <SectionCard title="Marketplace Offers" subtitle="Standalone offers on the Marketplace tab of the customer app (alongside House Cleaning/Lawncare/Pest Control) that don't need their own dedicated packages or property profile — e.g. Flooring Services. Create/edit here; full field editing (category, pricing method, volume tiers) stays on the Pricing page. Disable via Enabled — offers can't be deleted, only retired.">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-mist-dim">
@@ -1366,13 +1373,6 @@ function MarketplacePageInner() {
                         isActive: d.isActive,
                       })}
                     />
-                    <button
-                      onClick={() => removeMarketplaceOffer(s.id)}
-                      disabled={removingOfferId === s.id}
-                      className="text-red-600 hover:text-red-700 text-xs font-semibold disabled:opacity-30"
-                    >
-                      ✕ Remove
-                    </button>
                   </td>
                 </tr>
               );

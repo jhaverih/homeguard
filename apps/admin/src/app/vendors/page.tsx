@@ -88,11 +88,6 @@ export default function VendorsPage() {
                   <td className="px-6 py-4">
                     {v.serviceCounties?.length ? (
                       <span className="text-steel">{v.serviceCounties.length} {v.serviceCounties.length === 1 ? 'county' : 'counties'}</span>
-                    ) : v.baseZipCode ? (
-                      <span className="text-steel">
-                        {v.city && v.state ? `${v.city}, ${v.state}` : v.baseZipCode}
-                        <span className="text-steel text-xs ml-1">({v.serviceRadiusMiles ?? 25}mi, legacy)</span>
-                      </span>
                     ) : (
                       <span className="text-red-500 text-xs font-medium" title="No coverage area set — this vendor won't match any zip on the public checker">
                         ⚠ No coverage set

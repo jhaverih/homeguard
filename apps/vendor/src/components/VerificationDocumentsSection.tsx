@@ -11,9 +11,8 @@ export function VerificationDocumentsSection() {
   const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [appForm, setAppForm] = useState({
-    ein: '', businessTaxLicenseState: '', coiExpirationDate: '',
+    ein: '', coiExpirationDate: '',
     stateRegistrationFile: null as File | null,
-    businessTaxLicenseFile: null as File | null,
     coiFile: null as File | null,
   });
   const [submittingApp, setSubmittingApp] = useState(false);
@@ -26,17 +25,14 @@ export function VerificationDocumentsSection() {
   const submitApplication = async () => {
     setSubmittingApp(true);
     try {
-      const [stateRegistrationDocKey, businessTaxLicenseDocKey, coiDocumentKey] = await Promise.all([
+      const [stateRegistrationDocKey, coiDocumentKey] = await Promise.all([
         appForm.stateRegistrationFile ? uploadsApi.upload(appForm.stateRegistrationFile, 'vendor-applications').then((r) => r.key) : undefined,
-        appForm.businessTaxLicenseFile ? uploadsApi.upload(appForm.businessTaxLicenseFile, 'vendor-applications').then((r) => r.key) : undefined,
         appForm.coiFile ? uploadsApi.upload(appForm.coiFile, 'vendor-applications').then((r) => r.key) : undefined,
       ]);
       await vendorApi.submitApplication({
         ein: appForm.ein || undefined,
-        businessTaxLicenseState: appForm.businessTaxLicenseState || undefined,
         coiExpirationDate: appForm.coiExpirationDate || undefined,
         stateRegistrationDocKey,
-        businessTaxLicenseDocKey,
         coiDocumentKey,
       });
       const updated = await vendorApi.getCompany();
@@ -75,20 +71,8 @@ export function VerificationDocumentsSection() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-steel mb-1">Business tax license state</label>
-          <input
-            value={appForm.businessTaxLicenseState}
-            onChange={(e) => setAppForm((p) => ({ ...p, businessTaxLicenseState: e.target.value }))}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-          />
-        </div>
-        <div>
           <label className="block text-xs font-medium text-steel mb-1">Proof of state registration</label>
           <input type="file" onChange={(e) => setAppForm((p) => ({ ...p, stateRegistrationFile: e.target.files?.[0] ?? null }))} className="text-sm w-full" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-steel mb-1">Business tax license</label>
-          <input type="file" onChange={(e) => setAppForm((p) => ({ ...p, businessTaxLicenseFile: e.target.files?.[0] ?? null }))} className="text-sm w-full" />
         </div>
         <div>
           <label className="block text-xs font-medium text-steel mb-1">General Liability Insurance Expiration Date</label>

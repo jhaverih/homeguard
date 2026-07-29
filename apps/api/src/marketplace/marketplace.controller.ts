@@ -219,7 +219,7 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Admin: remove a Lawncare property-detail field' })
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
   @Roles(UserRole.ADMIN)
-  @MinAdminLevel(AdminLevel.ADMIN)
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeLawncarePropertyDetailField(@Param('id') id: string) {
     return this.service.removeLawncarePropertyDetailField(id);
   }
@@ -323,7 +323,7 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Admin: remove a Marketplace Offer Template and all its packages/property fields/factors/services/frequency discounts' })
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
   @Roles(UserRole.ADMIN)
-  @MinAdminLevel(AdminLevel.ADMIN)
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeOfferTemplate(@Param('id') id: string) {
     return this.service.removeOfferTemplate(id);
   }
@@ -365,7 +365,7 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Admin: remove a template Subscription Package' })
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
   @Roles(UserRole.ADMIN)
-  @MinAdminLevel(AdminLevel.ADMIN)
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeTemplatePackage(@Param('id') id: string) {
     return this.service.removeTemplatePackage(id);
   }
@@ -395,7 +395,7 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Admin: remove a template Service Property field' })
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
   @Roles(UserRole.ADMIN)
-  @MinAdminLevel(AdminLevel.ADMIN)
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeTemplatePropertyField(@Param('id') id: string) {
     return this.service.removeTemplatePropertyField(id);
   }
@@ -425,7 +425,7 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Admin: remove a template Service Factor' })
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
   @Roles(UserRole.ADMIN)
-  @MinAdminLevel(AdminLevel.ADMIN)
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeTemplateFactor(@Param('id') id: string) {
     return this.service.removeTemplateFactor(id);
   }
@@ -455,7 +455,7 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Admin: remove a template Add-on Service' })
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
   @Roles(UserRole.ADMIN)
-  @MinAdminLevel(AdminLevel.ADMIN)
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeTemplateService(@Param('id') id: string) {
     return this.service.removeTemplateService(id);
   }
@@ -485,7 +485,7 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Admin: remove a template Frequency Discount' })
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)
   @Roles(UserRole.ADMIN)
-  @MinAdminLevel(AdminLevel.ADMIN)
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeTemplateFrequencyDiscount(@Param('id') id: string) {
     return this.service.removeTemplateFrequencyDiscount(id);
   }

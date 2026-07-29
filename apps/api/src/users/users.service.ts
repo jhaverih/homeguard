@@ -27,7 +27,6 @@ export interface CreateUserDto {
   companyAddress?: string;
   companyCity?: string;
   companyState?: string;
-  companyZip?: string;
   // Set by VendorService.createTechnician — the caller assigns companyId/isCompanyAdmin
   // itself afterward, so create() should not also spin up a brand new company.
   skipCompanyCreation?: boolean;
@@ -176,13 +175,13 @@ export class UsersService implements OnModuleInit {
             ...(dto.companyName ? { companyName: dto.companyName } : {}),
           }),
         );
-        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState, dto.companyZip);
+        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState);
       }
 
       return saved;
     }
 
-    const { skipCompanyCreation, ein, companyAddress, companyCity, companyState, companyZip, ...userFields } = dto;
+    const { skipCompanyCreation, ein, companyAddress, companyCity, companyState, ...userFields } = dto;
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = this.usersRepo.create({
       ...userFields,
@@ -210,7 +209,7 @@ export class UsersService implements OnModuleInit {
           ...(dto.companyName ? { companyName: dto.companyName } : {}),
         }),
       );
-      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState, dto.companyZip);
+      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState);
     }
 
     return saved;
@@ -228,7 +227,6 @@ export class UsersService implements OnModuleInit {
     companyAddress?: string,
     companyCity?: string,
     companyState?: string,
-    companyZip?: string,
   ) {
     const company = await this.vendorCompanyRepo.save(
       this.vendorCompanyRepo.create({
@@ -238,10 +236,6 @@ export class UsersService implements OnModuleInit {
         ...(companyAddress ? { address: companyAddress } : {}),
         ...(companyCity ? { city: companyCity } : {}),
         ...(companyState ? { state: companyState } : {}),
-        // The mobile registration form already required this field, so a new
-        // vendor is immediately coverage-matchable — no separate manual step
-        // in the vendor portal's Service Area card needed just to get started.
-        ...(companyZip ? { baseZipCode: companyZip } : {}),
       }),
     );
     await this.vendorProfileRepo.update(profile.id, { companyId: company.id, isCompanyAdmin: true });

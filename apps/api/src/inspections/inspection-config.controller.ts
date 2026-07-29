@@ -37,7 +37,8 @@ export class InspectionConfigController {
   }
 
   @Delete('sections/:id')
-  @ApiOperation({ summary: 'Admin: remove a whole checklist (and its tasks)' })
+  @ApiOperation({ summary: 'Super User only: remove a whole checklist (and its tasks)' })
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeSection(@Param('id') id: string) {
     return this.service.removeSection(id);
   }
@@ -55,7 +56,8 @@ export class InspectionConfigController {
   }
 
   @Delete('tasks/:id')
-  @ApiOperation({ summary: 'Admin: remove a task from a checklist' })
+  @ApiOperation({ summary: 'Super User only: remove a task from a checklist' })
+  @MinAdminLevel(AdminLevel.SUPER_USER)
   removeTask(@Param('id') id: string) {
     return this.service.removeTask(id);
   }

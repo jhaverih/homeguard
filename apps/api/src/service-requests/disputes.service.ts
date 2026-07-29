@@ -83,7 +83,11 @@ export class DisputesService {
       { serviceRequestId: dto.serviceRequestId, disputeId: saved.id },
     );
 
-    return saved;
+    // Strip the raw Stripe Payment Intent ID before returning to the customer
+    // — internal-only, even though they supplied it in the request that
+    // created this row.
+    const { stripePaymentIntentId, ...customerSafe } = saved;
+    return customerSafe as Dispute;
   }
 
   async getCustomerDisputes(customerId: string): Promise<any[]> {
@@ -92,7 +96,7 @@ export class DisputesService {
       where: { customerId: In(relatedIds) },
       order: { createdAt: 'DESC' },
     });
-    return this.resolvePhotos(disputes);
+    return this.resolvePhotos(disputes, { includePaymentIntentId: false });
   }
 
   async getAll(): Promise<any[]> {
@@ -100,7 +104,7 @@ export class DisputesService {
       relations: ['serviceRequest'],
       order: { createdAt: 'DESC' },
     });
-    return this.resolvePhotos(disputes);
+    return this.resolvePhotos(disputes, { includePaymentIntentId: true });
   }
 
   async resolve(
@@ -150,13 +154,20 @@ export class DisputesService {
     return saved;
   }
 
-  private async resolvePhotos(disputes: Dispute[]): Promise<any[]> {
+  // includePaymentIntentId: only the admin-facing getAll() sets this true —
+  // the raw Stripe Payment Intent ID never goes to a customer response,
+  // even though the field itself lives on every row.
+  private async resolvePhotos(disputes: Dispute[], options: { includePaymentIntentId: boolean }): Promise<any[]> {
     return Promise.all(
       disputes.map(async (d) => {
         const photoUrls = await Promise.all(
           (d.photoKeys || []).map((key) => this.uploadsService.getSignedUrl(key).catch(() => null)),
         );
-        return { ...d, photoUrls: photoUrls.filter(Boolean) };
+        if (options.includePaymentIntentId) {
+          return { ...d, photoUrls: photoUrls.filter(Boolean) };
+        }
+        const { stripePaymentIntentId, ...rest } = d;
+        return { ...rest, photoUrls: photoUrls.filter(Boolean) };
       }),
     );
   }

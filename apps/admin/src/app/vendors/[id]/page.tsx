@@ -33,7 +33,6 @@ export default function VendorKpiPage() {
   const [counties, setCounties] = useState<Record<string, { fips: string; name: string }[]>>({});
   const [selectedCounties, setSelectedCounties] = useState<Set<string>>(new Set());
   const [savedCounties, setSavedCounties] = useState<Set<string>>(new Set());
-  const [legacyZip, setLegacyZip] = useState<{ baseZipCode: string | null; serviceRadiusMiles: number | null }>({ baseZipCode: null, serviceRadiusMiles: null });
   const [savingServiceArea, setSavingServiceArea] = useState(false);
 
   const load = () => adminApi.getVendorKpi(id).then((k) => {
@@ -41,7 +40,6 @@ export default function VendorKpiPage() {
     setAddress(k.vendor.address ?? '');
     setCity(k.vendor.city ?? '');
     setState(k.vendor.state ?? '');
-    setLegacyZip({ baseZipCode: k.vendor.baseZipCode ?? null, serviceRadiusMiles: k.vendor.serviceRadiusMiles ?? null });
     const saved = new Set<string>(k.vendor.serviceCounties ?? []);
     setSelectedCounties(saved);
     setSavedCounties(saved);
@@ -162,15 +160,10 @@ export default function VendorKpiPage() {
         <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Service Area</h2>
         <p className="text-xs text-steel mb-4">
           Counties this vendor's team serves — determines whether the public zip-code checker reports coverage for a customer near them.
-          {selectedCounties.size === 0 && !legacyZip.baseZipCode && (
+          {selectedCounties.size === 0 && (
             <span className="text-red-500 font-medium"> No coverage set yet — this vendor won't match any zip until counties are selected.</span>
           )}
         </p>
-        {legacyZip.baseZipCode && (
-          <p className="text-xs text-steel mb-4 bg-canvas rounded-lg p-3">
-            Legacy zip-based coverage (ZIP {legacyZip.baseZipCode}, {legacyZip.serviceRadiusMiles} mi radius) stays active as a fallback until counties are selected below.
-          </p>
-        )}
         {Object.keys(counties).length === 0 ? (
           <p className="text-xs text-steel">No states are currently open for county selection.</p>
         ) : (

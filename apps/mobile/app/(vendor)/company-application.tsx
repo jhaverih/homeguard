@@ -22,7 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
   NEEDS_INFO: 'More Information Needed',
 };
 
-type DocKey = 'stateRegistrationDocKey' | 'businessTaxLicenseDocKey' | 'coiDocumentKey';
+type DocKey = 'stateRegistrationDocKey' | 'coiDocumentKey';
 
 function DocUploadRow({
   label, uploaded, uploading, onPress,
@@ -46,7 +46,6 @@ export default function CompanyApplicationScreen() {
   const [ein, setEin] = useState('');
   const [docKeys, setDocKeys] = useState<Partial<Record<DocKey, string>>>({});
   const [uploadingKey, setUploadingKey] = useState<DocKey | null>(null);
-  const [businessTaxLicenseState, setBusinessTaxLicenseState] = useState('');
   const [coiExpirationDate, setCoiExpirationDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -54,7 +53,6 @@ export default function CompanyApplicationScreen() {
     vendorApi.getApplication().then((res: any) => {
       setApplication(res);
       setEin(res?.ein || '');
-      setBusinessTaxLicenseState(res?.businessTaxLicenseState || '');
       if (res?.coiExpirationDate) setCoiExpirationDate(new Date(res.coiExpirationDate));
     }).catch((e: any) => Alert.alert('Error', e.message)).finally(() => setLoading(false));
   }, []);
@@ -99,8 +97,6 @@ export default function CompanyApplicationScreen() {
       await vendorApi.submitApplication({
         ein: ein.trim() || undefined,
         stateRegistrationDocKey: docKeys.stateRegistrationDocKey,
-        businessTaxLicenseDocKey: docKeys.businessTaxLicenseDocKey,
-        businessTaxLicenseState: businessTaxLicenseState.trim() || undefined,
         coiDocumentKey: docKeys.coiDocumentKey,
         coiExpirationDate: docKeys.coiDocumentKey ? coiExpirationDate.toISOString() : undefined,
       });
@@ -144,23 +140,6 @@ export default function CompanyApplicationScreen() {
         uploaded={!!docKeys.stateRegistrationDocKey}
         uploading={uploadingKey === 'stateRegistrationDocKey'}
         onPress={() => pickDocument('stateRegistrationDocKey')}
-      />
-
-      <Text style={styles.formLabel}>Business Tax License</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Issuing state (e.g. TN)"
-        placeholderTextColor={colors.steel}
-        value={businessTaxLicenseState}
-        onChangeText={setBusinessTaxLicenseState}
-        maxLength={2}
-        autoCapitalize="characters"
-      />
-      <DocUploadRow
-        label="business tax license"
-        uploaded={!!docKeys.businessTaxLicenseDocKey}
-        uploading={uploadingKey === 'businessTaxLicenseDocKey'}
-        onPress={() => pickDocument('businessTaxLicenseDocKey')}
       />
 
       <Text style={styles.formLabel}>Certificate of Insurance (COI)</Text>

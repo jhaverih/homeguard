@@ -119,11 +119,6 @@ export default function CompanyPage() {
       <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
         <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Service Area</h2>
         <p className="text-xs text-steel mb-4">Select every county your team serves — this determines whether customers near them can request your services.</p>
-        {company.baseZipCode && (
-          <p className="text-xs text-steel mb-4 bg-canvas rounded-lg p-3">
-            Legacy zip-based coverage (ZIP {company.baseZipCode}, {company.serviceRadiusMiles} mi radius) stays active as a fallback until you select counties below.
-          </p>
-        )}
         {Object.keys(counties).length === 0 ? (
           <p className="text-xs text-steel">No states are currently open for county selection.</p>
         ) : (

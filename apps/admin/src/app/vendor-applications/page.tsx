@@ -321,7 +321,6 @@ export default function VendorApplicationsPage() {
                             <div className="flex flex-wrap gap-1.5 mb-4">
                               <CompletenessBadge ok={item.completeness.stateRegistration} label="State Registration" />
                               <CompletenessBadge ok={item.completeness.ein} label="EIN" />
-                              <CompletenessBadge ok={item.completeness.businessTaxLicense} label="Tax License" />
                               <CompletenessBadge ok={item.completeness.coi} label="General Liability Insurance (valid)" />
                               <CompletenessBadge ok={item.completeness.vendorAdminPhoto} label="Admin Photo" />
                             </div>
@@ -329,9 +328,6 @@ export default function VendorApplicationsPage() {
                             <div className="flex flex-col gap-1 mt-3">
                               {item.stateRegistrationUrl && (
                                 <a href={item.stateRegistrationUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">→ State registration document</a>
-                              )}
-                              {item.businessTaxLicenseUrl && (
-                                <a href={item.businessTaxLicenseUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">→ Business tax license ({item.businessTaxLicenseState || '—'})</a>
                               )}
                               {item.coiUrl && (
                                 <a href={item.coiUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">

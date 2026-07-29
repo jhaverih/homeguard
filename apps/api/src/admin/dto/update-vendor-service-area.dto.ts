@@ -1,4 +1,4 @@
-import { IsArray, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsArray, IsOptional, IsString } from 'class-validator';
 
 export class UpdateVendorServiceAreaDto {
   @IsOptional()
@@ -12,16 +12,6 @@ export class UpdateVendorServiceAreaDto {
   @IsOptional()
   @IsString()
   state?: string;
-
-  @IsOptional()
-  @IsString()
-  baseZipCode?: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(500)
-  serviceRadiusMiles?: number;
 
   @IsOptional()
   @IsArray()

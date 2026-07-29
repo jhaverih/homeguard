@@ -100,7 +100,7 @@ export class VendorController {
   @Patch('company')
   @VendorAdminOnly()
   @ApiOperation({ summary: 'Vendor Admin: update company name/logo/service area' })
-  updateCompany(@Request() req, @Body() body: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number; serviceCounties?: string[] }) {
+  updateCompany(@Request() req, @Body() body: { name?: string; logoKey?: string; serviceCounties?: string[] }) {
     return this.service.updateCompany(req.user.id, body);
   }
 
@@ -217,8 +217,8 @@ export class VendorController {
   submitApplication(
     @Request() req,
     @Body() body: {
-      ein?: string; stateRegistrationDocKey?: string; businessTaxLicenseDocKey?: string;
-      businessTaxLicenseState?: string; coiDocumentKey?: string; coiExpirationDate?: string;
+      ein?: string; stateRegistrationDocKey?: string;
+      coiDocumentKey?: string; coiExpirationDate?: string;
     },
   ) {
     return this.service.submitApplication(req.user.id, body);

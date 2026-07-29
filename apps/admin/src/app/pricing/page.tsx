@@ -236,7 +236,6 @@ export default function PricingPage() {
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [planDrafts, setPlanDrafts] = useState<Record<string, PlanDraft>>({});
   const [savingPlan, setSavingPlan] = useState<Set<string>>(new Set());
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [addingRow, setAddingRow] = useState(false);
   const [newRow, setNewRow] = useState<EditState>({
     name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
@@ -492,18 +491,6 @@ export default function PricingPage() {
     a.download = `pricing-backup-${new Date(createdAt).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const deletePrice = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    setDeletingId(id);
-    try {
-      await pricingApi.remove(id);
-      setPrices((prev) => prev.filter((p) => p.id !== id));
-      setEditStates((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    } finally {
-      setDeletingId(null);
-    }
   };
 
   const addRow = async () => {
@@ -1119,7 +1106,6 @@ export default function PricingPage() {
                     const previewCost = calcTieredCost(state, previewQty);
                     const { stripeFee, customerPrice } = calcPricing(previewCost, effectivePct);
                     const isSaving = saving.has(price.id);
-                    const isDeleting = deletingId === price.id;
                     const isDirty = !statesEqual(state, rowToEdit(price));
                     const inactive = !price.isActive;
 
@@ -1383,25 +1369,16 @@ export default function PricingPage() {
                         </div>
                       )}
                     </td>
-                    {/* Unsaved indicator / Delete — saving itself happens via the
-                        single "Save Changes" button above the table, not per row. */}
+                    {/* Unsaved indicator — saving itself happens via the single
+                        "Save Changes" button above the table, not per row. No
+                        delete action here: disable via the Enabled toggle is
+                        the only way to retire a service. */}
                     <td className="pr-4 text-center">
-                      {isSaving || isDeleting ? (
+                      {isSaving ? (
                         <div className="w-4 h-4 border-2 border-lantern border-t-transparent rounded-full animate-spin inline-block" />
-                      ) : (
-                        <div className="flex items-center justify-center gap-2">
-                          {isDirty && (
-                            <span className="w-2 h-2 rounded-full bg-lantern-deep inline-block" title="Unsaved changes" />
-                          )}
-                          <button
-                            onClick={() => deletePrice(price.id, state.name)}
-                            className="text-steel hover:text-red-500 transition-colors px-1"
-                            title="Delete service"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
+                      ) : isDirty ? (
+                        <span className="w-2 h-2 rounded-full bg-lantern-deep inline-block" title="Unsaved changes" />
+                      ) : null}
                     </td>
                   </tr>
                     );

@@ -236,7 +236,7 @@ export default function RegisterScreen() {
   };
 
   const handleContinueFromAccount = async () => {
-    if (!await trigger(['firstName', 'lastName', 'email', 'phone', 'password', ...(isVendor ? ['companyName', 'ein', 'companyAddress', 'companyCity', 'companyState', 'companyZip'] : [])])) return;
+    if (!await trigger(['firstName', 'lastName', 'email', 'phone', 'password', ...(isVendor ? ['companyName', 'ein', 'companyAddress', 'companyCity', 'companyState'] : [])])) return;
     if (!isVendor && !addressValidated) {
       Alert.alert('Address Required', 'Please search for and select your home address from the suggestions to continue.');
       return;
@@ -549,14 +549,14 @@ export default function RegisterScreen() {
                 />
 
                 <Text style={styles.sectionLabel}>Company Address</Text>
-                {(['companyAddress', 'companyCity', 'companyState', 'companyZip'] as const).map((field) => (
+                {(['companyAddress', 'companyCity', 'companyState'] as const).map((field) => (
                   <Controller key={field} control={control} name={field}
-                    rules={{ required: `${field === 'companyAddress' ? 'Street address' : field === 'companyCity' ? 'City' : field === 'companyState' ? 'State' : 'Zip code'} is required` }}
+                    rules={{ required: `${field === 'companyAddress' ? 'Street address' : field === 'companyCity' ? 'City' : 'State'} is required` }}
                     render={({ field: { onChange, value } }) => (
                       <>
                         <TextInput
                           style={[styles.input, errors[field] && styles.inputError]}
-                          placeholder={field === 'companyAddress' ? 'Street Address' : field === 'companyCity' ? 'City' : field === 'companyState' ? 'State (e.g. TN)' : 'Zip Code'}
+                          placeholder={field === 'companyAddress' ? 'Street Address' : field === 'companyCity' ? 'City' : 'State (e.g. TN)'}
                           placeholderTextColor={colors.steel} value={value} onChangeText={onChange}
                         />
                         {errors[field] && <Text style={styles.errorText}>{(errors[field] as any)?.message}</Text>}

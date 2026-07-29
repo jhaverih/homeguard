@@ -174,8 +174,6 @@ export class AdminService {
         address: company?.address ?? null,
         city: company?.city ?? null,
         state: company?.state ?? null,
-        baseZipCode: company?.baseZipCode ?? null,
-        serviceRadiusMiles: company?.serviceRadiusMiles ?? null,
         serviceCounties: company?.serviceCounties ?? null,
       };
     });
@@ -198,7 +196,7 @@ export class AdminService {
   // checker always reported "not covered."
   async updateVendorServiceArea(
     vendorId: string,
-    data: { address?: string; city?: string; state?: string; baseZipCode?: string; serviceRadiusMiles?: number; serviceCounties?: string[] },
+    data: { address?: string; city?: string; state?: string; serviceCounties?: string[] },
   ) {
     const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
     if (!profile?.companyId) throw new NotFoundException('Vendor company not found');
@@ -211,8 +209,6 @@ export class AdminService {
       ...(data.address !== undefined ? { address: data.address } : {}),
       ...(data.city !== undefined ? { city: data.city } : {}),
       ...(data.state !== undefined ? { state: data.state } : {}),
-      ...(data.baseZipCode !== undefined ? { baseZipCode: data.baseZipCode } : {}),
-      ...(data.serviceRadiusMiles !== undefined ? { serviceRadiusMiles: data.serviceRadiusMiles } : {}),
       ...(data.serviceCounties !== undefined ? { serviceCounties: data.serviceCounties } : {}),
     });
     return this.vendorCompanyRepo.findOne({ where: { id: profile.companyId } });
@@ -445,8 +441,6 @@ export class AdminService {
         address: company?.address ?? null,
         city: company?.city ?? null,
         state: company?.state ?? null,
-        baseZipCode: company?.baseZipCode ?? null,
-        serviceRadiusMiles: company?.serviceRadiusMiles ?? null,
         serviceCounties: company?.serviceCounties ?? null,
       },
       jobs: {
@@ -759,12 +753,11 @@ export class AdminService {
     return this.usersRepo.findOne({ where: { id: userId } });
   }
 
-  async deleteTeamUser(userId: string, callerLevel: AdminLevel) {
+  // Route-level @MinAdminLevel(AdminLevel.SUPER_USER) already restricts every
+  // caller to Super User — no per-target-level carve-out needed here.
+  async deleteTeamUser(userId: string) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user || !user.roles.includes(UserRole.ADMIN)) throw new NotFoundException('Admin user not found');
-    if (callerLevel !== AdminLevel.SUPER_USER && user.adminLevel !== AdminLevel.VIEW_ONLY) {
-      throw new NotFoundException('Admin user not found');
-    }
 
     if (user.status !== UserStatus.SUSPENDED) {
       throw new BadRequestException('Suspend this user first (Remove) before deleting permanently.');
@@ -806,22 +799,19 @@ export class AdminService {
     return Promise.all(companies.map(async (c) => {
       const admin = adminByCompany.get(c.id);
       const coiValid = !!c.coiDocumentKey && !!c.coiExpirationDate && new Date(c.coiExpirationDate) > new Date();
-      const [stateRegistrationUrl, businessTaxLicenseUrl, coiUrl, adminAvatarUrl] = await Promise.all([
+      const [stateRegistrationUrl, coiUrl, adminAvatarUrl] = await Promise.all([
         c.stateRegistrationDocKey ? this.uploadsService.getSignedUrl(c.stateRegistrationDocKey) : Promise.resolve(null),
-        c.businessTaxLicenseDocKey ? this.uploadsService.getSignedUrl(c.businessTaxLicenseDocKey) : Promise.resolve(null),
         c.coiDocumentKey ? this.uploadsService.getSignedUrl(c.coiDocumentKey) : Promise.resolve(null),
         admin?.avatarUrl ? this.uploadsService.getSignedUrl(admin.avatarUrl) : Promise.resolve(null),
       ]);
       return {
         ...c,
         stateRegistrationUrl,
-        businessTaxLicenseUrl,
         coiUrl,
         vendorAdmin: admin ? { id: admin.id, name: `${admin.firstName} ${admin.lastName}`, email: admin.email, avatarUrl: adminAvatarUrl } : null,
         completeness: {
           stateRegistration: !!c.stateRegistrationDocKey,
           ein: !!c.ein,
-          businessTaxLicense: !!c.businessTaxLicenseDocKey,
           coi: coiValid,
           vendorAdminPhoto: !!admin?.avatarUrl,
         },

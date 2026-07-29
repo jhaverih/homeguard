@@ -82,6 +82,10 @@ export default function DisputesPage() {
   const submitResolve = async (id: string) => {
     if (!form.resolution) { setFormError('Select a resolution direction.'); return; }
     if (!form.note.trim()) { setFormError('Enter a resolution note.'); return; }
+    const sideEffect = form.resolution === 'RESOLVED_CUSTOMER'
+      ? 'void the charge — the customer will not be billed'
+      : 'release the payment — the vendor will receive funds';
+    if (!window.confirm(`This will ${sideEffect}. This cannot be undone. Continue?`)) return;
     setResolving(id);
     setFormError('');
     try {

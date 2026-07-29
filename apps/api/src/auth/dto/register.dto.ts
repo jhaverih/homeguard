@@ -80,9 +80,4 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   companyState?: string;
-
-  @ApiProperty({ example: '37201', required: false })
-  @IsOptional()
-  @IsString()
-  companyZip?: string;
 }

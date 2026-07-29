@@ -206,13 +206,15 @@ export default function TeamPage() {
                       >
                         Reinstate
                       </button>
-                      <button
-                        onClick={() => deletePermanently(u.id, u.name)}
-                        disabled={busyId === u.id}
-                        className="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
-                      >
-                        Delete Permanently
-                      </button>
+                      {isSuperUser && (
+                        <button
+                          onClick={() => deletePermanently(u.id, u.name)}
+                          disabled={busyId === u.id}
+                          className="bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+                        >
+                          Delete Permanently
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <button

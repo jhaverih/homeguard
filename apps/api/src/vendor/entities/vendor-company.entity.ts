@@ -27,12 +27,6 @@ export class VendorCompany {
   stateRegistrationDocKey: string;
 
   @Column({ nullable: true })
-  businessTaxLicenseDocKey: string;
-
-  @Column({ nullable: true })
-  businessTaxLicenseState: string;
-
-  @Column({ nullable: true })
   coiDocumentKey: string;
 
   @Column({ type: 'timestamp', nullable: true })
@@ -69,8 +63,8 @@ export class VendorCompany {
   reviewNotes: string;
 
   // Full mailing address — captured at vendor registration (see RegisterDto),
-  // displayed in the admin portal. Distinct from baseZipCode below: this is
-  // just for display/records, baseZipCode is what coverage-matching uses.
+  // displayed in the admin portal. Display/records only — coverage matching
+  // uses serviceCounties below, never this address.
   @Column({ nullable: true })
   address: string | null;
 
@@ -80,19 +74,9 @@ export class VendorCompany {
   @Column({ nullable: true })
   state: string | null;
 
-  // Legacy service-area model (home-base ZIP + radius, matched via
-  // haversineMiles() in common/utils/geo.utils.ts). Superseded by
-  // serviceCounties below for any company that has set counties; kept as a
-  // fallback so companies that never migrate don't lose coverage.
-  @Column({ nullable: true })
-  baseZipCode: string | null;
-
-  @Column({ type: 'int', nullable: true, default: 25 })
-  serviceRadiusMiles: number | null;
-
   // County FIPS codes (e.g. "47187") this company serves, restricted at save
   // time to states in ENABLED_SERVICE_STATES (common/config/enabled-service-
-  // states.ts). Primary service-area model — see service-area.service.ts.
+  // states.ts). The only service-area model — see service-area.service.ts.
   @Column('text', { array: true, nullable: true })
   serviceCounties: string[] | null;
 

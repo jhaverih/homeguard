@@ -166,10 +166,10 @@ export class AdminController {
   }
 
   @Delete('team-users/:id/permanent')
-  @MinAdminLevel(AdminLevel.ADMIN)
-  @ApiOperation({ summary: 'Admin/Super User: permanently delete a suspended admin-portal user (Admins can only target View Only accounts)' })
-  deleteTeamUser(@Request() req, @Param('id') id: string) {
-    return this.service.deleteTeamUser(id, req.user.adminLevel);
+  @MinAdminLevel(AdminLevel.SUPER_USER)
+  @ApiOperation({ summary: 'Super User only: permanently delete a suspended admin-portal user' })
+  deleteTeamUser(@Param('id') id: string) {
+    return this.service.deleteTeamUser(id);
   }
 
   @Get('vendor-applications')

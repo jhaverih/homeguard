@@ -133,8 +133,12 @@ export class NotificationsService {
     body: string,
     data?: Record<string, unknown>,
   ): Promise<void> {
+    // priority: 'high' so Android still delivers/wakes the device under
+    // Doze/App Standby when the app is fully closed, not just backgrounded —
+    // otherwise delivery timing falls back to Expo/FCM's normal-priority
+    // default, which can be delayed or dropped for a killed app.
     const messages: ExpoPushMessage[] = tokens.map((to) => ({
-      to, title, body, data: data || {}, sound: 'default',
+      to, title, body, data: data || {}, sound: 'default', priority: 'high',
     }));
 
     const chunks = this.expo.chunkPushNotifications(messages);

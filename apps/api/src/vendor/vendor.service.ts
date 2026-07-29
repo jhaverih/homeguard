@@ -165,19 +165,28 @@ export class VendorService implements OnModuleInit {
     return [...byCustomer.values()];
   }
 
+  // stripePaymentIntentId is never returned to a vendor — internal-only,
+  // same rule as the customer-facing disputes endpoints.
+  private omitPaymentIntentId<T extends { stripePaymentIntentId?: string }>(row: T) {
+    const { stripePaymentIntentId, ...rest } = row;
+    return rest;
+  }
+
   async getPayments(userId: string) {
     const teamIds = await this.usersService.getVendorTeamIds(userId);
     const payments = await this.paymentsRepo.find({ where: { vendorId: In(teamIds) }, order: { createdAt: 'DESC' } });
+    const safe = payments.map((p) => this.omitPaymentIntentId(p));
     return {
-      received: payments.filter((p) => p.status === PaymentStatus.SUCCEEDED),
-      pending: payments.filter((p) => p.status === PaymentStatus.PENDING || p.status === PaymentStatus.AUTHORIZED),
-      disputed: payments.filter((p) => p.status === PaymentStatus.DISPUTED),
+      received: safe.filter((p) => p.status === PaymentStatus.SUCCEEDED),
+      pending: safe.filter((p) => p.status === PaymentStatus.PENDING || p.status === PaymentStatus.AUTHORIZED),
+      disputed: safe.filter((p) => p.status === PaymentStatus.DISPUTED),
     };
   }
 
   async getDisputes(userId: string) {
     const teamIds = await this.usersService.getVendorTeamIds(userId);
-    return this.disputesRepo.find({ where: { vendorId: In(teamIds) }, order: { createdAt: 'DESC' } });
+    const disputes = await this.disputesRepo.find({ where: { vendorId: In(teamIds) }, order: { createdAt: 'DESC' } });
+    return disputes.map((d) => this.omitPaymentIntentId(d));
   }
 
   async getJobs(userId: string) {
@@ -315,12 +324,10 @@ export class VendorService implements OnModuleInit {
     return { ...company, logoUrl };
   }
 
-  async updateCompany(userId: string, data: { name?: string; logoKey?: string; baseZipCode?: string; serviceRadiusMiles?: number; serviceCounties?: string[] }) {
+  async updateCompany(userId: string, data: { name?: string; logoKey?: string; serviceCounties?: string[] }) {
     const company = await this.requireCompany(userId);
     if (data.name !== undefined) company.name = data.name;
     if (data.logoKey !== undefined) company.logoKey = data.logoKey;
-    if (data.baseZipCode !== undefined) company.baseZipCode = data.baseZipCode;
-    if (data.serviceRadiusMiles !== undefined) company.serviceRadiusMiles = data.serviceRadiusMiles;
     if (data.serviceCounties !== undefined) {
       if (data.serviceCounties.some((fips) => !isEnabledCountyFips(fips))) {
         throw new BadRequestException('One or more counties are not currently open for service-area selection');
@@ -554,14 +561,12 @@ export class VendorService implements OnModuleInit {
   }
 
   async submitApplication(userId: string, data: {
-    ein?: string; stateRegistrationDocKey?: string; businessTaxLicenseDocKey?: string;
-    businessTaxLicenseState?: string; coiDocumentKey?: string; coiExpirationDate?: string;
+    ein?: string; stateRegistrationDocKey?: string;
+    coiDocumentKey?: string; coiExpirationDate?: string;
   }) {
     const company = await this.requireCompany(userId);
     if (data.ein !== undefined) company.ein = data.ein;
     if (data.stateRegistrationDocKey !== undefined) company.stateRegistrationDocKey = data.stateRegistrationDocKey;
-    if (data.businessTaxLicenseDocKey !== undefined) company.businessTaxLicenseDocKey = data.businessTaxLicenseDocKey;
-    if (data.businessTaxLicenseState !== undefined) company.businessTaxLicenseState = data.businessTaxLicenseState;
     if (data.coiDocumentKey !== undefined) company.coiDocumentKey = data.coiDocumentKey;
     if (data.coiExpirationDate !== undefined) company.coiExpirationDate = new Date(data.coiExpirationDate);
     return this.companyRepo.save(company);

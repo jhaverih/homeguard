@@ -298,8 +298,8 @@ export const vendorApi = {
   }) => api.patch(`/vendor/me/certifications/${id}`, data),
   getApplication: (): Promise<any> => api.get('/vendor/application') as any,
   submitApplication: (data: {
-    ein?: string; stateRegistrationDocKey?: string; businessTaxLicenseDocKey?: string;
-    businessTaxLicenseState?: string; coiDocumentKey?: string; coiExpirationDate?: string;
+    ein?: string; stateRegistrationDocKey?: string;
+    coiDocumentKey?: string; coiExpirationDate?: string;
   }) => api.post('/vendor/application', data),
 };
 
