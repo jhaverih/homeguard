@@ -159,6 +159,17 @@ export class ServiceRequest {
     return Math.round((distanceMiles / avgSpeedMph) * 60);
   }
 
+  // Approximate destination point for the live-tracking map — the same free
+  // ZIP-centroid lookup etaMinutes already uses, not a geocoded street
+  // address (no geocoding provider is set up anywhere in this app).
+  get destinationLatitude(): number | null {
+    return getZipCentroid(this.zipCode)?.lat ?? null;
+  }
+
+  get destinationLongitude(): number | null {
+    return getZipCentroid(this.zipCode)?.lng ?? null;
+  }
+
   // MinIO object keys uploaded by vendor as proof of completion (min 1 required)
   @Column({ type: 'simple-array', nullable: true })
   completionPhotoKeys: string[];
@@ -169,6 +180,12 @@ export class ServiceRequest {
 
   @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
   vendorLongitude: number | null;
+
+  // Compass heading in degrees (0-360), so the customer's live map marker
+  // can be rotated to show direction of travel — best-effort, expo-location
+  // returns null on some devices/conditions (e.g. stationary).
+  @Column({ type: 'decimal', precision: 5, scale: 1, nullable: true })
+  vendorHeading: number | null;
 
   @Column({ type: 'timestamp', nullable: true })
   vendorLocationAt: Date | null;

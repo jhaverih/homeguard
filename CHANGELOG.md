@@ -12,6 +12,20 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-29
+
+### Added
+- **mobile, api**: Live vendor-tracking map on the customer app's Request Detail screen, shown only while a job is `VENDOR_EN_ROUTE` — a heading-oriented vendor marker and an approximate destination pin (reusing the same free ZIP-centroid lookup `etaMinutes` already used, no geocoding/routing API). ETA stays the existing free straight-line (haversine) calculation, per the confirmed "ship free version first" scope — a real road-following route is a future upgrade once a paid Directions API is set up. A light ~35s auto-refresh plus an explicit manual Refresh button re-fetch the request so the map/ETA update without the customer having to background and reopen the app. New `vendorHeading` column on `ServiceRequest`, captured on the vendor's existing 90-second location-report interval (`active-job.tsx`) alongside lat/lng.
+- **api**: `updateVendorLocation` now rejects a location update once the job is no longer `VENDOR_EN_ROUTE` — closes a real gap where a customer cancelling mid-trip left the vendor's phone still pinging location for up to 90 more seconds with nothing to stop it (the vendor's Active Job screen only learns about the cancellation on its next rejected ping, at which point it stops its interval and reloads). `cancelRequest` also now nulls the vendor-location fields when cancelling a job that was en route, matching the cleanup `vendorReleaseJob`/reschedule already did.
+- **mobile**: `docs/android-maps-setup.md` — setup steps for the Google Maps SDK for Android API key the live map needs to actually render on Android (Apple Maps on iOS needs no key). Not yet set — `app.json` currently has a placeholder, so the map area will render blank on Android until a real key is added.
+- **api**: eveAi's DIY guidance grew from 18 to 39 topics (dishwasher/washing-machine draining, ice makers, squeaky/sticking doors, grout, winterizing outdoor faucets, window AC units, ceiling fans, water pressure, attic ventilation, lawn mower care, exterior paint touch-up, cabinet hinges, sump pumps, vent cleaning, sealing pest entry points, and more), plus broader keyword coverage on several existing topics — same static-array + keyword-match mechanism already used for seasonal tips, no new infrastructure.
+- **mobile**: Standard "eveAi can make mistakes. Consider checking important information." disclaimer at the bottom of the assistant chat screen.
+
+### Changed
+- **api**: eveAi's system prompt now gives step-by-step, clearly numbered instructions for "how do I fix/do X" questions instead of compressing everything into 2-5 sentences — that length rule now applies only to non-how-to questions.
+- **mobile**: Renamed "eveAI" to "eveAi" everywhere it appears to the user — the home dashboard card, the assistant screen's own header (same shared component), the chat greeting, the typing indicator, and the tab route title — plus the backend system prompt's self-reference, so the bot doesn't refer to itself with the old casing in generated replies either.
+- **mobile**: Fixed the customer app's bottom tab bar clipping labels ("My Ser…", "Schedu…") across its 7 tabs — shortened "My Services" to "Services" and tightened tab item/label sizing.
+
 ## 2026-07-28
 
 ### Fixed

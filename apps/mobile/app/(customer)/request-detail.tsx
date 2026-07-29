@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from 'react';
+﻿import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Modal, Platform, Image,
@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker } from 'react-native-maps';
 import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
 import { formatRelativeAge } from '../../src/utils/datetime';
@@ -164,6 +165,26 @@ export default function RequestDetailScreen() {
   // customer's own device location, which isn't a meaningful reference point
   // since the customer may not be physically at the property.
   const etaMinutes: number | null = request?.etaMinutes ?? null;
+
+  // Light auto-refresh while a vendor is actively en route, so the map/ETA
+  // update without the customer having to background and reopen the app —
+  // stops itself the moment status changes away from VENDOR_EN_ROUTE (job
+  // completed, cancelled, released, etc.) or the screen unmounts.
+  useEffect(() => {
+    if (request?.status !== 'VENDOR_EN_ROUTE') return;
+    const interval = setInterval(() => { load(); }, 35000);
+    return () => clearInterval(interval);
+  }, [request?.status, load]);
+
+  const [refreshingEta, setRefreshingEta] = useState(false);
+  const refreshEta = async () => {
+    setRefreshingEta(true);
+    try {
+      await load();
+    } finally {
+      setRefreshingEta(false);
+    }
+  };
 
   const [scheduleBusy, setScheduleBusy] = useState(false);
 
@@ -361,26 +382,74 @@ export default function RequestDetailScreen() {
         </View>
       )}
 
-      {/* Vendor en-route ETA banner */}
+      {/* Vendor en-route ETA banner + live map */}
       {request.status === 'VENDOR_EN_ROUTE' && (() => {
         const hasVendorLocation = request.vendorLatitude != null && request.vendorLongitude != null;
         const freshness = formatRelativeAge(request.vendorLocationAt);
+        const vendorLat = Number(request.vendorLatitude);
+        const vendorLng = Number(request.vendorLongitude);
+        const destLat = request.destinationLatitude != null ? Number(request.destinationLatitude) : null;
+        const destLng = request.destinationLongitude != null ? Number(request.destinationLongitude) : null;
+        const hasDestination = destLat != null && destLng != null;
+
+        let initialRegion;
+        if (hasVendorLocation && hasDestination) {
+          const midLat = (vendorLat + destLat!) / 2;
+          const midLng = (vendorLng + destLng!) / 2;
+          initialRegion = {
+            latitude: midLat,
+            longitude: midLng,
+            latitudeDelta: Math.max(Math.abs(vendorLat - destLat!) * 1.8, 0.05),
+            longitudeDelta: Math.max(Math.abs(vendorLng - destLng!) * 1.8, 0.05),
+          };
+        } else if (hasVendorLocation) {
+          initialRegion = { latitude: vendorLat, longitude: vendorLng, latitudeDelta: 0.05, longitudeDelta: 0.05 };
+        }
+
         return (
           <View style={styles.enRouteBanner}>
-            <Ionicons name="car-outline" size={22} color="#92400e" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.enRouteTitle}>Your vendor is on the way!</Text>
-              <Text style={styles.enRouteBody}>
-                {etaMinutes != null
-                  ? `Estimated arrival: ~${etaMinutes} min`
-                  : hasVendorLocation
-                    ? "We haven't heard from your vendor's location recently, but they're on the way."
-                    : 'Please make sure to be home when they arrive.'}
-              </Text>
-              {freshness !== '' && (
-                <Text style={styles.enRouteMeta}>{freshness}</Text>
-              )}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+              <Ionicons name="car-outline" size={22} color="#92400e" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.enRouteTitle}>Your vendor is on the way!</Text>
+                <Text style={styles.enRouteBody}>
+                  {etaMinutes != null
+                    ? `Estimated arrival: ~${etaMinutes} min`
+                    : hasVendorLocation
+                      ? "We haven't heard from your vendor's location recently, but they're on the way."
+                      : 'Please make sure to be home when they arrive.'}
+                </Text>
+                {freshness !== '' && (
+                  <Text style={styles.enRouteMeta}>{freshness}</Text>
+                )}
+              </View>
+              <TouchableOpacity style={styles.refreshEtaBtn} onPress={refreshEta} disabled={refreshingEta}>
+                {refreshingEta
+                  ? <ActivityIndicator size="small" color="#92400e" />
+                  : <Ionicons name="refresh" size={18} color="#92400e" />}
+              </TouchableOpacity>
             </View>
+
+            {hasVendorLocation && initialRegion && (
+              <View style={styles.mapContainer}>
+                <MapView style={styles.map} initialRegion={initialRegion}>
+                  <Marker coordinate={{ latitude: vendorLat, longitude: vendorLng }} title="Your vendor" anchor={{ x: 0.5, y: 0.5 }}>
+                    <View style={{ transform: [{ rotate: `${Number(request.vendorHeading) || 0}deg` }] }}>
+                      <Ionicons name="navigate-circle" size={32} color={colors.lanternDeep} />
+                    </View>
+                  </Marker>
+                  {hasDestination && (
+                    <Marker
+                      coordinate={{ latitude: destLat!, longitude: destLng! }}
+                      title="Your home"
+                      description="Approximate location"
+                      pinColor={colors.mist}
+                    />
+                  )}
+                </MapView>
+                <Text style={styles.mapNote}>Vendor location updates automatically every ~90 seconds. Home pin is approximate.</Text>
+              </View>
+            )}
           </View>
         );
       })()}
@@ -827,6 +896,10 @@ const styles = StyleSheet.create({
   enRouteTitle: { fontSize: 15, fontWeight: '800', color: '#92400e', marginBottom: 2 },
   enRouteBody: { fontSize: 13, color: '#78350f', lineHeight: 20 },
   enRouteMeta: { fontSize: 11, color: '#b45309', marginTop: 2 },
+  refreshEtaBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(146,64,14,0.1)', alignItems: 'center', justifyContent: 'center' },
+  mapContainer: { marginTop: 12, borderRadius: 12, overflow: 'hidden' },
+  map: { width: '100%', height: 200 },
+  mapNote: { fontSize: 10, color: '#b45309', marginTop: 6, textAlign: 'center' },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
   vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: colors.border },
   vendorName: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep },

@@ -161,9 +161,9 @@ export class ServiceRequestsController {
   updateLocation(
     @Request() req,
     @Param('id') id: string,
-    @Body() body: { latitude: number; longitude: number },
+    @Body() body: { latitude: number; longitude: number; heading?: number },
   ) {
-    return this.service.updateVendorLocation(id, req.user.id, body.latitude, body.longitude);
+    return this.service.updateVendorLocation(id, req.user.id, body.latitude, body.longitude, body.heading);
   }
 
   @Patch(':id/vendor-release')

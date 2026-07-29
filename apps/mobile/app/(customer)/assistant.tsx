@@ -44,7 +44,7 @@ const uid = () => String(++msgId);
 const INITIAL_MESSAGE: Message = {
   id: uid(),
   role: 'assistant',
-  content: "Hi! I'm eveAI, your Attenteve maintenance assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
+  content: "Hi! I'm eveAi, your Attenteve maintenance assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
 };
 
 type ActivePanel = 'seasonal' | 'prompts' | null;
@@ -327,7 +327,7 @@ export default function AssistantScreen() {
                 </View>
                 <View style={styles.typingBubble}>
                   <ActivityIndicator size="small" color={colors.steel} />
-                  <Text style={styles.typingText}>eveAI is thinking… (takes a few mins)</Text>
+                  <Text style={styles.typingText}>eveAi is thinking… (takes a few mins)</Text>
                 </View>
               </View>
             ) : null
@@ -422,6 +422,7 @@ export default function AssistantScreen() {
             <Ionicons name="send" size={20} color={colors.ink} />
           </TouchableOpacity>
         </View>
+        <Text style={styles.disclaimer}>eveAi can make mistakes. Consider checking important information.</Text>
       </KeyboardAvoidingView>
 
       {/* Chat history modal */}
@@ -519,6 +520,7 @@ const styles = StyleSheet.create({
   typingIndicator: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingHorizontal: 16 },
   typingBubble: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 18, borderBottomLeftRadius: 4, padding: 12, gap: 8, elevation: 1 },
   typingText: { fontSize: 13, color: colors.steel },
+  disclaimer: { fontSize: 11, color: colors.steel, textAlign: 'center', paddingVertical: 6, paddingHorizontal: 16, backgroundColor: colors.canvas },
   // AI recommendation card
   recCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginLeft: 36, marginRight: 40, marginBottom: 12, marginTop: -4 },
   recCardTitle: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep },

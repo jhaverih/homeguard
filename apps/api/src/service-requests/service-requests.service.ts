@@ -883,11 +883,21 @@ export class ServiceRequestsService {
     vendorId: string,
     latitude: number,
     longitude: number,
+    heading?: number | null,
   ): Promise<{ ok: boolean }> {
     const request = await this.findById(requestId);
     if (request.vendorId !== vendorId) throw new ForbiddenException();
+    // Reject once the job is no longer actively en route (cancelled,
+    // released, rescheduled, completed, ...) — one guard covering every
+    // transition, rather than each one needing to separately know to stop
+    // the vendor's still-running client-side location interval. The mobile
+    // client stops its own polling the moment it sees this rejection.
+    if (request.status !== ServiceRequestStatus.VENDOR_EN_ROUTE) {
+      throw new BadRequestException('This job is no longer en route — location updates are no longer accepted.');
+    }
     request.vendorLatitude = latitude;
     request.vendorLongitude = longitude;
+    request.vendorHeading = heading ?? null;
     request.vendorLocationAt = new Date();
     await this.requestsRepo.save(request);
     return { ok: true };
@@ -909,6 +919,7 @@ export class ServiceRequestsService {
     request.vendorId = null;
     request.vendorLatitude = null;
     request.vendorLongitude = null;
+    request.vendorHeading = null;
     request.vendorLocationAt = null;
     request.vendorEnRouteAt = null;
     const saved = await this.requestsRepo.save(request);
@@ -984,6 +995,18 @@ export class ServiceRequestsService {
     const wasEnRoute = req.status === ServiceRequestStatus.VENDOR_EN_ROUTE;
 
     req.status = ServiceRequestStatus.CANCELLED;
+    if (wasEnRoute) {
+      // Stop showing/tracking a live location for a job that's no longer
+      // happening — matches the same cleanup vendorReleaseJob/reschedule
+      // already do. The vendor's still-running location-report interval
+      // (if any) gets rejected and stops itself on its next tick via
+      // updateVendorLocation's own status check, independent of this.
+      req.vendorLatitude = null;
+      req.vendorLongitude = null;
+      req.vendorHeading = null;
+      req.vendorLocationAt = null;
+      req.vendorEnRouteAt = null;
+    }
     const saved = await this.requestsRepo.save(req);
 
     if (wasEnRoute) {
@@ -1119,6 +1142,7 @@ export class ServiceRequestsService {
       request.status = ServiceRequestStatus.ACCEPTED;
       request.vendorLatitude = null;
       request.vendorLongitude = null;
+      request.vendorHeading = null;
       request.vendorLocationAt = null;
       request.vendorEnRouteAt = null;
     }

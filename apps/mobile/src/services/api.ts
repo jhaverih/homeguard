@@ -113,8 +113,8 @@ export const requestsApi = {
   cancel: (id: string) => api.patch(`/service-requests/${id}/cancel`),
   confirmSchedule: (id: string) => api.patch(`/service-requests/${id}/confirm-schedule`),
   declineSchedule: (id: string) => api.patch(`/service-requests/${id}/decline-schedule`),
-  updateLocation: (id: string, latitude: number, longitude: number) =>
-    api.patch(`/service-requests/${id}/location`, { latitude, longitude }),
+  updateLocation: (id: string, latitude: number, longitude: number, heading?: number | null) =>
+    api.patch(`/service-requests/${id}/location`, { latitude, longitude, heading: heading ?? undefined }),
   vendorRelease: (id: string) => api.patch(`/service-requests/${id}/vendor-release`),
   getSolarQuote: (id: string) => api.get(`/service-requests/${id}/solar-quote`),
   submitSolarQuote: (id: string, data: any) => api.post(`/service-requests/${id}/solar-quote`, data),

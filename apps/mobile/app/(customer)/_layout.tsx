@@ -15,7 +15,7 @@ function EveAiTitle() {
   return (
     <Text style={{ fontSize: 17, fontWeight: '700' }}>
       <Text style={{ color: colors.lantern }}>eve</Text>
-      <Text style={{ color: colors.mist }}>AI</Text>
+      <Text style={{ color: colors.mist }}>Ai</Text>
     </Text>
   );
 }
@@ -52,7 +52,12 @@ export default function CustomerLayout() {
         tabBarActiveTintColor: colors.lanternDeep,
         tabBarInactiveTintColor: colors.steel,
         tabBarStyle: { borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: 4, height: 58 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        // 7 visible tabs share the bar width — default per-item padding plus
+        // 11px labels was clipping the longer ones ("My Services",
+        // "Schedule") without even an ellipsis. Tighter item padding + a
+        // slightly smaller label gives every tab enough room.
+        tabBarItemStyle: { paddingHorizontal: 0 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
       })}
     >
       <Tabs.Screen
@@ -65,7 +70,7 @@ export default function CustomerLayout() {
       />
       <Tabs.Screen
         name="my-services"
-        options={{ title: 'My Services', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }}
+        options={{ title: 'Services', tabBarIcon: ({ color }) => <Ionicons name="list" size={22} color={color} /> }}
       />
       <Tabs.Screen name="request" options={{ href: null, title: 'Book Service' }} />
       <Tabs.Screen
@@ -96,7 +101,7 @@ export default function CustomerLayout() {
       <Tabs.Screen name="payments" options={{ href: null, title: 'Payments' }} />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="assistant" options={{ href: null, title: 'eveAI', headerTitle: () => <EveAiTitle /> }} />
+      <Tabs.Screen name="assistant" options={{ href: null, title: 'eveAi', headerTitle: () => <EveAiTitle /> }} />
       <Tabs.Screen name="approvals" options={{ href: null, title: 'Approvals' }} />
       <Tabs.Screen name="dispute" options={{ href: null, title: 'Dispute' }} />
       <Tabs.Screen name="inspection-report" options={{ href: null, title: 'Inspection Report' }} />

@@ -555,12 +555,23 @@ export default function ActiveJobScreen() {
       }
       try {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        await requestsApi.updateLocation(id, loc.coords.latitude, loc.coords.longitude).catch(() => {});
+        await requestsApi.updateLocation(id, loc.coords.latitude, loc.coords.longitude, loc.coords.heading).catch(() => {});
         locationIntervalRef.current = setInterval(async () => {
           try {
             const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude);
-          } catch {}
+            await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude, l.coords.heading);
+          } catch (err: any) {
+            // The backend rejects location updates once this job is no
+            // longer VENDOR_EN_ROUTE (cancelled, released, rescheduled,
+            // completed) — stop pinging immediately instead of waiting for
+            // the normal IN_PROGRESS/unmount stop conditions, and reload the
+            // job so the screen reflects whatever actually happened to it.
+            if (err?.response?.status === 400 && locationIntervalRef.current) {
+              clearInterval(locationIntervalRef.current);
+              locationIntervalRef.current = null;
+              loadJob();
+            }
+          }
         }, 90000);
       } catch {}
     }

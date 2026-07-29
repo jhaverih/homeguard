@@ -508,7 +508,7 @@ export default function CustomerDashboard() {
           <View>
             <Text style={styles.aiCardTitle}>
               <Text style={{ color: colors.lantern }}>eve</Text>
-              <Text style={{ color: colors.mist }}>AI</Text>
+              <Text style={{ color: colors.mist }}>Ai</Text>
             </Text>
             <Text style={styles.aiCardSub}>Ask about maintenance, repairs & inspections</Text>
           </View>
