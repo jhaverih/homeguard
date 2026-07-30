@@ -231,7 +231,7 @@ export default function MarketplacePestControlScreen() {
   if (loading || !config) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Pest Control</Text>
         <Text style={styles.subtitle}>Subscribe to a monthly protection plan, or add specific services whenever you need them.</Text>

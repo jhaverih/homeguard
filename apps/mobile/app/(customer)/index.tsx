@@ -1,7 +1,7 @@
 ﻿import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  RefreshControl, ActivityIndicator, Alert, KeyboardAvoidingView,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -486,7 +486,7 @@ export default function CustomerDashboard() {
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
     <ScrollView
       ref={dashScrollRef}
       style={styles.container}

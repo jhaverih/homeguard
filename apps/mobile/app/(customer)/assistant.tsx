@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, KeyboardAvoidingView, ActivityIndicator,
-  SafeAreaView, Keyboard, Modal, Alert, Pressable, ScrollView, Dimensions, Platform,
+  SafeAreaView, Keyboard, Modal, Alert, Pressable, ScrollView, Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -179,6 +179,11 @@ export default function AssistantScreen() {
     if (!userText || loading) return;
     setInput('');
     setActivePanel(null);
+    // Dismiss immediately on send, not just once the reply arrives — the
+    // keyboard was still open and covering the "eveAi is thinking…"
+    // indicator for the entire wait (which can run to several minutes),
+    // not just a brief flash.
+    Keyboard.dismiss();
 
     const userMsg: Message = { id: uid(), role: 'user', content: userText };
     setMessages((prev) => [...prev, userMsg]);
@@ -308,7 +313,7 @@ export default function AssistantScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={90}
       >
         <FlatList
