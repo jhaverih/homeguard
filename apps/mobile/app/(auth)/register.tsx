@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Image, Linking, Platform,
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Image, Linking, Platform, Keyboard,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -128,6 +128,13 @@ function AddressPicker({
     setSuggestions([]);
     setQuery(result.address);
     onSelect(result);
+    // This field's job is done once an address is picked — scrolling
+    // content up to try to clear a keyboard that's still animating open is
+    // fighting a moving target and landed short in testing. Dismissing it
+    // outright is the standard pattern (Google Maps, Uber, etc. all do this
+    // on autocomplete selection) and guarantees the confirmation is visible
+    // regardless of screen size or animation timing.
+    Keyboard.dismiss();
   };
 
   return (
@@ -436,7 +443,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <TouchableOpacity style={styles.backBtn} onPress={handleBack}>

@@ -734,7 +734,7 @@ export default function RequestScreen() {
 
   if (subscription === null && !loading) {
     return (
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.container} contentContainerStyle={[styles.content, { alignItems: 'center', paddingTop: 60 }]}>
           <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.mist, alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
             <Ionicons name="shield-outline" size={38} color={colors.lanternDeep} />
@@ -755,7 +755,7 @@ export default function RequestScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Request a Service</Text>
 

@@ -166,7 +166,7 @@ export default function MarketplaceHouseCleaningScreen() {
   if (loading || !config) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>House Cleaning</Text>
         <Text style={styles.subtitle}>Configure your home and we'll price it instantly.</Text>

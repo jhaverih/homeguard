@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, KeyboardAvoidingView, ActivityIndicator,
-  SafeAreaView, Keyboard, Modal, Alert, Pressable, ScrollView, Dimensions,
+  SafeAreaView, Keyboard, Modal, Alert, Pressable, ScrollView, Dimensions, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -308,7 +308,7 @@ export default function AssistantScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior="padding"
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
       >
         <FlatList

@@ -1,6 +1,6 @@
 ﻿import { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, ScrollView, TextInput, KeyboardAvoidingView, Image,
+  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, ScrollView, TextInput, KeyboardAvoidingView, Image, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -168,7 +168,7 @@ export default function VendorProfileScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <TouchableOpacity onPress={changePhoto} disabled={uploadingAvatar} style={styles.avatarWrap}>
         <View style={styles.avatar}>
