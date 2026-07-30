@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-30
+
+### Fixed
+- **mobile**: Found while investigating a live test where "Vendor en route" showed with no ETA and no map — the vendor's location-report retry interval was only ever created *after* the first GPS fetch succeeded, so a single transient failure (indoors, still acquiring a fix, Location Services toggled off, ...) silently disabled tracking for the rest of the job with no retry and no error shown. Confirmed live: the test job's `vendorEnRouteAt` was set (status advance succeeded) but `vendorLatitude`/`vendorLongitude`/`vendorLocationAt` were all null (location was never captured). The retry interval is now always created regardless of whether the first ping succeeds, and the vendor now sees a clear "Location Not Sent" alert if the very first attempt fails, instead of it failing silently with no way to know or recover.
+
 ## 2026-07-29 (2)
 
 ### Fixed

@@ -282,33 +282,51 @@ export default function ActiveJobScreen() {
   // Status advance guard
   const [advancingStatus, setAdvancingStatus] = useState(false);
 
-  // Immediate ping + a 90s repeating interval — extracted so both the
-  // VENDOR_EN_ROUTE status advance and the AppState foreground-resume
-  // handler below can (re)start reporting the same way.
-  const startLocationReporting = useCallback(async () => {
+  // One location fetch + report. Shared by the initial ping and every 90s
+  // interval tick — used to be two separate near-duplicate blocks, which is
+  // how a bug slipped in: the interval was only ever created *after* the
+  // first fetch succeeded, so a single transient GPS failure (indoors, still
+  // acquiring a fix, location services toggled off, ...) silently killed
+  // tracking for the entire rest of the job with no retry and no error.
+  const reportLocationOnce = useCallback(async (): Promise<boolean> => {
     try {
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      await requestsApi.updateLocation(id, loc.coords.latitude, loc.coords.longitude, loc.coords.heading).catch(() => {});
-      locationIntervalRef.current = setInterval(async () => {
-        try {
-          const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude, l.coords.heading);
-        } catch (err: any) {
-          // The backend rejects location updates once this job is no
-          // longer VENDOR_EN_ROUTE (cancelled, released, rescheduled,
-          // completed) — stop pinging immediately instead of waiting for
-          // the normal IN_PROGRESS/unmount stop conditions, and reload the
-          // job so the screen reflects whatever actually happened to it.
-          if (err?.response?.status === 400 && locationIntervalRef.current) {
-            clearInterval(locationIntervalRef.current);
-            locationIntervalRef.current = null;
-            loadJob();
-          }
-        }
-      }, 90000);
-    } catch {}
+      const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude, l.coords.heading);
+      return true;
+    } catch (err: any) {
+      // The backend rejects location updates once this job is no longer
+      // VENDOR_EN_ROUTE (cancelled, released, rescheduled, completed) —
+      // stop pinging immediately instead of waiting for the normal
+      // IN_PROGRESS/unmount stop conditions, and reload the job so the
+      // screen reflects whatever actually happened to it.
+      if (err?.response?.status === 400 && locationIntervalRef.current) {
+        clearInterval(locationIntervalRef.current);
+        locationIntervalRef.current = null;
+        loadJob();
+      }
+      return false;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Immediate ping + a 90s repeating interval — extracted so both the
+  // VENDOR_EN_ROUTE status advance and the AppState foreground-resume
+  // handler below can (re)start reporting the same way. The interval is
+  // always created, even if this first ping fails, so a transient failure
+  // doesn't permanently disable tracking — and the vendor is told plainly if
+  // the very first attempt didn't go through, instead of it failing silently.
+  const startLocationReporting = useCallback(async () => {
+    const firstOk = await reportLocationOnce();
+    if (!firstOk) {
+      Alert.alert(
+        'Location Not Sent',
+        "We couldn't get your current location, so the customer won't see live tracking yet. Make sure Location Services are turned on — we'll keep trying automatically.",
+      );
+    }
+    if (!locationIntervalRef.current) {
+      locationIntervalRef.current = setInterval(reportLocationOnce, 90000);
+    }
+  }, [reportLocationOnce]);
 
   const stopLocationReporting = useCallback(() => {
     if (locationIntervalRef.current) {
