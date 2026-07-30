@@ -242,6 +242,7 @@ export default function RegisterScreen() {
   const [addressValidated, setAddressValidated] = useState(false);
   const [pickedAddress, setPickedAddress] = useState<AddressResult | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const { setAuth } = useAuthStore();
   const { control, handleSubmit, trigger, reset, setValue, formState: { errors } } = useForm();
@@ -436,7 +437,7 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
           <Ionicons name="arrow-back" size={22} color={colors.steel} />
@@ -631,6 +632,13 @@ export default function RegisterScreen() {
                     setValue('zipCode', addr.zipCode);
                     setPickedAddress(addr);
                     setAddressValidated(true);
+                    // Keyboard stays open after picking a suggestion (the
+                    // TextInput keeps focus), so the confirmation box and
+                    // Continue button that just appeared below it can end up
+                    // hidden behind the keyboard. Nothing else renders below
+                    // Continue in this step, so scrolling to the bottom of
+                    // the form reliably brings both into view above it.
+                    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
                   }}
                   onClear={() => {
                     setValue('address', '');
