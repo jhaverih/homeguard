@@ -1,7 +1,7 @@
 ﻿import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, Modal, Platform, Image,
+  ActivityIndicator, Alert, Modal, Platform, Image, AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
@@ -169,11 +169,25 @@ export default function RequestDetailScreen() {
   // Light auto-refresh while a vendor is actively en route, so the map/ETA
   // update without the customer having to background and reopen the app —
   // stops itself the moment status changes away from VENDOR_EN_ROUTE (job
-  // completed, cancelled, released, etc.) or the screen unmounts.
+  // completed, cancelled, released, etc.) or the screen unmounts. Also
+  // pauses while the app itself is backgrounded (no point polling a screen
+  // nobody can see) and does one immediate refresh on returning to the
+  // foreground instead of waiting out the rest of the interval.
   useEffect(() => {
     if (request?.status !== 'VENDOR_EN_ROUTE') return;
-    const interval = setInterval(() => { load(); }, 35000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => { load(); }, 35000);
+    };
+    const stop = () => {
+      if (interval) { clearInterval(interval); interval = null; }
+    };
+    start();
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') { load(); start(); } else { stop(); }
+    });
+    return () => { stop(); sub.remove(); };
   }, [request?.status, load]);
 
   const [refreshingEta, setRefreshingEta] = useState(false);

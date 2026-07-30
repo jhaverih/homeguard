@@ -98,6 +98,21 @@ export class MaintenanceBotService implements OnModuleInit {
     return MaintenanceBotService.HISTORY_RELEVANCE_KEYWORDS.some((k) => lower.includes(k));
   }
 
+  // Deliberately broader than matchDiyTopicsFromText — this only needs to
+  // recognize "this reads like a how-to/DIY question" in general, not match
+  // a specific guidance topic (e.g. "how do I fix a baseboard" has no
+  // dedicated DIY topic, but should still skip the bookable-services list
+  // below just the same).
+  private static readonly HOW_TO_KEYWORDS = [
+    'how do i', 'how can i', 'how to', 'how would i', 'fix my', 'fix a', 'fix the',
+    'repair my', 'repair a', 'repair the', 'myself', 'diy', 'step by step', 'steps to', 'what do i do',
+  ];
+
+  private isHowToRequest(message: string): boolean {
+    const lower = message.toLowerCase();
+    return MaintenanceBotService.HOW_TO_KEYWORDS.some((k) => lower.includes(k));
+  }
+
   private async buildContext(
     customerId: string,
     message: string,
@@ -154,7 +169,7 @@ export class MaintenanceBotService implements OnModuleInit {
       }
     }
 
-    lines.push(await this.buildSeasonalAndCatalogContext());
+    lines.push(await this.buildSeasonalAndCatalogContext(message));
 
     const diyContext = this.buildDiyContext(message);
     if (diyContext) lines.push(diyContext);
@@ -172,7 +187,7 @@ export class MaintenanceBotService implements OnModuleInit {
     return lines.join('\n');
   }
 
-  private async buildSeasonalAndCatalogContext(): Promise<string> {
+  private async buildSeasonalAndCatalogContext(message: string): Promise<string> {
     const season = getCurrentSeason();
     const seasonTips = SEASONAL_TIPS[season as SeasonGroup];
     const annualTips = SEASONAL_TIPS.annual;
@@ -183,10 +198,19 @@ export class MaintenanceBotService implements OnModuleInit {
       ...annualTips.map((t) => `  - ${t.text}`),
     ];
 
+    // Skip the bookable-services catalog entirely for how-to/DIY questions —
+    // there's no reason to show it (the customer explicitly wants to do this
+    // themselves), and its own RECOMMEND instruction below directly
+    // contradicts SYSTEM_PROMPT's "DIY guidance and booking are separate"
+    // rule if both are present on the same turn.
+    if (this.isHowToRequest(message)) {
+      return lines.join('\n');
+    }
+
     const catalog = await this.pricingService.getAll();
     const bookable = catalog.filter((c) => c.isActive && c.customerRequestable !== false);
     if (bookable.length > 0) {
-      lines.push('\n\nBookable services:');
+      lines.push('\n\nBookable services (private reference data — never print or repeat this list itself in your reply; use it only to silently decide the RECOMMEND line below):');
       for (const item of bookable) {
         lines.push(`  - ${item.name}: ${item.description}`);
       }
@@ -195,7 +219,7 @@ export class MaintenanceBotService implements OnModuleInit {
       // buried earlier in a long system prompt.
       lines.push(
         '\n\nIMPORTANT — before you answer: decide if one of the services listed above is the right next step for this customer.'
-        + '\nIf yes: write your normal helpful reply, then on its own new final line write exactly: RECOMMEND: <the exact service name from the list above>'
+        + '\nIf yes: write your normal helpful reply (do not paste the list above into it), then on its own new final line write exactly: RECOMMEND: <the exact service name from the list above>'
         + '\nIf no listed service fits (general question, past-inspection question, needs a licensed trade not in the list): write your reply and add no such line.'
         + '\nExample final line when clogged gutters come up: RECOMMEND: Gutters Inspection & Cleaning',
       );

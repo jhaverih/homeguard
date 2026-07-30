@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, ActivityIndicator, Modal, Platform, Image,
-  KeyboardAvoidingView, Switch, Linking,
+  KeyboardAvoidingView, Switch, Linking, AppState,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -282,6 +282,41 @@ export default function ActiveJobScreen() {
   // Status advance guard
   const [advancingStatus, setAdvancingStatus] = useState(false);
 
+  // Immediate ping + a 90s repeating interval — extracted so both the
+  // VENDOR_EN_ROUTE status advance and the AppState foreground-resume
+  // handler below can (re)start reporting the same way.
+  const startLocationReporting = useCallback(async () => {
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      await requestsApi.updateLocation(id, loc.coords.latitude, loc.coords.longitude, loc.coords.heading).catch(() => {});
+      locationIntervalRef.current = setInterval(async () => {
+        try {
+          const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude, l.coords.heading);
+        } catch (err: any) {
+          // The backend rejects location updates once this job is no
+          // longer VENDOR_EN_ROUTE (cancelled, released, rescheduled,
+          // completed) — stop pinging immediately instead of waiting for
+          // the normal IN_PROGRESS/unmount stop conditions, and reload the
+          // job so the screen reflects whatever actually happened to it.
+          if (err?.response?.status === 400 && locationIntervalRef.current) {
+            clearInterval(locationIntervalRef.current);
+            locationIntervalRef.current = null;
+            loadJob();
+          }
+        }
+      }, 90000);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const stopLocationReporting = useCallback(() => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+      locationIntervalRef.current = null;
+    }
+  }, []);
+
   const loadJob = useCallback(async () => {
     const data: any = await requestsApi.getOne(id);
     setJob(data);
@@ -338,6 +373,26 @@ export default function ActiveJobScreen() {
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     };
   }, [loadJob, loadChecklistData]);
+
+  // Android in particular doesn't reliably suspend a plain setInterval just
+  // because the app is backgrounded — without this, GPS + a network call
+  // every 90s could keep running (and draining battery) while the vendor
+  // isn't even looking at the screen. Pause reporting the moment the app
+  // leaves the foreground; resume (with an immediate fresh ping, not a
+  // stale wait) the moment it returns, only if the job is still actually
+  // en route.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        if (job?.status === 'VENDOR_EN_ROUTE' && !locationIntervalRef.current) {
+          startLocationReporting();
+        }
+      } else {
+        stopLocationReporting();
+      }
+    });
+    return () => sub.remove();
+  }, [job?.status, startLocationReporting, stopLocationReporting]);
 
   useFocusEffect(useCallback(() => { loadJob(); loadChecklistData(); }, [loadJob, loadChecklistData]));
 
@@ -553,32 +608,11 @@ export default function ActiveJobScreen() {
         setAdvancingStatus(false);
         return;
       }
-      try {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        await requestsApi.updateLocation(id, loc.coords.latitude, loc.coords.longitude, loc.coords.heading).catch(() => {});
-        locationIntervalRef.current = setInterval(async () => {
-          try {
-            const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude, l.coords.heading);
-          } catch (err: any) {
-            // The backend rejects location updates once this job is no
-            // longer VENDOR_EN_ROUTE (cancelled, released, rescheduled,
-            // completed) — stop pinging immediately instead of waiting for
-            // the normal IN_PROGRESS/unmount stop conditions, and reload the
-            // job so the screen reflects whatever actually happened to it.
-            if (err?.response?.status === 400 && locationIntervalRef.current) {
-              clearInterval(locationIntervalRef.current);
-              locationIntervalRef.current = null;
-              loadJob();
-            }
-          }
-        }, 90000);
-      } catch {}
+      await startLocationReporting();
     }
 
-    if (next.next === 'IN_PROGRESS' && locationIntervalRef.current) {
-      clearInterval(locationIntervalRef.current);
-      locationIntervalRef.current = null;
+    if (next.next === 'IN_PROGRESS') {
+      stopLocationReporting();
     }
 
     try {
