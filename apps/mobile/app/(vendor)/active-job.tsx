@@ -290,7 +290,16 @@ export default function ActiveJobScreen() {
   // tracking for the entire rest of the job with no retry and no error.
   const reportLocationOnce = useCallback(async (): Promise<boolean> => {
     try {
-      const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      // mayShowUserSettingsDialog defaults to true, which (on Android, when
+      // the phone's separate Wi-Fi/Bluetooth "network location" assist is
+      // off even though GPS itself is on) makes this depend on the vendor
+      // tapping a system "Improve Location Accuracy?" dialog before it'll
+      // resolve — miss that tap and it throws LocationSettingsUnsatisfiedException.
+      // We only need GPS, so skip that dependency entirely.
+      const l = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        mayShowUserSettingsDialog: false,
+      });
       await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude, l.coords.heading);
       return true;
     } catch (err: any) {
@@ -303,6 +312,11 @@ export default function ActiveJobScreen() {
         clearInterval(locationIntervalRef.current);
         locationIntervalRef.current = null;
         loadJob();
+      } else {
+        // Not a "job moved on" rejection — a genuine GPS/location-provider
+        // failure. Logged (not shown to the vendor) so it's diagnosable via
+        // logcat/Metro instead of being a total black box next time.
+        console.warn('[active-job] location report failed:', err?.message ?? err);
       }
       return false;
     }

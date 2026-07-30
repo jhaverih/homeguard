@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-30 (2)
+
+### Fixed
+- **mobile**: The new "Location Not Sent" alert (below) started firing on a real device with Location Services confirmed on, so the earlier fix just made a pre-existing failure visible rather than causing one. Root cause, found by reading the `expo-location` Android module source directly: `getCurrentPositionAsync` defaults `mayShowUserSettingsDialog` to `true`, which on a phone where the separate Wi-Fi/Bluetooth-assisted "network location" setting is off (distinct from the GPS toggle) makes the call depend on the vendor tapping a system "Improve Location Accuracy?" resolution dialog before it resolves — miss that tap and it throws `LocationSettingsUnsatisfiedException`, indistinguishable to the vendor from any other failure. Now passes `mayShowUserSettingsDialog: false` to go straight to GPS instead of depending on that extra interactive dialog. Also logs the underlying error via `console.warn` on failure (not shown to the vendor) so a future occurrence is diagnosable from logcat instead of another blind investigation.
+
 ## 2026-07-30
 
 ### Fixed
