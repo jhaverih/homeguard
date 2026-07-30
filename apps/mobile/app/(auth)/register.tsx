@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { authApi, subscriptionsApi, uploadsApi, vendorApi, api, TERMS_URL, API_URL } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
@@ -29,6 +30,36 @@ const US_STATES: Record<string, string> = {
 
 type AddressResult = { address: string; city: string; state: string; zipCode: string };
 
+// Nominatim's free-text /search endpoint often matches a residential street
+// as a road-level result with no addr.house_number attached — common for
+// newer subdivisions OSM hasn't imported address-interpolation data for —
+// even though the street/city/state/zip context it found is correct. When
+// that happens, fall back to the house number the user actually typed
+// (assumed to be the leading number of their query) rather than silently
+// dropping it.
+function formatAddressResult(item: any, rawQuery: string): AddressResult {
+  const addr = item.address || {};
+  const typedHouseNumber = rawQuery.trim().match(/^(\d+[a-zA-Z]?)\b/)?.[1] ?? '';
+  const houseNumber = addr.house_number || typedHouseNumber;
+  const road = addr.road || addr.pedestrian || addr.footway || '';
+  const street = [houseNumber, road].filter(Boolean).join(' ');
+  const city = addr.city || addr.town || addr.village || addr.hamlet || addr.county || '';
+  const stateName = addr.state || '';
+  const state = US_STATES[stateName] || stateName.slice(0, 2).toUpperCase();
+  const zipCode = (addr.postcode || '').slice(0, 5);
+  return { address: street || item.display_name.split(',')[0], city, state, zipCode };
+}
+
+// Short "#, street, city, state zip" label — Nominatim's own display_name
+// is a full place-name string (road, neighborhood, county, region, country)
+// that's far noisier than what a user needs to confirm this is their address.
+function formatSuggestionLabel(item: any, rawQuery: string): string {
+  const r = formatAddressResult(item, rawQuery);
+  const cityState = [r.city, r.state].filter(Boolean).join(', ');
+  const tail = [cityState, r.zipCode].filter(Boolean).join(' ');
+  return [r.address, tail].filter(Boolean).join(', ');
+}
+
 function AddressPicker({
   onSelect,
   validated,
@@ -42,6 +73,27 @@ function AddressPicker({
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Soft proximity bias only — never blocks or requires location. Grabbed
+  // once when this step of the form mounts, since the user is about to
+  // search for an address right after.
+  const biasRef = useRef<{ lat: number; lon: number } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const existing = await Location.getForegroundPermissionsAsync();
+        const granted = existing.status === 'granted'
+          ? true
+          : (await Location.requestForegroundPermissionsAsync()).status === 'granted';
+        if (!granted) return;
+        const last = await Location.getLastKnownPositionAsync();
+        const pos = last ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+        biasRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      } catch {
+        // Best-effort only — suggestions work fine unbiased.
+      }
+    })();
+  }, []);
 
   const search = (text: string) => {
     setQuery(text);
@@ -50,8 +102,15 @@ function AddressPicker({
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
+        // bounded=0 makes the viewbox a soft preference, not a hard filter —
+        // an address far from the phone's current location can still match,
+        // it's just not favored over an equally-good nearby match.
+        const bias = biasRef.current;
+        const biasParams = bias
+          ? `&viewbox=${bias.lon - 0.5},${bias.lat + 0.5},${bias.lon + 0.5},${bias.lat - 0.5}&bounded=0`
+          : '';
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=us&q=${encodeURIComponent(text)}&limit=6`,
+          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=us&q=${encodeURIComponent(text)}&limit=6${biasParams}`,
           { headers: { 'User-Agent': 'AttenteveApp/1.0' } }
         );
         const data = await res.json();
@@ -65,17 +124,10 @@ function AddressPicker({
   };
 
   const pick = (item: any) => {
-    const addr = item.address || {};
-    const houseNumber = addr.house_number || '';
-    const road = addr.road || addr.pedestrian || addr.footway || '';
-    const streetAddr = [houseNumber, road].filter(Boolean).join(' ');
-    const city = addr.city || addr.town || addr.village || addr.hamlet || addr.county || '';
-    const stateName = addr.state || '';
-    const stateCode = US_STATES[stateName] || stateName.slice(0, 2).toUpperCase();
-    const zip = (addr.postcode || '').slice(0, 5);
+    const result = formatAddressResult(item, query);
     setSuggestions([]);
-    setQuery(streetAddr || item.display_name.split(',')[0]);
-    onSelect({ address: streetAddr || query, city, state: stateCode, zipCode: zip });
+    setQuery(result.address);
+    onSelect(result);
   };
 
   return (
@@ -107,7 +159,7 @@ function AddressPicker({
               style={addrStyles.suggestion}
             >
               <Ionicons name="location-outline" size={14} color={colors.lanternDeep} style={{ marginRight: 8, flexShrink: 0 }} />
-              <Text style={addrStyles.suggestionText} numberOfLines={2}>{item.display_name}</Text>
+              <Text style={addrStyles.suggestionText} numberOfLines={2}>{formatSuggestionLabel(item, query)}</Text>
             </TouchableOpacity>
           ))}
         </View>

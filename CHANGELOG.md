@@ -12,6 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-30 (3)
+
+### Fixed
+- **mobile**: Customer registration's Home Address search (Nominatim/OpenStreetMap) showed the full raw place-name string in the suggestion dropdown (road, neighborhood, county, region, country all run together) instead of a clean address, and worse, silently dropped the house number entirely once selected whenever Nominatim matched at road-level rather than a specific address point — common for newer subdivisions OSM hasn't imported house-number data for. Reported live: searching "307 Finnegan Court Spring Hill TN" selected down to just "Finnegan Court / Spring Hill, TN 37174" with no house number at all. Both the dropdown and the post-selection confirmation now always render a normalized "#, street, city, state zip" address, falling back to the house number the user actually typed when Nominatim's own data doesn't have one for that street.
+
+### Added
+- **mobile**: Home Address search now asks for (optional, best-effort) location permission when the registration step loads and soft-biases Nominatim results toward the phone's current position via `viewbox`+`bounded=0`, so nearby streets rank above same-named streets elsewhere in the country. Declining the permission just skips the bias — search still works unbiased.
+
 ## 2026-07-30 (2)
 
 ### Fixed
