@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   FlatList, KeyboardAvoidingView, ActivityIndicator,
-  SafeAreaView, Keyboard, Modal, Alert, Pressable, ScrollView, Dimensions,
+  SafeAreaView, Keyboard, Modal, Alert, Pressable, ScrollView, Dimensions, AppState,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +48,7 @@ const INITIAL_MESSAGE: Message = {
 };
 
 type ActivePanel = 'seasonal' | 'prompts' | null;
+type ChatHistoryEntry = { role: 'user' | 'assistant'; content: string };
 
 export default function AssistantScreen() {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
@@ -64,6 +65,14 @@ export default function AssistantScreen() {
   const [showHistory, setShowHistory] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // A message that failed with a network error while the app was
+  // backgrounded (screen locked / switched apps) — confirmed live via server
+  // logs that the client abruptly cancels the connection when this happens,
+  // so retrying immediately can't help since networking may still be
+  // suspended at that exact instant. Held here and retried once the app is
+  // actually back in the foreground instead.
+  const pendingRetryRef = useRef<{ userText: string; history: ChatHistoryEntry[] } | null>(null);
 
   useEffect(() => {
     maintenanceBotApi.getSeasonalTips().then(setSeasonalData).catch(() => setSeasonalData(null));
@@ -107,6 +116,7 @@ export default function AssistantScreen() {
   };
 
   const startNewChat = () => {
+    pendingRetryRef.current = null;
     setMessages([INITIAL_MESSAGE]);
     setSessionId(null);
     setCheckedTasks(new Set());
@@ -127,6 +137,7 @@ export default function AssistantScreen() {
   };
 
   const loadSession = async (id: string) => {
+    pendingRetryRef.current = null;
     setShowHistory(false);
     setLoading(true);
     try {
@@ -174,6 +185,76 @@ export default function AssistantScreen() {
     );
   };
 
+  const finishTurn = () => {
+    setLoading(false);
+    Keyboard.dismiss();
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  // A reply can take anywhere from a few seconds to over a minute. Confirmed
+  // live via server logs: if the phone locks or the app gets backgrounded
+  // during that wait, the OS can abruptly kill the connection before eveAi
+  // replies (nginx logs a 499, cloudflared logs "context canceled" — the
+  // request reached the server, the client gave up on it). Retrying
+  // immediately in that situation doesn't reliably help, since networking
+  // may still be suspended at that exact instant — so:
+  //   - if the app is still in the foreground when a network error happens,
+  //     it's a genuine blip; retry once immediately.
+  //   - if the app was backgrounded, hold the message and retry once we're
+  //     actually back in the foreground (the AppState listener below).
+  // Either way the customer just keeps seeing "eveAi is thinking…" — no
+  // error shown unless a foreground attempt genuinely fails.
+  const attemptChat = useCallback(async (userText: string, history: ChatHistoryEntry[], isRetry = false) => {
+    try {
+      const res = await maintenanceBotApi.chat(userText, history, sessionId);
+      const botMsg: Message = {
+        id: uid(),
+        role: 'assistant',
+        content: res.reply,
+        recommendations: res.recommendations,
+        serviceRequestDraft: res.serviceRequestDraft,
+        inspectionReportLink: res.inspectionReportLink,
+      };
+      setMessages((prev) => [...prev, botMsg]);
+      if (res.sessionId && !sessionId) setSessionId(res.sessionId);
+      finishTurn();
+    } catch (e: any) {
+      if (e.message === 'NETWORK_ERROR') {
+        if (AppState.currentState !== 'active') {
+          pendingRetryRef.current = { userText, history };
+          return; // stay in "thinking" state; the AppState listener resumes this
+        }
+        if (!isRetry) {
+          attemptChat(userText, history, true);
+          return;
+        }
+      }
+      const errMsg: Message = {
+        id: uid(),
+        role: 'assistant',
+        content: e.message === 'NETWORK_ERROR'
+          ? "I couldn't reach the server — please check your connection and try again. (If your phone locked or you switched apps while I was replying, that can interrupt the connection — try again and keep the app open until I respond.)"
+          : "I'm having trouble responding right now. Please try again in a moment.",
+      };
+      setMessages((prev) => [...prev, errMsg]);
+      finishTurn();
+    }
+  }, [sessionId]);
+
+  // Resumes a message that failed while backgrounded, once the app is
+  // actually visible again — see attemptChat's comment for why this can't
+  // just retry immediately at the moment of failure.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && pendingRetryRef.current) {
+        const pending = pendingRetryRef.current;
+        pendingRetryRef.current = null;
+        attemptChat(pending.userText, pending.history, true);
+      }
+    });
+    return () => sub.remove();
+  }, [attemptChat]);
+
   const sendMessage = useCallback(async (text: string) => {
     const userText = text.trim();
     if (!userText || loading) return;
@@ -193,46 +274,8 @@ export default function AssistantScreen() {
       .filter((m) => m.role !== 'assistant' || m.id !== INITIAL_MESSAGE.id)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    try {
-      let res;
-      try {
-        res = await maintenanceBotApi.chat(userText, history, sessionId);
-      } catch (e: any) {
-        // A reply can take anywhere from a few seconds to over a minute —
-        // long enough that the phone locking or the app backgrounding
-        // mid-wait can get the connection killed by the OS before eveAi
-        // ever replies (confirmed live: the request never even reached the
-        // server). That's a network blip, not a real failure, so retry once
-        // silently — still shows as "thinking" the whole time — before
-        // surfacing anything to the customer.
-        if (e.message !== 'NETWORK_ERROR') throw e;
-        res = await maintenanceBotApi.chat(userText, history, sessionId);
-      }
-      const botMsg: Message = {
-        id: uid(),
-        role: 'assistant',
-        content: res.reply,
-        recommendations: res.recommendations,
-        serviceRequestDraft: res.serviceRequestDraft,
-        inspectionReportLink: res.inspectionReportLink,
-      };
-      setMessages((prev) => [...prev, botMsg]);
-      if (res.sessionId && !sessionId) setSessionId(res.sessionId);
-    } catch (e: any) {
-      const errMsg: Message = {
-        id: uid(),
-        role: 'assistant',
-        content: e.message === 'NETWORK_ERROR'
-          ? "I couldn't reach the server — please check your connection and try again. (If your phone locked or you switched apps while I was replying, that can interrupt the connection — try again and keep the app open until I respond.)"
-          : "I'm having trouble responding right now. Please try again in a moment.",
-      };
-      setMessages((prev) => [...prev, errMsg]);
-    } finally {
-      setLoading(false);
-      Keyboard.dismiss();
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    }
-  }, [messages, loading, sessionId]);
+    await attemptChat(userText, history);
+  }, [messages, loading, attemptChat]);
 
   const respondToRecommendation = async (rec: any, status: 'ACCEPTED' | 'DECLINED') => {
     setMessages((prev) => prev.map((m) => (

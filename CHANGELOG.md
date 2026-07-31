@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-31 (4)
+
+### Fixed
+- **mobile**: The previous entry's immediate silent retry on a network error still failed in the exact scenario it was meant to fix — confirmed live: nginx logged a `499` and cloudflared logged "Incoming request ended abruptly: context canceled," meaning the request *did* reach the server but the client itself cancelled the connection (consistent with the OS suspending the app's networking on backgrounding). Retrying immediately in that same moment doesn't reliably help, since networking may still be suspended right then. Now: a network error while the app is still in the foreground gets one immediate retry (a genuine blip); a network error while backgrounded holds the message and retries once the app is actually back in the foreground (`AppState` listener), instead of guessing blind. Either way the customer just keeps seeing "eveAi is thinking…" — no error shown unless a foreground attempt genuinely fails.
+
 ## 2026-07-31 (3)
 
 ### Fixed
