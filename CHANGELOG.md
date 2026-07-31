@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-30 (8)
+
+### Added
+- **api**: eveAi now asks a short, specific clarifying question when a customer's message is genuinely ambiguous (e.g. "the thing in the bathroom is broken" — which thing?), instead of guessing at the wrong topic. Explicitly told not to ask over typos or awkward phrasing it can reasonably infer ("my toilit is runing" should just be answered as a running toilet) — the goal is catching real ambiguity, not nitpicking spelling.
+
 ## 2026-07-30 (7)
 
 ### Fixed
