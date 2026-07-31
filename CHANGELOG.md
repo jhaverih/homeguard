@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-31 (2)
+
+### Fixed
+- **api**: eveAi recommended "House Cleaning" after answering an unrelated wasp-removal question — reported live. `matchCatalogFromText`'s deterministic catalog-recommendation fallback matches any distinctive word from a catalog item's name against the customer's raw message; "house" is a real word in "House Cleaning" but is also present in nearly every home-maintenance message ("wasps in my house," "my house needs..."), so it fired on almost anything. Added "house" to `CATALOG_MATCH_STOPWORDS`, same treatment already given to "home" for the identical reason — pre-existing bug, not introduced by this session's other changes, just surfaced by wider live testing.
+
 ## 2026-07-31
 
 ### Added

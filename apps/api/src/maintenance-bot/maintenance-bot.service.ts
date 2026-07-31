@@ -435,7 +435,7 @@ export class MaintenanceBotService implements OnModuleInit {
   // false-positive risk without adding real matching signal.
   private static readonly CATALOG_MATCH_STOPWORDS = new Set([
     'and', 'the', 'for', 'with', 'your', 'service', 'services', 'system', 'work', 'works',
-    'full', 'new', 'included', 'home', 'unit', 'project', 'repair', 'repairs',
+    'full', 'new', 'included', 'home', 'house', 'unit', 'project', 'repair', 'repairs',
     'replace', 'replacement', 'inspection', 'patio',
   ]);
 
