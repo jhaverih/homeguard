@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-31
+
+### Added
+- **api**: eveAi now has an explicit safety policy — declines requests involving violence/harm toward a person or animal, hate speech, discrimination, or anything else outside home-maintenance scope, with a one-sentence decline-and-redirect rather than a lecture. Self-harm/suicide is handled separately and deterministically (matched before the message ever reaches the model, so this never depends on the model's judgment): a warm, brief response pointing to the 988 Suicide & Crisis Lifeline instead of a normal reply. Explicitly instructed *not* to flag ordinary home-maintenance language that overlaps with violence-adjacent words — "kill the breaker," pest "trap"/"poison," "shoot" a nail gun, cutting materials, a fireplace — since a naive keyword filter in this specific domain would false-positive on completely normal questions.
+
 ## 2026-07-30 (8)
 
 ### Added

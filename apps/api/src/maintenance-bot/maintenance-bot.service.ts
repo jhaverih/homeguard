@@ -39,7 +39,9 @@ When the customer is asking how to do or fix something themselves — "how do I.
 
 For every other kind of question — general advice, explaining an inspection result, yes/no questions, etc. — keep responses concise and practical: 2-5 sentences unless a detailed list is genuinely needed.
 Always be friendly and reassuring.
-Do not provide legal or structural engineering advice; recommend a licensed professional for those.`;
+Do not provide legal or structural engineering advice; recommend a licensed professional for those.
+
+You only discuss home maintenance topics. If a message asks for help with violence or harm toward a person or animal, hate speech, discrimination, illegal activity, or anything else unrelated to and outside home maintenance, decline plainly in one sentence and redirect to what you can actually help with — don't lecture or over-explain the refusal. This does not apply to ordinary home-maintenance language that happens to use similar-sounding words in a completely normal, harmless sense — "kill the power/breaker before working on an outlet," "trap" or "poison" for pest control, "shoot" a nail gun, cutting materials, a fireplace, striking a match, and the like are all normal parts of home maintenance and should be answered normally, never refused or flagged. If a message suggests the customer may be thinking of harming themselves, do not give a normal answer or a cold refusal — respond with brief warmth and point them to the 988 Suicide & Crisis Lifeline (call or text 988) instead.`;
 
 type ChatHistoryEntry = { role: 'user' | 'assistant'; content: string };
 type LastInspectionSummary = Awaited<ReturnType<InspectionsService['getLastInspectionSummary']>>;
@@ -330,6 +332,22 @@ export class MaintenanceBotService implements OnModuleInit {
   private static readonly LAST_REPORT_RE = /\blast (inspection|report)\b|\binspection report\b/i;
   private static readonly OPEN_ISSUES_RE = /\bopen issues?\b|\bstill pending\b|\bpending issues?\b/i;
 
+  // ── Self-harm safety net (deterministic, checked before the model ever
+  // sees the message) — the one category where we never rely on a model's
+  // judgment alone, matching standard practice: a crisis-resource response
+  // must be guaranteed, not just likely. Everything else (hate speech,
+  // discrimination, violence toward others/animals) is handled via
+  // SYSTEM_PROMPT policy + this model's own contextual judgment instead of a
+  // keyword list — home-maintenance vocabulary overlaps too much with
+  // violence-adjacent words ("kill the breaker", "trap the mice", "poison
+  // ivy", "shoot" a nail gun) for a blocklist here to avoid false positives
+  // on completely ordinary questions.
+  private static readonly SELF_HARM_RE = /\b(kill(ing)? myself|end(ing)? (my|it all)\b.{0,15}\blife|want(ed)? to die|(no|not) (reason|point) (in|to) living|suicid\w*|hurt(ing)? myself|harm(ing)? myself|self[\s-]?harm|better off dead)\b/i;
+
+  private static readonly SELF_HARM_REPLY = "I'm really sorry you're going through this — it's not something I'm equipped to help with, but please don't go through it alone. "
+    + 'You can call or text the 988 Suicide & Crisis Lifeline anytime, day or night — free and confidential. If you or someone else is in immediate danger, please call 911. '
+    + "I'll be here for home-maintenance questions whenever you're ready.";
+
   async chat(
     customerId: string,
     message: string,
@@ -356,6 +374,17 @@ export class MaintenanceBotService implements OnModuleInit {
     await this.messagesRepo.save(
       this.messagesRepo.create({ sessionId: session.id, role: 'user', content: message }),
     );
+
+    // Safety net checked first, before any other path — see the regex's own
+    // comment for why this bypasses the model entirely rather than trusting
+    // it to always respond correctly.
+    if (MaintenanceBotService.SELF_HARM_RE.test(message)) {
+      this.logger.warn(`Self-harm safety response triggered for customer ${customerId} (session ${session.id})`);
+      await this.messagesRepo.save(
+        this.messagesRepo.create({ sessionId: session.id, role: 'assistant', content: MaintenanceBotService.SELF_HARM_REPLY }),
+      );
+      return { reply: MaintenanceBotService.SELF_HARM_REPLY, sessionId: session.id, recommendations: [] };
+    }
 
     // Deterministic, no-LLM path: a small local model can't be trusted to
     // faithfully enumerate a list of open issues without dropping items.
