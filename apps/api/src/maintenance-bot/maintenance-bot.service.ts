@@ -179,31 +179,58 @@ export class MaintenanceBotService implements OnModuleInit {
 
   private buildDiyContext(message: string): string {
     const matches = matchDiyTopicsFromText(message);
-    if (matches.length === 0) return '';
-    const lines = ['\n\nRelevant DIY guidance available (only use if the customer is asking how to do this themselves):'];
-    for (const topic of matches) {
-      lines.push(`  - ${topic.title}: ${topic.guidance}`);
+    if (matches.length > 0) {
+      const lines = ['\n\nRelevant DIY guidance available (only use if the customer is asking how to do this themselves):'];
+      for (const topic of matches) {
+        lines.push(`  - ${topic.title}: ${topic.guidance}`);
+      }
+      return lines.join('\n');
     }
-    return lines.join('\n');
+
+    // No curated topic matches, but this still reads like a how-to question
+    // (e.g. "how to fix a tile" — not one of the curated topics). Without
+    // this, the model has nothing specific to draw on and was observed
+    // pattern-matching fragments of unrelated reference content (seasonal
+    // tips, handyman-scope list) into a fake answer instead. Name the failure
+    // mode explicitly rather than leaving a content gap for it to fill wrong.
+    if (this.isHowToRequest(message)) {
+      return '\n\nNo specific pre-written guidance is available for this exact topic. Answer using your own general '
+        + 'home-maintenance knowledge for what the customer specifically asked. Do not reuse, repurpose, or reword '
+        + 'any of the other reference material above (seasonal tips, handyman-scope list) — none of it is about this topic.';
+    }
+
+    return '';
   }
 
   private async buildSeasonalAndCatalogContext(message: string): Promise<string> {
-    const season = getCurrentSeason();
-    const seasonTips = SEASONAL_TIPS[season as SeasonGroup];
-    const annualTips = SEASONAL_TIPS.annual;
-    const lines: string[] = [
-      `\n\nCurrent season: ${season}. Recommended seasonal maintenance for this time of year:`,
-      ...seasonTips.map((t) => `  - ${t.text}`),
-      '\n\nYear-round Tennessee-specific priorities:',
-      ...annualTips.map((t) => `  - ${t.text}`),
-    ];
+    const lines: string[] = [];
+    const isHowTo = this.isHowToRequest(message);
+
+    // Skip seasonal tips for how-to/DIY questions too, same reasoning as the
+    // catalog skip below — a customer asking "how do I fix X" wants X-specific
+    // guidance, not an unrelated seasonal checklist. Confirmed live: this was
+    // the actual source of a bad reply to "how to fix a tile" (no tile-specific
+    // content existed anywhere in context, so the small model pattern-matched
+    // fragments of this always-injected list — gutters, HVAC, caulk, doors —
+    // into a fake "step-by-step" answer instead).
+    if (!isHowTo) {
+      const season = getCurrentSeason();
+      const seasonTips = SEASONAL_TIPS[season as SeasonGroup];
+      const annualTips = SEASONAL_TIPS.annual;
+      lines.push(
+        `\n\nCurrent season: ${season}. Recommended seasonal maintenance for this time of year:`,
+        ...seasonTips.map((t) => `  - ${t.text}`),
+        '\n\nYear-round Tennessee-specific priorities:',
+        ...annualTips.map((t) => `  - ${t.text}`),
+      );
+    }
 
     // Skip the bookable-services catalog entirely for how-to/DIY questions —
     // there's no reason to show it (the customer explicitly wants to do this
     // themselves), and its own RECOMMEND instruction below directly
     // contradicts SYSTEM_PROMPT's "DIY guidance and booking are separate"
     // rule if both are present on the same turn.
-    if (this.isHowToRequest(message)) {
+    if (isHowTo) {
       return lines.join('\n');
     }
 

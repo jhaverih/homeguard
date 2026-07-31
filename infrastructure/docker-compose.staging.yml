@@ -20,8 +20,8 @@ services:
     init: true
     environment:
       - NODE_ENV=staging
-      - OLLAMA_URL=http://192.168.86.37:11434
-      - OLLAMA_MODEL=llama3.2:1b
+      - OLLAMA_URL=http://192.168.86.35:11434
+      - OLLAMA_MODEL=llama3.1:8b
     env_file:
       - path: .env
         required: false

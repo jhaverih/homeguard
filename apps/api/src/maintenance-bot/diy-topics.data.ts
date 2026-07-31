@@ -226,6 +226,12 @@ export const DIY_TOPICS: DiyTopic[] = [
     title: 'Sealing common pest entry points yourself',
     guidance: 'Walk the exterior looking for gaps around pipes, cables, and the foundation sill — steel wool packed into small gaps (mice can\'t chew through it) topped with caulk, and door sweeps on exterior doors, close off the most common entry points. For an active infestation rather than prevention, that\'s worth booking a pest control visit instead.',
   },
+  {
+    key: 'loose_cracked_tile',
+    keywords: ['fix a tile', 'fix tile', 'loose tile', 'cracked tile', 'broken tile', 'tile came loose', 'replace a tile'],
+    title: 'Fixing a loose or cracked floor/wall tile',
+    guidance: 'Remove the damaged tile by chipping out the surrounding grout with a grout saw, then carefully break/pry the tile free (wear eye protection) and scrape old thinset/adhesive off the subfloor. Spread new thinset mortar with a notched trowel, set the replacement tile (matched as closely as possible), and use tile spacers to keep even grout lines. Let the thinset cure per the label before grouting the gap, then reseal once the grout cures. A cracked tile over a soft/springy subfloor spot can mean a deeper structural issue worth a professional look.',
+  },
 ];
 
 // Same stopword-aware substring-matching philosophy as
