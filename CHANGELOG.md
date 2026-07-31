@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-07-31 (3)
+
+### Fixed
+- **mobile**: eveAi replies (which can take anywhere from a few seconds to over a minute) sometimes failed with "can't connect to the server" for no server-side reason — confirmed live: the request never even reached the server. Root cause is a well-known mobile OS behavior, not a bug in our stack: locking the phone or backgrounding the app while a long request is in flight can get its connection killed by iOS/Android before a reply arrives. The chat screen now silently retries once on a network error (still shows "eveAi is thinking…" throughout) before showing anything to the customer, and the eventual error message — if the retry also fails — now explains what's actually happening instead of the old, inaccurate "make sure you're on your home WiFi" (the app talks to a public Cloudflare-tunneled endpoint, not a LAN-only one, so WiFi was never actually the issue). Fixed the same inaccurate copy on the login screen too.
+
 ## 2026-07-31 (2)
 
 ### Fixed

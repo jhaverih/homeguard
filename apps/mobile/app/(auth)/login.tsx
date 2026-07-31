@@ -111,7 +111,7 @@ export default function LoginScreen() {
       await doLogin(email, password);
     } catch (e: any) {
       if (e.message === 'NETWORK_ERROR') {
-        Alert.alert('Cannot Connect to Server', 'Make sure you are on your home WiFi.');
+        Alert.alert('Cannot Connect to Server', 'Please check your internet connection and try again.');
       }
       // Other errors: silently fall through to password form
     } finally {

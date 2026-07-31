@@ -194,7 +194,20 @@ export default function AssistantScreen() {
       .map((m) => ({ role: m.role, content: m.content }));
 
     try {
-      const res = await maintenanceBotApi.chat(userText, history, sessionId);
+      let res;
+      try {
+        res = await maintenanceBotApi.chat(userText, history, sessionId);
+      } catch (e: any) {
+        // A reply can take anywhere from a few seconds to over a minute —
+        // long enough that the phone locking or the app backgrounding
+        // mid-wait can get the connection killed by the OS before eveAi
+        // ever replies (confirmed live: the request never even reached the
+        // server). That's a network blip, not a real failure, so retry once
+        // silently — still shows as "thinking" the whole time — before
+        // surfacing anything to the customer.
+        if (e.message !== 'NETWORK_ERROR') throw e;
+        res = await maintenanceBotApi.chat(userText, history, sessionId);
+      }
       const botMsg: Message = {
         id: uid(),
         role: 'assistant',
@@ -210,7 +223,7 @@ export default function AssistantScreen() {
         id: uid(),
         role: 'assistant',
         content: e.message === 'NETWORK_ERROR'
-          ? "I can't connect to the server right now. Make sure you're on your home WiFi."
+          ? "I couldn't reach the server — please check your connection and try again. (If your phone locked or you switched apps while I was replying, that can interrupt the connection — try again and keep the app open until I respond.)"
           : "I'm having trouble responding right now. Please try again in a moment.",
       };
       setMessages((prev) => [...prev, errMsg]);
