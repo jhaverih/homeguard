@@ -76,4 +76,8 @@ export class CreatePricingDto {
   @IsBoolean()
   @IsOptional()
   isQuotaInspection?: boolean;
+
+  @IsString()
+  @IsOptional()
+  formulaDescription?: string | null;
 }

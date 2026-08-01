@@ -12,6 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-01
+
+### Added
+- **api/admin**: New `formulaDescription` field on catalog items — free-text, admin-editable notes on why an item is priced the way it is, separate from a new read-only **Formula Reference** column that auto-narrates the item's actual pricing rule (Flat/Per Unit/Quote, including tiers) from its own live field values, computed with the same markup + Stripe pass-through math as the page's existing Customer Price preview so the two never disagree. Both new columns on the admin Pricing page's row-edit and add-new-row forms; Formula Description also round-trips through CSV export/import.
+
+### Fixed
+- **api/admin**: `Base Rate/Unit` could drift from or simply disagree with an item's own `basePrice`/`Includes Up To` — e.g. an Hour-billed item's $/hour rate silently going stale after an edit to its base price, or a Flat Price item carrying a leftover per-unit rate the real pricing formula (`calcTieredCost`) never reads. Added a `syncBaseRateUnit()` entity hook (same pattern as the existing `syncQuoteFields`/`syncUnitLabel` hooks) that now derives it automatically on every save, from any entry point (admin UI, CSV import, API): null for Flat Price rows, `basePrice / includeQty` for Per Unit + Hour-labeled rows. The admin UI's Base Rate/Unit input is greyed out and shows this live-computed preview for Hour-labeled rows, matching the existing Flat Price graying-out from the prior entry. One-time SQL applied live to bring existing rows in line with the new invariant (scope confirmed with Haresh: only the Hour-label formula, not a broader repricing from the Excel model's Fair Vendor Payout analysis).
+
 ## 2026-07-31 (6)
 
 ### Fixed

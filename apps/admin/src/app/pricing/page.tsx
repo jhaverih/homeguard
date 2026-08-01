@@ -27,6 +27,16 @@ function calcTieredCost(state: EditState, qty: number): number {
   return basePrice + tier2Qty * baseRate + tier3Qty * volRate;
 }
 
+// Mirrors the entity's syncBaseRateUnit() hook (Per Unit + Hour-labeled rows
+// always store basePrice/includeQty as their rate) — previewed live here so
+// what an admin sees while editing basePrice/includeQty is what will
+// actually get saved, rather than a value that goes stale mid-edit.
+function computeHourlyBaseRate(basePrice: string, includeQty: string): string {
+  const bp = parseFloat(basePrice) || 0;
+  const incl = includeQty !== '' ? parseFloat(includeQty) || 1 : 1;
+  return incl !== 0 ? (bp / incl).toFixed(2) : '';
+}
+
 function parseCsvLine(line: string): string[] {
   const values: string[] = [];
   let current = '';
@@ -64,6 +74,41 @@ const UNIT_LABELS: { value: string; label: string }[] = [
   { value: 'UNIT', label: 'Unit' },
   { value: 'NONE', label: 'None' },
 ];
+
+// Plain-language description of the pricing rule for this row — mirrors the
+// exact same calcTieredCost/calcPricing math as the live Customer Price
+// preview elsewhere on this page (including the Stripe pass-through fee, so
+// the dollar figure quoted here agrees with that column instead of a raw
+// backend-only number), just narrated instead of only computed.
+function formatFormulaReference(state: EditState, globalMarkup: string): string {
+  if (state.pricingMethod === 'REQUEST_QUOTE') {
+    return 'Priced case-by-case by an admin — no fixed formula.';
+  }
+  const effectivePct = state.markupPercent !== ''
+    ? (parseFloat(state.markupPercent) || 0)
+    : (parseFloat(globalMarkup) || 0);
+  const unitLabel = UNIT_LABELS.find((u) => u.value === state.quantityLabel)?.label || 'unit';
+  const base = parseFloat(state.basePrice) || 0;
+
+  if (state.pricingMethod !== 'PER_UNIT') {
+    const { customerPrice } = calcPricing(base, effectivePct);
+    return `Flat $${base.toFixed(2)}, marked up ${effectivePct}% (+ payment processing) → customer pays $${customerPrice.toFixed(2)}.`;
+  }
+
+  const include = state.includeQty !== '' ? parseFloat(state.includeQty) || 0 : 1;
+  let text = `$${base.toFixed(2)} covers the first ${include} ${unitLabel}(s)`;
+  if (state.baseRateUnit !== '') {
+    const rate = parseFloat(state.baseRateUnit) || 0;
+    text += `, then +$${rate.toFixed(2)}/unit`;
+    if (state.volumeDiscountThreshold !== '') {
+      const threshold = parseFloat(state.volumeDiscountThreshold) || 0;
+      const volRate = parseFloat(state.volumeDiscountRate) || 0;
+      text += ` up to ${threshold} ${unitLabel}(s) total, then +$${volRate.toFixed(2)}/unit beyond`;
+    }
+  }
+  text += `. Marked up ${effectivePct}% (+ payment processing) for the customer price.`;
+  return text;
+}
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: 'INSPECTIONS', label: 'Inspections' },
@@ -134,6 +179,7 @@ type PriceRow = {
   serviceGroups: string[] | null;
   customerRequestable: boolean;
   isQuotaInspection: boolean;
+  formulaDescription: string | null;
 };
 
 type EditState = {
@@ -154,6 +200,7 @@ type EditState = {
   serviceGroups: string[];
   customerRequestable: boolean;
   isQuotaInspection: boolean;
+  formulaDescription: string;
 };
 
 // Everything on a price row now requires an explicit Save press — this
@@ -177,6 +224,7 @@ function statesEqual(a: EditState, b: EditState): boolean {
     a.category === b.category &&
     a.customerRequestable === b.customerRequestable &&
     a.isQuotaInspection === b.isQuotaInspection &&
+    a.formulaDescription === b.formulaDescription &&
     a.serviceGroups.length === b.serviceGroups.length &&
     a.serviceGroups.every((v, i) => v === b.serviceGroups[i])
   );
@@ -241,6 +289,7 @@ export default function PricingPage() {
     name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
     includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
     requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false,
+    formulaDescription: '',
   });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -314,6 +363,7 @@ export default function PricingPage() {
       serviceGroups: price.serviceGroups ?? [],
       customerRequestable: price.customerRequestable ?? true,
       isQuotaInspection: price.isQuotaInspection ?? false,
+      formulaDescription: price.formulaDescription ?? '',
     };
   }
 
@@ -348,6 +398,7 @@ export default function PricingPage() {
         serviceGroups: state.serviceGroups.length ? state.serviceGroups : null,
         customerRequestable: state.customerRequestable,
         isQuotaInspection: state.isQuotaInspection,
+        formulaDescription: state.formulaDescription || null,
       });
       setPrices((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p));
       // Resync the draft to the server's canonical values (e.g. a decimal
@@ -515,6 +566,7 @@ export default function PricingPage() {
         serviceGroups: newRow.serviceGroups.length ? newRow.serviceGroups : null,
         customerRequestable: newRow.customerRequestable,
         isQuotaInspection: newRow.isQuotaInspection,
+        formulaDescription: newRow.formulaDescription || null,
       });
       setPrices((prev) => [...prev, created]);
       setEditStates((prev) => ({ ...prev, [created.id]: rowToEdit(created) }));
@@ -522,6 +574,7 @@ export default function PricingPage() {
         name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
         includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
         requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false,
+        formulaDescription: '',
       });
       setAddingRow(false);
     } finally {
@@ -573,7 +626,7 @@ export default function PricingPage() {
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   const exportCsv = () => {
-    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection'];
+    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection', 'formulaDescription'];
     const rows = prices.map((p) => {
       const s = editStates[p.id];
       const esc = (v: string) => `"${(v || '').replace(/"/g, '""')}"`;
@@ -596,6 +649,7 @@ export default function PricingPage() {
         esc(s?.category || p.category || ''),
         esc((s?.serviceGroups || p.serviceGroups || []).join(',')),
         (s?.isQuotaInspection ?? p.isQuotaInspection) ? 'true' : 'false',
+        esc(s?.formulaDescription || p.formulaDescription || ''),
       ].join(',');
     });
     const csv = [headers.join(','), ...rows].join('\r\n');
@@ -648,6 +702,7 @@ export default function PricingPage() {
             return groups.length ? groups : null;
           })(),
           isQuotaInspection: row.isQuotaInspection === 'true',
+          formulaDescription: row.formulaDescription || null,
         };
 
         // Match by id when the CSV carries one AND it still exists (a
@@ -1043,6 +1098,8 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — quantity at which the discounted rate kicks in; leave blank for no volume discount tier">Discount Threshold</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — per-unit rate beyond Discount Threshold">Discount Rate</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24">Markup %</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[200px]" title="Free-text admin notes on why this item is priced the way it is">Formula Description</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[260px]" title="Auto-generated from this row's own fields — not stored, always reflects the current (even unsaved) values">Formula Reference</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="2.9% + $0.30, passed through to the customer — already folded into Customer Price, shown separately so it isn't mistaken for missing">Stripe Fee</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Customer Price</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Global Markup</th>
@@ -1296,9 +1353,14 @@ export default function PricingPage() {
                         <span className="text-steel text-xs">$</span>
                         <input
                           type="number"
-                          value={state.baseRateUnit}
+                          value={
+                            state.pricingMethod === 'PER_UNIT' && state.quantityLabel === 'HOUR'
+                              ? computeHourlyBaseRate(state.basePrice, state.includeQty)
+                              : state.baseRateUnit
+                          }
                           onChange={(e) => updateField(price.id, 'baseRateUnit', e.target.value)}
-                          disabled={state.pricingMethod !== 'PER_UNIT'}
+                          disabled={state.pricingMethod !== 'PER_UNIT' || state.quantityLabel === 'HOUR'}
+                          title={state.quantityLabel === 'HOUR' ? 'Auto-calculated as Provider Price ÷ Includes Up To for Hour-labeled services' : undefined}
                           className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           min="0" step="0.01"
                         />
@@ -1343,6 +1405,20 @@ export default function PricingPage() {
                         />
                         <span className="text-steel text-xs">%</span>
                       </div>
+                    </td>
+                    {/* Formula Description — free-text admin notes, not derived */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={state.formulaDescription}
+                        onChange={(e) => updateField(price.id, 'formulaDescription', e.target.value)}
+                        placeholder="Optional notes…"
+                        className="w-full min-w-[180px] border border-border rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
+                      />
+                    </td>
+                    {/* Formula Reference — auto-generated, read-only, never saved */}
+                    <td className="px-4 py-3 text-xs text-steel min-w-[240px]">
+                      {formatFormulaReference(state, globalMarkup)}
                     </td>
                     {/* Stripe Fee — informational only, already included in Customer Price */}
                     <td className="px-4 py-3 text-right">
@@ -1548,9 +1624,14 @@ export default function PricingPage() {
                       <span className="text-steel text-xs">$</span>
                       <input
                         type="number"
-                        value={newRow.baseRateUnit}
+                        value={
+                          newRow.pricingMethod === 'PER_UNIT' && newRow.quantityLabel === 'HOUR'
+                            ? computeHourlyBaseRate(newRow.basePrice, newRow.includeQty)
+                            : newRow.baseRateUnit
+                        }
                         onChange={(e) => setNewRow((p) => ({ ...p, baseRateUnit: e.target.value }))}
-                        disabled={newRow.pricingMethod !== 'PER_UNIT'}
+                        disabled={newRow.pricingMethod !== 'PER_UNIT' || newRow.quantityLabel === 'HOUR'}
+                        title={newRow.quantityLabel === 'HOUR' ? 'Auto-calculated as Provider Price ÷ Includes Up To for Hour-labeled services' : undefined}
                         className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         min="0" step="0.01"
                       />
@@ -1593,11 +1674,20 @@ export default function PricingPage() {
                       <span className="text-steel text-xs">%</span>
                     </div>
                   </td>
-                  <td colSpan={3} />
+                  <td className="px-4 py-3">
+                    <input
+                      type="text"
+                      value={newRow.formulaDescription}
+                      onChange={(e) => setNewRow((p) => ({ ...p, formulaDescription: e.target.value }))}
+                      placeholder="Optional notes…"
+                      className="w-full min-w-[180px] border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
+                    />
+                  </td>
+                  <td colSpan={4} />
                   <td className="pr-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false }); }}
+                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false, formulaDescription: '' }); }}
                         className="text-steel hover:text-ink text-sm px-2 py-1"
                       >
                         Cancel

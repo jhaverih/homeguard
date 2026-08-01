@@ -88,6 +88,12 @@ export class ServicePrice {
   @Column({ nullable: true })
   checklistGroupKey: string | null;
 
+  // Free-text admin notes on why this item is priced the way it is — separate
+  // from the auto-generated formula reference shown alongside it in the admin
+  // Pricing page, which is derived live from the fields above and never stored.
+  @Column({ type: 'text', nullable: true })
+  formulaDescription: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -115,6 +121,23 @@ export class ServicePrice {
   syncUnitLabel() {
     if (this.pricingMethod === PricingMethod.FLAT_PRICE || this.pricingMethod === PricingMethod.ONE_TIME_FEE) {
       this.quantityLabel = UnitLabel.NONE;
+    }
+  }
+
+  // Base Rate/Unit only has a real meaning for Per Unit pricing (see
+  // calcTieredCost) — a Flat Price row's value is always ignored by the real
+  // formula, so it's cleared here rather than left to silently do nothing.
+  // Per Unit rows billed by the Hour specifically get it auto-derived from
+  // basePrice/includeQty rather than admin-entered, since "$/hour" should
+  // always agree with the item's own flat first-hour price, not drift from it.
+  @BeforeInsert()
+  @BeforeUpdate()
+  syncBaseRateUnit() {
+    if (this.pricingMethod === PricingMethod.FLAT_PRICE) {
+      this.baseRateUnit = null;
+    } else if (this.pricingMethod === PricingMethod.PER_UNIT && this.quantityLabel === UnitLabel.HOUR) {
+      const include = this.includeQty != null ? Number(this.includeQty) : 1;
+      this.baseRateUnit = include !== 0 ? Number(this.basePrice) / include : null;
     }
   }
 }
