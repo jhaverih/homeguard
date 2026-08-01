@@ -12,7 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
-## 2026-07-31 (4)
+## 2026-07-31 (5)
+
+### Added
+- **api/mobile/admin**: New free "Care Plan" tier ($0/yr, `PlanTier.FREE`) — unlocks requesting any service/subscription at standard (undiscounted) pricing with no included inspections and no Stripe checkout (activates instantly, same manual-activation path used for any plan without a Stripe price). Displays first in plan lists (`PlanTier` enum order drives sort).
+
+### Changed
+- **api/mobile/admin**: Renamed "Basic Plan" → "CarePlus" and "Standard Plan" → "Proactive" (display name only — `tier` enum values, prices, and Stripe price IDs unchanged, so all existing subscribers carry over with zero disruption). "CarePlus" renders as one word with "Plus" in the brand accent color on the subscribe and registration screens, matching the existing "Attenteve"/"eveAi" wordmark styling technique.
+- **api**: Removed "Premium Plan" from new-install seeding and soft-removed the live row (`isActive = false`, not deleted — it had zero active subscribers, confirmed live before the change; kept for the one historical cancelled subscription's referential integrity). The alerts screen's monitoring upsell prompt (previously Basic-only, mentioning "Standard and Premium") now also covers the new free tier and correctly references "Proactive" instead of the removed Premium plan.
 
 ### Fixed
 - **mobile**: The previous entry's immediate silent retry on a network error still failed in the exact scenario it was meant to fix — confirmed live: nginx logged a `499` and cloudflared logged "Incoming request ended abruptly: context canceled," meaning the request *did* reach the server but the client itself cancelled the connection (consistent with the OS suspending the app's networking on backgrounding). Retrying immediately in that same moment doesn't reliably help, since networking may still be suspended right then. Now: a network error while the app is still in the foreground gets one immediate retry (a genuine blip); a network error while backgrounded holds the message and retries once the app is actually back in the foreground (`AppState` listener), instead of guessing blind. Either way the customer just keeps seeing "eveAi is thinking…" — no error shown unless a foreground attempt genuinely fails.

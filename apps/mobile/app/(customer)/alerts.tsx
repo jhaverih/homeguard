@@ -146,11 +146,11 @@ export default function AlertsScreen() {
             <Text style={styles.emptyTitle}>Couldn't load alerts</Text>
             <Text style={styles.emptyText}>Pull down to try again.</Text>
           </View>
-        ) : alerts.length === 0 && subscription?.plan?.tier === 'BASIC' ? (
+        ) : alerts.length === 0 && (subscription?.plan?.tier === 'BASIC' || subscription?.plan?.tier === 'FREE') ? (
           <View style={styles.emptyInner}>
             <Ionicons name="shield-outline" size={56} color={colors.lantern} />
             <Text style={styles.emptyTitle}>Home Monitoring Available</Text>
-            <Text style={styles.emptyText}>Real-time sensor alerts are included with the Standard and Premium plans — upgrade to start monitoring your home.</Text>
+            <Text style={styles.emptyText}>Real-time sensor alerts are included with the Proactive plan — upgrade to start monitoring your home.</Text>
             <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/(customer)/subscribe')}>
               <Text style={styles.upgradeBtnText}>View Plans</Text>
               <Ionicons name="arrow-forward" size={14} color={colors.ink} />

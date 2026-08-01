@@ -44,8 +44,21 @@ export class SubscriptionsService implements OnModuleInit {
   private async seedPlans() {
     const plans = [
       {
+        tier: PlanTier.FREE,
+        name: 'Care Plan',
+        description: 'Request any service or subscription at standard pricing — no membership fee.',
+        price: 0,
+        inspectionsPerYear: 0,
+        addonInspectionPrice: 100,
+        features: [
+          'Request any service at standard pricing',
+          'No annual membership fee',
+          'Upgrade anytime for included inspections and member pricing',
+        ],
+      },
+      {
         tier: PlanTier.BASIC,
-        name: 'Basic Plan',
+        name: 'CarePlus',
         description: '2 annual inspections covering AC, toilets, and light bulbs',
         price: 99,
         inspectionsPerYear: 2,
@@ -59,30 +72,16 @@ export class SubscriptionsService implements OnModuleInit {
       },
       {
         tier: PlanTier.STANDARD,
-        name: 'Standard Plan',
-        description: 'Basic plan plus water leak monitoring for AC and washer',
+        name: 'Proactive',
+        description: 'CarePlus plan plus water leak monitoring for AC and washer',
         price: 199,
         inspectionsPerYear: 2,
         addonInspectionPrice: 79,
         features: [
-          'All Basic plan features',
+          'All CarePlus plan features',
           'AC drainage pan water leak monitoring',
           'Washer machine pan monitoring',
           '2 inspections per year',
-        ],
-      },
-      {
-        tier: PlanTier.PREMIUM,
-        name: 'Premium Plan',
-        description: 'Standard plan plus full HVAC monitoring',
-        price: 299,
-        inspectionsPerYear: 2,
-        addonInspectionPrice: 69,
-        features: [
-          'All Standard plan features',
-          'Full HVAC system monitoring',
-          '2 inspections per year',
-          'Priority scheduling',
         ],
       },
     ];
@@ -94,7 +93,11 @@ export class SubscriptionsService implements OnModuleInit {
         existing = await this.plansRepo.save(this.plansRepo.create(planData));
       }
 
-      if (!existing.stripePriceId && this.configService.get('STRIPE_SECRET_KEY', '').startsWith('sk_')) {
+      // A $0 plan is meant to activate instantly with no Stripe checkout —
+      // subscribe() already falls back to manual activation whenever
+      // stripePriceId is null, so just never create one for the free tier.
+      const isFree = Number(planData.price) === 0;
+      if (!isFree && !existing.stripePriceId && this.configService.get('STRIPE_SECRET_KEY', '').startsWith('sk_')) {
         try {
           const price = await this.ensureStripePriceForPlan(existing);
           await this.plansRepo.update(existing.id, { stripePriceId: price.id });

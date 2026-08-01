@@ -11,6 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
+import { PlanName } from '../../src/components/PlanName';
 import { authApi, subscriptionsApi, uploadsApi, vendorApi, api, TERMS_URL, API_URL } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { colors } from '../../src/theme';
@@ -822,7 +823,7 @@ export default function RegisterScreen() {
                   {selectedPlanId === plan.id && (
                     <Ionicons name="checkmark-circle" size={20} color={colors.lanternDeep} style={styles.planCheck} />
                   )}
-                  <Text style={styles.planName}>{plan.name}</Text>
+                  <PlanName name={plan.name} style={styles.planName} />
                   <Text style={styles.planPrice}>${plan.price}/year</Text>
                   {plan.features?.map((f: string, i: number) => (
                     <Text key={i} style={styles.planFeature}>✓ {f}</Text>

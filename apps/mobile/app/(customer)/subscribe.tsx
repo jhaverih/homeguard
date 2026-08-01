@@ -10,6 +10,7 @@ import { useStripe } from '@stripe/stripe-react-native';
 import { subscriptionsApi, TERMS_URL } from '../../src/services/api';
 import { colors } from '../../src/theme';
 import CancellationFeedbackModal from '../../src/components/CancellationFeedbackModal';
+import { PlanName } from '../../src/components/PlanName';
 
 export default function SubscribeScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -240,7 +241,7 @@ export default function SubscribeScreen() {
             activeOpacity={isCurrent ? 1 : 0.8}
           >
             <View style={styles.planHeader}>
-              <Text style={styles.planName}>{plan.name}</Text>
+              <PlanName name={plan.name} style={styles.planName} />
               <Text style={styles.planPrice}>${plan.price}<Text style={styles.planPer}>/yr</Text></Text>
             </View>
             <Text style={styles.planDesc}>{plan.description}</Text>

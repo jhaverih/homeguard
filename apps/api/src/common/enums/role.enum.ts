@@ -21,6 +21,7 @@ export enum ServiceRequestStatus {
 }
 
 export enum PlanTier {
+  FREE = 'FREE',
   BASIC = 'BASIC',
   STANDARD = 'STANDARD',
   PREMIUM = 'PREMIUM',
