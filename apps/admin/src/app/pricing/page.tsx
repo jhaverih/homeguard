@@ -1284,8 +1284,9 @@ export default function PricingPage() {
                         type="number"
                         value={state.includeQty}
                         onChange={(e) => updateField(price.id, 'includeQty', e.target.value)}
+                        disabled={state.pricingMethod !== 'PER_UNIT'}
                         placeholder="1"
-                        className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         min="0" step="0.01"
                       />
                     </td>
@@ -1297,7 +1298,7 @@ export default function PricingPage() {
                           type="number"
                           value={state.baseRateUnit}
                           onChange={(e) => updateField(price.id, 'baseRateUnit', e.target.value)}
-                          disabled={state.requiresQuote}
+                          disabled={state.pricingMethod !== 'PER_UNIT'}
                           className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           min="0" step="0.01"
                         />
@@ -1309,8 +1310,9 @@ export default function PricingPage() {
                         type="number"
                         value={state.volumeDiscountThreshold}
                         onChange={(e) => updateField(price.id, 'volumeDiscountThreshold', e.target.value)}
+                        disabled={state.pricingMethod !== 'PER_UNIT'}
                         placeholder="None"
-                        className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         min="0" step="0.01"
                       />
                     </td>
@@ -1322,7 +1324,8 @@ export default function PricingPage() {
                           type="number"
                           value={state.volumeDiscountRate}
                           onChange={(e) => updateField(price.id, 'volumeDiscountRate', e.target.value)}
-                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                          disabled={state.pricingMethod !== 'PER_UNIT'}
+                          className="w-20 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           min="0" step="0.01"
                         />
                       </div>
@@ -1534,8 +1537,9 @@ export default function PricingPage() {
                       type="number"
                       value={newRow.includeQty}
                       onChange={(e) => setNewRow((p) => ({ ...p, includeQty: e.target.value }))}
+                      disabled={newRow.pricingMethod !== 'PER_UNIT'}
                       placeholder="1"
-                      className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                      className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       min="0" step="0.01"
                     />
                   </td>
@@ -1546,7 +1550,7 @@ export default function PricingPage() {
                         type="number"
                         value={newRow.baseRateUnit}
                         onChange={(e) => setNewRow((p) => ({ ...p, baseRateUnit: e.target.value }))}
-                        disabled={newRow.requiresQuote}
+                        disabled={newRow.pricingMethod !== 'PER_UNIT'}
                         className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         min="0" step="0.01"
                       />
@@ -1557,8 +1561,9 @@ export default function PricingPage() {
                       type="number"
                       value={newRow.volumeDiscountThreshold}
                       onChange={(e) => setNewRow((p) => ({ ...p, volumeDiscountThreshold: e.target.value }))}
+                      disabled={newRow.pricingMethod !== 'PER_UNIT'}
                       placeholder="None"
-                      className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                      className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       min="0" step="0.01"
                     />
                   </td>
@@ -1569,7 +1574,8 @@ export default function PricingPage() {
                         type="number"
                         value={newRow.volumeDiscountRate}
                         onChange={(e) => setNewRow((p) => ({ ...p, volumeDiscountRate: e.target.value }))}
-                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none"
+                        disabled={newRow.pricingMethod !== 'PER_UNIT'}
+                        className="w-20 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         min="0" step="0.01"
                       />
                     </div>
