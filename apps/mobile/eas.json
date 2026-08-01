@@ -32,7 +32,7 @@
       "distribution": "store",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.homeguard.app/api"
+        "EXPO_PUBLIC_API_URL": "https://api.attenteve.com/api"
       }
     }
   },
