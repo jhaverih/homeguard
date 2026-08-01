@@ -1090,7 +1090,7 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-left font-semibold text-steel w-40">Required Capability</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">Category</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[220px]">Type of Service</th>
-                <th className="px-4 py-3 text-left font-semibold text-steel w-32">Unit Label</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[150px]">Unit Label</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24">Min. Qty</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Provider Price</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — units covered by Provider Price before per-unit tiering starts">Includes Up To</th>
