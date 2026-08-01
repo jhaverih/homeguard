@@ -19,7 +19,8 @@
         "NSCameraUsageDescription": "Attenteve needs camera access to take inspection photos.",
         "NSPhotoLibraryUsageDescription": "Attenteve needs photo library access to upload inspection photos.",
         "NSLocationWhenInUseUsageDescription": "Attenteve uses your location to match you with nearby service requests and vendors.",
-        "NSFaceIDUsageDescription": "Attenteve uses Face ID to let you sign in securely."
+        "NSFaceIDUsageDescription": "Attenteve uses Face ID to let you sign in securely.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
