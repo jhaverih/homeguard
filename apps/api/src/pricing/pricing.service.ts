@@ -1,11 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository, DataSource } from 'typeorm';
 import { ServicePrice } from './entities/service-price.entity';
 import { PricingCatalogBackup } from './entities/pricing-catalog-backup.entity';
+import { ServiceUnitLabel } from './entities/service-unit-label.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
-import { UnitLabel } from '../common/enums/unit-label.enum';
 import { ServiceCategory, SERVICE_CATEGORY_META } from '../common/enums/service-category.enum';
 import { ServiceGroup } from '../common/enums/service-group.enum';
 import { formatPriceDisplay, formatCustomerPriceDisplay } from './pricing.utils';
@@ -88,7 +88,7 @@ type VolumePricingItem = {
   name: string;
   description: string;
   category: ServiceCategory;
-  quantityLabel: UnitLabel;
+  quantityLabel: string;
   basePrice: number;
   includeQty: number;
   baseRateUnit: number;
@@ -97,58 +97,58 @@ type VolumePricingItem = {
 };
 
 const VOLUME_PRICING_CATALOG: VolumePricingItem[] = [
-  { name: 'General Handyman Visit', description: 'General repairs and punch-list work.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.HOUR, basePrice: 70, includeQty: 1, baseRateUnit: 70, volumeDiscountThreshold: 1, volumeDiscountRate: 60 },
-  { name: 'Drywall Patch (Small)', description: 'Repair nail holes, anchors, and dents up to 2 inches.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.HOLE, basePrice: 70, includeQty: 3, baseRateUnit: 23.33, volumeDiscountThreshold: 11, volumeDiscountRate: 10 },
-  { name: 'Medium Drywall Repair', description: 'Repair holes 2-8 inches — mud, sand, and prime.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.HOLE, basePrice: 80, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 5, volumeDiscountRate: 50 },
-  { name: 'Wallpaper Removal', description: 'Remove wallpaper and adhesive residue.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.SQ_FT, basePrice: 175, includeQty: 100, baseRateUnit: 1.5, volumeDiscountThreshold: 500, volumeDiscountRate: 1.35 },
-  { name: 'Baseboards & Trim', description: 'Install or replace trim and moldings.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.LINEAR_FEET, basePrice: 120, includeQty: 30, baseRateUnit: 3, volumeDiscountThreshold: 200, volumeDiscountRate: 2.70 },
-  { name: 'Weather Stripping', description: 'Replace worn seals around doors and windows.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 3, baseRateUnit: 12, volumeDiscountThreshold: 10, volumeDiscountRate: 10.8 },
-  { name: 'Hardware Replacement', description: 'Install knobs, pulls, and hinges.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 10, baseRateUnit: 5, volumeDiscountThreshold: 25, volumeDiscountRate: 4.5 },
-  { name: 'Light Fixture Replacement', description: 'Replace existing light fixture.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 1, baseRateUnit: 55, volumeDiscountThreshold: 5, volumeDiscountRate: 49.5 },
-  { name: 'Ceiling Fan Replacement', description: 'Replace existing fan.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 4, volumeDiscountRate: 67.5 },
-  { name: 'Outlet/Switch Replacement', description: 'Replace existing outlets and switches.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 4, baseRateUnit: 11, volumeDiscountThreshold: 20, volumeDiscountRate: 9.9 },
-  { name: 'Smart Device Installation', description: 'Install cameras, thermostats, and doorbells.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 5, volumeDiscountRate: 40.5 },
-  { name: 'Smoke/CO Detectors', description: 'Install replacement smoke and carbon monoxide detectors.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 4, baseRateUnit: 12, volumeDiscountThreshold: 10, volumeDiscountRate: 10.8 },
-  { name: 'Faucet Replacement', description: 'Replace existing faucet.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.UNIT, basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 3, volumeDiscountRate: 67.5 },
-  { name: 'Showerhead Installation', description: 'Replace showerhead.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 1, baseRateUnit: 25, volumeDiscountThreshold: 5, volumeDiscountRate: 22.5 },
-  { name: 'Toilet Repair', description: 'Replace internal toilet components.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 60, volumeDiscountThreshold: 3, volumeDiscountRate: 54 },
-  { name: 'TV Mounting', description: 'Install mount and hang TV.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 4, volumeDiscountRate: 67.5 },
-  { name: 'Blinds & Curtains', description: 'Install rods, blinds, and shades.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 3, baseRateUnit: 15, volumeDiscountThreshold: 10, volumeDiscountRate: 13.5 },
-  { name: 'Mirrors & Artwork', description: 'Secure mounting of décor.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 3, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
-  { name: 'Shelving Installation', description: 'Install shelving systems.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 35, volumeDiscountThreshold: 5, volumeDiscountRate: 31.5 },
-  { name: 'Grab Bars', description: 'Install safety grab bars.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 4, volumeDiscountRate: 40.5 },
-  { name: 'Door Repairs', description: 'Adjust or repair doors.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 60, volumeDiscountThreshold: 5, volumeDiscountRate: 54 },
-  { name: 'Lock Installation', description: 'Install locksets and deadbolts.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 35, volumeDiscountThreshold: 5, volumeDiscountRate: 31.5 },
-  { name: 'Window Screen Repair', description: 'Replace screen mesh or frame.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 2, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
-  { name: 'Pet Door Installation', description: 'Cut opening and install pet door.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 175, includeQty: 1, baseRateUnit: 175 },
-  { name: 'Pressure Washing', description: 'Wash surfaces using pressure equipment.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.SQ_FT, basePrice: 150, includeQty: 1000, baseRateUnit: 0.1, volumeDiscountThreshold: 5000, volumeDiscountRate: 0.09 },
-  { name: 'Fence Repairs', description: 'Replace pickets and hardware.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 120, includeQty: 5, baseRateUnit: 10, volumeDiscountThreshold: 20, volumeDiscountRate: 9 },
-  { name: 'Tile Replacement', description: 'Replace damaged tiles.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 3, baseRateUnit: 15, volumeDiscountThreshold: 20, volumeDiscountRate: 13.5 },
-  { name: 'Regrouting', description: 'Remove and replace grout.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.SQ_FT, basePrice: 150, includeQty: 100, baseRateUnit: 1, volumeDiscountThreshold: 500, volumeDiscountRate: 0.9 },
-  { name: 'Window Repairs', description: 'Repair sash balances, tracks, and hardware.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 50, volumeDiscountThreshold: 5, volumeDiscountRate: 45 },
-  { name: 'Backsplash Installation', description: 'Install tile backsplash.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.SQ_FT, basePrice: 250, includeQty: 30, baseRateUnit: 6.5, volumeDiscountThreshold: 100, volumeDiscountRate: 5.85 },
-  { name: 'Bathroom Accessories', description: 'Install towel bars, hooks, and mirrors.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: UnitLabel.UNIT, basePrice: 70, includeQty: 3, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
-  { name: 'Attic Ladder Replacement', description: 'Replace attic ladder.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 275, includeQty: 1, baseRateUnit: 275 },
-  { name: 'Siding Repair', description: 'Replace damaged siding panels.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 120, includeQty: 3, baseRateUnit: 20, volumeDiscountThreshold: 20, volumeDiscountRate: 18 },
-  { name: 'Soffit/Fascia Repair', description: 'Replace damaged trim boards.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 175, includeQty: 25, baseRateUnit: 5, volumeDiscountThreshold: 100, volumeDiscountRate: 4.5 },
-  { name: 'Mailbox Installation', description: 'Install mailbox and post.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 1, baseRateUnit: 150 },
-  { name: 'Porch Swing Installation', description: 'Install porch swing hardware.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 1, baseRateUnit: 150 },
-  { name: 'Exterior Light Installation', description: 'Replace exterior light fixture.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 5, volumeDiscountRate: 40.5 },
-  { name: 'Pipe Insulation', description: 'Install pipe insulation sleeves.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: UnitLabel.LINEAR_FEET, basePrice: 80, includeQty: 25, baseRateUnit: 1.5, volumeDiscountThreshold: 100, volumeDiscountRate: 1.35 },
-  { name: 'Dryer Vent Cleaning', description: 'Clean vent and inspect airflow.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 40 },
-  { name: 'Fireplace Mantel Installation', description: 'Install decorative mantel.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 200, includeQty: 1, baseRateUnit: 200 },
+  { name: 'General Handyman Visit', description: 'General repairs and punch-list work.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'HOUR', basePrice: 70, includeQty: 1, baseRateUnit: 70, volumeDiscountThreshold: 1, volumeDiscountRate: 60 },
+  { name: 'Drywall Patch (Small)', description: 'Repair nail holes, anchors, and dents up to 2 inches.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'HOLE', basePrice: 70, includeQty: 3, baseRateUnit: 23.33, volumeDiscountThreshold: 11, volumeDiscountRate: 10 },
+  { name: 'Medium Drywall Repair', description: 'Repair holes 2-8 inches — mud, sand, and prime.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'HOLE', basePrice: 80, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 5, volumeDiscountRate: 50 },
+  { name: 'Wallpaper Removal', description: 'Remove wallpaper and adhesive residue.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'SQ_FT', basePrice: 175, includeQty: 100, baseRateUnit: 1.5, volumeDiscountThreshold: 500, volumeDiscountRate: 1.35 },
+  { name: 'Baseboards & Trim', description: 'Install or replace trim and moldings.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'LINEAR_FEET', basePrice: 120, includeQty: 30, baseRateUnit: 3, volumeDiscountThreshold: 200, volumeDiscountRate: 2.70 },
+  { name: 'Weather Stripping', description: 'Replace worn seals around doors and windows.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'UNIT', basePrice: 70, includeQty: 3, baseRateUnit: 12, volumeDiscountThreshold: 10, volumeDiscountRate: 10.8 },
+  { name: 'Hardware Replacement', description: 'Install knobs, pulls, and hinges.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 70, includeQty: 10, baseRateUnit: 5, volumeDiscountThreshold: 25, volumeDiscountRate: 4.5 },
+  { name: 'Light Fixture Replacement', description: 'Replace existing light fixture.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: 'UNIT', basePrice: 70, includeQty: 1, baseRateUnit: 55, volumeDiscountThreshold: 5, volumeDiscountRate: 49.5 },
+  { name: 'Ceiling Fan Replacement', description: 'Replace existing fan.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: 'UNIT', basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 4, volumeDiscountRate: 67.5 },
+  { name: 'Outlet/Switch Replacement', description: 'Replace existing outlets and switches.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: 'UNIT', basePrice: 70, includeQty: 4, baseRateUnit: 11, volumeDiscountThreshold: 20, volumeDiscountRate: 9.9 },
+  { name: 'Smart Device Installation', description: 'Install cameras, thermostats, and doorbells.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 5, volumeDiscountRate: 40.5 },
+  { name: 'Smoke/CO Detectors', description: 'Install replacement smoke and carbon monoxide detectors.', category: ServiceCategory.MINOR_ELECTRICAL_ADJUSTMENTS, quantityLabel: 'UNIT', basePrice: 70, includeQty: 4, baseRateUnit: 12, volumeDiscountThreshold: 10, volumeDiscountRate: 10.8 },
+  { name: 'Faucet Replacement', description: 'Replace existing faucet.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: 'UNIT', basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 3, volumeDiscountRate: 67.5 },
+  { name: 'Showerhead Installation', description: 'Replace showerhead.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: 'UNIT', basePrice: 70, includeQty: 1, baseRateUnit: 25, volumeDiscountThreshold: 5, volumeDiscountRate: 22.5 },
+  { name: 'Toilet Repair', description: 'Replace internal toilet components.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 60, volumeDiscountThreshold: 3, volumeDiscountRate: 54 },
+  { name: 'TV Mounting', description: 'Install mount and hang TV.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: 'UNIT', basePrice: 90, includeQty: 1, baseRateUnit: 75, volumeDiscountThreshold: 4, volumeDiscountRate: 67.5 },
+  { name: 'Blinds & Curtains', description: 'Install rods, blinds, and shades.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: 'UNIT', basePrice: 80, includeQty: 3, baseRateUnit: 15, volumeDiscountThreshold: 10, volumeDiscountRate: 13.5 },
+  { name: 'Mirrors & Artwork', description: 'Secure mounting of décor.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: 'UNIT', basePrice: 70, includeQty: 3, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
+  { name: 'Shelving Installation', description: 'Install shelving systems.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 35, volumeDiscountThreshold: 5, volumeDiscountRate: 31.5 },
+  { name: 'Grab Bars', description: 'Install safety grab bars.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 4, volumeDiscountRate: 40.5 },
+  { name: 'Door Repairs', description: 'Adjust or repair doors.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 60, volumeDiscountThreshold: 5, volumeDiscountRate: 54 },
+  { name: 'Lock Installation', description: 'Install locksets and deadbolts.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 35, volumeDiscountThreshold: 5, volumeDiscountRate: 31.5 },
+  { name: 'Window Screen Repair', description: 'Replace screen mesh or frame.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'UNIT', basePrice: 70, includeQty: 2, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
+  { name: 'Pet Door Installation', description: 'Cut opening and install pet door.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 175, includeQty: 1, baseRateUnit: 175 },
+  { name: 'Pressure Washing', description: 'Wash surfaces using pressure equipment.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'SQ_FT', basePrice: 150, includeQty: 1000, baseRateUnit: 0.1, volumeDiscountThreshold: 5000, volumeDiscountRate: 0.09 },
+  { name: 'Fence Repairs', description: 'Replace pickets and hardware.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'UNIT', basePrice: 120, includeQty: 5, baseRateUnit: 10, volumeDiscountThreshold: 20, volumeDiscountRate: 9 },
+  { name: 'Tile Replacement', description: 'Replace damaged tiles.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'UNIT', basePrice: 80, includeQty: 3, baseRateUnit: 15, volumeDiscountThreshold: 20, volumeDiscountRate: 13.5 },
+  { name: 'Regrouting', description: 'Remove and replace grout.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'SQ_FT', basePrice: 150, includeQty: 100, baseRateUnit: 1, volumeDiscountThreshold: 500, volumeDiscountRate: 0.9 },
+  { name: 'Window Repairs', description: 'Repair sash balances, tracks, and hardware.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 50, volumeDiscountThreshold: 5, volumeDiscountRate: 45 },
+  { name: 'Backsplash Installation', description: 'Install tile backsplash.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'SQ_FT', basePrice: 250, includeQty: 30, baseRateUnit: 6.5, volumeDiscountThreshold: 100, volumeDiscountRate: 5.85 },
+  { name: 'Bathroom Accessories', description: 'Install towel bars, hooks, and mirrors.', category: ServiceCategory.MOUNTING_INSTALLATIONS, quantityLabel: 'UNIT', basePrice: 70, includeQty: 3, baseRateUnit: 10, volumeDiscountThreshold: 10, volumeDiscountRate: 9 },
+  { name: 'Attic Ladder Replacement', description: 'Replace attic ladder.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 275, includeQty: 1, baseRateUnit: 275 },
+  { name: 'Siding Repair', description: 'Replace damaged siding panels.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'UNIT', basePrice: 120, includeQty: 3, baseRateUnit: 20, volumeDiscountThreshold: 20, volumeDiscountRate: 18 },
+  { name: 'Soffit/Fascia Repair', description: 'Replace damaged trim boards.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'UNIT', basePrice: 175, includeQty: 25, baseRateUnit: 5, volumeDiscountThreshold: 100, volumeDiscountRate: 4.5 },
+  { name: 'Mailbox Installation', description: 'Install mailbox and post.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'UNIT', basePrice: 150, includeQty: 1, baseRateUnit: 150 },
+  { name: 'Porch Swing Installation', description: 'Install porch swing hardware.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'UNIT', basePrice: 150, includeQty: 1, baseRateUnit: 150 },
+  { name: 'Exterior Light Installation', description: 'Replace exterior light fixture.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 45, volumeDiscountThreshold: 5, volumeDiscountRate: 40.5 },
+  { name: 'Pipe Insulation', description: 'Install pipe insulation sleeves.', category: ServiceCategory.MINOR_PLUMBING_FIXES, quantityLabel: 'LINEAR_FEET', basePrice: 80, includeQty: 25, baseRateUnit: 1.5, volumeDiscountThreshold: 100, volumeDiscountRate: 1.35 },
+  { name: 'Dryer Vent Cleaning', description: 'Clean vent and inspect airflow.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 40 },
+  { name: 'Fireplace Mantel Installation', description: 'Install decorative mantel.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 200, includeQty: 1, baseRateUnit: 200 },
   // The 7 rows below weren't in the screenshot originally transcribed —
   // found in the "Service prices" sheet of Service Price models.xlsx (repo
   // root) once that source file surfaced. No 3rd tier: their sheet rows had
   // a text placeholder ("Whole bath package", "Multi-door pricing", etc.)
   // instead of a numeric Volume Discount Threshold.
-  { name: 'Recaulking', description: 'Remove and replace caulk.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 30 },
-  { name: 'Gutter Cleaning', description: 'Remove debris and flush downspouts.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.LINEAR_FEET, basePrice: 120, includeQty: 150, baseRateUnit: 0.4, volumeDiscountThreshold: 300, volumeDiscountRate: 0.36 },
-  { name: 'Deck Board Replacement', description: 'Replace damaged deck boards.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 3, baseRateUnit: 25 },
-  { name: 'Carpet Stretching', description: 'Re-stretch loose carpet.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: UnitLabel.UNIT, basePrice: 150, includeQty: 1, baseRateUnit: 80 },
-  { name: 'Garage Shelving', description: 'Install garage storage systems.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 175, includeQty: 1, baseRateUnit: 80 },
-  { name: 'Garage Door Maintenance', description: 'Lubricate and adjust door hardware.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 80, includeQty: 1, baseRateUnit: 40 },
-  { name: 'Stair Handrail Installation', description: 'Install stair handrails.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: UnitLabel.UNIT, basePrice: 250, includeQty: 1, baseRateUnit: 175 },
+  { name: 'Recaulking', description: 'Remove and replace caulk.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 30 },
+  { name: 'Gutter Cleaning', description: 'Remove debris and flush downspouts.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'LINEAR_FEET', basePrice: 120, includeQty: 150, baseRateUnit: 0.4, volumeDiscountThreshold: 300, volumeDiscountRate: 0.36 },
+  { name: 'Deck Board Replacement', description: 'Replace damaged deck boards.', category: ServiceCategory.EXTERIOR_OUTDOOR_SERVICES, quantityLabel: 'UNIT', basePrice: 150, includeQty: 3, baseRateUnit: 25 },
+  { name: 'Carpet Stretching', description: 'Re-stretch loose carpet.', category: ServiceCategory.INTERIOR_REPAIRS_MAINTENANCE, quantityLabel: 'UNIT', basePrice: 150, includeQty: 1, baseRateUnit: 80 },
+  { name: 'Garage Shelving', description: 'Install garage storage systems.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 175, includeQty: 1, baseRateUnit: 80 },
+  { name: 'Garage Door Maintenance', description: 'Lubricate and adjust door hardware.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 80, includeQty: 1, baseRateUnit: 40 },
+  { name: 'Stair Handrail Installation', description: 'Install stair handrails.', category: ServiceCategory.CARPENTRY_ASSEMBLY, quantityLabel: 'UNIT', basePrice: 250, includeQty: 1, baseRateUnit: 175 },
 ];
 
 // Request-a-Quote services from the same source sheet whose Base Rate/
@@ -191,6 +191,8 @@ export class PricingService implements OnModuleInit {
     private backupRepo: Repository<PricingCatalogBackup>,
     @InjectRepository(VendorCapability)
     private capabilityRepo: Repository<VendorCapability>,
+    @InjectRepository(ServiceUnitLabel)
+    private unitLabelsRepo: Repository<ServiceUnitLabel>,
     private dataSource: DataSource,
   ) {}
 
@@ -201,7 +203,7 @@ export class PricingService implements OnModuleInit {
     // onModuleInit and fails outright on rows still holding a
     // soon-to-be-removed enum value, so this couldn't safely run as
     // application code — it's done and verified, not reintroduced here).
-    await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { quantityLabel: UnitLabel.AC_UNIT });
+    await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { quantityLabel: 'AC_UNIT' });
     // Links this catalog item to the new HVAC_FULL_INSPECTION checklist group
     // (see inspection-checklist-seed.service.ts) — same always-run, idempotent
     // update pattern as the quantityLabel backfill directly above.
@@ -223,6 +225,35 @@ export class PricingService implements OnModuleInit {
     await this.seedVolumePricingCatalog();
     await this.seedQuoteCatalog();
     await this.seedFlooringCapability();
+    await this.seedUnitLabels();
+  }
+
+  // One-time seed of the original 9 hardcoded UnitLabel enum values into the
+  // new admin-manageable table — idempotent per-code like the other seeds
+  // above. 'HOUR' and 'NONE' are marked isSystem since service-price.entity.ts's
+  // lifecycle hooks compare quantityLabel against those two literals directly;
+  // the other 7 are ordinary, fully rename/delete-able rows from day one.
+  private async seedUnitLabels() {
+    const SEED_LABELS: { code: string; label: string }[] = [
+      { code: 'HOUR', label: 'Hour' },
+      { code: 'SQ_FT', label: 'SqFt' },
+      { code: 'BULB', label: 'Bulb' },
+      { code: 'SERVICE_TRIP', label: 'Service Trip' },
+      { code: 'AC_UNIT', label: 'AC Unit' },
+      { code: 'HOLE', label: 'Hole' },
+      { code: 'LINEAR_FEET', label: 'Linear Feet' },
+      { code: 'UNIT', label: 'Unit' },
+      { code: 'NONE', label: 'None' },
+    ];
+    for (const item of SEED_LABELS) {
+      const existing = await this.unitLabelsRepo.findOne({ where: { code: item.code } });
+      if (existing) continue;
+      await this.unitLabelsRepo.save(this.unitLabelsRepo.create({
+        code: item.code,
+        label: item.label,
+        isSystem: item.code === 'HOUR' || item.code === 'NONE',
+      }));
+    }
   }
 
   // One-time-per-row backfill: gives every pre-existing PER_UNIT service tier
@@ -365,7 +396,7 @@ export class PricingService implements OnModuleInit {
         category: item.category,
         basePrice: 85,
         pricingMethod: PricingMethod.PER_UNIT,
-        quantityLabel: UnitLabel.HOUR,
+        quantityLabel: 'HOUR',
         requiresQuote: false,
         requiredCapabilityId: capability.id,
       }));
@@ -470,17 +501,26 @@ export class PricingService implements OnModuleInit {
     }
   }
 
+  // Live code->label lookup for the admin-manageable unit-label list — the
+  // table is tiny (~10-15 rows), so a fresh query per request is simplest
+  // and avoids any cache-invalidation complexity.
+  private async getUnitLabelMap(): Promise<Record<string, string>> {
+    const labels = await this.unitLabelsRepo.find();
+    return Object.fromEntries(labels.map((l) => [l.code, l.label]));
+  }
+
   // Attaches the derived, read-only priceDisplay string every consumer used
   // to read off the old free-text priceNote column. Mutates the loaded
   // instance (rather than spreading into a plain object) so it still
   // satisfies ServicePrice's shape, including its lifecycle-hook method.
-  private withDisplay(item: ServicePrice): ServicePrice & { priceDisplay: string; customerPriceDisplay: string } {
-    return Object.assign(item, { priceDisplay: formatPriceDisplay(item), customerPriceDisplay: formatCustomerPriceDisplay(item) });
+  private withDisplay(item: ServicePrice, labelMap: Record<string, string>): ServicePrice & { priceDisplay: string; customerPriceDisplay: string } {
+    return Object.assign(item, { priceDisplay: formatPriceDisplay(item, labelMap), customerPriceDisplay: formatCustomerPriceDisplay(item, labelMap) });
   }
 
   async getAll(includeInactive = false): Promise<(ServicePrice & { priceDisplay: string })[]> {
     const items = await this.pricesRepo.find(includeInactive ? {} : { where: { isActive: true } });
-    return items.map((item) => this.withDisplay(item));
+    const labelMap = await this.getUnitLabelMap();
+    return items.map((item) => this.withDisplay(item, labelMap));
   }
 
   async findByName(name: string): Promise<ServicePrice | null> {
@@ -495,7 +535,7 @@ export class PricingService implements OnModuleInit {
     this.pricesRepo.merge(existing, data);
     const saved = await this.pricesRepo.save(existing);
     await this.recordBackup('update', saved.name);
-    return this.withDisplay(saved);
+    return this.withDisplay(saved, await this.getUnitLabelMap());
   }
 
   async bulkUpdateCategory(ids: string[], category: ServiceCategory | null): Promise<(ServicePrice & { priceDisplay: string })[]> {
@@ -504,13 +544,14 @@ export class PricingService implements OnModuleInit {
     await this.pricesRepo.update({ id: In(ids) }, { category });
     const items = await this.pricesRepo.find({ where: { id: In(ids) } });
     await this.recordBackup('bulk-category', `${ids.length} item${ids.length === 1 ? '' : 's'} → ${category ?? 'Uncategorized'}`);
-    return items.map((item) => this.withDisplay(item));
+    const labelMap = await this.getUnitLabelMap();
+    return items.map((item) => this.withDisplay(item, labelMap));
   }
 
   async create(data: Partial<ServicePrice>): Promise<ServicePrice & { priceDisplay: string }> {
     const saved = await this.pricesRepo.save(this.pricesRepo.create(data));
     await this.recordBackup('create', saved.name);
-    return this.withDisplay(saved);
+    return this.withDisplay(saved, await this.getUnitLabelMap());
   }
 
   async remove(id: string): Promise<void> {
@@ -573,5 +614,40 @@ export class PricingService implements OnModuleInit {
       p.isQuotaInspection ? 'true' : 'false',
     ].join(','));
     return [headers.join(','), ...rows].join('\r\n');
+  }
+
+  // --- Admin-manageable Unit Labels (service_unit_labels) ---
+
+  async getUnitLabels(): Promise<ServiceUnitLabel[]> {
+    return this.unitLabelsRepo.find({ order: { label: 'ASC' } });
+  }
+
+  // code is generated once here and is then immutable — see the entity's
+  // comment for why (it's what ServicePrice.quantityLabel actually stores,
+  // so a stable code lets rename update every catalog item's display
+  // instantly without writing to a single ServicePrice row).
+  async createUnitLabel(label: string): Promise<ServiceUnitLabel> {
+    const trimmed = label.trim();
+    let code = trimmed.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'LABEL';
+    let suffix = 1;
+    while (await this.unitLabelsRepo.findOne({ where: { code } })) {
+      suffix += 1;
+      code = `${code.replace(/_\d+$/, '')}_${suffix}`;
+    }
+    return this.unitLabelsRepo.save(this.unitLabelsRepo.create({ code, label: trimmed }));
+  }
+
+  async updateUnitLabel(id: string, label: string): Promise<ServiceUnitLabel> {
+    const existing = await this.unitLabelsRepo.findOneOrFail({ where: { id } });
+    existing.label = label.trim();
+    return this.unitLabelsRepo.save(existing);
+  }
+
+  async removeUnitLabel(id: string): Promise<void> {
+    const existing = await this.unitLabelsRepo.findOneOrFail({ where: { id } });
+    if (existing.isSystem) {
+      throw new BadRequestException(`"${existing.label}" is required by the pricing engine and can't be deleted.`);
+    }
+    await this.unitLabelsRepo.delete(id);
   }
 }

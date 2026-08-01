@@ -34,6 +34,13 @@ export const pricingApi = {
   downloadBackupCsv: (id: string) => api.get(`/pricing/backups/${id}/csv`, { responseType: 'blob' }),
 };
 
+export const unitLabelApi = {
+  getAll: () => api.get('/pricing/unit-labels').then((r) => r.data),
+  create: (label: string) => api.post('/pricing/unit-labels', { label }).then((r) => r.data),
+  update: (id: string, label: string) => api.patch(`/pricing/unit-labels/${id}`, { label }).then((r) => r.data),
+  remove: (id: string) => api.delete(`/pricing/unit-labels/${id}`).then((r) => r.data),
+};
+
 export const subscriptionsApi = {
   getPlans: () => api.get('/subscriptions/plans').then((r) => r.data),
   updatePlan: (id: string, data: any) => api.patch(`/subscriptions/plans/${id}`, data).then((r) => r.data),

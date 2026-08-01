@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { pricingApi, subscriptionsApi, adminApi, templateApi } from '@/lib/api';
+import { pricingApi, subscriptionsApi, adminApi, templateApi, unitLabelApi } from '@/lib/api';
 
 const STRIPE_RATE = 0.029;
 const STRIPE_FIXED = 0.30;
@@ -63,31 +63,26 @@ const PRICING_METHODS: { value: string; label: string }[] = [
   { value: 'REQUEST_QUOTE', label: 'Request Quote' },
 ];
 
-const UNIT_LABELS: { value: string; label: string }[] = [
-  { value: 'HOUR', label: 'Hour' },
-  { value: 'SQ_FT', label: 'SqFt' },
-  { value: 'BULB', label: 'Bulb' },
-  { value: 'SERVICE_TRIP', label: 'Service Trip' },
-  { value: 'AC_UNIT', label: 'AC Unit' },
-  { value: 'HOLE', label: 'Hole' },
-  { value: 'LINEAR_FEET', label: 'Linear Feet' },
-  { value: 'UNIT', label: 'Unit' },
-  { value: 'NONE', label: 'None' },
-];
+// Unit Labels are admin-manageable now (service_unit_labels table) rather
+// than a hardcoded list — fetched into the `unitLabels` component state on
+// load. `code` is what's actually stored in a row's quantityLabel; `label`
+// is the display text shown in dropdowns and this formula narration.
+type UnitLabelRow = { id: string; code: string; label: string; isSystem: boolean };
+const ADD_NEW_UNIT_LABEL = '__add_new_label__';
 
 // Plain-language description of the pricing rule for this row — mirrors the
 // exact same calcTieredCost/calcPricing math as the live Customer Price
 // preview elsewhere on this page (including the Stripe pass-through fee, so
 // the dollar figure quoted here agrees with that column instead of a raw
 // backend-only number), just narrated instead of only computed.
-function formatFormulaReference(state: EditState, globalMarkup: string): string {
+function formatFormulaReference(state: EditState, globalMarkup: string, unitLabels: UnitLabelRow[]): string {
   if (state.pricingMethod === 'REQUEST_QUOTE') {
     return 'Priced case-by-case by an admin — no fixed formula.';
   }
   const effectivePct = state.markupPercent !== ''
     ? (parseFloat(state.markupPercent) || 0)
     : (parseFloat(globalMarkup) || 0);
-  const unitLabel = UNIT_LABELS.find((u) => u.value === state.quantityLabel)?.label || 'unit';
+  const unitLabel = unitLabels.find((u) => u.code === state.quantityLabel)?.label || 'unit';
   const base = parseFloat(state.basePrice) || 0;
 
   if (state.pricingMethod !== 'PER_UNIT') {
@@ -278,6 +273,19 @@ export default function PricingPage() {
   const [newCapabilityName, setNewCapabilityName] = useState('');
   const [newCapabilityCertType, setNewCapabilityCertType] = useState('NONE');
   const [savingCapability, setSavingCapability] = useState(false);
+  // Unit Labels: "Manage Unit Labels" modal, opened either from the column
+  // header icon (manageLabelsTarget stays null — pure management, no
+  // auto-select) or from a row's "+ Add New Label…" option (target is that
+  // row's id, or 'new' for the add-row form, so a freshly-created label
+  // auto-selects there and the modal closes).
+  const [unitLabels, setUnitLabels] = useState<UnitLabelRow[]>([]);
+  const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
+  const [manageLabelsTarget, setManageLabelsTarget] = useState<string | null>(null);
+  const [newLabelText, setNewLabelText] = useState('');
+  const [savingLabel, setSavingLabel] = useState(false);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelText, setEditingLabelText] = useState('');
+  const [editingLabelError, setEditingLabelError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [globalMarkup, setGlobalMarkup] = useState('15');
   const [editStates, setEditStates] = useState<Record<string, EditState>>({});
@@ -329,11 +337,12 @@ export default function PricingPage() {
   };
 
   useEffect(() => {
-    Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities()])
-      .then(([p, s, caps]) => {
+    Promise.all([pricingApi.getAll(), subscriptionsApi.getPlans(), adminApi.getCapabilities(), unitLabelApi.getAll()])
+      .then(([p, s, caps, labels]) => {
         setPrices(p);
         setPlans(s);
         setCapabilities(caps);
+        setUnitLabels(labels);
         const states: Record<string, EditState> = {};
         for (const price of p) states[price.id] = rowToEdit(price);
         setEditStates(states);
@@ -621,6 +630,85 @@ export default function PricingPage() {
       setNewCapabilityTarget(null);
     } finally {
       setSavingCapability(false);
+    }
+  };
+
+  // Shared by both quantityLabel <select>s, same pattern as selectCapability
+  // above — opens the Manage Unit Labels modal instead of assigning the
+  // sentinel value when "+ Add New Label…" is picked.
+  const selectUnitLabel = (target: string, value: string) => {
+    if (value === ADD_NEW_UNIT_LABEL) {
+      openManageLabels(target);
+      return;
+    }
+    if (target === 'new') {
+      setNewRow((p) => ({ ...p, quantityLabel: value }));
+    } else {
+      updateField(target, 'quantityLabel', value);
+    }
+  };
+
+  const openManageLabels = (target: string | null) => {
+    setManageLabelsTarget(target);
+    setManageLabelsOpen(true);
+    setNewLabelText('');
+    setEditingLabelId(null);
+    setEditingLabelError(null);
+  };
+
+  const submitNewLabel = async () => {
+    if (!newLabelText.trim()) return;
+    setSavingLabel(true);
+    try {
+      const created = await unitLabelApi.create(newLabelText.trim());
+      setUnitLabels((prev) => [...prev, created].sort((a, b) => a.label.localeCompare(b.label)));
+      if (manageLabelsTarget !== null) {
+        selectUnitLabel(manageLabelsTarget, created.code);
+        setManageLabelsOpen(false);
+      }
+      setNewLabelText('');
+    } finally {
+      setSavingLabel(false);
+    }
+  };
+
+  const startEditLabel = (label: UnitLabelRow) => {
+    setEditingLabelId(label.id);
+    setEditingLabelText(label.label);
+    setEditingLabelError(null);
+  };
+
+  const cancelEditLabel = () => {
+    setEditingLabelId(null);
+    setEditingLabelText('');
+    setEditingLabelError(null);
+  };
+
+  // Save with empty text is a delete — the user's own framing for this
+  // feature ("if the label text is deleted and then saved, that is a
+  // delete action"). isSystem labels (Hour/None) block delete but not
+  // rename, both here and re-enforced server-side.
+  const saveEditLabel = async (label: UnitLabelRow) => {
+    const trimmed = editingLabelText.trim();
+    setEditingLabelError(null);
+    try {
+      if (trimmed === '') {
+        if (label.isSystem) {
+          setEditingLabelError("Hour and None are required by the pricing engine and can't be deleted.");
+          return;
+        }
+        if (!window.confirm(`Delete the "${label.label}" unit label? Any service still using it will show its raw code instead.`)) return;
+        await unitLabelApi.remove(label.id);
+        setUnitLabels((prev) => prev.filter((u) => u.id !== label.id));
+        cancelEditLabel();
+        return;
+      }
+      if (trimmed === label.label) { cancelEditLabel(); return; }
+      const updated = await unitLabelApi.update(label.id, trimmed);
+      setUnitLabels((prev) => prev.map((u) => (u.id === label.id ? updated : u)).sort((a, b) => a.label.localeCompare(b.label)));
+      cancelEditLabel();
+    } catch (e: any) {
+      setEditingLabelError(e.message || 'Something went wrong — try again.');
     }
   };
 
@@ -1090,7 +1178,19 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-left font-semibold text-steel w-40">Required Capability</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">Category</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[220px]">Type of Service</th>
-                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">Unit Label</th>
+                <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">
+                  <div className="flex items-center gap-1.5">
+                    <span>Unit Label</span>
+                    <button
+                      type="button"
+                      onClick={() => openManageLabels(null)}
+                      className="text-steel hover:text-lantern-deep"
+                      title="Manage Unit Labels — rename or delete"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                </th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24">Min. Qty</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Provider Price</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — units covered by Provider Price before per-unit tiering starts">Includes Up To</th>
@@ -1302,12 +1402,16 @@ export default function PricingPage() {
                     <td className="px-4 py-3">
                       <select
                         value={state.quantityLabel || 'NONE'}
-                        onChange={(e) => updateField(price.id, 'quantityLabel', e.target.value)}
+                        onChange={(e) => selectUnitLabel(price.id, e.target.value)}
                         className="w-full border border-border rounded-lg px-2 py-1.5 text-sm text-steel focus:border-lantern outline-none"
                       >
-                        {UNIT_LABELS.map((u) => (
-                          <option key={u.value} value={u.value}>{u.label}</option>
+                        {unitLabels.map((u) => (
+                          <option key={u.id} value={u.code}>{u.label}</option>
                         ))}
+                        {state.quantityLabel && !unitLabels.some((u) => u.code === state.quantityLabel) && (
+                          <option value={state.quantityLabel}>{state.quantityLabel} (unknown)</option>
+                        )}
+                        <option value={ADD_NEW_UNIT_LABEL}>+ Add New Label…</option>
                       </select>
                     </td>
                     {/* Minimum Quantity */}
@@ -1418,7 +1522,7 @@ export default function PricingPage() {
                     </td>
                     {/* Formula Reference — auto-generated, read-only, never saved */}
                     <td className="px-4 py-3 text-xs text-steel min-w-[240px]">
-                      {formatFormulaReference(state, globalMarkup)}
+                      {formatFormulaReference(state, globalMarkup, unitLabels)}
                     </td>
                     {/* Stripe Fee — informational only, already included in Customer Price */}
                     <td className="px-4 py-3 text-right">
@@ -1577,12 +1681,13 @@ export default function PricingPage() {
                   <td className="px-4 py-3">
                     <select
                       value={newRow.quantityLabel || 'NONE'}
-                      onChange={(e) => setNewRow((p) => ({ ...p, quantityLabel: e.target.value }))}
+                      onChange={(e) => selectUnitLabel('new', e.target.value)}
                       className="w-full border border-lantern rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
                     >
-                      {UNIT_LABELS.map((u) => (
-                        <option key={u.value} value={u.value}>{u.label}</option>
+                      {unitLabels.map((u) => (
+                        <option key={u.id} value={u.code}>{u.label}</option>
                       ))}
+                      <option value={ADD_NEW_UNIT_LABEL}>+ Add New Label…</option>
                     </select>
                   </td>
                   <td className="px-4 py-3">
@@ -1716,7 +1821,7 @@ export default function PricingPage() {
         {/* CSV format hint */}
         <div className="p-4 border-t border-mist-dim">
           <p className="text-xs text-steel">
-            <strong>CSV format:</strong> name, description, pricingMethod (FLAT_PRICE/PER_UNIT/ONE_TIME_FEE/REQUEST_QUOTE), requiresQuote (true/false), basePrice, markupPercent, quantityLabel (HOUR/SQ_FT/BULB/SERVICE_TRIP/AC_UNIT/HOLE/LINEAR_FEET/UNIT/NONE — the Unit Label), minimumQuantity, includeQty, baseRateUnit, volumeDiscountThreshold, volumeDiscountRate, isActive (true/false), customerRequestable (true/false), category (INTERIOR_REPAIRS_MAINTENANCE/MINOR_ELECTRICAL_ADJUSTMENTS/MINOR_PLUMBING_FIXES/MOUNTING_INSTALLATIONS/CARPENTRY_ASSEMBLY/EXTERIOR_OUTDOOR_SERVICES, or blank), Type of Service (one or more of INSPECT/REPAIR/IMPROVE/MAINTAIN/INSTALL, comma- or semicolon-separated in one cell e.g. &quot;INSPECT,REPAIR&quot; — a separate, multi-valued tag from category, or blank) — existing rows matched by name, new names are created. includeQty/baseRateUnit/volumeDiscountThreshold/volumeDiscountRate only apply to Per Unit services (blank = flat qty × basePrice, matching pre-tiered behavior). Required Capability isn&apos;t part of CSV — set it per-row in the table above.
+            <strong>CSV format:</strong> name, description, pricingMethod (FLAT_PRICE/PER_UNIT/ONE_TIME_FEE/REQUEST_QUOTE), requiresQuote (true/false), basePrice, markupPercent, quantityLabel (a Unit Label code — see the Unit Label column's dropdown for current values), minimumQuantity, includeQty, baseRateUnit, volumeDiscountThreshold, volumeDiscountRate, isActive (true/false), customerRequestable (true/false), category (INTERIOR_REPAIRS_MAINTENANCE/MINOR_ELECTRICAL_ADJUSTMENTS/MINOR_PLUMBING_FIXES/MOUNTING_INSTALLATIONS/CARPENTRY_ASSEMBLY/EXTERIOR_OUTDOOR_SERVICES, or blank), Type of Service (one or more of INSPECT/REPAIR/IMPROVE/MAINTAIN/INSTALL, comma- or semicolon-separated in one cell e.g. &quot;INSPECT,REPAIR&quot; — a separate, multi-valued tag from category, or blank) — existing rows matched by name, new names are created. includeQty/baseRateUnit/volumeDiscountThreshold/volumeDiscountRate only apply to Per Unit services (blank = flat qty × basePrice, matching pre-tiered behavior). Required Capability isn&apos;t part of CSV — set it per-row in the table above.
           </p>
         </div>
       </div>
@@ -1773,6 +1878,98 @@ export default function PricingPage() {
                 className="text-steel hover:text-ink px-4 py-2.5"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* "Manage Unit Labels" modal — opened from the column header's pencil
+          icon (manageLabelsTarget null) or a row's "+ Add New Label…" option
+          (target is that row's id / 'new', auto-selected on add). Every
+          label gets its own pencil to rename inline; clearing the text and
+          saving deletes it (blocked for Hour/None, the two codes
+          service-price.entity.ts's lifecycle hooks depend on). */}
+      {manageLabelsOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setManageLabelsOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-lantern-deep">Manage Unit Labels</h2>
+            <p className="text-sm text-steel">
+              Rename a label to update it everywhere it&apos;s used, or clear its text and save to delete it.
+            </p>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {unitLabels.map((label) => (
+                <div key={label.id} className="flex items-center gap-2">
+                  {editingLabelId === label.id ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={editingLabelText}
+                        onChange={(e) => setEditingLabelText(e.target.value)}
+                        className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
+                      />
+                      <button
+                        onClick={() => saveEditLabel(label)}
+                        className="text-xs font-semibold text-lantern-deep hover:underline px-1"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditLabel}
+                        className="text-steel hover:text-ink px-1"
+                        title="Cancel"
+                      >
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm text-ink">
+                        {label.label}
+                        {label.isSystem && <span className="text-xs text-steel ml-1">(required)</span>}
+                      </span>
+                      <button
+                        onClick={() => startEditLabel(label)}
+                        className="text-steel hover:text-lantern-deep px-1"
+                        title="Rename or delete"
+                      >
+                        ✎
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            {editingLabelError && (
+              <p className="text-xs text-red-600">{editingLabelError}</p>
+            )}
+            <div className="flex items-center gap-2 pt-2 border-t border-mist-dim">
+              <input
+                value={newLabelText}
+                onChange={(e) => setNewLabelText(e.target.value)}
+                placeholder="e.g. Square Yards"
+                className="flex-1 border border-border rounded-lg px-2 py-1.5 text-sm focus:border-lantern outline-none"
+              />
+              <button
+                onClick={submitNewLabel}
+                disabled={savingLabel || !newLabelText.trim()}
+                className="bg-lantern text-ink px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+              >
+                {savingLabel ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setManageLabelsOpen(false)}
+                className="text-steel hover:text-ink px-4 py-2 text-sm"
+              >
+                Done
               </button>
             </div>
           </div>

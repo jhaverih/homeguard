@@ -4,11 +4,12 @@ import { PricingService } from './pricing.service';
 import { PricingController } from './pricing.controller';
 import { ServicePrice } from './entities/service-price.entity';
 import { PricingCatalogBackup } from './entities/pricing-catalog-backup.entity';
+import { ServiceUnitLabel } from './entities/service-unit-label.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { ServiceAreaModule } from '../service-area/service-area.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ServicePrice, PricingCatalogBackup, VendorCapability]), ServiceAreaModule],
+  imports: [TypeOrmModule.forFeature([ServicePrice, PricingCatalogBackup, ServiceUnitLabel, VendorCapability]), ServiceAreaModule],
   providers: [PricingService],
   controllers: [PricingController],
   exports: [PricingService],

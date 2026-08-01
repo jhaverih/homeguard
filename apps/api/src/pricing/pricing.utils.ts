@@ -1,6 +1,5 @@
 import { ServicePrice } from './entities/service-price.entity';
 import { PricingMethod, PRICING_METHOD_META } from '../common/enums/pricing-method.enum';
-import { UnitLabel, UNIT_LABEL_META } from '../common/enums/unit-label.enum';
 
 // Tiered volume-discount cost for a PER_UNIT service at a given quantity:
 // basePrice ("Subcontractor Minimum Payout") covers up to includeQty units;
@@ -23,13 +22,16 @@ export function calcTieredCost(sp: ServicePrice, qty: number): number {
 
 // Derives the customer-facing price string (e.g. "$70 (includes up to 1
 // Hour)") from the structured pricingMethod + basePrice + tiered fields,
-// replacing the old admin-typed free-text priceNote field.
-export function formatPriceDisplay(item: ServicePrice): string {
+// replacing the old admin-typed free-text priceNote field. labelMap is the
+// live code->label lookup from the admin-manageable service_unit_labels
+// table (see PricingService.withDisplay) — falls back to showing the raw
+// code if a label was since deleted, rather than rendering blank.
+export function formatPriceDisplay(item: ServicePrice, labelMap: Record<string, string>): string {
   if (item.requiresQuote) return 'Request a Quote';
   const amount = Number(item.basePrice);
   const formatted = Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2);
-  if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== UnitLabel.NONE) {
-    const unitLabel = UNIT_LABEL_META[item.quantityLabel as UnitLabel]?.label ?? '';
+  if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== 'NONE') {
+    const unitLabel = labelMap[item.quantityLabel] ?? item.quantityLabel;
     if (item.includeQty != null) {
       const include = Number(item.includeQty);
       const plural = include !== 1 ? 's' : '';
@@ -44,15 +46,15 @@ export function formatPriceDisplay(item: ServicePrice): string {
 // Customer-facing equivalent of formatPriceDisplay() — same shape/wording,
 // but built from the markup-adjusted price (same formula as the real
 // charge in service-requests.service.ts), never the raw vendor basePrice.
-export function formatCustomerPriceDisplay(item: ServicePrice): string {
+export function formatCustomerPriceDisplay(item: ServicePrice, labelMap: Record<string, string>): string {
   if (item.requiresQuote) return 'Request a Quote';
   const qty = item.pricingMethod === PricingMethod.PER_UNIT && item.includeQty != null ? Number(item.includeQty) : 1;
   const cost = calcTieredCost(item, qty);
   const markup = item.markupPercent != null ? Number(item.markupPercent) : 15;
   const amount = cost * (1 + markup / 100);
   const formatted = Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2);
-  if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== UnitLabel.NONE) {
-    const unitLabel = UNIT_LABEL_META[item.quantityLabel as UnitLabel]?.label ?? '';
+  if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== 'NONE') {
+    const unitLabel = labelMap[item.quantityLabel] ?? item.quantityLabel;
     if (item.includeQty != null) {
       const include = Number(item.includeQty);
       const plural = include !== 1 ? 's' : '';

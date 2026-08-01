@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-01 (2)
+
+### Added
+- **api/admin**: Unit Labels (Hour, SqFt, Bulb, etc. — the "per ___" text on Per Unit catalog items) are now admin-manageable instead of a hardcoded list. A new `service_unit_labels` table replaces the old `UnitLabel` enum; admins can add a new label from any row's Unit Label dropdown ("+ Add New Label…"), and rename or delete any label (Hour/None excepted — required by the pricing engine's own logic) via a new "Manage Unit Labels" modal, opened from a pencil icon next to the column header. Renaming updates every catalog item using that label instantly (including its live `priceDisplay`/`customerPriceDisplay` strings) since the stored value is a stable internal code, never the display text.
+
 ## 2026-08-01
 
 ### Added

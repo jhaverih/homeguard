@@ -3,7 +3,6 @@ import {
   BeforeInsert, BeforeUpdate,
 } from 'typeorm';
 import { PricingMethod } from '../../common/enums/pricing-method.enum';
-import { UnitLabel } from '../../common/enums/unit-label.enum';
 import { ServiceCategory } from '../../common/enums/service-category.enum';
 import { ServiceGroup } from '../../common/enums/service-group.enum';
 
@@ -120,7 +119,7 @@ export class ServicePrice {
   @BeforeUpdate()
   syncUnitLabel() {
     if (this.pricingMethod === PricingMethod.FLAT_PRICE || this.pricingMethod === PricingMethod.ONE_TIME_FEE) {
-      this.quantityLabel = UnitLabel.NONE;
+      this.quantityLabel = 'NONE';
     }
   }
 
@@ -135,7 +134,7 @@ export class ServicePrice {
   syncBaseRateUnit() {
     if (this.pricingMethod === PricingMethod.FLAT_PRICE) {
       this.baseRateUnit = null;
-    } else if (this.pricingMethod === PricingMethod.PER_UNIT && this.quantityLabel === UnitLabel.HOUR) {
+    } else if (this.pricingMethod === PricingMethod.PER_UNIT && this.quantityLabel === 'HOUR') {
       const include = this.includeQty != null ? Number(this.includeQty) : 1;
       this.baseRateUnit = include !== 0 ? Number(this.basePrice) / include : null;
     }
