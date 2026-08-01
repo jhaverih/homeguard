@@ -97,6 +97,27 @@ export class ServiceRequestsController {
     return this.service.acceptGroup(bookingGroupId, req.user.id, body.scheduledDate, body.notes);
   }
 
+  @Post('bundle/accept')
+  @ApiOperation({ summary: 'Vendor: accept an ad-hoc set of PENDING requests from one homeowner as a single bundled visit' })
+  acceptBundle(@Request() req, @Body() body: { requestIds: string[]; scheduledDate: string; notes?: string }) {
+    return this.service.acceptAsBundle(body.requestIds, req.user.id, body.scheduledDate, body.notes);
+  }
+
+  @Patch('bundle/:bookingGroupId/status')
+  @ApiOperation({ summary: 'Vendor: advance every member of a bundled visit to VENDOR_EN_ROUTE or IN_PROGRESS at once' })
+  updateBundleStatus(@Request() req, @Param('bookingGroupId') bookingGroupId: string, @Body() body: { status: ServiceRequestStatus }) {
+    return this.service.updateBundleStatus(bookingGroupId, req.user.id, body.status);
+  }
+
+  @Post('bundle/complete')
+  @ApiOperation({ summary: 'Vendor: close multiple already-prepped bundle services and charge them in one Stripe PaymentIntent' })
+  completeBundle(
+    @Request() req,
+    @Body() body: { items: { serviceRequestId: string; completionPhotoKeys: string[]; finalQuantities?: Record<string, number> }[] },
+  ) {
+    return this.service.completeBundle(req.user.id, body.items);
+  }
+
   @Patch(':id/status')
   @ApiOperation({ summary: 'Vendor: update request status (en-route, in-progress, completed)' })
   updateStatus(

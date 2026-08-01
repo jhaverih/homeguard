@@ -13,6 +13,7 @@ import { requestsApi, inspectionsApi, pricingApi, uploadsApi, yolinkApi } from '
 import { enqueueTaskResult, flushQueue } from '../../src/services/taskQueue';
 import { fmtUSD } from '../../src/utils/currency';
 import { colors } from '../../src/theme';
+import { PhotoStrip } from '../../src/components/vendor/PhotoStrip';
 
 const NEXT_STATUS: Record<string, { label: string; next: string; color: string }> = {
   ACCEPTED: { label: "I'm On My Way", next: 'VENDOR_EN_ROUTE', color: '#9f7aea' },
@@ -62,40 +63,6 @@ const TASK_STATUS_OPTIONS = [
   { key: 'URGENT', label: 'Urgent', color: '#dc2626', bg: '#fff5f5', border: '#fca5a5' },
   { key: 'NOT_ACCESSIBLE', label: 'Not Accessible', color: '#6b7280', bg: '#f9fafb', border: '#d1d5db' },
 ];
-
-function PhotoStrip({
-  photos, onAdd, onRemove, maxPhotos = 5, uploading, readOnly = false,
-}: {
-  photos: { uri: string; key?: string }[];
-  onAdd: () => void;
-  onRemove: (idx: number) => void;
-  maxPhotos?: number;
-  uploading: boolean;
-  readOnly?: boolean;
-}) {
-  return (
-    <View style={ps.row}>
-      {photos.map((p, i) => (
-        <View key={i} style={ps.thumb}>
-          <Image source={{ uri: p.uri }} style={ps.img} />
-          {!readOnly && (
-            <TouchableOpacity style={ps.removeBtn} onPress={() => onRemove(i)}>
-              <Ionicons name="close-circle" size={18} color="#fff" />
-            </TouchableOpacity>
-          )}
-          {!p.key && <ActivityIndicator style={ps.spinner} size="small" color="#fff" />}
-        </View>
-      ))}
-      {!readOnly && photos.length < maxPhotos && (
-        <TouchableOpacity style={ps.addBtn} onPress={onAdd} disabled={uploading}>
-          {uploading
-            ? <ActivityIndicator size="small" color={colors.lanternDeep} />
-            : <><Ionicons name="camera" size={22} color={colors.lanternDeep} /><Text style={ps.addText}>Photo</Text></>}
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
 
 function DateTimeField({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
   const [showDate, setShowDate] = useState(false);
@@ -1715,16 +1682,6 @@ export default function ActiveJobScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const ps = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  thumb: { width: 76, height: 76, borderRadius: 10, overflow: 'hidden', position: 'relative' },
-  img: { width: '100%', height: '100%' },
-  removeBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 10 },
-  spinner: { position: 'absolute', bottom: 4, left: 4 },
-  addBtn: { width: 76, height: 76, borderRadius: 10, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0fdf4' },
-  addText: { fontSize: 11, color: colors.lanternDeep, marginTop: 2, fontWeight: '600' },
-});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.canvas },

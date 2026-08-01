@@ -94,14 +94,24 @@ export default function OpenRequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stripeReady, setStripeReady] = useState(true);
-  const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string; bookingGroupId: string | null; preferredDate: Date | null }>({ visible: false, requestId: '', bookingGroupId: null, preferredDate: null });
+  const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string; bookingGroupId: string | null; requestIds: string[] | null; preferredDate: Date | null }>({ visible: false, requestId: '', bookingGroupId: null, requestIds: null, preferredDate: null });
   const [vendorNotes, setVendorNotes] = useState('');
+
+  // Ad-hoc multi-select: lets a vendor pick several separate tickets from
+  // ONE homeowner (regardless of whether they already share a bookingGroupId
+  // from the customer's own submission) and accept them together as one
+  // bundled visit — see acceptSelected() below. Mirrors the Set<string>
+  // checkbox pattern already used in app/(vendor)/capabilities.tsx.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const requests = view === 'open' ? openRequests : rejectedRequests;
 
   // Groups requests that came from the same multi-service customer
   // submission (shared bookingGroupId) so they can be claimed together —
   // ungrouped requests (bookingGroupId null) each stay their own group of 1.
+  // Secondarily ordered by customerId so one homeowner's cards sit together,
+  // making it easy to spot every open ticket for one house.
   const grouped = (() => {
     const order: string[] = [];
     const map = new Map<string, any[]>();
@@ -110,8 +120,42 @@ export default function OpenRequestsScreen() {
       if (!map.has(key)) { map.set(key, []); order.push(key); }
       map.get(key)!.push(req);
     }
-    return order.map((key) => ({ key, bookingGroupId: map.get(key)![0].bookingGroupId || null, items: map.get(key)! }));
+    const groups = order.map((key) => ({ key, bookingGroupId: map.get(key)![0].bookingGroupId || null, items: map.get(key)! }));
+    return groups.sort((a, b) => (a.items[0].customerId || '').localeCompare(b.items[0].customerId || ''));
   })();
+
+  const customerName = (req: any) =>
+    req.customer?.customerProfile?.fullName || req.customer?.name || 'Customer';
+
+  // The homeowner of the first selected card — once set, cards from a
+  // different homeowner are disabled in the UI (the backend enforces this
+  // too, but disabling client-side avoids a doomed submission).
+  const selectedCustomerId = (() => {
+    for (const req of requests) if (selectedIds.has(req.id)) return req.customerId;
+    return null;
+  })();
+
+  const toggleSelected = (req: any) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(req.id)) { next.delete(req.id); return next; }
+      if (selectedCustomerId && req.customerId !== selectedCustomerId) return prev; // different homeowner — ignore
+      next.add(req.id);
+      return next;
+    });
+  };
+
+  const acceptSelected = () => {
+    if (selectedIds.size < 2) return;
+    const ids = [...selectedIds];
+    const members = requests.filter((r) => ids.includes(r.id));
+    const preferred = members[0]?.preferredDate ? new Date(members[0].preferredDate) : null;
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() + 1);
+    fallback.setHours(9, 0, 0, 0);
+    setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
+    setAcceptModal({ visible: true, requestId: '', bookingGroupId: null, requestIds: ids, preferredDate: preferred });
+  };
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -165,7 +209,9 @@ export default function OpenRequestsScreen() {
 
   const acceptJob = async () => {
     try {
-      if (acceptModal.bookingGroupId) {
+      if (acceptModal.requestIds) {
+        await requestsApi.acceptBundle(acceptModal.requestIds, scheduledDate.toISOString(), vendorNotes.trim() || undefined);
+      } else if (acceptModal.bookingGroupId) {
         await requestsApi.acceptGroup(acceptModal.bookingGroupId, scheduledDate.toISOString(), vendorNotes.trim() || undefined);
       } else {
         await requestsApi.accept(acceptModal.requestId, scheduledDate.toISOString(), vendorNotes.trim() || undefined);
@@ -173,8 +219,10 @@ export default function OpenRequestsScreen() {
       const preferred = acceptModal.preferredDate;
       const diffMs = preferred ? Math.abs(scheduledDate.getTime() - preferred.getTime()) : Infinity;
       const sameTime = diffMs < 5 * 60 * 1000;
-      setAcceptModal({ visible: false, requestId: '', bookingGroupId: null, preferredDate: null });
+      setAcceptModal({ visible: false, requestId: '', bookingGroupId: null, requestIds: null, preferredDate: null });
       setVendorNotes('');
+      setSelectMode(false);
+      setSelectedIds(new Set());
       Alert.alert(
         sameTime ? 'Job Confirmed!' : 'Time Proposed!',
         sameTime
@@ -215,12 +263,27 @@ export default function OpenRequestsScreen() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
-      <Text style={styles.pageTitle}>Open Requests</Text>
-      <Text style={styles.subtitle}>Accept a request to get started. First to accept wins the job.</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 16 }}>
+        <Text style={[styles.pageTitle, { margin: 0 }]}>Open Requests</Text>
+        {view === 'open' && requests.length > 1 && (
+          <TouchableOpacity
+            onPress={() => { setSelectMode((v) => !v); setSelectedIds(new Set()); }}
+            style={styles.selectToggle}
+          >
+            <Text style={styles.selectToggleText}>{selectMode ? 'Cancel' : 'Select'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      <Text style={styles.subtitle}>
+        {selectMode
+          ? 'Pick several tickets from the same homeowner to accept as one bundled visit.'
+          : 'Accept a request to get started. First to accept wins the job.'}
+      </Text>
 
       <View style={styles.filterRow}>
         <TouchableOpacity
@@ -253,16 +316,31 @@ export default function OpenRequestsScreen() {
         grouped.map((group) => {
           if (group.items.length === 1) {
             const req = group.items[0];
+            const disabled = selectMode && selectedCustomerId != null && req.customerId !== selectedCustomerId;
+            const selected = selectedIds.has(req.id);
             return (
-              <View key={req.id} style={styles.card}>
+              <TouchableOpacity
+                key={req.id}
+                activeOpacity={selectMode ? 0.7 : 1}
+                disabled={!selectMode || disabled}
+                onPress={() => toggleSelected(req)}
+                style={[styles.card, selected && styles.cardSelected, disabled && styles.cardDisabled]}
+              >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }, req.type === 'ADDITIONAL_SERVICE' ? { backgroundColor: '#f0effe' } : { backgroundColor: colors.mist }]}>
                     <Text style={[{ fontSize: 11, fontWeight: '700' }, req.type === 'ADDITIONAL_SERVICE' ? { color: '#635bff' } : { color: colors.lanternDeep }]}>
                       {req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection'}
                     </Text>
                   </View>
-                  {req.ticketNumber && <Text style={{ fontSize: 11, color: colors.steel }}>{req.ticketNumber}</Text>}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {req.ticketNumber && <Text style={{ fontSize: 11, color: colors.steel }}>{req.ticketNumber}</Text>}
+                    {selectMode && (
+                      <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={20} color={disabled ? colors.border : colors.lanternDeep} />
+                    )}
+                  </View>
                 </View>
+
+                <Text style={styles.cardHomeowner}>{customerName(req)}</Text>
 
                 {/* Service details for service requests */}
                 {req.type === 'ADDITIONAL_SERVICE' && req.additionalServices?.length > 0 && (
@@ -284,33 +362,35 @@ export default function OpenRequestsScreen() {
                 )}
 
                 <Text style={styles.cardDate}>Preferred: {new Date(req.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
-                <Text style={styles.cardAddress}>{req.city}, {req.state} {req.zipCode}</Text>
+                <Text style={styles.cardAddress}>{req.address}, {req.city}, {req.state} {req.zipCode}</Text>
                 {req.customerNotes && <Text style={styles.cardNotes}>"{req.customerNotes}"</Text>}
                 <Text style={styles.cardPosted}>Posted: {new Date(req.createdAt).toLocaleDateString()}</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {view === 'open' && (
+                {!selectMode && (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {view === 'open' && (
+                      <TouchableOpacity
+                        style={styles.rejectBtn}
+                        onPress={() => rejectJob(req.id)}
+                      >
+                        <Text style={styles.rejectBtnText}>Reject</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
-                      style={styles.rejectBtn}
-                      onPress={() => rejectJob(req.id)}
+                      style={[styles.acceptBtn, { flex: 1 }]}
+                      onPress={() => {
+                        const preferred = req.preferredDate ? new Date(req.preferredDate) : null;
+                        const fallback = new Date();
+                        fallback.setDate(fallback.getDate() + 1);
+                        fallback.setHours(9, 0, 0, 0);
+                        setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
+                        setAcceptModal({ visible: true, requestId: req.id, bookingGroupId: null, requestIds: null, preferredDate: preferred });
+                      }}
                     >
-                      <Text style={styles.rejectBtnText}>Reject</Text>
+                      <Text style={styles.acceptBtnText}>Accept This Job</Text>
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.acceptBtn, { flex: 1 }]}
-                    onPress={() => {
-                      const preferred = req.preferredDate ? new Date(req.preferredDate) : null;
-                      const fallback = new Date();
-                      fallback.setDate(fallback.getDate() + 1);
-                      fallback.setHours(9, 0, 0, 0);
-                      setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
-                      setAcceptModal({ visible: true, requestId: req.id, bookingGroupId: null, preferredDate: preferred });
-                    }}
-                  >
-                    <Text style={styles.acceptBtnText}>Accept This Job</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                  </View>
+                )}
+              </TouchableOpacity>
             );
           }
 
@@ -322,6 +402,7 @@ export default function OpenRequestsScreen() {
               <View style={styles.bundleBadge}>
                 <Text style={styles.bundleBadgeText}>🧰 {group.items.length} services — one visit</Text>
               </View>
+              <Text style={styles.cardHomeowner}>{customerName(first)}</Text>
               <View style={styles.serviceDetailBox}>
                 {group.items.map((req: any) => (
                   req.additionalServices?.map((svc: any) => (
@@ -333,24 +414,35 @@ export default function OpenRequestsScreen() {
                 ))}
               </View>
               <Text style={styles.cardDate}>Preferred: {new Date(first.preferredDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</Text>
-              <Text style={styles.cardAddress}>{first.city}, {first.state} {first.zipCode}</Text>
+              <Text style={styles.cardAddress}>{first.address}, {first.city}, {first.state} {first.zipCode}</Text>
               <Text style={styles.cardPosted}>Posted: {new Date(first.createdAt).toLocaleDateString()}</Text>
-              <TouchableOpacity
-                style={styles.acceptBtn}
-                onPress={() => {
-                  const preferred = first.preferredDate ? new Date(first.preferredDate) : null;
-                  const fallback = new Date();
-                  fallback.setDate(fallback.getDate() + 1);
-                  fallback.setHours(9, 0, 0, 0);
-                  setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
-                  setAcceptModal({ visible: true, requestId: '', bookingGroupId: group.bookingGroupId, preferredDate: preferred });
-                }}
-              >
-                <Text style={styles.acceptBtnText}>Accept All ({group.items.length})</Text>
-              </TouchableOpacity>
+              {!selectMode && (
+                <TouchableOpacity
+                  style={styles.acceptBtn}
+                  onPress={() => {
+                    const preferred = first.preferredDate ? new Date(first.preferredDate) : null;
+                    const fallback = new Date();
+                    fallback.setDate(fallback.getDate() + 1);
+                    fallback.setHours(9, 0, 0, 0);
+                    setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
+                    setAcceptModal({ visible: true, requestId: '', bookingGroupId: group.bookingGroupId, requestIds: null, preferredDate: preferred });
+                  }}
+                >
+                  <Text style={styles.acceptBtnText}>Accept All ({group.items.length})</Text>
+                </TouchableOpacity>
+              )}
             </View>
           );
         })
+      )}
+    </ScrollView>
+
+      {selectMode && selectedIds.size >= 2 && (
+        <View style={styles.selectBar}>
+          <TouchableOpacity style={styles.selectBarBtn} onPress={acceptSelected}>
+            <Text style={styles.selectBarBtnText}>Accept Selected as One Visit ({selectedIds.size})</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <Modal visible={acceptModal.visible} transparent animationType="slide">
@@ -377,13 +469,13 @@ export default function OpenRequestsScreen() {
             <TouchableOpacity style={styles.confirmBtn} onPress={acceptJob}>
               <Text style={styles.confirmText}>Confirm & Accept</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setAcceptModal({ visible: false, requestId: '', bookingGroupId: null, preferredDate: null }); setVendorNotes(''); }} style={styles.cancelBtn}>
+            <TouchableOpacity onPress={() => { setAcceptModal({ visible: false, requestId: '', bookingGroupId: null, requestIds: null, preferredDate: null }); setVendorNotes(''); }} style={styles.cancelBtn}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -415,6 +507,14 @@ const styles = StyleSheet.create({
   bundleCard: { borderWidth: 1, borderColor: colors.lanternDeep },
   bundleBadge: { alignSelf: 'flex-start', backgroundColor: colors.ink, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
   bundleBadgeText: { color: colors.mist, fontSize: 12, fontWeight: '700' },
+  cardHomeowner: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 4 },
+  cardSelected: { borderWidth: 2, borderColor: colors.lanternDeep, backgroundColor: '#f0fdf4' },
+  cardDisabled: { opacity: 0.4 },
+  selectToggle: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, backgroundColor: colors.mist },
+  selectToggleText: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep },
+  selectBar: { position: 'absolute', left: 16, right: 16, bottom: 16 },
+  selectBarBtn: { backgroundColor: colors.lanternDeep, borderRadius: 12, padding: 16, alignItems: 'center', elevation: 4, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  selectBarBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: colors.mist },
   filterChipActive: { backgroundColor: colors.lantern },

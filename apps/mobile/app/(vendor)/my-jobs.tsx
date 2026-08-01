@@ -78,6 +78,22 @@ export default function MyJobsScreen() {
 
   const filtered = jobs.filter((j) => matchesFilter(j, filter));
 
+  // Groups jobs sharing a bookingGroupId — set either by the customer's own
+  // multi-select submission, or by the vendor's own "Accept Selected as One
+  // Visit" bundle-accept — into one card, same grouping requests.tsx already
+  // does for still-open tickets. Ungrouped jobs (bookingGroupId null) each
+  // stay their own group of 1, rendering exactly as before.
+  const grouped = (() => {
+    const order: string[] = [];
+    const map = new Map<string, any[]>();
+    for (const job of filtered) {
+      const key = job.bookingGroupId || job.id;
+      if (!map.has(key)) { map.set(key, []); order.push(key); }
+      map.get(key)!.push(job);
+    }
+    return order.map((key) => ({ key, bookingGroupId: map.get(key)![0].bookingGroupId || null, items: map.get(key)! }));
+  })();
+
   return (
     <ScrollView
       style={styles.container}
@@ -110,53 +126,95 @@ export default function MyJobsScreen() {
           </Text>
         </View>
       ) : (
-        filtered.map((job: any) => {
-          const customerName = job.customer?.customerProfile?.fullName
-            || job.customer?.name
-            || 'Customer';
-          const typeLabel = TYPE_LABEL[job.type] ?? job.type;
-          const serviceName = job.type === 'ADDITIONAL_SERVICE'
-            ? (job.additionalServices?.[0]?.name || 'Service Request')
-            : 'Home Inspection';
+        grouped.map((group) => {
+          if (group.items.length === 1) {
+            const job = group.items[0];
+            const customerName = job.customer?.customerProfile?.fullName
+              || job.customer?.name
+              || 'Customer';
+            const typeLabel = TYPE_LABEL[job.type] ?? job.type;
+            const serviceName = job.type === 'ADDITIONAL_SERVICE'
+              ? (job.additionalServices?.[0]?.name || 'Service Request')
+              : 'Home Inspection';
+            return (
+              <TouchableOpacity
+                key={job.id}
+                style={styles.card}
+                onPress={() => router.push(`/(vendor)/active-job?id=${job.id}`)}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.badgeRow}>
+                    <View style={[styles.typeBadge, job.type === 'ADDITIONAL_SERVICE' ? styles.typeBadgeService : styles.typeBadgeInspection]}>
+                      <Text style={[styles.typeBadgeText, job.type === 'ADDITIONAL_SERVICE' ? styles.typeBadgeTextService : styles.typeBadgeTextInspection]}>
+                        {typeLabel}
+                      </Text>
+                    </View>
+                    <View style={[styles.badge, { backgroundColor: (STATUS_COLOR[job.status] || colors.steel) + '20' }]}>
+                      <Text style={[styles.badgeText, { color: STATUS_COLOR[job.status] || colors.steel }]}>
+                        {STATUS_LABEL[job.status] || job.status.replace(/_/g, ' ')}
+                      </Text>
+                    </View>
+                  </View>
+                  {job.ticketNumber && (
+                    <Text style={styles.ticketNumber}>{job.ticketNumber}</Text>
+                  )}
+                </View>
+                <Text style={styles.serviceNameLabel}>{serviceName}</Text>
+                <Text style={styles.customerName}>{customerName}</Text>
+                <Text style={styles.cardDate}>
+                  {job.scheduledDate
+                    ? new Date(job.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Date TBD'}
+                </Text>
+                <Text style={styles.cardAddress}>{job.address}, {job.city}, {job.state}</Text>
+                {(job.status === 'IN_PROGRESS' || job.status === 'VENDOR_EN_ROUTE') ? (
+                  <View style={styles.resumeChip}>
+                    <Ionicons name="play-circle" size={14} color={colors.ink} />
+                    <Text style={styles.resumeChipText}>Resume Job</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.cardCta}>Tap to manage →</Text>
+                )}
+              </TouchableOpacity>
+            );
+          }
+
+          // Bundled visit — several services accepted together (either the
+          // customer's own multi-select submission, or this vendor's own
+          // "Accept Selected as One Visit"). Shows an aggregated status
+          // since members can drift apart once individual completion starts.
+          const first = group.items[0];
+          const customerName = first.customer?.customerProfile?.fullName || first.customer?.name || 'Customer';
+          const statusCounts = new Map<string, number>();
+          for (const j of group.items) statusCounts.set(j.status, (statusCounts.get(j.status) || 0) + 1);
+          const statusSummary = [...statusCounts.entries()]
+            .map(([status, count]) => `${count} ${STATUS_LABEL[status] || status.replace(/_/g, ' ')}`)
+            .join(', ');
           return (
             <TouchableOpacity
-              key={job.id}
-              style={styles.card}
-              onPress={() => router.push(`/(vendor)/active-job?id=${job.id}`)}
+              key={group.key}
+              style={[styles.card, styles.bundleCard]}
+              onPress={() => router.push(`/(vendor)/bundle-job?bookingGroupId=${group.bookingGroupId}`)}
             >
-              <View style={styles.cardHeader}>
-                <View style={styles.badgeRow}>
-                  <View style={[styles.typeBadge, job.type === 'ADDITIONAL_SERVICE' ? styles.typeBadgeService : styles.typeBadgeInspection]}>
-                    <Text style={[styles.typeBadgeText, job.type === 'ADDITIONAL_SERVICE' ? styles.typeBadgeTextService : styles.typeBadgeTextInspection]}>
-                      {typeLabel}
-                    </Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: (STATUS_COLOR[job.status] || colors.steel) + '20' }]}>
-                    <Text style={[styles.badgeText, { color: STATUS_COLOR[job.status] || colors.steel }]}>
-                      {STATUS_LABEL[job.status] || job.status.replace(/_/g, ' ')}
-                    </Text>
-                  </View>
-                </View>
-                {job.ticketNumber && (
-                  <Text style={styles.ticketNumber}>{job.ticketNumber}</Text>
-                )}
+              <View style={styles.bundleBadge}>
+                <Text style={styles.bundleBadgeText}>🧰 {group.items.length} services — one visit</Text>
               </View>
-              <Text style={styles.serviceNameLabel}>{serviceName}</Text>
               <Text style={styles.customerName}>{customerName}</Text>
+              {group.items.map((j: any) => (
+                <Text key={j.id} style={styles.bundleServiceLine}>
+                  • {j.type === 'ADDITIONAL_SERVICE' ? (j.additionalServices?.[0]?.name || 'Service Request') : 'Home Inspection'}
+                </Text>
+              ))}
               <Text style={styles.cardDate}>
-                {job.scheduledDate
-                  ? new Date(job.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                {first.scheduledDate
+                  ? new Date(first.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
                   : 'Date TBD'}
               </Text>
-              <Text style={styles.cardAddress}>{job.address}, {job.city}, {job.state}</Text>
-              {(job.status === 'IN_PROGRESS' || job.status === 'VENDOR_EN_ROUTE') ? (
-                <View style={styles.resumeChip}>
-                  <Ionicons name="play-circle" size={14} color={colors.ink} />
-                  <Text style={styles.resumeChipText}>Resume Job</Text>
-                </View>
-              ) : (
-                <Text style={styles.cardCta}>Tap to manage →</Text>
-              )}
+              <Text style={styles.cardAddress}>{first.address}, {first.city}, {first.state}</Text>
+              <View style={[styles.badge, { backgroundColor: colors.mist, alignSelf: 'flex-start', marginBottom: 4 }]}>
+                <Text style={[styles.badgeText, { color: colors.lanternDeep }]}>{statusSummary}</Text>
+              </View>
+              <Text style={styles.cardCta}>Tap to manage the whole visit →</Text>
             </TouchableOpacity>
           );
         })
@@ -194,4 +252,8 @@ const styles = StyleSheet.create({
   cardCta: { fontSize: 12, color: colors.lanternDeep, fontWeight: '600' },
   resumeChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.lantern, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
   resumeChipText: { fontSize: 12, color: colors.ink, fontWeight: '700' },
+  bundleCard: { borderWidth: 1, borderColor: colors.lanternDeep },
+  bundleBadge: { alignSelf: 'flex-start', backgroundColor: colors.ink, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 8 },
+  bundleBadgeText: { color: colors.mist, fontSize: 12, fontWeight: '700' },
+  bundleServiceLine: { fontSize: 13, color: colors.steel, marginBottom: 2 },
 });

@@ -243,6 +243,124 @@ export class PaymentsService {
     return saved;
   }
 
+  // Bundle equivalent of chargeForCompletedService — one Stripe PaymentIntent
+  // for the combined total of every included line item (instead of one
+  // charge per line), so a vendor closing several bundled services at once
+  // only pays the ~$0.30 Stripe fixed fee once instead of N times. Still
+  // writes one Payment ledger row PER line item (preserving per-service
+  // financial reporting/dispute granularity) — all sharing the one real
+  // stripePaymentIntentId, which is safe since Payment.stripePaymentIntentId
+  // has no unique constraint and the webhook reconciles by a bulk update on
+  // that column, updating every row sharing an intent together.
+  async chargeForCompletedBundle(
+    lines: { serviceRequestId: string; customerId: string; svcId: string; name: string; price: number }[],
+    vendorId: string,
+  ): Promise<Payment[]> {
+    const customerId = lines[0].customerId; // enforced uniform by the caller (acceptAsBundle/acceptGroup both require one customer)
+    const { accountId: vendorAccountId } = await this.usersService.getCompanyStripeAccount(vendorId);
+    const platformFeePercent = Number(this.configService.get('PLATFORM_FEE_PERCENT', '15'));
+
+    const lineCents = lines.map((l) => Math.round(l.price * 100));
+    const totalCents = lineCents.reduce((sum, c) => sum + c, 0);
+    const totalStripeFeeCents = Math.round(totalCents * 0.029 + 30);
+    const description = lines.length === 1 ? lines[0].name : `${lines.length} services (bundled visit)`;
+
+    const transferParams: Partial<Stripe.PaymentIntentCreateParams> = vendorAccountId
+      ? { application_fee_amount: Math.round(totalCents * (platformFeePercent / 100)), transfer_data: { destination: vendorAccountId } }
+      : {};
+
+    const basePaymentFields = { customerId, vendorId, type: PaymentType.ADDITIONAL_SERVICE, currency: 'usd' };
+
+    const customer = await this.usersService.findById(customerId);
+    const methods = customer.stripeCustomerId ? await this.listPaymentMethods(customerId) : [];
+    const defaultMethod = methods.find((m) => m.isDefault) ?? methods[0];
+
+    let intentId: string;
+    let status: PaymentStatus;
+    let clientSecret: string | undefined;
+    let capturedAt: Date | undefined;
+
+    if (defaultMethod) {
+      try {
+        const intent = await this.stripe.paymentIntents.create({
+          customer: customer.stripeCustomerId,
+          payment_method: defaultMethod.id,
+          amount: totalCents,
+          currency: 'usd',
+          off_session: true,
+          confirm: true,
+          description,
+          metadata: { customerId, vendorId, bundleSize: String(lines.length) },
+          ...transferParams,
+        });
+        if (intent.status === 'succeeded') {
+          intentId = intent.id;
+          status = PaymentStatus.SUCCEEDED;
+          capturedAt = new Date();
+        }
+      } catch (err: any) {
+        this.logger.warn(`Automatic bundle charge failed for vendor ${vendorId}: ${err.message}`);
+      }
+    }
+
+    if (!intentId) {
+      const intentParams: Stripe.PaymentIntentCreateParams = {
+        amount: totalCents,
+        currency: 'usd',
+        automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+        metadata: { customerId, vendorId, bundleSize: String(lines.length) },
+        description,
+        ...transferParams,
+      };
+      if (customer.stripeCustomerId) intentParams.customer = customer.stripeCustomerId;
+      const fallbackIntent = await this.stripe.paymentIntents.create(intentParams);
+      intentId = fallbackIntent.id;
+      status = PaymentStatus.PENDING;
+      clientSecret = fallbackIntent.client_secret;
+    }
+
+    // Prorate the one combined stripeFee across lines by price share, with the
+    // rounding remainder on the largest line so the ledger rows sum exactly
+    // to the one real charge. platformFee stays per-line/percentage-based —
+    // batching doesn't change it.
+    const largestIdx = lineCents.reduce((maxI, c, i, arr) => (c > arr[maxI] ? i : maxI), 0);
+    let feeRemainder = totalStripeFeeCents;
+    const payments = lines.map((line, i) => {
+      const cents = lineCents[i];
+      const lineStripeFeeCents = i === largestIdx ? feeRemainder : Math.round(totalStripeFeeCents * (cents / totalCents));
+      if (i !== largestIdx) feeRemainder -= lineStripeFeeCents;
+      const linePlatformFeeCents = Math.round(cents * (platformFeePercent / 100));
+      return this.paymentsRepo.create({
+        ...basePaymentFields,
+        serviceRequestId: line.serviceRequestId,
+        description: line.name,
+        amount: line.price,
+        platformFee: linePlatformFeeCents / 100,
+        stripeFee: lineStripeFeeCents / 100,
+        vendorAmount: (cents - linePlatformFeeCents - lineStripeFeeCents) / 100,
+        status,
+        stripePaymentIntentId: intentId,
+        stripeClientSecret: clientSecret,
+        capturedAt,
+        disputeWindowExpiresAt: status === PaymentStatus.SUCCEEDED ? this.disputeDeadline() : undefined,
+      });
+    });
+
+    const saved = await this.paymentsRepo.save(payments);
+
+    if (status === PaymentStatus.PENDING) {
+      await this.notificationsService.notifyUser(
+        customerId,
+        NotificationType.PAYMENT_PROCESSED,
+        'Payment Needs Your Attention',
+        `We couldn't automatically charge your card for "${description}" ($${(totalCents / 100).toFixed(2)}). Open the app to complete payment.`,
+        { paymentId: saved[0].id },
+      ).catch(() => {});
+    }
+
+    return saved;
+  }
+
   // Reached via the "Pay Now" fallback card — either the automatic
   // off-session charge in chargeForCompletedService already failed (no
   // saved card, or the card needed interactive 3DS the app can now

@@ -12,6 +12,12 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-01 (3)
+
+### Added
+- **api/mobile**: Vendors can now bundle several separate, still-open service requests from the same homeowner into one visit. Open Jobs (vendor mobile) now shows the customer name/address on every card and lets a vendor multi-select tickets across a homeowner's open requests — "Accept Selected as One Visit" (new `POST /service-requests/bundle/accept`) claims them together, sharing one `bookingGroupId` (generalizes the existing customer-driven `acceptGroup` machinery to a vendor-driven ad-hoc selection). Once accepted, "I'm On My Way"/"I Have Arrived" on the new bundle visit screen advances every member of the visit together (`PATCH /service-requests/bundle/:bookingGroupId/status`) instead of one ticket at a time; each service still gets closed and commented on individually via the existing job screen, unchanged.
+- **api**: New "Close All Remaining" bundle-completion flow (`POST /service-requests/bundle/complete` → `PaymentsService.chargeForCompletedBundle`) charges every closed-together service in ONE Stripe PaymentIntent instead of one per service — saves the ~$0.30 fixed Stripe fee × (N−1) per bundle closed together, while still writing one `Payment` ledger row per service (per-service financial reporting stays intact; `Payment.stripePaymentIntentId` already had no unique constraint, so several rows sharing one real charge is safe and the existing webhook reconciles all of them together).
+
 ## 2026-08-01 (2)
 
 ### Added

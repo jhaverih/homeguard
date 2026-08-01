@@ -98,6 +98,12 @@ export const requestsApi = {
   accept: (id: string, scheduledDate: string, notes?: string) => api.post(`/service-requests/${id}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
   acceptGroup: (bookingGroupId: string, scheduledDate: string, notes?: string) =>
     api.post(`/service-requests/group/${bookingGroupId}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
+  acceptBundle: (requestIds: string[], scheduledDate: string, notes?: string) =>
+    api.post('/service-requests/bundle/accept', { requestIds, scheduledDate, ...(notes ? { notes } : {}) }),
+  updateBundleStatus: (bookingGroupId: string, status: string) =>
+    api.patch(`/service-requests/bundle/${bookingGroupId}/status`, { status }),
+  completeBundle: (items: { serviceRequestId: string; completionPhotoKeys: string[]; finalQuantities?: Record<string, number> }[]) =>
+    api.post('/service-requests/bundle/complete', { items }),
   updateStatus: (id: string, status: string, completionPhotoKeys?: string[], finalQuantities?: Record<string, number>) =>
     api.patch(`/service-requests/${id}/status`, {
       status,

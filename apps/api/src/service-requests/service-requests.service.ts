@@ -539,67 +539,7 @@ export class ServiceRequestsService {
         throw new BadRequestException('At least one completion photo is required to mark a job complete');
       }
 
-      // Fetched up-front (rather than only for the auth-hold loop below, as
-      // before) so a quota-covered line item's completion here can also
-      // increment inspectionsUsed, same as a Flow A inspection does.
-      const approvedServices = await this.additionalRepo.find({
-        where: { serviceRequestId: requestId, approved: true },
-      });
-      const quotaCoveredCount = approvedServices.filter((s) => s.isQuotaCovered).length;
-
-      // Checklist completion is gated by whether this job resolves to ANY
-      // checklist group (General Home Inspection, HVAC Full Inspection,
-      // Comprehensive Inspection, ...) — not by request.type, so standalone
-      // add-on inspections (e.g. HVAC) are held to the same standard as the
-      // base subscription inspection, not just SCHEDULED_INSPECTION requests.
-      if (request.checklistGroupKey) {
-        const checklistDone = await this.inspectionsService.isChecklistComplete(requestId);
-        if (!checklistDone) {
-          throw new BadRequestException('All inspection checklist items must be completed before closing the job');
-        }
-      }
-
-      if (request.type !== ServiceType.ADDITIONAL_SERVICE) {
-        await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
-      } else if (quotaCoveredCount > 0) {
-        for (let i = 0; i < quotaCoveredCount; i++) {
-          // Best-effort — a narrow race (concurrent quota-covered bookings
-          // each cleared at their own booking-time check) shouldn't block
-          // this job from closing out, matching the auth-hold loop below.
-          await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, false).catch((err) =>
-            this.logger.warn(`Failed to increment inspectionsUsed for quota-covered request ${requestId}: ${err.message}`),
-          );
-        }
-      }
-      request.completionPhotoKeys = completionPhotoKeys;
-      request.completedAt = new Date();
-
-      // Apply any vendor-entered final quantities BEFORE the hold-creation
-      // loop below reads svc.price — Stripe manual-capture holds can't be
-      // increased once created, so this only works cleanly because no hold
-      // exists yet at this point. Never decreases price: the customer was
-      // already floored at the service's minimum quantity at booking time.
-      let priceIncreased = false;
-      if (finalQuantities) {
-        const prices = await this.pricingService.getAll(true);
-        for (const svc of approvedServices) {
-          if (svc.isQuotaCovered) continue; // stays free regardless of final quantity
-          const finalQty = finalQuantities[svc.id];
-          if (finalQty == null || svc.quantity == null || finalQty <= Number(svc.quantity)) continue;
-          const servicePrice = svc.servicePriceId ? prices.find((p) => p.id === svc.servicePriceId) : null;
-          if (!servicePrice) continue;
-          const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
-          const newCost = calcTieredCost(servicePrice, finalQty);
-          const newPrice = Math.round(newCost * (1 + markup / 100) * 100) / 100;
-          await this.additionalRepo.update(svc.id, { finalQuantity: finalQty, price: newPrice });
-          svc.price = newPrice;
-          priceIncreased = true;
-        }
-        if (priceIncreased) {
-          const newTotal = approvedServices.reduce((sum, s) => sum + Number(s.price), 0);
-          request.addonPrice = newTotal;
-        }
-      }
+      const { approvedServices, priceIncreased } = await this.prepCompletion(request, completionPhotoKeys, finalQuantities);
 
       for (const svc of approvedServices) {
         if (svc.isQuotaCovered) continue; // covered by the plan — nothing to charge
@@ -633,6 +573,92 @@ export class ServiceRequestsService {
       }
     }
 
+    return this.finalizeStatusTransition(request, status);
+  }
+
+  // Shared prep for closing out a request: photo/checklist validation,
+  // inspection-quota increments, and any vendor-entered final-quantity price
+  // bumps — everything EXCEPT the actual charge, since updateStatus (one
+  // charge per line item) and completeBundle (one combined charge across
+  // several requests) each need to charge differently. Mutates `request` in
+  // place (completionPhotoKeys/completedAt/addonPrice) but does not save it —
+  // the caller's own save (via finalizeStatusTransition) covers that.
+  private async prepCompletion(
+    request: ServiceRequest,
+    completionPhotoKeys: string[],
+    finalQuantities?: Record<string, number>,
+  ): Promise<{ approvedServices: AdditionalService[]; priceIncreased: boolean }> {
+    const requestId = request.id;
+
+    // Fetched up-front (rather than only for the auth-hold loop below, as
+    // before) so a quota-covered line item's completion here can also
+    // increment inspectionsUsed, same as a Flow A inspection does.
+    const approvedServices = await this.additionalRepo.find({
+      where: { serviceRequestId: requestId, approved: true },
+    });
+    const quotaCoveredCount = approvedServices.filter((s) => s.isQuotaCovered).length;
+
+    // Checklist completion is gated by whether this job resolves to ANY
+    // checklist group (General Home Inspection, HVAC Full Inspection,
+    // Comprehensive Inspection, ...) — not by request.type, so standalone
+    // add-on inspections (e.g. HVAC) are held to the same standard as the
+    // base subscription inspection, not just SCHEDULED_INSPECTION requests.
+    if (request.checklistGroupKey) {
+      const checklistDone = await this.inspectionsService.isChecklistComplete(requestId);
+      if (!checklistDone) {
+        throw new BadRequestException('All inspection checklist items must be completed before closing the job');
+      }
+    }
+
+    if (request.type !== ServiceType.ADDITIONAL_SERVICE) {
+      await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, request.isPaidAddon);
+    } else if (quotaCoveredCount > 0) {
+      for (let i = 0; i < quotaCoveredCount; i++) {
+        // Best-effort — a narrow race (concurrent quota-covered bookings
+        // each cleared at their own booking-time check) shouldn't block
+        // this job from closing out, matching the auth-hold loop below.
+        await this.subscriptionsService.incrementInspectionsUsed(request.subscriptionId, false).catch((err) =>
+          this.logger.warn(`Failed to increment inspectionsUsed for quota-covered request ${requestId}: ${err.message}`),
+        );
+      }
+    }
+    request.completionPhotoKeys = completionPhotoKeys;
+    request.completedAt = new Date();
+
+    // Apply any vendor-entered final quantities BEFORE the hold-creation
+    // loop below reads svc.price — Stripe manual-capture holds can't be
+    // increased once created, so this only works cleanly because no hold
+    // exists yet at this point. Never decreases price: the customer was
+    // already floored at the service's minimum quantity at booking time.
+    let priceIncreased = false;
+    if (finalQuantities) {
+      const prices = await this.pricingService.getAll(true);
+      for (const svc of approvedServices) {
+        if (svc.isQuotaCovered) continue; // stays free regardless of final quantity
+        const finalQty = finalQuantities[svc.id];
+        if (finalQty == null || svc.quantity == null || finalQty <= Number(svc.quantity)) continue;
+        const servicePrice = svc.servicePriceId ? prices.find((p) => p.id === svc.servicePriceId) : null;
+        if (!servicePrice) continue;
+        const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
+        const newCost = calcTieredCost(servicePrice, finalQty);
+        const newPrice = Math.round(newCost * (1 + markup / 100) * 100) / 100;
+        await this.additionalRepo.update(svc.id, { finalQuantity: finalQty, price: newPrice });
+        svc.price = newPrice;
+        priceIncreased = true;
+      }
+      if (priceIncreased) {
+        const newTotal = approvedServices.reduce((sum, s) => sum + Number(s.price), 0);
+        request.addonPrice = newTotal;
+      }
+    }
+
+    return { approvedServices, priceIncreased };
+  }
+
+  // Status assignment + save + customer notification — shared tail for
+  // VENDOR_EN_ROUTE/IN_PROGRESS/COMPLETED across both the single-request
+  // (updateStatus) and bundle (updateBundleStatus/completeBundle) paths.
+  private async finalizeStatusTransition(request: ServiceRequest, status: ServiceRequestStatus): Promise<ServiceRequest> {
     request.status = status;
     if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
       request.vendorEnRouteAt = new Date();
@@ -677,6 +703,149 @@ export class ServiceRequestsService {
     }
 
     return saved;
+  }
+
+  // Vendor-initiated bundling: unlike acceptGroup (keyed on a bookingGroupId
+  // the CUSTOMER already set at submission time), this lets the vendor pick
+  // an arbitrary set of still-PENDING, currently-eligible requests from ONE
+  // customer and claim them together as one visit — they need not have
+  // shared any bookingGroupId before this call, and any stale individual
+  // value is overwritten with a fresh one shared by every accepted member.
+  async acceptAsBundle(
+    requestIds: string[], vendorId: string, scheduledDate: string, notes?: string,
+  ): Promise<ServiceRequest[]> {
+    if (requestIds.length < 2) {
+      throw new BadRequestException('Select at least 2 requests to bundle');
+    }
+
+    const eligible = await this.getEligiblePendingRequests(vendorId);
+    const candidates = eligible.filter((r) => requestIds.includes(r.id));
+    if (candidates.length === 0) {
+      throw new BadRequestException('None of these requests are available');
+    }
+    if (new Set(candidates.map((r) => r.customerId)).size > 1) {
+      throw new BadRequestException('All selected requests must belong to the same homeowner');
+    }
+
+    const proposed = new Date(scheduledDate);
+    const freshBookingGroupId = `bg-vendor-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const accepted: ServiceRequest[] = [];
+
+    await this.dataSource.transaction(async (manager) => {
+      for (const r of candidates) {
+        const fresh = await manager.findOne(ServiceRequest, { where: { id: r.id } });
+        if (!fresh || fresh.status !== ServiceRequestStatus.PENDING) continue; // race guard, same as acceptGroup
+
+        const preferred = new Date(fresh.preferredDate);
+        const diffMs = Math.abs(proposed.getTime() - preferred.getTime());
+        const sametime = diffMs < 5 * 60 * 1000;
+
+        fresh.vendorId = vendorId;
+        fresh.scheduledDate = proposed;
+        fresh.bookingGroupId = freshBookingGroupId; // overwrite any stale/absent value — this vendor's bundle wins
+        if (notes?.trim()) fresh.vendorNotes = notes.trim();
+        fresh.status = sametime ? ServiceRequestStatus.ACCEPTED : ServiceRequestStatus.PENDING_CUSTOMER_REVIEW;
+
+        await manager.save(fresh);
+        accepted.push(fresh);
+      }
+    });
+
+    if (accepted.length === 0) {
+      throw new BadRequestException('These requests are no longer available');
+    }
+
+    for (const saved of accepted) {
+      const sametime = saved.status === ServiceRequestStatus.ACCEPTED;
+      await this.notificationsService.notifyUser(
+        saved.customerId,
+        sametime ? NotificationType.REQUEST_ACCEPTED : NotificationType.SCHEDULE_CHANGED,
+        sametime ? 'Vendor Accepted Your Request' : 'Vendor Proposed a New Time',
+        sametime
+          ? `Your service has been scheduled for ${proposed.toLocaleDateString()}.`
+          : `Your vendor proposed ${proposed.toLocaleDateString()} at ${proposed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Please accept or decline.`,
+        { serviceRequestId: saved.id },
+      );
+    }
+
+    return accepted;
+  }
+
+  // Applies the same VENDOR_EN_ROUTE/IN_PROGRESS transition to every request
+  // sharing this bookingGroupId that this vendor owns and that's still in a
+  // valid prior state — mirrors the single-id ownership guard in
+  // updateStatus, but batched. Silently skips any member not in the expected
+  // prior state (e.g. already released/cancelled) rather than failing the
+  // whole visit — consistent with acceptAsBundle/acceptGroup's best-effort
+  // style. Completion has its own dedicated path (completeBundle) since it
+  // needs batched charging, not just a batched status write.
+  async updateBundleStatus(
+    bookingGroupId: string, vendorId: string, status: ServiceRequestStatus,
+  ): Promise<ServiceRequest[]> {
+    const members = await this.requestsRepo.find({ where: { bookingGroupId, vendorId } });
+    if (members.length === 0) {
+      throw new NotFoundException('No bundle found for this vendor');
+    }
+
+    const requiredPrior = status === ServiceRequestStatus.VENDOR_EN_ROUTE
+      ? ServiceRequestStatus.ACCEPTED
+      : ServiceRequestStatus.VENDOR_EN_ROUTE;
+
+    const updated: ServiceRequest[] = [];
+    for (const member of members) {
+      if (member.status !== requiredPrior) continue;
+      updated.push(await this.finalizeStatusTransition(member, status));
+    }
+    if (updated.length === 0) {
+      throw new BadRequestException('No members of this bundle are in a state that can advance');
+    }
+    return updated;
+  }
+
+  // "Close All" — closes whichever bundle-member requests the vendor has
+  // already prepped (checklist done + photo attached), one PaymentIntent for
+  // the combined total instead of one per request. Partial: a member the
+  // vendor hasn't prepped yet is simply skipped (not failed) — it stays
+  // IN_PROGRESS and can be closed later individually via updateStatus, or in
+  // a later completeBundle call.
+  async completeBundle(
+    vendorId: string,
+    items: { serviceRequestId: string; completionPhotoKeys: string[]; finalQuantities?: Record<string, number> }[],
+  ): Promise<ServiceRequest[]> {
+    const chargeLines: { serviceRequestId: string; customerId: string; svcId: string; name: string; price: number }[] = [];
+    const completed: ServiceRequest[] = [];
+
+    for (const item of items) {
+      const request = await this.findById(item.serviceRequestId);
+      if (request.vendorId !== vendorId) throw new ForbiddenException();
+      if (request.status !== ServiceRequestStatus.IN_PROGRESS) continue; // best-effort, same as bundle-status skip
+      if (!item.completionPhotoKeys?.length) continue;
+
+      const { approvedServices } = await this.prepCompletion(request, item.completionPhotoKeys, item.finalQuantities);
+      completed.push(await this.finalizeStatusTransition(request, ServiceRequestStatus.COMPLETED));
+
+      for (const svc of approvedServices) {
+        if (svc.isQuotaCovered) continue;
+        if (request.marketplaceSubscriptionId) continue;
+        chargeLines.push({
+          serviceRequestId: request.id, customerId: request.customerId, svcId: svc.id, name: svc.name, price: Number(svc.price),
+        });
+      }
+    }
+
+    if (completed.length === 0) {
+      throw new BadRequestException('None of these services could be completed');
+    }
+
+    if (chargeLines.length > 0) {
+      try {
+        await this.paymentsService.chargeForCompletedBundle(chargeLines, vendorId);
+      } catch (err) {
+        // Don't block job completion if payment fails — same policy as updateStatus's own charge loop
+      }
+    }
+
+    return completed;
   }
 
   async addVendorNotes(requestId: string, vendorId: string, notes: string): Promise<ServiceRequest> {
@@ -815,7 +984,7 @@ export class ServiceRequestsService {
 
     const all = await this.requestsRepo.find({
       where: { status: ServiceRequestStatus.PENDING },
-      relations: ['additionalServices'],
+      relations: ['additionalServices', 'customer', 'customer.customerProfile'],
       order: { createdAt: 'DESC' },
     });
 
