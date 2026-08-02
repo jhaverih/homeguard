@@ -187,12 +187,25 @@ export default function SubscribeScreen() {
         </TouchableOpacity>
 
         {isCancelled ? (
-          <View style={styles.cancelledNote}>
-            <Ionicons name="information-circle-outline" size={18} color="#744210" />
-            <Text style={styles.cancelledNoteText}>
-              Renewal has been cancelled. Your subscription will expire on {endDate}.
-            </Text>
-          </View>
+          <>
+            <View style={styles.cancelledNote}>
+              <Ionicons name="information-circle-outline" size={18} color="#744210" />
+              <Text style={styles.cancelledNoteText}>
+                Renewal has been cancelled. Your subscription will expire on {endDate}.
+              </Text>
+            </View>
+            {/* A cancelled row still exists in the DB, so it still comes back
+                from getMySubscription() and would otherwise trap the customer
+                on this dead-end screen forever with no way back to picking a
+                plan. Clearing it locally falls through to the normal
+                first-subscribe flow below (plan list + T&Cs + subscribe()) --
+                the backend only blocks subscribe() on an ACTIVE row, so this
+                is safe even before the cancelled plan's access period ends. */}
+            <TouchableOpacity style={styles.changeBtn} onPress={() => setSubscription(null)}>
+              <Ionicons name="add-circle-outline" size={18} color={colors.lanternDeep} />
+              <Text style={styles.changeBtnText}>Choose a New Plan</Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <>
             <TouchableOpacity style={styles.changeBtn} onPress={() => { setShowChangePlan(true); setSelectedPlanId(''); }}>
