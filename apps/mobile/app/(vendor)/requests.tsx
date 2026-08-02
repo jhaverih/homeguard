@@ -70,7 +70,7 @@ function DateTimeField({
               minimumDate={new Date()}
               display="inline"
               onChange={(_, d) => { if (d) onChange(d); }}
-              style={{ alignSelf: 'center' }}
+              style={{ alignSelf: 'center', height: 400 }}
             />
             <TouchableOpacity
               style={[styles.iosDoneBtn, { backgroundColor: accentColor }]}

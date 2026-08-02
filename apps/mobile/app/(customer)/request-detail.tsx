@@ -83,7 +83,7 @@ function DateTimeField({ value, onChange }: { value: Date; onChange: (d: Date) =
               minimumDate={new Date()}
               display="inline"
               onChange={(_, d) => { if (d) onChange(d); }}
-              style={{ alignSelf: 'center' }}
+              style={{ alignSelf: 'center', height: 400 }}
             />
             <TouchableOpacity style={styles.doneBtn} onPress={() => setShowDate(false)}>
               <Text style={styles.doneBtnText}>Done</Text>
