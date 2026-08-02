@@ -129,9 +129,14 @@ export default function MyJobsScreen() {
         grouped.map((group) => {
           if (group.items.length === 1) {
             const job = group.items[0];
-            const customerName = job.customer?.customerProfile?.fullName
-              || job.customer?.name
-              || 'Customer';
+            // User has firstName/lastName columns, no plain `name` field, and
+            // its `fullName` getter doesn't survive JSON serialization — so
+            // building this from firstName/lastName directly is the only
+            // path that actually works over the API (was previously always
+            // falling through to the literal "Customer" placeholder).
+            const customerName = (job.customer?.firstName || job.customer?.lastName)
+              ? `${job.customer?.firstName ?? ''} ${job.customer?.lastName ?? ''}`.trim()
+              : 'Customer';
             const typeLabel = TYPE_LABEL[job.type] ?? job.type;
             const serviceName = job.type === 'ADDITIONAL_SERVICE'
               ? (job.additionalServices?.[0]?.name || 'Service Request')
@@ -184,7 +189,9 @@ export default function MyJobsScreen() {
           // "Accept Selected as One Visit"). Shows an aggregated status
           // since members can drift apart once individual completion starts.
           const first = group.items[0];
-          const customerName = first.customer?.customerProfile?.fullName || first.customer?.name || 'Customer';
+          const customerName = (first.customer?.firstName || first.customer?.lastName)
+            ? `${first.customer?.firstName ?? ''} ${first.customer?.lastName ?? ''}`.trim()
+            : 'Customer';
           const statusCounts = new Map<string, number>();
           for (const j of group.items) statusCounts.set(j.status, (statusCounts.get(j.status) || 0) + 1);
           const statusSummary = [...statusCounts.entries()]

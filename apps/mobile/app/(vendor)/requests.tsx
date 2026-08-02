@@ -125,8 +125,14 @@ export default function OpenRequestsScreen() {
     return groups.sort((a, b) => (a.items[0].customerId || '').localeCompare(b.items[0].customerId || ''));
   })();
 
+  // User has firstName/lastName columns, no plain `name` field, and its
+  // `fullName` getter doesn't survive JSON serialization — building this
+  // from firstName/lastName directly is the only path that actually works
+  // over the API (was previously always falling through to "Customer").
   const customerName = (req: any) =>
-    req.customer?.customerProfile?.fullName || req.customer?.name || 'Customer';
+    (req.customer?.firstName || req.customer?.lastName)
+      ? `${req.customer?.firstName ?? ''} ${req.customer?.lastName ?? ''}`.trim()
+      : 'Customer';
 
   // The homeowner of the first selected card — once set, cards from a
   // different homeowner are disabled in the UI (the backend enforces this
@@ -198,6 +204,32 @@ export default function OpenRequestsScreen() {
           onPress: async () => {
             try {
               await requestsApi.reject(requestId);
+              load();
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Bundle cards never had a reject option (only single-request cards did) —
+  // no dedicated "reject group" endpoint exists, so this just rejects every
+  // member individually in parallel, same effect from the vendor's
+  // perspective as rejecting the bundle as a whole.
+  const rejectBundle = (group: { items: any[] }) => {
+    Alert.alert(
+      'Reject this bundle?',
+      `All ${group.items.length} services will move to your Rejected tab — you can still accept them later if no one else has.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await Promise.all(group.items.map((req: any) => requestsApi.reject(req.id)));
               load();
             } catch (e: any) {
               Alert.alert('Error', e.message);
@@ -418,19 +450,29 @@ export default function OpenRequestsScreen() {
               <Text style={styles.cardAddress}>{first.address}, {first.city}, {first.state} {first.zipCode}</Text>
               <Text style={styles.cardPosted}>Posted: {new Date(first.createdAt).toLocaleDateString()}</Text>
               {!selectMode && (
-                <TouchableOpacity
-                  style={styles.acceptBtn}
-                  onPress={() => {
-                    const preferred = first.preferredDate ? new Date(first.preferredDate) : null;
-                    const fallback = new Date();
-                    fallback.setDate(fallback.getDate() + 1);
-                    fallback.setHours(9, 0, 0, 0);
-                    setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
-                    setAcceptModal({ visible: true, requestId: '', bookingGroupId: group.bookingGroupId, requestIds: null, preferredDate: preferred });
-                  }}
-                >
-                  <Text style={styles.acceptBtnText}>Accept All ({group.items.length})</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {view === 'open' && (
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => rejectBundle(group)}
+                    >
+                      <Text style={styles.rejectBtnText}>Reject</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.acceptBtn, { flex: 1 }]}
+                    onPress={() => {
+                      const preferred = first.preferredDate ? new Date(first.preferredDate) : null;
+                      const fallback = new Date();
+                      fallback.setDate(fallback.getDate() + 1);
+                      fallback.setHours(9, 0, 0, 0);
+                      setScheduledDate(preferred && preferred > new Date() ? preferred : fallback);
+                      setAcceptModal({ visible: true, requestId: '', bookingGroupId: group.bookingGroupId, requestIds: null, preferredDate: preferred });
+                    }}
+                  >
+                    <Text style={styles.acceptBtnText}>Accept All ({group.items.length})</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           );

@@ -144,7 +144,9 @@ export default function BundleJobScreen() {
   }
 
   const first = members[0];
-  const customerName = first.customer?.customerProfile?.fullName || first.customer?.name || 'Customer';
+  const customerName = (first.customer?.firstName || first.customer?.lastName)
+    ? `${first.customer?.firstName ?? ''} ${first.customer?.lastName ?? ''}`.trim()
+    : 'Customer';
   const commonStatus = members.every((m) => m.status === members[0].status) ? members[0].status : null;
   const nextAction = commonStatus ? NEXT_STATUS[commonStatus] : null;
   const hasInProgress = members.some((m) => m.status === 'IN_PROGRESS');
