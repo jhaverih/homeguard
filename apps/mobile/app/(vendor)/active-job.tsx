@@ -210,6 +210,15 @@ export default function ActiveJobScreen() {
   const [upsellCustomPrice, setUpsellCustomPrice] = useState('');
   const [sendingUpsell, setSendingUpsell] = useState(false);
 
+  // Materials — vendor-logged material costs for the current repair, shown
+  // to the customer and auto-included in their total (no approval step, see
+  // ServiceRequestsService.addMaterialCost for why). Independent of the
+  // checklist/service-type gating below, so it's available for every job
+  // type, including general/"other" services that have no checklist at all.
+  const [materialDescription, setMaterialDescription] = useState('');
+  const [materialCost, setMaterialCost] = useState('');
+  const [addingMaterial, setAddingMaterial] = useState(false);
+
   // Completion
   const [completionPhotos, setCompletionPhotos] = useState<{ uri: string; key?: string }[]>([]);
   const [completingJob, setCompletingJob] = useState(false);
@@ -579,6 +588,25 @@ export default function ActiveJobScreen() {
     }
   };
 
+  // ── Materials ──────────────────────────────────────────────────────────────
+
+  const addMaterial = async () => {
+    if (!materialDescription.trim()) { Alert.alert('Required', 'Enter a description of the material(s).'); return; }
+    const cost = parseCurrencyRaw(materialCost);
+    if (isNaN(cost) || cost <= 0) { Alert.alert('Invalid cost', 'Enter a valid amount.'); return; }
+    setAddingMaterial(true);
+    try {
+      await requestsApi.addMaterial(id, { description: materialDescription.trim(), cost });
+      setMaterialDescription('');
+      setMaterialCost('');
+      await loadJob();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setAddingMaterial(false);
+    }
+  };
+
   // ── Status advance ─────────────────────────────────────────────────────────
 
   const performAdvance = async (next: { label: string; next: string; color: string }) => {
@@ -918,6 +946,55 @@ export default function ActiveJobScreen() {
         {isCompleted && (
           <View style={styles.completedBadge}>
             <Text style={styles.completedText}>✓ Job Completed</Text>
+          </View>
+        )}
+
+        {/* ── Materials ── independent of checklist/service type, so it
+            works even for general services with no checklist at all. */}
+        {job.status === 'IN_PROGRESS' && (
+          <View style={styles.sectionCard}>
+            <View style={[styles.sectionHeader, { paddingBottom: 8 }]}>
+              <Text style={[styles.sectionLabel, { paddingLeft: 4 }]}>Materials Used</Text>
+            </View>
+            <View style={{ padding: 14, paddingTop: 0 }}>
+              {(job.additionalServices || []).filter((s: any) => s.isMaterial).map((s: any) => (
+                <View key={s.id} style={[styles.sentSvcCard, styles.sentSvcApproved]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sentSvcName}>{s.description}</Text>
+                  </View>
+                  <Text style={styles.sentSvcPrice}>{fmtUSD(s.price)}</Text>
+                </View>
+              ))}
+              <TextInput
+                style={[styles.promptInput, { textAlign: 'left', width: '100%' }]}
+                placeholder="Material description (e.g. PVC coupling)"
+                placeholderTextColor={colors.steel}
+                value={materialDescription}
+                onChangeText={setMaterialDescription}
+              />
+              <TextInput
+                style={[styles.promptInput, { textAlign: 'left', width: '100%', marginTop: 8 }]}
+                placeholder="Cost ($)"
+                placeholderTextColor={colors.steel}
+                keyboardType="decimal-pad"
+                value={materialCost}
+                onChangeText={(t) => setMaterialCost(formatCurrencyInput(t))}
+              />
+              {materialCost !== '' && !isNaN(parseCurrencyRaw(materialCost)) && parseCurrencyRaw(materialCost) > 0 && (
+                <Text style={styles.sectionHint}>
+                  Customer will be charged {fmtUSD(parseCurrencyRaw(materialCost) * 1.15)} (cost + 15% margin).
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: addingMaterial ? colors.steel : colors.lanternDeep, marginTop: 12, marginBottom: 0 }]}
+                onPress={addMaterial}
+                disabled={addingMaterial}
+              >
+                {addingMaterial
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.actionBtnText}>+ Add Material</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 

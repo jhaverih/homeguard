@@ -112,6 +112,7 @@ export const requestsApi = {
     }),
   addNotes: (id: string, notes: string) => api.patch(`/service-requests/${id}/notes`, { notes }),
   recommendService: (id: string, data: any) => api.post(`/service-requests/${id}/additional-services`, data),
+  addMaterial: (id: string, data: { description: string; cost: number }) => api.post(`/service-requests/${id}/materials`, data),
   approveService: (serviceId: string) => api.post(`/service-requests/additional-services/${serviceId}/approve`),
   declineService: (serviceId: string) => api.delete(`/service-requests/additional-services/${serviceId}/decline`),
   getPendingAdditionalServices: () => api.get('/service-requests/additional-services/pending'),

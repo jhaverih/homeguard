@@ -39,6 +39,13 @@ const STUCK_EN_ROUTE_THRESHOLD_HOURS = 2.5;
 // before the appointment — VENDOR_EN_ROUTE is always within that window.
 const LATE_CANCELLATION_FEE_USD = 25;
 
+// Same default markup used everywhere else pricing is computed in this
+// codebase (pricing.utils.ts's formatCustomerPriceDisplay, this file's own
+// booking-price recalcs) — materials use a flat rate rather than inheriting
+// any specific catalog item's configurable markupPercent, since a logged
+// material isn't tied to one.
+const MATERIAL_MARKUP_PERCENT = 15;
+
 @Injectable()
 export class ServiceRequestsService {
   private readonly logger = new Logger(ServiceRequestsService.name);
@@ -873,6 +880,47 @@ export class ServiceRequestsService {
       { serviceRequestId: requestId, additionalServiceId: saved.id },
     );
 
+    return saved;
+  }
+
+  // Vendor logs a material cost incurred doing the current repair — auto-
+  // included in the customer's total immediately (no approval step, unlike
+  // recommendAdditionalService above) since it's a necessary cost of a
+  // repair the customer already asked for, not a discretionary upsell.
+  // Server-computes the marked-up customer price from cost so the vendor
+  // never directly sets what the customer is charged (recommendAdditionalService
+  // trusts a client-sent price verbatim — deliberately not repeated here).
+  // Only allowed while IN_PROGRESS: nothing re-triggers a charge for a row
+  // added after completion (same reason materials skip approval — see plan),
+  // so this closes that gap by construction rather than leaving a way to
+  // create a row that can never actually get billed.
+  async addMaterialCost(requestId: string, vendorId: string, dto: { description: string; cost: number }): Promise<AdditionalService> {
+    const request = await this.findById(requestId);
+    if (request.vendorId !== vendorId) throw new ForbiddenException();
+    if (request.status !== ServiceRequestStatus.IN_PROGRESS) {
+      throw new BadRequestException('Materials can only be added while the job is in progress');
+    }
+
+    const price = Math.round(dto.cost * (1 + MATERIAL_MARKUP_PERCENT / 100) * 100) / 100;
+    const service = this.additionalRepo.create({
+      serviceRequestId: requestId,
+      name: 'Materials',
+      description: dto.description,
+      price,
+      materialCost: dto.cost,
+      isMaterial: true,
+      approved: true,
+      approvedAt: new Date(),
+    });
+    const saved = await this.additionalRepo.save(service);
+
+    await this.notificationsService.notifyUser(
+      request.customerId,
+      NotificationType.SERVICE_UPDATE,
+      'Materials Added',
+      `Your vendor added materials ($${price.toFixed(2)}) for this job.`,
+      { serviceRequestId: requestId, additionalServiceId: saved.id },
+    );
     return saved;
   }
 

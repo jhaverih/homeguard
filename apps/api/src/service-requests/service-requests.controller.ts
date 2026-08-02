@@ -5,6 +5,7 @@ import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ServiceRequestsService } from './service-requests.service';
 import { ServiceRequestStatus } from '../common/enums/role.enum';
+import { AddMaterialDto } from './dto/add-material.dto';
 
 @ApiTags('Service Requests')
 @ApiBearerAuth()
@@ -138,6 +139,12 @@ export class ServiceRequestsController {
   @ApiOperation({ summary: 'Vendor: recommend an additional service' })
   recommendService(@Request() req, @Param('id') id: string, @Body() body: any) {
     return this.service.recommendAdditionalService(id, req.user.id, body);
+  }
+
+  @Post(':id/materials')
+  @ApiOperation({ summary: 'Vendor: log a material cost for the current repair, auto-included in the customer total' })
+  addMaterial(@Request() req, @Param('id') id: string, @Body() body: AddMaterialDto) {
+    return this.service.addMaterialCost(id, req.user.id, body);
   }
 
   @Post('additional-services/:serviceId/approve')

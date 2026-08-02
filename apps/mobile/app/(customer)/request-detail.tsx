@@ -696,45 +696,75 @@ export default function RequestDetailScreen() {
       {(() => {
         const isSolarReq = request.type === 'ADDITIONAL_SERVICE' &&
           (request.additionalServices?.[0]?.name || '').toLowerCase().includes('solar');
-        const recServices = (request.additionalServices || [])
+        const allServices = (request.additionalServices || [])
           .filter((s: any) => !(isSolarReq && s.name?.toLowerCase().includes('solar')));
-        if (recServices.length === 0) return null;
+        const recServices = allServices.filter((s: any) => !s.isMaterial);
+        const materials = allServices.filter((s: any) => s.isMaterial);
+        const total = allServices
+          .filter((s: any) => s.approved)
+          .reduce((sum: number, s: any) => sum + Number(s.price), 0);
+
+        if (allServices.length === 0) return null;
         return (
         <>
-          <Text style={styles.sectionTitle}>Recommended Services</Text>
-          {recServices.map((svc: any) => (
-            <View key={svc.id} style={[styles.svcCard, svc.approved && styles.svcCardApproved]}>
-              <View style={styles.svcHeader}>
-                <Text style={styles.svcName}>{svc.name}</Text>
-                <Text style={styles.svcPrice}>{fmtUSD(svc.price)}</Text>
-              </View>
-              <Text style={styles.svcDesc}>{svc.description}</Text>
-              {svc.approved ? (
-                <Text style={styles.svcApprovedLabel}>Approved</Text>
-              ) : (
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                  <TouchableOpacity
-                    style={[styles.approveBtn, { flex: 1 }]}
-                    onPress={() => approveService(svc.id)}
-                    disabled={approvingId === svc.id || decliningId === svc.id}
-                  >
-                    {approvingId === svc.id
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <Text style={styles.approveBtnText}>Approve</Text>}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.approveBtn, { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dc2626' }]}
-                    onPress={() => declineService(svc.id)}
-                    disabled={approvingId === svc.id || decliningId === svc.id}
-                  >
-                    {decliningId === svc.id
-                      ? <ActivityIndicator color="#dc2626" size="small" />
-                      : <Text style={[styles.approveBtnText, { color: '#dc2626' }]}>Decline</Text>}
-                  </TouchableOpacity>
+          {recServices.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Recommended Services</Text>
+              {recServices.map((svc: any) => (
+                <View key={svc.id} style={[styles.svcCard, svc.approved && styles.svcCardApproved]}>
+                  <View style={styles.svcHeader}>
+                    <Text style={styles.svcName}>{svc.name}</Text>
+                    <Text style={styles.svcPrice}>{fmtUSD(svc.price)}</Text>
+                  </View>
+                  <Text style={styles.svcDesc}>{svc.description}</Text>
+                  {svc.approved ? (
+                    <Text style={styles.svcApprovedLabel}>Approved</Text>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                      <TouchableOpacity
+                        style={[styles.approveBtn, { flex: 1 }]}
+                        onPress={() => approveService(svc.id)}
+                        disabled={approvingId === svc.id || decliningId === svc.id}
+                      >
+                        {approvingId === svc.id
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={styles.approveBtnText}>Approve</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.approveBtn, { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dc2626' }]}
+                        onPress={() => declineService(svc.id)}
+                        disabled={approvingId === svc.id || decliningId === svc.id}
+                      >
+                        {decliningId === svc.id
+                          ? <ActivityIndicator color="#dc2626" size="small" />
+                          : <Text style={[styles.approveBtnText, { color: '#dc2626' }]}>Decline</Text>}
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
-          ))}
+              ))}
+            </>
+          )}
+
+          {materials.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Materials Used</Text>
+              {materials.map((svc: any) => (
+                <View key={svc.id} style={[styles.svcCard, styles.svcCardApproved]}>
+                  <View style={styles.svcHeader}>
+                    <Text style={styles.svcName}>{svc.description}</Text>
+                    <Text style={styles.svcPrice}>{fmtUSD(svc.price)}</Text>
+                  </View>
+                  <Text style={styles.svcApprovedLabel}>Included in your total</Text>
+                </View>
+              ))}
+            </>
+          )}
+
+          <View style={styles.totalCard}>
+            <Text style={styles.totalLabel}>Total for this visit</Text>
+            <Text style={styles.totalValue}>{fmtUSD(total)}</Text>
+          </View>
         </>
         );
       })()}
@@ -916,6 +946,12 @@ const styles = StyleSheet.create({
   map: { width: '100%', height: 200 },
   mapNote: { fontSize: 10, color: '#b45309', marginTop: 6, textAlign: 'center' },
   svcApprovedLabel: { color: '#059669', fontWeight: '700', fontSize: 13 },
+  totalCard: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: colors.ink, borderRadius: 12, padding: 16, marginTop: 16,
+  },
+  totalLabel: { fontSize: 14, fontWeight: '600', color: '#e2e8f0' },
+  totalValue: { fontSize: 20, fontWeight: '800', color: '#fff' },
   vendorCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: colors.border },
   vendorName: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep },
   vendorCompany: { fontSize: 13, color: colors.steel, marginTop: 2 },

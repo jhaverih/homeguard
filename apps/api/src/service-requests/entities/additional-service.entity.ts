@@ -55,6 +55,21 @@ export class AdditionalService {
   @Column({ type: 'timestamp', nullable: true })
   approvedAt: Date;
 
+  // Vendor's raw material cost for a repair — internal only, never
+  // serialized to the customer-facing API (select: false keeps it out of
+  // default find()/findOne() results entirely). Null for every non-material
+  // row. The customer-facing `price` above is this cost marked up — see
+  // ServiceRequestsService.addMaterialCost.
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, select: false })
+  materialCost: number | null;
+
+  // Distinguishes a vendor-logged material cost (auto-approved, no customer
+  // action needed) from a recommended upsell (customer must approve/decline)
+  // — both are AdditionalService rows, but the customer app groups/labels
+  // them differently.
+  @Column({ default: false })
+  isMaterial: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }
