@@ -69,6 +69,7 @@ function DateTimeField({
               mode="datetime"
               minimumDate={new Date()}
               display="inline"
+              themeVariant="light"
               onChange={(_, d) => { if (d) onChange(d); }}
               style={{ alignSelf: 'center', height: 400 }}
             />

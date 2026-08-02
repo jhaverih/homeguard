@@ -100,7 +100,7 @@ function DateTimeField({ value, onChange }: { value: Date; onChange: (d: Date) =
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <RNDateTimePicker value={value} mode="datetime" minimumDate={new Date()}
-              display="inline" onChange={(_, d) => { if (d) onChange(d); }} style={{ alignSelf: 'center', height: 400 }} />
+              display="inline" themeVariant="light" onChange={(_, d) => { if (d) onChange(d); }} style={{ alignSelf: 'center', height: 400 }} />
             <TouchableOpacity style={styles.doneBtn} onPress={() => setShowDate(false)}>
               <Text style={styles.doneBtnText}>Done</Text>
             </TouchableOpacity>

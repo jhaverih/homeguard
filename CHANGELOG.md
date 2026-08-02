@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-01 (5)
+
+### Fixed
+- **mobile**: The previous entry's height fix for the blank iOS calendar picker didn't actually fix it — confirmed live on a second TestFlight build. Real cause: the native inline `UIDatePicker` follows the device's system light/dark appearance by default, rendering its day-number text in light/white regardless of our own modal card's white background — invisible white-on-white, while the separately-styled month/year header stayed legible. Added `themeVariant="light"` (all 4 instances, same as the earlier height fix) to force the picker's own color scheme to match the white card it sits in, independent of the phone's system dark-mode setting.
+
 ## 2026-08-01 (4)
 
 ### Fixed

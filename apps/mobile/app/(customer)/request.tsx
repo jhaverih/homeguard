@@ -56,7 +56,7 @@ function DateTimeField({ label, value, onChange }: { label: string; value: Date;
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <RNDateTimePicker
-              value={value} mode="datetime" minimumDate={new Date()} display="inline"
+              value={value} mode="datetime" minimumDate={new Date()} display="inline" themeVariant="light"
               onChange={(_, d) => { if (d) onChange(d); }} style={{ alignSelf: 'center', height: 400 }}
             />
             <TouchableOpacity style={styles.doneBtn} onPress={() => setShowDate(false)}>
