@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { adminApi } from '@/lib/api';
+import { adminApi, userApi } from '@/lib/api';
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -30,6 +30,8 @@ export default function VendorKpiPage() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [zip, setZip] = useState('');
+  const [isSuperUser, setIsSuperUser] = useState(false);
   const [counties, setCounties] = useState<Record<string, { fips: string; name: string }[]>>({});
   const [selectedCounties, setSelectedCounties] = useState<Set<string>>(new Set());
   const [savedCounties, setSavedCounties] = useState<Set<string>>(new Set());
@@ -40,6 +42,7 @@ export default function VendorKpiPage() {
     setAddress(k.vendor.address ?? '');
     setCity(k.vendor.city ?? '');
     setState(k.vendor.state ?? '');
+    setZip(k.vendor.zipCode ?? '');
     const saved = new Set<string>(k.vendor.serviceCounties ?? []);
     setSelectedCounties(saved);
     setSavedCounties(saved);
@@ -47,6 +50,7 @@ export default function VendorKpiPage() {
 
   useEffect(() => {
     Promise.all([load(), adminApi.getCounties().then(setCounties)]).finally(() => setLoading(false));
+    userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
   }, [id]);
 
   const toggleCounty = (fips: string) => {
@@ -75,6 +79,7 @@ export default function VendorKpiPage() {
         address: address.trim(),
         city: city.trim(),
         state: state.trim(),
+        zipCode: zip.trim(),
       });
       await load();
     } finally {
@@ -115,44 +120,64 @@ export default function VendorKpiPage() {
       <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
         <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Location</h2>
         <p className="text-xs text-steel mb-4">Mailing address on file — display/records only, not used for coverage matching.</p>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-steel mb-1">Street address</label>
-            <input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="123 Main St"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-steel mb-1">City</label>
-              <input
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-              />
+        {isSuperUser ? (
+          <>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-steel mb-1">Street address</label>
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="123 Main St"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-steel mb-1">City</label>
+                  <input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-steel mb-1">State</label>
+                  <input
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    maxLength={2}
+                    placeholder="TN"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-steel mb-1">Zip</label>
+                  <input
+                    value={zip}
+                    onChange={(e) => setZip(e.target.value)}
+                    maxLength={10}
+                    placeholder="37201"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-steel mb-1">State</label>
-              <input
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                maxLength={2}
-                placeholder="TN"
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
-              />
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={saveAddress}
-          disabled={savingServiceArea}
-          className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
-        >
-          {savingServiceArea ? 'Saving…' : 'Save'}
-        </button>
+            <button
+              onClick={saveAddress}
+              disabled={savingServiceArea}
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+            >
+              {savingServiceArea ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-steel">
+            {address || city || state || zip
+              ? [address, city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+              : '— No address on file —'}
+          </p>
+        )}
       </div>
 
       {/* Service Area */}

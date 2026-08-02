@@ -13,6 +13,7 @@ import { AdminService } from './admin.service';
 import { CreateTeamUserDto } from './dto/create-team-user.dto';
 import { SetVendorPlanDto } from './dto/set-vendor-plan.dto';
 import { UpdateVendorServiceAreaDto } from './dto/update-vendor-service-area.dto';
+import { UpdateCustomerAddressDto } from './dto/update-customer-address.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -45,6 +46,13 @@ export class AdminController {
   @ApiOperation({ summary: 'Remove (deactivate) a customer' })
   removeCustomer(@Param('id') id: string) {
     return this.service.removeCustomer(id);
+  }
+
+  @Patch('customers/:id/address')
+  @MinAdminLevel(AdminLevel.SUPER_USER)
+  @ApiOperation({ summary: "Superuser: correct a customer's address on file" })
+  updateCustomerAddress(@Param('id') id: string, @Body() body: UpdateCustomerAddressDto) {
+    return this.service.updateCustomerAddress(id, body);
   }
 
   @Get('vendors')

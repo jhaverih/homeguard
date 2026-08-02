@@ -126,11 +126,13 @@ export const adminApi = {
     api.patch(`/admin/vendors/${id}/plan`, { tier, expiresAt }).then((r) => r.data),
   removeVendor: (id: string) => api.delete(`/admin/vendors/${id}`).then((r) => r.data),
   getVendorKpi: (id: string) => api.get(`/admin/vendors/${id}/kpi`).then((r) => r.data),
-  updateVendorServiceArea: (id: string, data: { address?: string; city?: string; state?: string; serviceCounties?: string[] }) =>
+  updateVendorServiceArea: (id: string, data: { address?: string; city?: string; state?: string; zipCode?: string; serviceCounties?: string[] }) =>
     api.patch(`/admin/vendors/${id}/service-area`, data).then((r) => r.data),
   getCounties: (): Promise<Record<string, { fips: string; name: string }[]>> => api.get('/admin/counties').then((r) => r.data),
   getVendorReviews: (id: string) => api.get(`/reviews/vendor/${id}`).then((r) => r.data),
   getCustomerActivity: (id: string) => api.get(`/admin/customers/${id}/activity`).then((r) => r.data),
+  updateCustomerAddress: (id: string, data: { address?: string; city?: string; state?: string; zipCode?: string }) =>
+    api.patch(`/admin/customers/${id}/address`, data).then((r) => r.data),
   getVendorActivity: (id: string) => api.get(`/admin/vendors/${id}/activity`).then((r) => r.data),
   getSchedule: (year: number, month: number) =>
     api.get(`/admin/schedule?year=${year}&month=${month}`).then((r) => r.data),

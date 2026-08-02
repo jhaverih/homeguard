@@ -74,6 +74,9 @@ export class VendorCompany {
   @Column({ nullable: true })
   state: string | null;
 
+  @Column({ nullable: true })
+  zipCode: string | null;
+
   // County FIPS codes (e.g. "47187") this company serves, restricted at save
   // time to states in ENABLED_SERVICE_STATES (common/config/enabled-service-
   // states.ts). The only service-area model — see service-area.service.ts.

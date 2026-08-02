@@ -1,4 +1,6 @@
-import { IsEmail, IsString, IsEnum, IsArray, IsOptional } from 'class-validator';
+import {
+  IsEmail, IsString, IsEnum, IsArray, IsOptional, IsNotEmpty, ValidateIf,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../common/enums/role.enum';
 import { IsStrongPassword } from '../../common/validators/password-policy';
@@ -31,23 +33,32 @@ export class RegisterDto {
   @IsEnum(UserRole, { each: true })
   roles: UserRole[];
 
+  // Required for customer registrations, irrelevant (and left unvalidated) for
+  // vendor-only registrations, which never send these — see companyAddress
+  // etc. below for the vendor equivalent. @ValidateIf skips every other
+  // decorator on the property entirely when the role condition is false, so
+  // this doesn't need @IsOptional() alongside it.
   @ApiProperty({ example: '123 Main St', required: false })
-  @IsOptional()
+  @ValidateIf((o) => o.roles?.includes(UserRole.CUSTOMER))
+  @IsNotEmpty({ message: 'Address is required' })
   @IsString()
   address?: string;
 
   @ApiProperty({ example: 'Miami', required: false })
-  @IsOptional()
+  @ValidateIf((o) => o.roles?.includes(UserRole.CUSTOMER))
+  @IsNotEmpty({ message: 'City is required' })
   @IsString()
   city?: string;
 
   @ApiProperty({ example: 'FL', required: false })
-  @IsOptional()
+  @ValidateIf((o) => o.roles?.includes(UserRole.CUSTOMER))
+  @IsNotEmpty({ message: 'State is required' })
   @IsString()
   state?: string;
 
   @ApiProperty({ example: '33101', required: false })
-  @IsOptional()
+  @ValidateIf((o) => o.roles?.includes(UserRole.CUSTOMER))
+  @IsNotEmpty({ message: 'Zip code is required' })
   @IsString()
   zipCode?: string;
 
@@ -65,19 +76,29 @@ export class RegisterDto {
   // address/city/state/zipCode above, which are the CustomerProfile fields.
   // Previously the mobile form sent these but nothing declared them here, so
   // the global whitelist ValidationPipe silently stripped them before this
-  // DTO was even constructed.
+  // DTO was even constructed. Required for vendor registrations, same
+  // @ValidateIf pattern as the customer fields above.
   @ApiProperty({ example: '456 Business Ave', required: false })
-  @IsOptional()
+  @ValidateIf((o) => o.roles?.includes(UserRole.VENDOR))
+  @IsNotEmpty({ message: 'Company address is required' })
   @IsString()
   companyAddress?: string;
 
   @ApiProperty({ example: 'Nashville', required: false })
-  @IsOptional()
+  @ValidateIf((o) => o.roles?.includes(UserRole.VENDOR))
+  @IsNotEmpty({ message: 'Company city is required' })
   @IsString()
   companyCity?: string;
 
   @ApiProperty({ example: 'TN', required: false })
-  @IsOptional()
+  @ValidateIf((o) => o.roles?.includes(UserRole.VENDOR))
+  @IsNotEmpty({ message: 'Company state is required' })
   @IsString()
   companyState?: string;
+
+  @ApiProperty({ example: '37201', required: false })
+  @ValidateIf((o) => o.roles?.includes(UserRole.VENDOR))
+  @IsNotEmpty({ message: 'Company zip code is required' })
+  @IsString()
+  companyZipCode?: string;
 }

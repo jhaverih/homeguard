@@ -174,6 +174,7 @@ export class AdminService {
         address: company?.address ?? null,
         city: company?.city ?? null,
         state: company?.state ?? null,
+        zipCode: company?.zipCode ?? null,
         serviceCounties: company?.serviceCounties ?? null,
       };
     });
@@ -196,7 +197,7 @@ export class AdminService {
   // checker always reported "not covered."
   async updateVendorServiceArea(
     vendorId: string,
-    data: { address?: string; city?: string; state?: string; serviceCounties?: string[] },
+    data: { address?: string; city?: string; state?: string; zipCode?: string; serviceCounties?: string[] },
   ) {
     const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
     if (!profile?.companyId) throw new NotFoundException('Vendor company not found');
@@ -209,6 +210,7 @@ export class AdminService {
       ...(data.address !== undefined ? { address: data.address } : {}),
       ...(data.city !== undefined ? { city: data.city } : {}),
       ...(data.state !== undefined ? { state: data.state } : {}),
+      ...(data.zipCode !== undefined ? { zipCode: data.zipCode } : {}),
       ...(data.serviceCounties !== undefined ? { serviceCounties: data.serviceCounties } : {}),
     });
     return this.vendorCompanyRepo.findOne({ where: { id: profile.companyId } });
@@ -216,6 +218,24 @@ export class AdminService {
 
   getSelectableCounties() {
     return getEnabledCounties();
+  }
+
+  // Superuser-only correction of a customer's address on file — mirrors
+  // updateVendorServiceArea's shape/conditional-update pattern above.
+  async updateCustomerAddress(
+    customerId: string,
+    data: { address?: string; city?: string; state?: string; zipCode?: string },
+  ) {
+    const profile = await this.customerProfileRepo.findOne({ where: { userId: customerId } });
+    if (!profile) throw new NotFoundException('Customer profile not found');
+
+    await this.customerProfileRepo.update(profile.id, {
+      ...(data.address !== undefined ? { address: data.address } : {}),
+      ...(data.city !== undefined ? { city: data.city } : {}),
+      ...(data.state !== undefined ? { state: data.state } : {}),
+      ...(data.zipCode !== undefined ? { zipCode: data.zipCode } : {}),
+    });
+    return this.customerProfileRepo.findOne({ where: { id: profile.id } });
   }
 
   async removeCustomer(customerId: string) {
@@ -441,6 +461,7 @@ export class AdminService {
         address: company?.address ?? null,
         city: company?.city ?? null,
         state: company?.state ?? null,
+        zipCode: company?.zipCode ?? null,
         serviceCounties: company?.serviceCounties ?? null,
       },
       jobs: {
@@ -513,9 +534,10 @@ export class AdminService {
         name: `${user.firstName} ${user.lastName}`,
         email: user.email,
         phone: user.phone,
-        address: user.customerProfile?.address
-          ? `${user.customerProfile.address}, ${user.customerProfile.city}, ${user.customerProfile.state}`
-          : null,
+        address: user.customerProfile?.address ?? null,
+        city: user.customerProfile?.city ?? null,
+        state: user.customerProfile?.state ?? null,
+        zipCode: user.customerProfile?.zipCode ?? null,
         createdAt: user.createdAt,
       },
       serviceRequests: serviceRequests.map((r) => ({

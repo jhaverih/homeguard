@@ -27,6 +27,7 @@ export interface CreateUserDto {
   companyAddress?: string;
   companyCity?: string;
   companyState?: string;
+  companyZipCode?: string;
   // Set by VendorService.createTechnician — the caller assigns companyId/isCompanyAdmin
   // itself afterward, so create() should not also spin up a brand new company.
   skipCompanyCreation?: boolean;
@@ -156,7 +157,7 @@ export class UsersService implements OnModuleInit {
       }
       const saved = await this.usersRepo.save(existing);
 
-      if (newRoles.includes(UserRole.CUSTOMER) && dto.address && !existing.customerProfile) {
+      if (newRoles.includes(UserRole.CUSTOMER) && !existing.customerProfile) {
         await this.customerProfileRepo.save(
           this.customerProfileRepo.create({
             userId: saved.id,
@@ -175,13 +176,13 @@ export class UsersService implements OnModuleInit {
             ...(dto.companyName ? { companyName: dto.companyName } : {}),
           }),
         );
-        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState);
+        if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState, dto.companyZipCode);
       }
 
       return saved;
     }
 
-    const { skipCompanyCreation, ein, companyAddress, companyCity, companyState, ...userFields } = dto;
+    const { skipCompanyCreation, ein, companyAddress, companyCity, companyState, companyZipCode, ...userFields } = dto;
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = this.usersRepo.create({
       ...userFields,
@@ -191,7 +192,7 @@ export class UsersService implements OnModuleInit {
     });
     const saved = await this.usersRepo.save(user);
 
-    if (dto.roles.includes(UserRole.CUSTOMER) && dto.address) {
+    if (dto.roles.includes(UserRole.CUSTOMER)) {
       const profile = this.customerProfileRepo.create({
         userId: saved.id,
         address: dto.address,
@@ -209,7 +210,7 @@ export class UsersService implements OnModuleInit {
           ...(dto.companyName ? { companyName: dto.companyName } : {}),
         }),
       );
-      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState);
+      if (!dto.skipCompanyCreation) await this.createCompanyForNewVendor(profile, saved, dto.companyName, dto.ein, dto.companyAddress, dto.companyCity, dto.companyState, dto.companyZipCode);
     }
 
     return saved;
@@ -227,6 +228,7 @@ export class UsersService implements OnModuleInit {
     companyAddress?: string,
     companyCity?: string,
     companyState?: string,
+    companyZipCode?: string,
   ) {
     const company = await this.vendorCompanyRepo.save(
       this.vendorCompanyRepo.create({
@@ -236,6 +238,7 @@ export class UsersService implements OnModuleInit {
         ...(companyAddress ? { address: companyAddress } : {}),
         ...(companyCity ? { city: companyCity } : {}),
         ...(companyState ? { state: companyState } : {}),
+        ...(companyZipCode ? { zipCode: companyZipCode } : {}),
       }),
     );
     await this.vendorProfileRepo.update(profile.id, { companyId: company.id, isCompanyAdmin: true });

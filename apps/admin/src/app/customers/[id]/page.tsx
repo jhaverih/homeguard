@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { adminApi } from '@/lib/api';
+import { adminApi, userApi } from '@/lib/api';
 
 const STATUS_COLOR: Record<string, string> = {
   ACCEPTED: 'bg-blue-50 text-blue-700',
@@ -21,13 +21,40 @@ export default function CustomerDetailPage() {
   const [activity, setActivity] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'jobs' | 'payments' | 'disputes' | 'alerts'>('jobs');
+  const [isSuperUser, setIsSuperUser] = useState(false);
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [zip, setZip] = useState('');
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  const load = () => adminApi.getCustomerActivity(id).then((a: any) => {
+    setActivity(a);
+    setAddress(a?.customer?.address ?? '');
+    setCity(a?.customer?.city ?? '');
+    setState(a?.customer?.state ?? '');
+    setZip(a?.customer?.zipCode ?? '');
+  });
 
   useEffect(() => {
-    adminApi.getCustomerActivity(id)
-      .then(setActivity)
-      .catch(() => setActivity(null))
-      .finally(() => setLoading(false));
+    load().catch(() => setActivity(null)).finally(() => setLoading(false));
+    userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
   }, [id]);
+
+  const saveAddress = async () => {
+    setSavingAddress(true);
+    try {
+      await adminApi.updateCustomerAddress(id, {
+        address: address.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        zipCode: zip.trim(),
+      });
+      await load();
+    } finally {
+      setSavingAddress(false);
+    }
+  };
 
   if (loading) {
     return <div className="text-steel text-sm py-12 text-center">Loading customer activity…</div>;
@@ -66,7 +93,6 @@ export default function CustomerDetailPage() {
             <h1 className="text-xl font-bold text-ink">{customer?.name ?? '—'}</h1>
             <p className="text-sm text-steel mt-0.5">{customer?.email}</p>
             {customer?.phone && <p className="text-sm text-steel">{customer.phone}</p>}
-            {customer?.address && <p className="text-sm text-steel mt-1">{customer.address}</p>}
           </div>
           <div className="text-right text-sm text-steel">
             <p>Member since</p>
@@ -87,6 +113,70 @@ export default function CustomerDetailPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Address */}
+      <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-6">
+        <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Address</h2>
+        <p className="text-xs text-steel mb-4">Home address on file — used to match this customer with nearby vendors.</p>
+        {isSuperUser ? (
+          <>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-steel mb-1">Street address</label>
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="123 Main St"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-steel mb-1">City</label>
+                  <input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-steel mb-1">State</label>
+                  <input
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    maxLength={2}
+                    placeholder="TN"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-steel mb-1">Zip</label>
+                  <input
+                    value={zip}
+                    onChange={(e) => setZip(e.target.value)}
+                    maxLength={10}
+                    placeholder="37201"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:border-lantern outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={saveAddress}
+              disabled={savingAddress}
+              className="bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
+            >
+              {savingAddress ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-steel">
+            {address || city || state || zip
+              ? [address, city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+              : '— No address on file —'}
+          </p>
+        )}
       </div>
 
       {/* Activity tabs */}

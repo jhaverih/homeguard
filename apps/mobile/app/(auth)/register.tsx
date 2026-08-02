@@ -249,6 +249,10 @@ export default function RegisterScreen() {
 
   const [addressValidated, setAddressValidated] = useState(false);
   const [pickedAddress, setPickedAddress] = useState<AddressResult | null>(null);
+  // Which of city/state/zipCode Nominatim didn't return for the picked
+  // suggestion (most commonly zip, for rural/new-subdivision addresses) —
+  // drives the fallback manual-entry mini-form below the confirmed-address box.
+  const [missingAddressFields, setMissingAddressFields] = useState<('city' | 'state' | 'zipCode')[]>([]);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -274,6 +278,7 @@ export default function RegisterScreen() {
     setAddingExpiryDate(new Date());
     setAddressValidated(false);
     setPickedAddress(null);
+    setMissingAddressFields([]);
     setAcceptedTerms(false);
     reset();
   };
@@ -297,11 +302,17 @@ export default function RegisterScreen() {
   };
 
   const handleContinueFromAccount = async () => {
-    if (!await trigger(['firstName', 'lastName', 'email', 'phone', 'password', ...(isVendor ? ['companyName', 'ein', 'companyAddress', 'companyCity', 'companyState'] : [])])) return;
     if (!isVendor && !addressValidated) {
       Alert.alert('Address Required', 'Please search for and select your home address from the suggestions to continue.');
       return;
     }
+    // city/state/zipCode carry real `required` rules now (see the hidden
+    // Controllers below) — Nominatim frequently omits one of them (most
+    // often zip), so "picked a suggestion" alone isn't enough; this also
+    // catches whatever the fallback mini-form below hasn't been filled in
+    // yet, since setValue() from AddressPicker/the fallback inputs both
+    // write into the same tracked fields this trigger() call checks.
+    if (!await trigger(['firstName', 'lastName', 'email', 'phone', 'password', ...(isVendor ? ['companyName', 'ein', 'companyAddress', 'companyCity', 'companyState', 'companyZipCode'] : ['address', 'city', 'state', 'zipCode'])])) return;
     setStep(isVendor ? 'vendor-licenses' : 'plan');
   };
 
@@ -610,15 +621,17 @@ export default function RegisterScreen() {
                 />
 
                 <Text style={styles.sectionLabel}>Company Address</Text>
-                {(['companyAddress', 'companyCity', 'companyState'] as const).map((field) => (
+                {(['companyAddress', 'companyCity', 'companyState', 'companyZipCode'] as const).map((field) => (
                   <Controller key={field} control={control} name={field}
-                    rules={{ required: `${field === 'companyAddress' ? 'Street address' : field === 'companyCity' ? 'City' : 'State'} is required` }}
+                    rules={{ required: `${field === 'companyAddress' ? 'Street address' : field === 'companyCity' ? 'City' : field === 'companyState' ? 'State' : 'Zip code'} is required` }}
                     render={({ field: { onChange, value } }) => (
                       <>
                         <TextInput
                           style={[styles.input, errors[field] && styles.inputError]}
-                          placeholder={field === 'companyAddress' ? 'Street Address' : field === 'companyCity' ? 'City' : 'State (e.g. TN)'}
+                          placeholder={field === 'companyAddress' ? 'Street Address' : field === 'companyCity' ? 'City' : field === 'companyState' ? 'State (e.g. TN)' : 'Zip Code'}
                           placeholderTextColor={colors.steel} value={value} onChangeText={onChange}
+                          keyboardType={field === 'companyZipCode' ? 'number-pad' : 'default'}
+                          maxLength={field === 'companyZipCode' ? 5 : undefined}
                         />
                         {errors[field] && <Text style={styles.errorText}>{(errors[field] as any)?.message}</Text>}
                       </>
@@ -640,6 +653,7 @@ export default function RegisterScreen() {
                     setValue('zipCode', addr.zipCode);
                     setPickedAddress(addr);
                     setAddressValidated(true);
+                    setMissingAddressFields((['city', 'state', 'zipCode'] as const).filter((f) => !addr[f]));
                     // Keyboard stays open after picking a suggestion (the
                     // TextInput keeps focus), so the confirmation box and
                     // Continue button that just appeared below it can end up
@@ -655,6 +669,7 @@ export default function RegisterScreen() {
                     setValue('zipCode', '');
                     setPickedAddress(null);
                     setAddressValidated(false);
+                    setMissingAddressFields([]);
                   }}
                 />
                 {addressValidated && pickedAddress && (
@@ -666,14 +681,56 @@ export default function RegisterScreen() {
                     </View>
                   </View>
                 )}
+                {/* Nominatim frequently omits one of city/state/zip (most
+                    often zip) for rural/new-subdivision addresses — rather
+                    than blocking selection outright, ask for just the
+                    missing piece(s) manually so a real address isn't a dead
+                    end. handleContinueFromAccount's trigger() re-validates
+                    these as `required`, so Continue stays blocked until
+                    they're filled either way. */}
+                {addressValidated && missingAddressFields.length > 0 && (
+                  <View style={styles.addrMissingBox}>
+                    <Text style={styles.addrMissingLabel}>
+                      We couldn't find the {missingAddressFields.map((f) => (f === 'zipCode' ? 'zip code' : f)).join(' / ')} for this address — please enter it:
+                    </Text>
+                    {missingAddressFields.includes('city') && (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="City" placeholderTextColor={colors.steel}
+                        onChangeText={(t) => setValue('city', t)}
+                      />
+                    )}
+                    {missingAddressFields.includes('state') && (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="State (e.g. TN)" placeholderTextColor={colors.steel}
+                        maxLength={2} autoCapitalize="characters"
+                        onChangeText={(t) => setValue('state', t.toUpperCase())}
+                      />
+                    )}
+                    {missingAddressFields.includes('zipCode') && (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Zip Code" placeholderTextColor={colors.steel}
+                        keyboardType="number-pad" maxLength={5}
+                        onChangeText={(t) => setValue('zipCode', t)}
+                      />
+                    )}
+                  </View>
+                )}
                 {!addressValidated && (
                   <Text style={[styles.errorText, { marginBottom: 8 }]}>
                     Search and select your address to continue
                   </Text>
                 )}
-                {/* Hidden registered fields used in form submission */}
+                {/* Hidden registered fields used in form submission — real
+                    `required` rules now (values are still written via
+                    setValue() from AddressPicker/the fallback inputs above,
+                    not this render prop) so handleContinueFromAccount's
+                    trigger() genuinely blocks an incomplete address. */}
                 {(['address', 'city', 'state', 'zipCode'] as const).map((field) => (
                   <Controller key={field} control={control} name={field}
+                    rules={{ required: `${field === 'address' ? 'Street address' : field === 'city' ? 'City' : field === 'state' ? 'State' : 'Zip code'} is required` }}
                     render={() => <View style={{ display: 'none' }} />}
                   />
                 ))}
@@ -1069,4 +1126,9 @@ const styles = StyleSheet.create({
   },
   addrConfirmedStreet: { fontSize: 14, fontWeight: '700', color: '#059669' },
   addrConfirmedCity: { fontSize: 13, color: '#374151', marginTop: 2 },
+  addrMissingBox: {
+    backgroundColor: '#fffbeb', borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: '#fde68a', marginBottom: 8,
+  },
+  addrMissingLabel: { fontSize: 13, color: '#92400e', marginBottom: 10 },
 });

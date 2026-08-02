@@ -12,6 +12,15 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-02
+
+### Added
+- **admin**: Customer addresses are now visible and editable on the admin Customers page, and the existing vendor address edit on the Vendors page gained its missing zip code field — both edit forms are now superuser-only (the vendor one previously had no permission gate at all; new `PATCH /admin/customers/:id/address` mirrors the existing vendor equivalent). Non-superuser admins see the same fields read-only.
+- **api**: New `zipCode` column on `VendorCompany` — vendor zip wasn't just missing from the admin display, it didn't exist anywhere in the pipeline (no DB column, no registration field). Threaded through registration, the admin service-area edit endpoint, and vendor list/KPI responses.
+
+### Fixed
+- **api/mobile**: Address fields at registration were required in name only. Customer: `AddressPicker`'s Nominatim autocomplete considered an address "complete" the instant any suggestion was tapped, even when that suggestion's city/state/zip came back blank (common for rural/new addresses) — now missing pieces trigger an inline fallback form, and Continue is genuinely blocked (via real `required` rules, not just a one-time boolean flag) until every field has a value. Vendor: company zip was never asked for on the registration form at all (now added, required same as street/city/state). Server-side: `RegisterDto` marked every address field `@IsOptional()` for both roles — a direct API call bypassed all client-side validation entirely. Now conditionally required by role (`@ValidateIf`), and `UsersService.create()`'s customer-profile creation gate (previously `if (dto.address)`, silently dropping the whole profile on a partial payload) now trusts the DTO validation that already ran.
+
 ## 2026-08-01 (7)
 
 ### Added
