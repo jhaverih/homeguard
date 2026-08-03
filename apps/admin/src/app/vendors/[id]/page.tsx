@@ -82,6 +82,8 @@ export default function VendorKpiPage() {
         zipCode: zip.trim(),
       });
       await load();
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Failed to save address.');
     } finally {
       setSavingServiceArea(false);
     }
@@ -92,6 +94,8 @@ export default function VendorKpiPage() {
     try {
       await adminApi.updateVendorServiceArea(id, { serviceCounties: Array.from(selectedCounties) });
       await load();
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Failed to save counties.');
     } finally {
       setSavingServiceArea(false);
     }

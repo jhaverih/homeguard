@@ -15,6 +15,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-08-03
 
 ### Fixed
+- **api/admin**: Saving a customer's address from the admin Customers page silently did nothing for any customer without a `CustomerProfile` row (6 found live, mostly pre-dating the registration-requiredness fix) — `updateCustomerAddress` threw `NotFoundException`, and the admin page's Save handler had no `catch`, so the error vanished with no feedback. Now creates the profile row on first save instead of failing, and both the Customers and Vendors address-save handlers now show an alert on any save failure instead of failing silently (checked live: no vendor is currently missing a company link, but `updateVendorServiceArea` throws the same kind of error for a technician not yet linked to a company, and would have hit the identical silent-failure bug).
 - **mobile**: The vendor tab bar showed two extra unlabeled "bundl…" tabs for `bundle-job` and `bundle-close-all` — those two screens are only ever meant to be reached via `router.push` from an active job, not shown as navigable tabs, but the `href: null` entries hiding them from `_layout.tsx`'s `<Tabs>` had never actually been committed (found sitting uncommitted in the working tree from earlier bundling work). Committed now, so a fresh APK/TestFlight build will drop them from the tab bar.
 
 ## 2026-08-02

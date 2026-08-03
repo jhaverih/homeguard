@@ -200,7 +200,13 @@ export class AdminService {
     data: { address?: string; city?: string; state?: string; zipCode?: string; serviceCounties?: string[] },
   ) {
     const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
-    if (!profile?.companyId) throw new NotFoundException('Vendor company not found');
+    if (!profile) throw new NotFoundException('Vendor profile not found');
+    // Every vendor gets a company at registration except technicians invited
+    // onto an existing team (skipCompanyCreation) — those share their team's
+    // company once they join, but there's a window before that where they
+    // have none of their own to edit. Distinct from a missing profile row
+    // above (that would be a data-integrity bug; this is expected).
+    if (!profile.companyId) throw new NotFoundException("This vendor isn't linked to a company yet — nothing to edit.");
 
     if (data.serviceCounties?.some((fips) => !isEnabledCountyFips(fips))) {
       throw new BadRequestException('One or more counties are not currently open for service-area selection');
@@ -222,12 +228,28 @@ export class AdminService {
 
   // Superuser-only correction of a customer's address on file — mirrors
   // updateVendorServiceArea's shape/conditional-update pattern above.
+  // Some customer accounts (6 found live, e.g. pre-dating the registration
+  // requiredness fix) have no CustomerProfile row at all — this used to
+  // throw NotFoundException, and the admin page's Save handler had no
+  // catch to surface it, so it just looked like Save did nothing. Create
+  // the row on first save instead of failing.
   async updateCustomerAddress(
     customerId: string,
     data: { address?: string; city?: string; state?: string; zipCode?: string },
   ) {
     const profile = await this.customerProfileRepo.findOne({ where: { userId: customerId } });
-    if (!profile) throw new NotFoundException('Customer profile not found');
+    if (!profile) {
+      const user = await this.usersRepo.findOne({ where: { id: customerId } });
+      if (!user) throw new NotFoundException('Customer not found');
+      const created = this.customerProfileRepo.create({
+        userId: customerId,
+        address: data.address ?? '',
+        city: data.city ?? '',
+        state: data.state ?? '',
+        zipCode: data.zipCode ?? '',
+      });
+      return this.customerProfileRepo.save(created);
+    }
 
     await this.customerProfileRepo.update(profile.id, {
       ...(data.address !== undefined ? { address: data.address } : {}),

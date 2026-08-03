@@ -51,6 +51,8 @@ export default function CustomerDetailPage() {
         zipCode: zip.trim(),
       });
       await load();
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Failed to save address.');
     } finally {
       setSavingAddress(false);
     }
