@@ -47,6 +47,8 @@ export default function VendorLayout() {
       <Tabs.Screen name="earnings" options={{ title: 'Earnings', tabBarIcon: ({ color }) => <Ionicons name="cash" size={22} color={color} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }} />
       <Tabs.Screen name="active-job" options={{ href: null, title: 'Active Job' }} />
+      <Tabs.Screen name="bundle-job" options={{ href: null, title: 'Bundle Job' }} />
+      <Tabs.Screen name="bundle-close-all" options={{ href: null, title: 'Close Out Bundle' }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="capabilities" options={{ href: null, title: 'My Capabilities' }} />
       <Tabs.Screen name="certifications" options={{ href: null, title: 'My Certifications' }} />
