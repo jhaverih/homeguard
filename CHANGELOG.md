@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-05 (2)
+
+### Added
+- **api/mobile**: The vendor's "I Have Arrived" button is now gated on GPS proximity (~150m) to the job's actual address instead of being a pure self-report, and arrival is also auto-detected server-side — the job auto-advances to `IN_PROGRESS` the moment a location update shows the vendor within range, reusing the existing "Vendor Has Arrived" push notification with no new notification code. This required adding real address geocoding (Nominatim, same free service already used client-side at registration) since the only destination coordinate previously available was a ZIP-centroid approximation, explicitly noted in code as too coarse for "at the house" precision — `CustomerProfile`/`ServiceRequest` both gained real `latitude`/`longitude` columns, populated at registration and admin address edits, and copied onto each new request. As a side effect this also sharpens the existing live-tracking map, which previously only had ZIP-centroid accuracy. Jobs without geocoded coordinates (legacy requests, or a geocoding miss) fail open — the button behaves exactly as before, manual-only.
+
 ## 2026-08-05
 
 ### Changed

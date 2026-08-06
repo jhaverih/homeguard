@@ -27,6 +27,12 @@ import { VendorCertification, CertificationReviewStatus } from '../vendor/entiti
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { calcTieredCost } from '../pricing/pricing.utils';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
+import { haversineMiles } from '../common/utils/geo.utils';
+
+// How close (in meters) the vendor's GPS needs to be to the job's geocoded
+// address before "I Have Arrived" is confirmable/auto-triggers — roughly
+// 1-2 house-lots of buffer against typical phone GPS error.
+const ARRIVAL_RADIUS_METERS = 150;
 
 // Safety net for a request stuck in VENDOR_EN_ROUTE with no further update —
 // app crash, dead phone, vendor never revisiting the screen. Neither the
@@ -191,6 +197,10 @@ export class ServiceRequestsService {
       ? Number(subscription.plan.addonInspectionPrice)
       : null;
 
+    // Server-authoritative coordinates (never client-supplied) for GPS
+    // arrival-proximity checks — see CustomerProfile.latitude/longitude.
+    const profile = await this.usersService.getCustomerProfile(customerId);
+
     const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
       subscriptionId: subscription.id,
@@ -203,6 +213,8 @@ export class ServiceRequestsService {
       city: dto.city,
       state: dto.state,
       zipCode: dto.zipCode,
+      latitude: profile?.latitude ?? null,
+      longitude: profile?.longitude ?? null,
       isPaidAddon: !!addonPrice,
       addonPrice,
       checklistGroupKey: 'GENERAL_HOME_INSPECTION',
@@ -259,6 +271,7 @@ export class ServiceRequestsService {
     const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
     const cost = calcTieredCost(servicePrice, billedQty);
     const customerPrice = isQuotaCovered ? 0 : Math.round(cost * (1 + markup / 100) * 100) / 100;
+    const profile = await this.usersService.getCustomerProfile(customerId);
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
@@ -272,6 +285,8 @@ export class ServiceRequestsService {
       city: dto.city,
       state: dto.state,
       zipCode: dto.zipCode,
+      latitude: profile?.latitude ?? null,
+      longitude: profile?.longitude ?? null,
       isPaidAddon: false,
       addonPrice: customerPrice,
       servicePriceId: servicePrice.id,
@@ -349,6 +364,7 @@ export class ServiceRequestsService {
     const prices = await this.pricingService.getAll();
     const servicePrice = prices.find((p) => p.id === dto.servicePriceId);
     if (!servicePrice) throw new BadRequestException('Service not found');
+    const profile = await this.usersService.getCustomerProfile(customerId);
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
       customerId,
@@ -361,6 +377,8 @@ export class ServiceRequestsService {
       city: dto.city,
       state: dto.state,
       zipCode: dto.zipCode,
+      latitude: profile?.latitude ?? null,
+      longitude: profile?.longitude ?? null,
       isPaidAddon: false,
       addonPrice: dto.price,
       servicePriceId: servicePrice.id,
@@ -1116,6 +1134,27 @@ export class ServiceRequestsService {
     request.vendorLongitude = longitude;
     request.vendorHeading = heading ?? null;
     request.vendorLocationAt = new Date();
+
+    // Auto-detect arrival: if this job has real geocoded coordinates (see
+    // ServiceRequest.latitude/longitude) and the vendor's new position is
+    // within range, advance straight to IN_PROGRESS — reuses the same path
+    // (and existing "Vendor Has Arrived" notification) as a manual "I Have
+    // Arrived" tap. Requests without geocoded coordinates (legacy, or
+    // geocoding failed) skip this entirely and stay manual-only. No
+    // "already notified" flag needed: the VENDOR_EN_ROUTE guard above
+    // already rejects further location updates once status advances, so
+    // this can only fire once per job.
+    if (request.latitude != null && request.longitude != null) {
+      const distanceMeters = haversineMiles(latitude, longitude, Number(request.latitude), Number(request.longitude)) * 1609.34;
+      if (distanceMeters <= ARRIVAL_RADIUS_METERS) {
+        // finalizeStatusTransition saves the entity itself (status +
+        // whatever's already mutated on it, including the vendor location
+        // fields just set above) — no separate save needed here.
+        await this.finalizeStatusTransition(request, ServiceRequestStatus.IN_PROGRESS);
+        return { ok: true };
+      }
+    }
+
     await this.requestsRepo.save(request);
     return { ok: true };
   }

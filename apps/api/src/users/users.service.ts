@@ -10,6 +10,7 @@ import { UserRole, UserStatus } from '../common/enums/role.enum';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { CURRENT_CUSTOMER_TOS_VERSION, CURRENT_VENDOR_TOS_VERSION } from '../common/constants/tos';
+import { geocodeAddress } from '../common/utils/geocode.utils';
 
 export interface CreateUserDto {
   email: string;
@@ -158,6 +159,7 @@ export class UsersService implements OnModuleInit {
       const saved = await this.usersRepo.save(existing);
 
       if (newRoles.includes(UserRole.CUSTOMER) && !existing.customerProfile) {
+        const coords = await geocodeAddress(dto.address, dto.city, dto.state, dto.zipCode);
         await this.customerProfileRepo.save(
           this.customerProfileRepo.create({
             userId: saved.id,
@@ -165,6 +167,8 @@ export class UsersService implements OnModuleInit {
             city: dto.city,
             state: dto.state,
             zipCode: dto.zipCode,
+            latitude: coords?.lat ?? null,
+            longitude: coords?.lng ?? null,
           }),
         );
       }
@@ -193,12 +197,15 @@ export class UsersService implements OnModuleInit {
     const saved = await this.usersRepo.save(user);
 
     if (dto.roles.includes(UserRole.CUSTOMER)) {
+      const coords = await geocodeAddress(dto.address, dto.city, dto.state, dto.zipCode);
       const profile = this.customerProfileRepo.create({
         userId: saved.id,
         address: dto.address,
         city: dto.city,
         state: dto.state,
         zipCode: dto.zipCode,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
       });
       await this.customerProfileRepo.save(profile);
     }
@@ -386,6 +393,10 @@ export class UsersService implements OnModuleInit {
   async getEffectiveSubscriptionOwnerId(userId: string): Promise<string> {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     return user?.parentUserId ?? userId;
+  }
+
+  async getCustomerProfile(userId: string): Promise<CustomerProfile | null> {
+    return this.customerProfileRepo.findOne({ where: { userId } });
   }
 
   async getRelatedCustomerIds(userId: string): Promise<string[]> {

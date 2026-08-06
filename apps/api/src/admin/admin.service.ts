@@ -27,6 +27,7 @@ import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-pa
 import { WaitlistSignup } from '../service-area/entities/waitlist-signup.entity';
 import { emailEquals } from '../common/utils/email.util';
 import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.utils';
+import { geocodeAddress } from '../common/utils/geocode.utils';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from '../payments/payments.service';
 
@@ -241,21 +242,44 @@ export class AdminService {
     if (!profile) {
       const user = await this.usersRepo.findOne({ where: { id: customerId } });
       if (!user) throw new NotFoundException('Customer not found');
+      const address = data.address ?? '';
+      const city = data.city ?? '';
+      const state = data.state ?? '';
+      const zipCode = data.zipCode ?? '';
+      const coords = await geocodeAddress(address, city, state, zipCode);
       const created = this.customerProfileRepo.create({
         userId: customerId,
-        address: data.address ?? '',
-        city: data.city ?? '',
-        state: data.state ?? '',
-        zipCode: data.zipCode ?? '',
+        address,
+        city,
+        state,
+        zipCode,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
       });
       return this.customerProfileRepo.save(created);
     }
+
+    // Re-geocode using the merged (existing + incoming) fields whenever any
+    // address field actually changes — a partial update (e.g. zip only)
+    // still needs the full address to geocode correctly.
+    const addressChanged = ['address', 'city', 'state', 'zipCode'].some(
+      (k) => (data as any)[k] !== undefined && (data as any)[k] !== (profile as any)[k],
+    );
+    const coords = addressChanged
+      ? await geocodeAddress(
+          data.address ?? profile.address,
+          data.city ?? profile.city,
+          data.state ?? profile.state,
+          data.zipCode ?? profile.zipCode,
+        )
+      : null;
 
     await this.customerProfileRepo.update(profile.id, {
       ...(data.address !== undefined ? { address: data.address } : {}),
       ...(data.city !== undefined ? { city: data.city } : {}),
       ...(data.state !== undefined ? { state: data.state } : {}),
       ...(data.zipCode !== undefined ? { zipCode: data.zipCode } : {}),
+      ...(addressChanged ? { latitude: coords?.lat ?? null, longitude: coords?.lng ?? null } : {}),
     });
     return this.customerProfileRepo.findOne({ where: { id: profile.id } });
   }

@@ -132,6 +132,18 @@ export class ServiceRequest {
   @Column()
   zipCode: string;
 
+  // Geocoded coordinates of this job's own address — copied from the
+  // customer's CustomerProfile.latitude/longitude at creation (see
+  // ServiceRequestsService.saveNewRequest call sites), not the vendor's
+  // live position (vendorLatitude/vendorLongitude below). Null for requests
+  // created before this existed, or if geocoding failed — destinationLatitude/
+  // Longitude below fall back to the ZIP centroid in that case.
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  latitude: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  longitude: number | null;
+
   @OneToMany(() => AdditionalService, (s) => s.serviceRequest)
   additionalServices: AdditionalService[];
 
@@ -159,15 +171,16 @@ export class ServiceRequest {
     return Math.round((distanceMiles / avgSpeedMph) * 60);
   }
 
-  // Approximate destination point for the live-tracking map — the same free
-  // ZIP-centroid lookup etaMinutes already uses, not a geocoded street
-  // address (no geocoding provider is set up anywhere in this app).
+  // Destination point for the live-tracking map — prefers this request's own
+  // geocoded latitude/longitude (real street-address precision) and falls
+  // back to the free ZIP-centroid lookup for requests created before
+  // geocoding existed or where it failed.
   get destinationLatitude(): number | null {
-    return getZipCentroid(this.zipCode)?.lat ?? null;
+    return this.latitude != null ? Number(this.latitude) : (getZipCentroid(this.zipCode)?.lat ?? null);
   }
 
   get destinationLongitude(): number | null {
-    return getZipCentroid(this.zipCode)?.lng ?? null;
+    return this.longitude != null ? Number(this.longitude) : (getZipCentroid(this.zipCode)?.lng ?? null);
   }
 
   // MinIO object keys uploaded by vendor as proof of completion (min 1 required)

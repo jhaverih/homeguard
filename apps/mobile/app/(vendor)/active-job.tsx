@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, pricingApi, uploadsApi, yolinkApi } from '../../src/services/api';
 import { enqueueTaskResult, flushQueue } from '../../src/services/taskQueue';
 import { fmtUSD } from '../../src/utils/currency';
+import { haversineMeters } from '../../src/utils/geo';
 import { colors } from '../../src/theme';
 import { PhotoStrip } from '../../src/components/vendor/PhotoStrip';
 
@@ -254,6 +255,11 @@ export default function ActiveJobScreen() {
 
   // Location tracking
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Last GPS fix reported to the backend — used to gate "I Have Arrived" on
+  // proximity to the job's address client-side (the backend independently
+  // auto-advances the job on the same proximity check server-side; this is
+  // just so the button itself doesn't sit enabled from far away).
+  const [vendorCoords, setVendorCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Status advance guard
   const [advancingStatus, setAdvancingStatus] = useState(false);
@@ -276,6 +282,7 @@ export default function ActiveJobScreen() {
         accuracy: Location.Accuracy.Balanced,
         mayShowUserSettingsDialog: false,
       });
+      setVendorCoords({ lat: l.coords.latitude, lng: l.coords.longitude });
       await requestsApi.updateLocation(id, l.coords.latitude, l.coords.longitude, l.coords.heading);
       return true;
     } catch (err: any) {
@@ -814,6 +821,19 @@ export default function ActiveJobScreen() {
     ? GUTTER_CHECKLIST.filter((t) => !!taskResults[t.key]).length
     : 0;
 
+  // Gate "I Have Arrived" on GPS proximity — the backend independently
+  // auto-advances the job on the same check as location updates come in, so
+  // this is mainly about not leaving the button enabled while clearly still
+  // far away. Jobs without geocoded coordinates (job.latitude/longitude
+  // null — legacy request, or geocoding failed) fail OPEN: never regress
+  // today's manual-only behavior for those.
+  const jobHasCoords = job.latitude != null && job.longitude != null;
+  const withinArrivalRange = !jobHasCoords || (
+    vendorCoords != null
+    && haversineMeters(vendorCoords.lat, vendorCoords.lng, Number(job.latitude), Number(job.longitude)) <= 150
+  );
+  const arrivalGateActive = job.status === 'VENDOR_EN_ROUTE' && jobHasCoords && !withinArrivalRange;
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -939,16 +959,23 @@ export default function ActiveJobScreen() {
         )}
 
         {nextAction && (
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: advancingStatus ? colors.steel : nextAction.color }]}
-            onPress={advanceStatus}
-            disabled={advancingStatus}
-          >
-            {advancingStatus
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.actionBtnText}>{nextAction.label}</Text>
-            }
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: (advancingStatus || arrivalGateActive) ? colors.steel : nextAction.color }]}
+              onPress={advanceStatus}
+              disabled={advancingStatus || arrivalGateActive}
+            >
+              {advancingStatus
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.actionBtnText}>{nextAction.label}</Text>
+              }
+            </TouchableOpacity>
+            {arrivalGateActive && (
+              <Text style={styles.arrivalGateHint}>
+                {vendorCoords ? "Get closer to the address to confirm arrival" : "Waiting for your location…"}
+              </Text>
+            )}
+          </>
         )}
 
         {isCompleted && (
@@ -1790,6 +1817,7 @@ const styles = StyleSheet.create({
   pendingReviewBody: { fontSize: 13, color: '#78350f', lineHeight: 19 },
   actionBtn: { borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 12 },
   actionBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  arrivalGateHint: { fontSize: 13, color: colors.steel, textAlign: 'center', marginTop: -8, marginBottom: 12 },
   completedBadge: { backgroundColor: '#c6f6d5', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
   completedText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 16 },
   progressCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
