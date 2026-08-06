@@ -418,6 +418,9 @@ export class ServiceRequestsService {
     }
 
     const proposed = new Date(scheduledDate);
+    if (proposed.getTime() <= Date.now()) {
+      throw new BadRequestException('That date and time has already passed — please choose a future date and time.');
+    }
     const preferred = new Date(request.preferredDate);
     const diffMs = Math.abs(proposed.getTime() - preferred.getTime());
     const sametime = diffMs < 5 * 60 * 1000;
@@ -465,6 +468,9 @@ export class ServiceRequestsService {
     }
 
     const proposed = new Date(scheduledDate);
+    if (proposed.getTime() <= Date.now()) {
+      throw new BadRequestException('That date and time has already passed — please choose a future date and time.');
+    }
     const accepted: ServiceRequest[] = [];
 
     await this.dataSource.transaction(async (manager) => {
@@ -753,6 +759,9 @@ export class ServiceRequestsService {
     }
 
     const proposed = new Date(scheduledDate);
+    if (proposed.getTime() <= Date.now()) {
+      throw new BadRequestException('That date and time has already passed — please choose a future date and time.');
+    }
     const freshBookingGroupId = `bg-vendor-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const accepted: ServiceRequest[] = [];
 
@@ -1390,6 +1399,11 @@ export class ServiceRequestsService {
     const request = await this.findById(requestId);
     if (request.customerId !== userId && request.vendorId !== userId) throw new ForbiddenException();
 
+    const proposed = new Date(newDate);
+    if (proposed.getTime() <= Date.now()) {
+      throw new BadRequestException('That date and time has already passed — please choose a future date and time.');
+    }
+
     // A re-timed visit shouldn't still claim to be "en route" or "in
     // progress" — without this, rescheduling mid-trip left the request
     // showing a live ETA banner pointed at a stale GPS ping for a visit
@@ -1403,7 +1417,7 @@ export class ServiceRequestsService {
       request.vendorEnRouteAt = null;
     }
 
-    request.scheduledDate = new Date(newDate);
+    request.scheduledDate = proposed;
     const saved = await this.requestsRepo.save(request);
 
     const otherPartyId = request.customerId === userId ? request.vendorId : request.customerId;
@@ -1412,7 +1426,7 @@ export class ServiceRequestsService {
         otherPartyId,
         NotificationType.SCHEDULE_CHANGED,
         'Schedule Updated',
-        `The inspection has been rescheduled to ${new Date(newDate).toLocaleDateString()}.`,
+        `The inspection has been rescheduled to ${proposed.toLocaleDateString()}.`,
         { serviceRequestId: saved.id },
       );
     }
