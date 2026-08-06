@@ -824,6 +824,14 @@ export default function ActiveJobScreen() {
             <Text style={styles.customerLabel}>{isService ? 'Service Request' : 'Inspection'}</Text>
             {job.ticketNumber && <Text style={{ fontSize: 11, color: '#a8d5a2', fontFamily: 'monospace' }}>{job.ticketNumber}</Text>}
           </View>
+          <Text style={styles.jobTitle}>
+            {isService
+              ? (job.additionalServices?.[0]?.name || 'Service Request')
+              : 'Full home inspection — HVAC, plumbing, water leak check & bulb replacement'}
+          </Text>
+          {isService && job.additionalServices?.[0]?.description ? (
+            <Text style={styles.jobDescription}>{job.additionalServices[0].description}</Text>
+          ) : null}
           {job.customer && <Text style={styles.customerName}>{job.customer.firstName} {job.customer.lastName}</Text>}
           <Text style={styles.customerAddress}>{job.address}</Text>
           <Text style={styles.customerCity}>{job.city}, {job.state} {job.zipCode}</Text>
@@ -1765,6 +1773,8 @@ const styles = StyleSheet.create({
   content: { padding: 16 },
   customerBox: { backgroundColor: colors.ink, borderRadius: 16, padding: 20, marginBottom: 12 },
   customerLabel: { fontSize: 12, color: '#a8d5a2', marginBottom: 4, fontWeight: '600', textTransform: 'uppercase' },
+  jobTitle: { fontSize: 19, fontWeight: '800', color: colors.mist, marginBottom: 4 },
+  jobDescription: { fontSize: 13, color: '#c8e6c0', marginBottom: 6 },
   customerName: { fontSize: 18, fontWeight: '700', color: colors.mist, marginBottom: 4 },
   customerAddress: { fontSize: 14, color: '#c8e6c0', marginBottom: 2 },
   customerCity: { fontSize: 14, color: '#c8e6c0', marginBottom: 8 },
