@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-08-05
 
+### Changed
+- **mobile**: The customer "My Services" and vendor "My Jobs" lists now default to the Active tab instead of All, so both sides land on their in-progress work first rather than a mixed list dominated by completed/cancelled history.
+
 ### Fixed
 - **mobile**: The vendor Active Job screen's header showed only a generic "Service Request"/"Inspection" label — no indication of what the job actually was — even though the real service name (and description, for a repair) was already loaded in the payload and silently used internally (`getServiceKey()`) to pick which checklist to render. Added a headline (the service's actual name, or a fixed "Full home inspection — ..." summary for inspections, matching the summary already shown on the Open Jobs list) and, for repairs, a description subtitle beneath it.
 
