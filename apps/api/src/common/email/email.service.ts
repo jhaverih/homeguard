@@ -8,25 +8,29 @@ export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
 
   constructor(private config: ConfigService) {
+    const host = this.config.get<string>('SMTP_HOST');
+    const port = Number(this.config.get<string>('SMTP_PORT') ?? 465);
     const user = this.config.get<string>('SMTP_USER');
     const pass = this.config.get<string>('SMTP_PASS');
 
-    if (user && pass) {
+    if (host && user && pass) {
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host,
+        port,
+        secure: port === 465,
         auth: { user, pass },
       });
     } else {
-      this.logger.warn('SMTP_USER / SMTP_PASS not set — emails will be logged to console only');
+      this.logger.warn('SMTP_HOST / SMTP_USER / SMTP_PASS not set — emails will be logged to console only');
     }
   }
 
   async sendVerificationCode(to: string, code: string): Promise<void> {
-    const subject = 'Your Houmi verification code';
+    const subject = 'Your Attenteve verification code';
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
         <h2 style="color:#0B4A45">Verify your email</h2>
-        <p>Your Houmi verification code is:</p>
+        <p>Your Attenteve verification code is:</p>
         <div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#0B4A45;
                     background:#EBF1EF;border-radius:12px;padding:20px;text-align:center;margin:20px 0">
           ${code}
@@ -37,11 +41,11 @@ export class EmailService {
   }
 
   async sendPasswordReset(to: string, token: string): Promise<void> {
-    const subject = 'Reset your Houmi password';
+    const subject = 'Reset your Attenteve password';
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
         <h2 style="color:#0B4A45">Reset your password</h2>
-        <p>Use this code in the Houmi app to reset your password:</p>
+        <p>Use this code in the Attenteve app to reset your password:</p>
         <div style="font-size:28px;font-weight:bold;letter-spacing:4px;color:#0B4A45;
                     background:#EBF1EF;border-radius:12px;padding:20px;text-align:center;margin:20px 0">
           ${token}
@@ -52,11 +56,11 @@ export class EmailService {
   }
 
   async sendTeamInvite(to: string, firstName: string, loginUrl: string): Promise<void> {
-    const subject = "You've been added to the Houmi Admin Portal";
+    const subject = "You've been added to the Attenteve Admin Portal";
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
-        <h2 style="color:#0B4A45">Welcome to Houmi, ${firstName}</h2>
-        <p>You've been added as a Houmi Admin Portal user.</p>
+        <h2 style="color:#0B4A45">Welcome to Attenteve, ${firstName}</h2>
+        <p>You've been added as an Attenteve Admin Portal user.</p>
         <div style="text-align:center;margin:24px 0">
           <a href="${loginUrl}" style="display:inline-block;background:#0B4A45;color:#fff;
                     font-weight:bold;text-decoration:none;border-radius:10px;padding:14px 28px">
@@ -71,7 +75,7 @@ export class EmailService {
   }
 
   private async send(to: string, subject: string, html: string): Promise<void> {
-    const from = this.config.get<string>('SMTP_USER') || 'noreply@houmi.app';
+    const from = this.config.get<string>('SMTP_FROM') || 'noreply@attenteve.com';
 
     if (!this.transporter) {
       this.logger.log(`[EMAIL] To: ${to} | Subject: ${subject}`);
@@ -80,9 +84,10 @@ export class EmailService {
     }
 
     try {
-      await this.transporter.sendMail({ from: `Houmi <${from}>`, to, subject, html });
+      await this.transporter.sendMail({ from: `Attenteve <${from}>`, to, subject, html });
     } catch (err) {
       this.logger.error(`Failed to send email to ${to}: ${err}`);
+      throw err;
     }
   }
 }

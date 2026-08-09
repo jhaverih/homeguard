@@ -246,6 +246,10 @@ export default function RegisterScreen() {
   const [verifyError, setVerifyError] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [emailSendFailed, setEmailSendFailed] = useState(false);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [editEmailValue, setEditEmailValue] = useState('');
+  const [updatingEmail, setUpdatingEmail] = useState(false);
 
   const [addressValidated, setAddressValidated] = useState(false);
   const [pickedAddress, setPickedAddress] = useState<AddressResult | null>(null);
@@ -407,6 +411,7 @@ export default function RegisterScreen() {
       }
       setPendingEmail(data.email);
       setPendingAuth({ user: res.user, accessToken: res.accessToken });
+      setEmailSendFailed(res.emailSent === false);
       startCooldown();
       setStep('verify');
     } catch (e: any) {
@@ -427,30 +432,40 @@ export default function RegisterScreen() {
       await authApi.verifyEmail(pendingEmail, verifyCode.trim());
       await setAuth(pendingAuth!.user, pendingAuth!.accessToken);
     } catch (e: any) {
-      // If endpoint not yet deployed, fall through to login
-      if ((e as any)?.response?.status === 404 || (e as any)?.response?.status === 405) {
-        await setAuth(pendingAuth!.user, pendingAuth!.accessToken);
-        return;
-      }
       setVerifyError(e.message || 'Invalid or expired code. Try again.');
     } finally {
       setVerifyLoading(false);
     }
   };
 
-  const handleSkipVerify = async () => {
-    if (!pendingAuth) return;
-    await setAuth(pendingAuth.user, pendingAuth.accessToken);
-  };
-
   const handleResend = async () => {
     if (cooldown > 0) return;
     try {
       await authApi.resendVerification(pendingEmail);
+      setEmailSendFailed(false);
       startCooldown();
       Alert.alert('Code Sent', `A new code was sent to ${pendingEmail}`);
-    } catch {
-      Alert.alert('Error', 'Could not resend code. Try again.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not resend code. Try again.');
+    }
+  };
+
+  const handleUpdatePendingEmail = async () => {
+    const trimmed = editEmailValue.trim();
+    if (!trimmed || !pendingAuth) return;
+    setUpdatingEmail(true);
+    try {
+      await authApi.updatePendingEmail(trimmed, pendingAuth.accessToken);
+      setPendingEmail(trimmed);
+      setEmailSendFailed(false);
+      setEditingEmail(false);
+      setVerifyCode('');
+      startCooldown();
+      Alert.alert('Code Sent', `A new code was sent to ${trimmed}`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not update email. Try again.');
+    } finally {
+      setUpdatingEmail(false);
     }
   };
 
@@ -945,31 +960,66 @@ export default function RegisterScreen() {
               </Text>
             </View>
 
-            <TextInput
-              style={[styles.input, styles.codeInput, verifyError ? styles.inputError : null]}
-              placeholder="000000"
-              placeholderTextColor={colors.steel}
-              keyboardType="number-pad"
-              maxLength={6}
-              value={verifyCode}
-              onChangeText={(t) => { setVerifyCode(t); setVerifyError(''); }}
-              textAlign="center"
-            />
-            {verifyError ? <Text style={styles.errorText}>{verifyError}</Text> : null}
+            {emailSendFailed && (
+              <View style={styles.addrMissingBox}>
+                <Text style={styles.addrMissingLabel}>
+                  We couldn't send that code right now. Tap Resend below, or Edit email if it might be mistyped.
+                </Text>
+              </View>
+            )}
 
-            <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={verifyLoading}>
-              {verifyLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & Continue</Text>}
-            </TouchableOpacity>
+            {editingEmail ? (
+              <View style={styles.addrMissingBox}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email address"
+                  placeholderTextColor={colors.steel}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={editEmailValue}
+                  onChangeText={setEditEmailValue}
+                />
+                <TouchableOpacity style={styles.button} onPress={handleUpdatePendingEmail} disabled={updatingEmail}>
+                  {updatingEmail
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.buttonText}>Send to This Address</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.resendRow} onPress={() => setEditingEmail(false)}>
+                  <Text style={styles.resendText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  style={[styles.input, styles.codeInput, verifyError ? styles.inputError : null]}
+                  placeholder="000000"
+                  placeholderTextColor={colors.steel}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  value={verifyCode}
+                  onChangeText={(t) => { setVerifyCode(t); setVerifyError(''); }}
+                  textAlign="center"
+                />
+                {verifyError ? <Text style={styles.errorText}>{verifyError}</Text> : null}
 
-            <TouchableOpacity style={styles.resendRow} onPress={handleResend} disabled={cooldown > 0}>
-              <Text style={[styles.resendText, cooldown > 0 && { color: colors.steel }]}>
-                {cooldown > 0 ? `Resend in ${cooldown}s` : "Didn't get the code? Resend"}
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={verifyLoading}>
+                  {verifyLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & Continue</Text>}
+                </TouchableOpacity>
 
-            <TouchableOpacity style={styles.skipRow} onPress={handleSkipVerify}>
-              <Text style={styles.skipText}>Skip for now</Text>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.resendRow} onPress={handleResend} disabled={cooldown > 0}>
+                  <Text style={[styles.resendText, cooldown > 0 && { color: colors.steel }]}>
+                    {cooldown > 0 ? `Resend in ${cooldown}s` : "Didn't get the code? Resend"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.resendRow}
+                  onPress={() => { setEditEmailValue(pendingEmail); setEditingEmail(true); }}
+                >
+                  <Text style={[styles.resendText, { color: colors.steel }]}>Edit email</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </>
         )}
 
@@ -1112,8 +1162,6 @@ const styles = StyleSheet.create({
   },
   resendRow: { alignItems: 'center', marginTop: 12, padding: 8 },
   resendText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
-  skipRow: { alignItems: 'center', marginTop: 4, padding: 8 },
-  skipText: { fontSize: 13, color: colors.steel },
 
   loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
   loginText: { color: colors.steel, fontSize: 14 },

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -31,10 +31,17 @@ export class AuthService {
     const user = await this.usersService.findById(created.id);
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
 
-    // Send verification code
-    await this.sendVerificationCode(user);
+    // A flaky send shouldn't fail account creation — the account/password
+    // are already valid regardless. emailSent lets the client tell the user
+    // if the code genuinely didn't go out, instead of always claiming it did.
+    let emailSent = true;
+    try {
+      await this.sendVerificationCode(user);
+    } catch {
+      emailSent = false;
+    }
 
-    return { accessToken: token, user };
+    return { accessToken: token, user, emailSent };
   }
 
   async login(dto: LoginDto) {
@@ -48,9 +55,30 @@ export class AuthService {
       throw new UnauthorizedException('This account has been suspended');
     }
 
+    if (!user.isEmailVerified) {
+      throw new ForbiddenException('EMAIL_NOT_VERIFIED');
+    }
+
     const fullUser = await this.usersService.findById(user.id);
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
     return { accessToken: token, user: fullUser };
+  }
+
+  // Lets a user fix a mistyped email while still on the registration wizard's
+  // verify step, before they've ever successfully logged in with it — scoped
+  // to unverified accounts only, not a general "change my email" endpoint.
+  async updatePendingEmail(userId: string, newEmail: string): Promise<{ message: string }> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.isEmailVerified) throw new BadRequestException('Email is already verified');
+
+    const existing = await this.usersRepo.findOne({ where: { email: emailEquals(newEmail) } });
+    if (existing && existing.id !== userId) throw new ConflictException('That email is already in use');
+
+    await this.usersRepo.update(userId, { email: newEmail });
+    const updated = await this.usersRepo.findOne({ where: { id: userId } });
+    await this.sendVerificationCode(updated!);
+    return { message: 'Verification code sent to new email' };
   }
 
   async verifyEmail(email: string, code: string): Promise<{ message: string }> {

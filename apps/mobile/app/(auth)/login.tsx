@@ -79,6 +79,8 @@ export default function LoginScreen() {
           'Cannot Connect to Server',
           `Check your internet connection and try again.\n\nServer: ${API_URL}`,
         );
+      } else if (e.message === 'EMAIL_NOT_VERIFIED') {
+        router.push(`/(auth)/verify-email?email=${encodeURIComponent(data.email)}`);
       } else {
         Alert.alert('Login Failed', 'Incorrect email or password. Please try again.');
       }

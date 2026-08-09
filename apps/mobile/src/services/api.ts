@@ -50,6 +50,11 @@ export const authApi = {
     api.post('/auth/verify-email', { email, code }),
   resendVerification: (email: string) =>
     api.post('/auth/resend-verification', { email }),
+  // Explicit token param — called from the registration wizard's verify
+  // step, before setAuth() has committed the session to the memory/
+  // SecureStore token the interceptor normally reads.
+  updatePendingEmail: (email: string, token: string) =>
+    api.patch('/auth/pending-email', { email }, { headers: { Authorization: `Bearer ${token}` } }),
 };
 
 export const userApi = {

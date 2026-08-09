@@ -1,10 +1,11 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Patch, Body, HttpCode, HttpStatus, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { IsEmail, IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { IsStrongPassword } from '../common/validators/password-policy';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 class VerifyEmailDto {
   @IsEmail() email: string;
@@ -12,6 +13,10 @@ class VerifyEmailDto {
 }
 
 class ResendVerificationDto {
+  @IsEmail() email: string;
+}
+
+class UpdatePendingEmailDto {
   @IsEmail() email: string;
 }
 
@@ -54,6 +59,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Resend email verification code' })
   resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerification(dto.email);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('pending-email')
+  @ApiOperation({ summary: 'Correct a mistyped email before verifying, and resend the code to it' })
+  updatePendingEmail(@Request() req, @Body() dto: UpdatePendingEmailDto) {
+    return this.authService.updatePendingEmail(req.user.id, dto.email);
   }
 
   @Post('forgot-password')
