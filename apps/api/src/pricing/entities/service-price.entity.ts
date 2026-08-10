@@ -23,6 +23,14 @@ export class ServicePrice {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   markupPercent: number | null;
 
+  // Replacing markupPercent (switching from a markup-on-cost model to a
+  // gross-margin model, customerPrice = cost/(1-gmPercent/100)) — added
+  // additively first so a one-time SQL copy can move existing figures across
+  // before markupPercent is removed in a follow-up deploy, avoiding any
+  // window where synchronize could drop data. See project memory.
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  gmPercent: number | null;
+
   @Column({ type: 'enum', enum: PricingMethod, default: PricingMethod.FLAT_PRICE })
   pricingMethod: PricingMethod;
 
