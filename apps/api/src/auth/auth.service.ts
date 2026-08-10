@@ -77,7 +77,11 @@ export class AuthService {
 
     await this.usersRepo.update(userId, { email: newEmail });
     const updated = await this.usersRepo.findOne({ where: { id: userId } });
-    await this.sendVerificationCode(updated!);
+    try {
+      await this.sendVerificationCode(updated!);
+    } catch {
+      throw new BadRequestException('Email updated, but we could not send a code to it right now — please try Resend in a moment.');
+    }
     return { message: 'Verification code sent to new email' };
   }
 
@@ -114,7 +118,11 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.isEmailVerified) return { message: 'Already verified' };
 
-    await this.sendVerificationCode(user);
+    try {
+      await this.sendVerificationCode(user);
+    } catch {
+      throw new BadRequestException('Could not send the verification email right now — please try again in a moment.');
+    }
     return { message: 'Verification code sent' };
   }
 
