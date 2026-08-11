@@ -20,14 +20,10 @@ export class ServicePrice {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   basePrice: number;
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  markupPercent: number | null;
-
-  // Replacing markupPercent (switching from a markup-on-cost model to a
-  // gross-margin model, customerPrice = cost/(1-gmPercent/100)) — added
-  // additively first so a one-time SQL copy can move existing figures across
-  // before markupPercent is removed in a follow-up deploy, avoiding any
-  // window where synchronize could drop data. See project memory.
+  // Gross margin percent: customerPrice = cost / (1 - gmPercent/100).
+  // Replaced markupPercent (customerPrice = cost * (1 + markupPercent/100))
+  // — same stored figures, existing values copied across via a one-time SQL
+  // step before that column was dropped.
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   gmPercent: number | null;
 

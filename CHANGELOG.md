@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-10 (3)
+
+### Changed
+- **api/admin/mobile**: Handyman-catalog pricing (general service catalog — Inspections, Interior Repairs, Electrical, Plumbing, Mounting, Carpentry, Exterior/Outdoor; Lawncare/Pest Control/House Cleaning are unaffected, separate pricing engines) switched from markup to gross margin: customer price is now `cost / (1 - GM%/100)` instead of `cost * (1 + markup%/100)`. `ServicePrice.markupPercent` is renamed to `gmPercent` end to end (entity, DTOs, admin Services Management page including its CSV import/export column, mobile price preview). Every existing percentage figure carried over unchanged (verified: 87/87 rows matched exactly after the copy) — but since the same number means a bigger margin under the new formula, every catalog item's actual customer price goes up as of this deploy; that's an expected/intended side effect of the switch, not a bug. See [[project_gm_percent_pricing]].
+
 ## 2026-08-10 (2)
 
 ### Added

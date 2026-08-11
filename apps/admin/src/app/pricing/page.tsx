@@ -5,12 +5,11 @@ import { pricingApi, subscriptionsApi, adminApi, templateApi, unitLabelApi } fro
 const STRIPE_RATE = 0.029;
 const STRIPE_FIXED = 0.30;
 
-function calcPricing(providerCost: number, markupPct: number) {
-  const markupDollar = providerCost * markupPct / 100;
-  const subtotal = providerCost + markupDollar;
+function calcPricing(providerCost: number, gmPct: number) {
+  const subtotal = providerCost / (1 - gmPct / 100);
   const stripeFee = subtotal * STRIPE_RATE + STRIPE_FIXED;
   const customerPrice = subtotal + stripeFee;
-  return { markupDollar, stripeFee, customerPrice };
+  return { stripeFee, customerPrice };
 }
 
 // Mirrors apps/api/src/pricing/pricing.utils.ts calcTieredCost() — kept in
@@ -75,19 +74,19 @@ const ADD_NEW_UNIT_LABEL = '__add_new_label__';
 // preview elsewhere on this page (including the Stripe pass-through fee, so
 // the dollar figure quoted here agrees with that column instead of a raw
 // backend-only number), just narrated instead of only computed.
-function formatFormulaReference(state: EditState, globalMarkup: string, unitLabels: UnitLabelRow[]): string {
+function formatFormulaReference(state: EditState, globalGM: string, unitLabels: UnitLabelRow[]): string {
   if (state.pricingMethod === 'REQUEST_QUOTE') {
     return 'Priced case-by-case by an admin — no fixed formula.';
   }
-  const effectivePct = state.markupPercent !== ''
-    ? (parseFloat(state.markupPercent) || 0)
-    : (parseFloat(globalMarkup) || 0);
+  const effectivePct = state.gmPercent !== ''
+    ? (parseFloat(state.gmPercent) || 0)
+    : (parseFloat(globalGM) || 0);
   const unitLabel = unitLabels.find((u) => u.code === state.quantityLabel)?.label || 'unit';
   const base = parseFloat(state.basePrice) || 0;
 
   if (state.pricingMethod !== 'PER_UNIT') {
     const { customerPrice } = calcPricing(base, effectivePct);
-    return `Flat $${base.toFixed(2)}, marked up ${effectivePct}% (+ payment processing) → customer pays $${customerPrice.toFixed(2)}.`;
+    return `Flat $${base.toFixed(2)}, at ${effectivePct}% GM (+ payment processing) → customer pays $${customerPrice.toFixed(2)}.`;
   }
 
   const include = state.includeQty !== '' ? parseFloat(state.includeQty) || 0 : 1;
@@ -101,7 +100,7 @@ function formatFormulaReference(state: EditState, globalMarkup: string, unitLabe
       text += ` up to ${threshold} ${unitLabel}(s) total, then +$${volRate.toFixed(2)}/unit beyond`;
     }
   }
-  text += `. Marked up ${effectivePct}% (+ payment processing) for the customer price.`;
+  text += `. At ${effectivePct}% GM (+ payment processing) for the customer price.`;
   return text;
 }
 
@@ -161,7 +160,7 @@ type PriceRow = {
   pricingMethod: string;
   requiresQuote: boolean;
   basePrice: number;
-  markupPercent: number | null;
+  gmPercent: number | null;
   quantityLabel: string | null;
   minimumQuantity: number | null;
   includeQty: number | null;
@@ -183,7 +182,7 @@ type EditState = {
   pricingMethod: string;
   requiresQuote: boolean;
   basePrice: string;
-  markupPercent: string;
+  gmPercent: string;
   quantityLabel: string;
   minimumQuantity: string;
   includeQty: string;
@@ -208,7 +207,7 @@ function statesEqual(a: EditState, b: EditState): boolean {
     a.pricingMethod === b.pricingMethod &&
     a.requiresQuote === b.requiresQuote &&
     a.basePrice === b.basePrice &&
-    a.markupPercent === b.markupPercent &&
+    a.gmPercent === b.gmPercent &&
     a.quantityLabel === b.quantityLabel &&
     a.minimumQuantity === b.minimumQuantity &&
     a.includeQty === b.includeQty &&
@@ -287,14 +286,14 @@ export default function PricingPage() {
   const [editingLabelText, setEditingLabelText] = useState('');
   const [editingLabelError, setEditingLabelError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [globalMarkup, setGlobalMarkup] = useState('15');
+  const [globalGM, setGlobalGM] = useState('15');
   const [editStates, setEditStates] = useState<Record<string, EditState>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [planDrafts, setPlanDrafts] = useState<Record<string, PlanDraft>>({});
   const [savingPlan, setSavingPlan] = useState<Set<string>>(new Set());
   const [addingRow, setAddingRow] = useState(false);
   const [newRow, setNewRow] = useState<EditState>({
-    name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
+    name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', gmPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
     includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
     requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false,
     formulaDescription: '',
@@ -360,7 +359,7 @@ export default function PricingPage() {
       pricingMethod: price.pricingMethod ?? 'FLAT_PRICE',
       requiresQuote: price.requiresQuote ?? false,
       basePrice: String(price.basePrice),
-      markupPercent: price.markupPercent != null ? String(price.markupPercent) : '',
+      gmPercent: price.gmPercent != null ? String(price.gmPercent) : '',
       quantityLabel: price.quantityLabel ?? 'NONE',
       minimumQuantity: price.minimumQuantity != null ? String(price.minimumQuantity) : '',
       includeQty: price.includeQty != null ? String(price.includeQty) : '',
@@ -395,7 +394,7 @@ export default function PricingPage() {
         pricingMethod: state.pricingMethod,
         requiresQuote: state.requiresQuote,
         basePrice: parseFloat(state.basePrice) || 0,
-        markupPercent: state.markupPercent !== '' ? parseFloat(state.markupPercent) : null,
+        gmPercent: state.gmPercent !== '' ? parseFloat(state.gmPercent) : null,
         quantityLabel: state.quantityLabel || 'NONE',
         minimumQuantity: state.minimumQuantity !== '' ? parseFloat(state.minimumQuantity) : null,
         includeQty: state.includeQty !== '' ? parseFloat(state.includeQty) : null,
@@ -563,7 +562,7 @@ export default function PricingPage() {
         pricingMethod: newRow.pricingMethod,
         requiresQuote: newRow.requiresQuote,
         basePrice: parseFloat(newRow.basePrice) || 0,
-        markupPercent: newRow.markupPercent !== '' ? parseFloat(newRow.markupPercent) : null,
+        gmPercent: newRow.gmPercent !== '' ? parseFloat(newRow.gmPercent) : null,
         quantityLabel: newRow.quantityLabel || 'NONE',
         minimumQuantity: newRow.minimumQuantity !== '' ? parseFloat(newRow.minimumQuantity) : null,
         includeQty: newRow.includeQty !== '' ? parseFloat(newRow.includeQty) : null,
@@ -580,7 +579,7 @@ export default function PricingPage() {
       setPrices((prev) => [...prev, created]);
       setEditStates((prev) => ({ ...prev, [created.id]: rowToEdit(created) }));
       setNewRow({
-        name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
+        name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', gmPercent: '', quantityLabel: 'NONE', minimumQuantity: '',
         includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '',
         requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false,
         formulaDescription: '',
@@ -714,7 +713,7 @@ export default function PricingPage() {
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   const exportCsv = () => {
-    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection', 'formulaDescription'];
+    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'gmPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection', 'formulaDescription'];
     const rows = prices.map((p) => {
       const s = editStates[p.id];
       const esc = (v: string) => `"${(v || '').replace(/"/g, '""')}"`;
@@ -725,7 +724,7 @@ export default function PricingPage() {
         esc(s?.pricingMethod || p.pricingMethod || 'FLAT_PRICE'),
         s?.requiresQuote ? 'true' : 'false',
         s?.basePrice || String(p.basePrice),
-        s?.markupPercent || (p.markupPercent != null ? String(p.markupPercent) : ''),
+        s?.gmPercent || (p.gmPercent != null ? String(p.gmPercent) : ''),
         esc(s?.quantityLabel || p.quantityLabel || ''),
         s?.minimumQuantity || (p.minimumQuantity != null ? String(p.minimumQuantity) : ''),
         s?.includeQty || (p.includeQty != null ? String(p.includeQty) : ''),
@@ -775,7 +774,7 @@ export default function PricingPage() {
           pricingMethod: row.pricingMethod || 'FLAT_PRICE',
           requiresQuote: row.requiresQuote === 'true',
           basePrice: parseFloat(row.basePrice) || 0,
-          markupPercent: row.markupPercent !== '' && row.markupPercent != null ? parseFloat(row.markupPercent) : null,
+          gmPercent: row.gmPercent !== '' && row.gmPercent != null ? parseFloat(row.gmPercent) : null,
           quantityLabel: row.quantityLabel || null,
           minimumQuantity: row.minimumQuantity !== '' && row.minimumQuantity != null ? parseFloat(row.minimumQuantity) : null,
           includeQty: row.includeQty !== '' && row.includeQty != null ? parseFloat(row.includeQty) : null,
@@ -1197,12 +1196,12 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — per-unit rate for quantity between Includes Up To and Discount Threshold">Base Rate/Unit</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — quantity at which the discounted rate kicks in; leave blank for no volume discount tier">Discount Threshold</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="Per Unit only — per-unit rate beyond Discount Threshold">Discount Rate</th>
-                <th className="px-4 py-3 text-right font-semibold text-steel w-24">Markup %</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-24">GM%</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[200px]" title="Free-text admin notes on why this item is priced the way it is">Formula Description</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[260px]" title="Auto-generated from this row's own fields — not stored, always reflects the current (even unsaved) values">Formula Reference</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-24" title="2.9% + $0.30, passed through to the customer — already folded into Customer Price, shown separately so it isn't mistaken for missing">Stripe Fee</th>
                 <th className="px-4 py-3 text-right font-semibold text-steel w-28">Customer Price</th>
-                <th className="px-4 py-3 text-right font-semibold text-steel w-28">Global Markup</th>
+                <th className="px-4 py-3 text-right font-semibold text-steel w-28">Global GM%</th>
                 <th className="w-16 pr-4"></th>
               </tr>
             </thead>
@@ -1251,9 +1250,9 @@ export default function PricingPage() {
                   {!collapsed && group.items.map((price) => {
                     const state = editStates[price.id];
                     if (!state) return null;
-                    const effectivePct = state.markupPercent !== ''
-                      ? (parseFloat(state.markupPercent) || 0)
-                      : (parseFloat(globalMarkup) || 0);
+                    const effectivePct = state.gmPercent !== ''
+                      ? (parseFloat(state.gmPercent) || 0)
+                      : (parseFloat(globalGM) || 0);
                     // Preview at the effective minimum quantity for Per Unit services, so
                     // editing Min. Qty actually moves the displayed Customer Price. Cost
                     // itself runs through the same tiered formula the server uses.
@@ -1496,16 +1495,16 @@ export default function PricingPage() {
                         />
                       </div>
                     </td>
-                    {/* Markup % */}
+                    {/* GM% */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <input
                           type="number"
-                          value={state.markupPercent}
-                          onChange={(e) => updateField(price.id, 'markupPercent', e.target.value)}
-                          placeholder={globalMarkup}
+                          value={state.gmPercent}
+                          onChange={(e) => updateField(price.id, 'gmPercent', e.target.value)}
+                          placeholder={globalGM}
                           className="w-16 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
-                          min="0" max="200" step="0.1"
+                          min="0" max="99.99" step="0.1"
                         />
                         <span className="text-steel text-xs">%</span>
                       </div>
@@ -1522,7 +1521,7 @@ export default function PricingPage() {
                     </td>
                     {/* Formula Reference — auto-generated, read-only, never saved */}
                     <td className="px-4 py-3 text-xs text-steel min-w-[240px]">
-                      {formatFormulaReference(state, globalMarkup, unitLabels)}
+                      {formatFormulaReference(state, globalGM, unitLabels)}
                     </td>
                     {/* Stripe Fee — informational only, already included in Customer Price */}
                     <td className="px-4 py-3 text-right">
@@ -1538,14 +1537,14 @@ export default function PricingPage() {
                         <span className="font-bold text-lantern-deep tabular-nums">${Math.ceil(customerPrice)}</span>
                       )}
                     </td>
-                    {/* Global markup field */}
+                    {/* Global GM% field */}
                     <td className="px-4 py-3 text-right">
-                      {state.markupPercent === '' && !state.requiresQuote && (
+                      {state.gmPercent === '' && !state.requiresQuote && (
                         <div className="flex items-center justify-end gap-1">
                           <input
                             type="number"
-                            value={globalMarkup}
-                            onChange={(e) => setGlobalMarkup(e.target.value)}
+                            value={globalGM}
+                            onChange={(e) => setGlobalGM(e.target.value)}
                             className="w-14 border border-border rounded-lg px-2 py-1 text-xs text-right focus:border-lantern outline-none"
                           />
                           <span className="text-xs text-steel">%</span>
@@ -1770,11 +1769,11 @@ export default function PricingPage() {
                     <div className="flex items-center justify-end gap-1">
                       <input
                         type="number"
-                        value={newRow.markupPercent}
-                        onChange={(e) => setNewRow((p) => ({ ...p, markupPercent: e.target.value }))}
-                        placeholder={globalMarkup}
+                        value={newRow.gmPercent}
+                        onChange={(e) => setNewRow((p) => ({ ...p, gmPercent: e.target.value }))}
+                        placeholder={globalGM}
                         className="w-16 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
-                        min="0" max="200" step="0.1"
+                        min="0" max="99.99" step="0.1"
                       />
                       <span className="text-steel text-xs">%</span>
                     </div>
@@ -1792,7 +1791,7 @@ export default function PricingPage() {
                   <td className="pr-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', markupPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false, formulaDescription: '' }); }}
+                        onClick={() => { setAddingRow(false); setNewRow({ name: '', description: '', pricingMethod: 'FLAT_PRICE', requiresQuote: false, basePrice: '0', gmPercent: '', quantityLabel: 'NONE', minimumQuantity: '', includeQty: '', baseRateUnit: '', volumeDiscountThreshold: '', volumeDiscountRate: '', requiredCapabilityId: '', category: '', serviceGroups: [], customerRequestable: true, isQuotaInspection: false, formulaDescription: '' }); }}
                         className="text-steel hover:text-ink text-sm px-2 py-1"
                       >
                         Cancel
@@ -1821,7 +1820,7 @@ export default function PricingPage() {
         {/* CSV format hint */}
         <div className="p-4 border-t border-mist-dim">
           <p className="text-xs text-steel">
-            <strong>CSV format:</strong> name, description, pricingMethod (FLAT_PRICE/PER_UNIT/ONE_TIME_FEE/REQUEST_QUOTE), requiresQuote (true/false), basePrice, markupPercent, quantityLabel (a Unit Label code — see the Unit Label column's dropdown for current values), minimumQuantity, includeQty, baseRateUnit, volumeDiscountThreshold, volumeDiscountRate, isActive (true/false), customerRequestable (true/false), category (INTERIOR_REPAIRS_MAINTENANCE/MINOR_ELECTRICAL_ADJUSTMENTS/MINOR_PLUMBING_FIXES/MOUNTING_INSTALLATIONS/CARPENTRY_ASSEMBLY/EXTERIOR_OUTDOOR_SERVICES, or blank), Type of Service (one or more of INSPECT/REPAIR/IMPROVE/MAINTAIN/INSTALL, comma- or semicolon-separated in one cell e.g. &quot;INSPECT,REPAIR&quot; — a separate, multi-valued tag from category, or blank) — existing rows matched by name, new names are created. includeQty/baseRateUnit/volumeDiscountThreshold/volumeDiscountRate only apply to Per Unit services (blank = flat qty × basePrice, matching pre-tiered behavior). Required Capability isn&apos;t part of CSV — set it per-row in the table above.
+            <strong>CSV format:</strong> name, description, pricingMethod (FLAT_PRICE/PER_UNIT/ONE_TIME_FEE/REQUEST_QUOTE), requiresQuote (true/false), basePrice, gmPercent, quantityLabel (a Unit Label code — see the Unit Label column's dropdown for current values), minimumQuantity, includeQty, baseRateUnit, volumeDiscountThreshold, volumeDiscountRate, isActive (true/false), customerRequestable (true/false), category (INTERIOR_REPAIRS_MAINTENANCE/MINOR_ELECTRICAL_ADJUSTMENTS/MINOR_PLUMBING_FIXES/MOUNTING_INSTALLATIONS/CARPENTRY_ASSEMBLY/EXTERIOR_OUTDOOR_SERVICES, or blank), Type of Service (one or more of INSPECT/REPAIR/IMPROVE/MAINTAIN/INSTALL, comma- or semicolon-separated in one cell e.g. &quot;INSPECT,REPAIR&quot; — a separate, multi-valued tag from category, or blank) — existing rows matched by name, new names are created. includeQty/baseRateUnit/volumeDiscountThreshold/volumeDiscountRate only apply to Per Unit services (blank = flat qty × basePrice, matching pre-tiered behavior). Required Capability isn&apos;t part of CSV — set it per-row in the table above.
           </p>
         </div>
       </div>

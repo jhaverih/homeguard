@@ -427,8 +427,8 @@ export default function RequestScreen() {
 
   const customerPrice = (item: any, qty = 1) => {
     const cost = tieredCost(item, qty);
-    const markup = item.markupPercent != null ? parseFloat(item.markupPercent) : 15;
-    return Math.ceil(cost * (1 + markup / 100));
+    const gm = item.gmPercent != null ? parseFloat(item.gmPercent) : 15;
+    return Math.ceil(cost / (1 - gm / 100));
   };
 
   // The one catalog item flagged isQuotaInspection (see admin Pricing page)

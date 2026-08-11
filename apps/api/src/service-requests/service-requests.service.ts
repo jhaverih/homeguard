@@ -45,11 +45,12 @@ const STUCK_EN_ROUTE_THRESHOLD_HOURS = 2.5;
 // before the appointment — VENDOR_EN_ROUTE is always within that window.
 const LATE_CANCELLATION_FEE_USD = 25;
 
-// Same default markup used everywhere else pricing is computed in this
+// Same default rate used everywhere else pricing is computed in this
 // codebase (pricing.utils.ts's formatCustomerPriceDisplay, this file's own
 // booking-price recalcs) — materials use a flat rate rather than inheriting
-// any specific catalog item's configurable markupPercent, since a logged
-// material isn't tied to one.
+// any specific catalog item's configurable gmPercent, since a logged
+// material isn't tied to one. Deliberately still a markup (cost * 1.15),
+// not GM — unrelated to the ServicePrice.gmPercent switch.
 const MATERIAL_MARKUP_PERCENT = 15;
 
 @Injectable()
@@ -266,11 +267,11 @@ export class ServiceRequestsService {
     // The one catalog item flagged isQuotaInspection (expected: "General
     // Inspection") is free while the plan's shared inspection allowance
     // remains — see getInspectionsRemaining — and charges its normal
-    // tiered/markup price once that allowance is used up.
+    // tiered/GM price once that allowance is used up.
     const isQuotaCovered = servicePrice.isQuotaInspection && (await this.getInspectionsRemaining(subscription)).remaining > 0;
-    const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
+    const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
     const cost = calcTieredCost(servicePrice, billedQty);
-    const customerPrice = isQuotaCovered ? 0 : Math.round(cost * (1 + markup / 100) * 100) / 100;
+    const customerPrice = isQuotaCovered ? 0 : Math.round(cost / (1 - gm / 100) * 100) / 100;
     const profile = await this.usersService.getCustomerProfile(customerId);
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
@@ -670,9 +671,9 @@ export class ServiceRequestsService {
         if (finalQty == null || svc.quantity == null || finalQty <= Number(svc.quantity)) continue;
         const servicePrice = svc.servicePriceId ? prices.find((p) => p.id === svc.servicePriceId) : null;
         if (!servicePrice) continue;
-        const markup = servicePrice.markupPercent != null ? Number(servicePrice.markupPercent) : 15;
+        const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
         const newCost = calcTieredCost(servicePrice, finalQty);
-        const newPrice = Math.round(newCost * (1 + markup / 100) * 100) / 100;
+        const newPrice = Math.round(newCost / (1 - gm / 100) * 100) / 100;
         await this.additionalRepo.update(svc.id, { finalQuantity: finalQty, price: newPrice });
         svc.price = newPrice;
         priceIncreased = true;

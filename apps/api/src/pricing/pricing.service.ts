@@ -314,7 +314,7 @@ export class PricingService implements OnModuleInit {
       name: 'Home Monitoring Setup',
       description: 'On-site installation and connection of Yolink home monitoring sensors (leak, temperature/humidity) per the customer\'s plan.',
       basePrice: 149,
-      markupPercent: 0,
+      gmPercent: 0,
       pricingMethod: PricingMethod.ONE_TIME_FEE,
       customerRequestable: false,
       requiredCapabilityId: capability.id,
@@ -591,7 +591,7 @@ export class PricingService implements OnModuleInit {
   // flow unchanged (including matching by id to update rows in place).
   async getBackupCsv(id: string): Promise<string> {
     const backup = await this.backupRepo.findOneOrFail({ where: { id } });
-    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'markupPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection'];
+    const headers = ['id', 'name', 'description', 'pricingMethod', 'requiresQuote', 'basePrice', 'gmPercent', 'quantityLabel', 'minimumQuantity', 'includeQty', 'baseRateUnit', 'volumeDiscountThreshold', 'volumeDiscountRate', 'isActive', 'customerRequestable', 'category', 'Type of Service', 'isQuotaInspection'];
     const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = (backup.snapshot as ServicePrice[]).map((p) => [
       esc(p.id),
@@ -600,7 +600,7 @@ export class PricingService implements OnModuleInit {
       esc(p.pricingMethod),
       p.requiresQuote ? 'true' : 'false',
       p.basePrice,
-      p.markupPercent ?? '',
+      p.gmPercent ?? '',
       esc(p.quantityLabel ?? ''),
       p.minimumQuantity ?? '',
       p.includeQty ?? '',

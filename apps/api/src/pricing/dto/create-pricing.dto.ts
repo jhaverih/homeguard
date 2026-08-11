@@ -1,5 +1,5 @@
 import {
-  IsString, IsNumber, IsBoolean, IsOptional, IsEnum, IsArray, Min,
+  IsString, IsNumber, IsBoolean, IsOptional, IsEnum, IsArray, Min, Max,
 } from 'class-validator';
 import { PricingMethod } from '../../common/enums/pricing-method.enum';
 import { ServiceCategory } from '../../common/enums/service-category.enum';
@@ -18,7 +18,8 @@ export class CreatePricingDto {
 
   @IsNumber()
   @IsOptional()
-  markupPercent?: number | null;
+  @Max(99.99)
+  gmPercent?: number | null;
 
   @IsEnum(PricingMethod)
   @IsOptional()
