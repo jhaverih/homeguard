@@ -254,7 +254,10 @@ export class UsersService implements OnModuleInit {
   async findByEmail(email: string): Promise<User | null> {
     return this.usersRepo.findOne({
       where: { email: emailEquals(email) },
-      select: ['id', 'email', 'password', 'firstName', 'lastName', 'roles', 'status', 'activeRole'],
+      // isEmailVerified must be selected explicitly — an omitted column
+      // reads as undefined (falsy), which previously made AuthService.login
+      // reject every login as unverified regardless of the real value.
+      select: ['id', 'email', 'password', 'firstName', 'lastName', 'roles', 'status', 'activeRole', 'isEmailVerified'],
     });
   }
 

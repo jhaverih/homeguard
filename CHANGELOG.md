@@ -15,6 +15,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-08-12
 
 ### Fixed
+- **api**: **Login was broken for every account since 2026-08-09**, not just unverified ones — `UsersService.findByEmail`'s explicit `select` array never included `isEmailVerified`, so it read as `undefined` (falsy) for every login attempt regardless of the real value, meaning the verification check added that day rejected everyone. Found while investigating a report that a definitely-verified admin account (`isEmailVerified: true` in the DB, confirmed via direct query) still couldn't log in — nginx logs showed real 403s hitting the backend that never appeared in the app's own logs, since a deliberately-thrown `ForbiddenException` isn't logged as an error by NestJS's default handling, which is why this took real digging to surface. `isEmailVerified` added to the select list; `findByEmail` has exactly one caller (`login()`), so this was fully isolated.
 - **api**: Admin and vendor-technician accounts created via the team-invite flows (`AdminService.createTeamUser`, `VendorService.createTechnician`) were never marked `isEmailVerified` — neither flow has any verification UI (that only exists in the mobile registration wizard), so once login started requiring verification (2026-08-09), any account created this way could never log in at all. Both now mark the invited account verified immediately at creation — the inviting admin/company-owner is already vouching for the email.
 
 ### Added
