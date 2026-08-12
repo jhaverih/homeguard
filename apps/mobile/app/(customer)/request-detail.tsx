@@ -699,7 +699,11 @@ export default function RequestDetailScreen() {
         const allServices = (request.additionalServices || [])
           .filter((s: any) => !(isSolarReq && s.name?.toLowerCase().includes('solar')));
         const recServices = allServices.filter((s: any) => !s.isMaterial);
-        const materials = allServices.filter((s: any) => s.isMaterial);
+        // Dynamic-GM categories log materials at price 0 (pending — the real
+        // combined-total price is only knowable once the job completes) —
+        // stay hidden until then. Static-GM materials already have a real
+        // price from the moment they're logged and show immediately.
+        const materials = allServices.filter((s: any) => s.isMaterial && (Number(s.price) > 0 || request.status === 'COMPLETED'));
         const total = allServices
           .filter((s: any) => s.approved)
           .reduce((sum: number, s: any) => sum + Number(s.price), 0);

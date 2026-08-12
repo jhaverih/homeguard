@@ -25,7 +25,7 @@ import { VendorCapability, CertificationType } from '../vendor/entities/vendor-c
 import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
-import { calcTieredCost, applyStripeFee } from '../pricing/pricing.utils';
+import { calcTieredCost, applyStripeFee, isDynamicGmCategory, calcGraduatedPrice } from '../pricing/pricing.utils';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
 
@@ -271,7 +271,12 @@ export class ServiceRequestsService {
     const isQuotaCovered = servicePrice.isQuotaInspection && (await this.getInspectionsRemaining(subscription)).remaining > 0;
     const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
     const cost = calcTieredCost(servicePrice, billedQty);
-    const customerPrice = isQuotaCovered ? 0 : Math.round(applyStripeFee(cost / (1 - gm / 100)) * 100) / 100;
+    // No materials exist yet at booking time, so for dynamic-GM categories
+    // this is a graduated lookup on the tiered service cost alone — the
+    // real (materials-inclusive) price is only finalized at completion, see
+    // prepCompletion.
+    const bookingSubtotal = isDynamicGmCategory(servicePrice.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
+    const customerPrice = isQuotaCovered ? 0 : Math.round(applyStripeFee(bookingSubtotal) * 100) / 100;
     const profile = await this.usersService.getCustomerProfile(customerId);
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
@@ -625,8 +630,13 @@ export class ServiceRequestsService {
     // Fetched up-front (rather than only for the auth-hold loop below, as
     // before) so a quota-covered line item's completion here can also
     // increment inspectionsUsed, same as a Flow A inspection does.
+    // materialCost is select:false by default (internal only) — explicit
+    // select opts back in here, needed to sum it for dynamic-GM completion
+    // pricing below. Same technique as AuthService.verifyEmail's
+    // emailVerificationCode lookup.
     const approvedServices = await this.additionalRepo.find({
       where: { serviceRequestId: requestId, approved: true },
+      select: ['id', 'serviceRequestId', 'name', 'description', 'price', 'servicePriceId', 'quantity', 'finalQuantity', 'approved', 'isQuotaCovered', 'approvedAt', 'materialCost', 'isMaterial', 'createdAt'],
     });
     const quotaCoveredCount = approvedServices.filter((s) => s.isQuotaCovered).length;
 
@@ -663,20 +673,57 @@ export class ServiceRequestsService {
     // exists yet at this point. Never decreases price: the customer was
     // already floored at the service's minimum quantity at booking time.
     let priceIncreased = false;
-    if (finalQuantities) {
+    {
       const prices = await this.pricingService.getAll(true);
+      // Dynamic-GM categories (see pricing.utils.ts): the real price can
+      // only be known once every material is in, so — unlike static-GM
+      // items, which only recalc on a quantity bump — these always
+      // recompute at completion, quantity changed or not.
+      const materialsSum = approvedServices
+        .filter((s) => s.isMaterial)
+        .reduce((sum, s) => sum + Number(s.materialCost ?? 0), 0);
+
       for (const svc of approvedServices) {
-        if (svc.isQuotaCovered) continue; // stays free regardless of final quantity
-        const finalQty = finalQuantities[svc.id];
-        if (finalQty == null || svc.quantity == null || finalQty <= Number(svc.quantity)) continue;
+        if (svc.isQuotaCovered || svc.isMaterial) continue;
         const servicePrice = svc.servicePriceId ? prices.find((p) => p.id === svc.servicePriceId) : null;
         if (!servicePrice) continue;
+
+        const finalQty = finalQuantities?.[svc.id];
+        const qtyIncreased = finalQty != null && svc.quantity != null && finalQty > Number(svc.quantity);
+        const dynamic = isDynamicGmCategory(servicePrice.category);
+        if (!qtyIncreased && !dynamic) continue;
+
+        const effectiveQty = qtyIncreased ? finalQty! : (svc.quantity != null ? Number(svc.quantity) : 1);
+        const cost = calcTieredCost(servicePrice, effectiveQty);
         const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
-        const newCost = calcTieredCost(servicePrice, finalQty);
-        const newPrice = Math.round(applyStripeFee(newCost / (1 - gm / 100)) * 100) / 100;
-        await this.additionalRepo.update(svc.id, { finalQuantity: finalQty, price: newPrice });
+        // Dynamic-GM: materials show their raw logged cost (no markup) —
+        // the main line absorbs the rest of the graduated combined total,
+        // including the full margin and Stripe fee.
+        const newPrice = dynamic
+          ? Math.max(0, Math.round((applyStripeFee(calcGraduatedPrice(cost + materialsSum)) - materialsSum) * 100) / 100)
+          : Math.round(applyStripeFee(cost / (1 - gm / 100)) * 100) / 100;
+
+        const oldPrice = Number(svc.price);
+        if (newPrice === oldPrice && !qtyIncreased) continue;
+
+        await this.additionalRepo.update(svc.id, {
+          ...(qtyIncreased ? { finalQuantity: finalQty } : {}),
+          price: newPrice,
+        });
         svc.price = newPrice;
-        priceIncreased = true;
+        if (newPrice > oldPrice) priceIncreased = true;
+
+        // Reveal materials (price 0 -> raw cost) now that the total is
+        // final — this is also the customer's first visibility into them.
+        if (dynamic) {
+          for (const mat of approvedServices) {
+            if (!mat.isMaterial) continue;
+            const matCost = Number(mat.materialCost ?? 0);
+            if (Number(mat.price) === matCost) continue;
+            await this.additionalRepo.update(mat.id, { price: matCost });
+            mat.price = matCost;
+          }
+        }
       }
       if (priceIncreased) {
         const newTotal = approvedServices.reduce((sum, s) => sum + Number(s.price), 0);
@@ -929,7 +976,18 @@ export class ServiceRequestsService {
       throw new BadRequestException('Materials can only be added while the job is in progress');
     }
 
-    const price = Math.round(dto.cost * (1 + MATERIAL_MARKUP_PERCENT / 100) * 100) / 100;
+    // Dynamic-GM categories (see pricing.utils.ts) can't be individually
+    // priced yet — the real amount depends on the full combined total
+    // (tiered service cost + every material), only known once the job
+    // completes (prepCompletion). Price stays 0 and nothing is pushed to
+    // the customer until then, per product decision.
+    const mainLine = request.additionalServices?.find((s) => !s.isMaterial && s.servicePriceId);
+    const servicePrice = mainLine?.servicePriceId
+      ? (await this.pricingService.getAll(true)).find((p) => p.id === mainLine.servicePriceId)
+      : null;
+    const dynamic = isDynamicGmCategory(servicePrice?.category ?? null);
+
+    const price = dynamic ? 0 : Math.round(dto.cost * (1 + MATERIAL_MARKUP_PERCENT / 100) * 100) / 100;
     const service = this.additionalRepo.create({
       serviceRequestId: requestId,
       name: 'Materials',
@@ -941,6 +999,8 @@ export class ServiceRequestsService {
       approvedAt: new Date(),
     });
     const saved = await this.additionalRepo.save(service);
+
+    if (dynamic) return saved;
 
     await this.notificationsService.notifyUser(
       request.customerId,

@@ -997,7 +997,13 @@ export default function ActiveJobScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sentSvcName}>{s.description}</Text>
                   </View>
-                  <Text style={styles.sentSvcPrice}>{fmtUSD(s.price)}</Text>
+                  {/* Some categories price materials only at job completion
+                      (see the "Included in the customer's total" hint above)
+                      — price sits at 0 until then, so show a status instead
+                      of a misleading $0.00. */}
+                  {Number(s.price) > 0
+                    ? <Text style={styles.sentSvcPrice}>{fmtUSD(s.price)}</Text>
+                    : <Text style={[styles.sentSvcPrice, { color: colors.steel, fontSize: 12 }]}>Pending final price</Text>}
                 </View>
               ))}
               <TextInput
@@ -1017,7 +1023,7 @@ export default function ActiveJobScreen() {
               />
               {materialCost !== '' && !isNaN(parseCurrencyRaw(materialCost)) && parseCurrencyRaw(materialCost) > 0 && (
                 <Text style={styles.sectionHint}>
-                  Customer will be charged {fmtUSD(parseCurrencyRaw(materialCost) * 1.15)} (cost + 15% margin).
+                  Included in the customer's total for this visit.
                 </Text>
               )}
               <TouchableOpacity

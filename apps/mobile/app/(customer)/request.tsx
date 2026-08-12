@@ -429,10 +429,35 @@ export default function RequestScreen() {
   // applyStripeFee() — mirrored locally for the same reason as tieredCost.
   const STRIPE_RATE = 0.029;
   const STRIPE_FIXED = 0.30;
+
+  // Mirrors apps/api/src/pricing/pricing.utils.ts's DYNAMIC_GM_CATEGORIES/
+  // GM_BRACKETS/calcGraduatedPrice — these 6 categories price via a
+  // graduated bracket lookup on cost instead of a fixed gmPercent. No
+  // materials exist yet at booking time, so this is just the estimate.
+  const DYNAMIC_GM_CATEGORIES = new Set([
+    'INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUSTMENTS', 'MINOR_PLUMBING_FIXES',
+    'MOUNTING_INSTALLATIONS', 'CARPENTRY_ASSEMBLY', 'EXTERIOR_OUTDOOR_SERVICES',
+  ]);
+  const GM_BRACKETS = [
+    { max: 150, gmPercent: 37.5 }, { max: 500, gmPercent: 32.5 }, { max: 1000, gmPercent: 27.5 },
+    { max: 2500, gmPercent: 22.5 }, { max: Infinity, gmPercent: 17.5 },
+  ];
+  const calcGraduatedPrice = (totalCost: number) => {
+    let remaining = totalCost, previousMax = 0, total = 0;
+    for (const b of GM_BRACKETS) {
+      const portion = Math.min(remaining, b.max - previousMax);
+      if (portion <= 0) break;
+      total += portion / (1 - b.gmPercent / 100);
+      remaining -= portion;
+      previousMax = b.max;
+    }
+    return total;
+  };
+
   const customerPrice = (item: any, qty = 1) => {
     const cost = tieredCost(item, qty);
     const gm = item.gmPercent != null ? parseFloat(item.gmPercent) : 15;
-    const subtotal = cost / (1 - gm / 100);
+    const subtotal = DYNAMIC_GM_CATEGORIES.has(item.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
     return Math.ceil(subtotal + (subtotal * STRIPE_RATE + STRIPE_FIXED));
   };
 

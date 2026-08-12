@@ -12,6 +12,40 @@ function calcPricing(providerCost: number, gmPct: number) {
   return { stripeFee, customerPrice };
 }
 
+// These 6 categories price via a dynamic, graduated GM% instead of the
+// per-row field — mirrors apps/api/src/pricing/pricing.utils.ts's
+// DYNAMIC_GM_CATEGORIES/GM_BRACKETS/calcGraduatedPrice. This preview can
+// only show the booking-time estimate (no concept of a specific job's
+// logged materials) — the real price finalizes at job completion.
+const DYNAMIC_GM_CATEGORIES = new Set([
+  'INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUSTMENTS', 'MINOR_PLUMBING_FIXES',
+  'MOUNTING_INSTALLATIONS', 'CARPENTRY_ASSEMBLY', 'EXTERIOR_OUTDOOR_SERVICES',
+]);
+const GM_BRACKETS = [
+  { max: 150, gmPercent: 37.5 }, { max: 500, gmPercent: 32.5 }, { max: 1000, gmPercent: 27.5 },
+  { max: 2500, gmPercent: 22.5 }, { max: Infinity, gmPercent: 17.5 },
+];
+function isDynamicGmCategory(category: string | null | undefined): boolean {
+  return !!category && DYNAMIC_GM_CATEGORIES.has(category);
+}
+function calcGraduatedSubtotal(totalCost: number): number {
+  let remaining = totalCost, previousMax = 0, total = 0;
+  for (const b of GM_BRACKETS) {
+    const portion = Math.min(remaining, b.max - previousMax);
+    if (portion <= 0) break;
+    total += portion / (1 - b.gmPercent / 100);
+    remaining -= portion;
+    previousMax = b.max;
+  }
+  return total;
+}
+function calcDynamicPricing(providerCost: number) {
+  const subtotal = calcGraduatedSubtotal(providerCost);
+  const stripeFee = subtotal * STRIPE_RATE + STRIPE_FIXED;
+  const customerPrice = subtotal + stripeFee;
+  return { stripeFee, customerPrice };
+}
+
 // Mirrors apps/api/src/pricing/pricing.utils.ts calcTieredCost() — kept in
 // sync manually since this is a client-side preview, not a shared package.
 function calcTieredCost(state: EditState, qty: number): number {
@@ -78,6 +112,7 @@ function formatFormulaReference(state: EditState, globalGM: string, unitLabels: 
   if (state.pricingMethod === 'REQUEST_QUOTE') {
     return 'Priced case-by-case by an admin — no fixed formula.';
   }
+  const dynamic = isDynamicGmCategory(state.category);
   const effectivePct = state.gmPercent !== ''
     ? (parseFloat(state.gmPercent) || 0)
     : (parseFloat(globalGM) || 0);
@@ -85,8 +120,10 @@ function formatFormulaReference(state: EditState, globalGM: string, unitLabels: 
   const base = parseFloat(state.basePrice) || 0;
 
   if (state.pricingMethod !== 'PER_UNIT') {
-    const { customerPrice } = calcPricing(base, effectivePct);
-    return `Flat $${base.toFixed(2)}, at ${effectivePct}% GM (+ payment processing) → customer pays $${customerPrice.toFixed(2)}.`;
+    const { customerPrice } = dynamic ? calcDynamicPricing(base) : calcPricing(base, effectivePct);
+    return dynamic
+      ? `Flat $${base.toFixed(2)}, GM% calculated dynamically from total vendor cost (+ payment processing) → estimated at booking: $${customerPrice.toFixed(2)}. Final price includes any vendor-logged materials, calculated when the job is completed.`
+      : `Flat $${base.toFixed(2)}, at ${effectivePct}% GM (+ payment processing) → customer pays $${customerPrice.toFixed(2)}.`;
   }
 
   const include = state.includeQty !== '' ? parseFloat(state.includeQty) || 0 : 1;
@@ -100,7 +137,9 @@ function formatFormulaReference(state: EditState, globalGM: string, unitLabels: 
       text += ` up to ${threshold} ${unitLabel}(s) total, then +$${volRate.toFixed(2)}/unit beyond`;
     }
   }
-  text += `. At ${effectivePct}% GM (+ payment processing) for the customer price.`;
+  text += dynamic
+    ? '. GM% calculated dynamically from total vendor cost (+ payment processing) — this estimate is booking-time only; final price includes any vendor-logged materials, calculated when the job is completed.'
+    : `. At ${effectivePct}% GM (+ payment processing) for the customer price.`;
   return text;
 }
 
@@ -1260,7 +1299,8 @@ export default function PricingPage() {
                       ? Math.max(1, parseFloat(state.minimumQuantity) || 1)
                       : 1;
                     const previewCost = calcTieredCost(state, previewQty);
-                    const { stripeFee, customerPrice } = calcPricing(previewCost, effectivePct);
+                    const rowDynamic = isDynamicGmCategory(state.category);
+                    const { stripeFee, customerPrice } = rowDynamic ? calcDynamicPricing(previewCost) : calcPricing(previewCost, effectivePct);
                     const isSaving = saving.has(price.id);
                     const isDirty = !statesEqual(state, rowToEdit(price));
                     const inactive = !price.isActive;
@@ -1497,17 +1537,23 @@ export default function PricingPage() {
                     </td>
                     {/* GM% */}
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <input
-                          type="number"
-                          value={state.gmPercent}
-                          onChange={(e) => updateField(price.id, 'gmPercent', e.target.value)}
-                          placeholder={globalGM}
-                          className="w-16 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
-                          min="0" max="99.99" step="0.1"
-                        />
-                        <span className="text-steel text-xs">%</span>
-                      </div>
+                      {rowDynamic ? (
+                        <div className="flex items-center justify-end" title="This category's GM% is calculated dynamically from total vendor cost — set up on the backend, not per-item.">
+                          <span className="w-20 text-right text-xs text-steel italic bg-canvas rounded-lg px-2 py-1.5 border border-border">Calculated</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1">
+                          <input
+                            type="number"
+                            value={state.gmPercent}
+                            onChange={(e) => updateField(price.id, 'gmPercent', e.target.value)}
+                            placeholder={globalGM}
+                            className="w-16 border border-border rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
+                            min="0" max="99.99" step="0.1"
+                          />
+                          <span className="text-steel text-xs">%</span>
+                        </div>
+                      )}
                     </td>
                     {/* Formula Description — free-text admin notes, not derived */}
                     <td className="px-4 py-3">
@@ -1766,17 +1812,23 @@ export default function PricingPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <input
-                        type="number"
-                        value={newRow.gmPercent}
-                        onChange={(e) => setNewRow((p) => ({ ...p, gmPercent: e.target.value }))}
-                        placeholder={globalGM}
-                        className="w-16 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
-                        min="0" max="99.99" step="0.1"
-                      />
-                      <span className="text-steel text-xs">%</span>
-                    </div>
+                    {isDynamicGmCategory(newRow.category) ? (
+                      <div className="flex items-center justify-end" title="This category's GM% is calculated dynamically from total vendor cost — set up on the backend, not per-item.">
+                        <span className="w-20 text-right text-xs text-steel italic bg-canvas rounded-lg px-2 py-1.5 border border-border">Calculated</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          value={newRow.gmPercent}
+                          onChange={(e) => setNewRow((p) => ({ ...p, gmPercent: e.target.value }))}
+                          placeholder={globalGM}
+                          className="w-16 border border-lantern rounded-lg px-2 py-1.5 text-sm text-right focus:border-lantern outline-none placeholder-steel"
+                          min="0" max="99.99" step="0.1"
+                        />
+                        <span className="text-steel text-xs">%</span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <input
