@@ -762,7 +762,12 @@ export class AdminService {
       lastName: data.lastName,
       roles: [UserRole.ADMIN],
     });
-    await this.usersRepo.update(created.id, { adminLevel: data.adminLevel });
+    // A superuser inviting this account already vouches for the email —
+    // there's no verification UI anywhere in the admin portal (that only
+    // exists in the mobile app's registration wizard), so isEmailVerified
+    // would otherwise never become true and this account could never log in
+    // once login started requiring it.
+    await this.usersRepo.update(created.id, { adminLevel: data.adminLevel, isEmailVerified: true });
     const loginUrl = `${this.getAdminPortalUrl()}/forgot-password?email=${encodeURIComponent(data.email)}`;
     await this.emailService.sendTeamInvite(data.email, data.firstName, loginUrl);
 

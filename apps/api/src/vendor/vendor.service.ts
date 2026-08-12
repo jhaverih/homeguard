@@ -379,7 +379,11 @@ export class VendorService implements OnModuleInit {
     }
     // Joining an already-vetted company — no separate platform-level approval needed,
     // unlike a brand-new company registration which starts PENDING_APPROVAL.
-    const userUpdate: { status: UserStatus; avatarUrl?: string } = { status: UserStatus.ACTIVE };
+    // isEmailVerified: true — the inviting company owner already vouches for
+    // this email, and there's no verification UI for a technician created
+    // this way (they never go through the mobile registration wizard), so
+    // it would otherwise never become true and this account could never log in.
+    const userUpdate: { status: UserStatus; avatarUrl?: string; isEmailVerified: boolean } = { status: UserStatus.ACTIVE, isEmailVerified: true };
     if (data.avatarUrl) userUpdate.avatarUrl = data.avatarUrl;
     await this.usersRepo.update(created.id, userUpdate);
     await this.authService.forgotPassword(data.email);
