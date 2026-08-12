@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-11
+
+### Fixed
+- **api/mobile**: The real handyman-catalog customer price (what's actually charged, and what mobile shows) was missing the Stripe processing-fee pass-through (2.9% + $0.30) that the admin Services Management page's own preview column already included — the two had never agreed. New `applyStripeFee()` in `pricing.utils.ts`, applied everywhere the GM% formula computes a real price (`formatCustomerPriceDisplay`, `createStandaloneService`, the quantity-reconciliation recalc) and mirrored in the mobile price preview, matching the admin page's existing formula exactly. Confirmed against a real example: Wallpaper Removal ($175 base, 55% GM) now shows $400.47, not $388.89. Vendor payout is unaffected by design — no changes to `payments.service.ts`; the existing payout formula runs on the new slightly-larger charged amount the same way it already does for any other price change.
+
 ## 2026-08-10 (3)
 
 ### Changed

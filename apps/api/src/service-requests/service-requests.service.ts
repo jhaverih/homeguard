@@ -25,7 +25,7 @@ import { VendorCapability, CertificationType } from '../vendor/entities/vendor-c
 import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
-import { calcTieredCost } from '../pricing/pricing.utils';
+import { calcTieredCost, applyStripeFee } from '../pricing/pricing.utils';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
 
@@ -271,7 +271,7 @@ export class ServiceRequestsService {
     const isQuotaCovered = servicePrice.isQuotaInspection && (await this.getInspectionsRemaining(subscription)).remaining > 0;
     const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
     const cost = calcTieredCost(servicePrice, billedQty);
-    const customerPrice = isQuotaCovered ? 0 : Math.round(cost / (1 - gm / 100) * 100) / 100;
+    const customerPrice = isQuotaCovered ? 0 : Math.round(applyStripeFee(cost / (1 - gm / 100)) * 100) / 100;
     const profile = await this.usersService.getCustomerProfile(customerId);
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
@@ -673,7 +673,7 @@ export class ServiceRequestsService {
         if (!servicePrice) continue;
         const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
         const newCost = calcTieredCost(servicePrice, finalQty);
-        const newPrice = Math.round(newCost / (1 - gm / 100) * 100) / 100;
+        const newPrice = Math.round(applyStripeFee(newCost / (1 - gm / 100)) * 100) / 100;
         await this.additionalRepo.update(svc.id, { finalQuantity: finalQty, price: newPrice });
         svc.price = newPrice;
         priceIncreased = true;

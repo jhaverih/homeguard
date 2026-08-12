@@ -425,10 +425,15 @@ export default function RequestScreen() {
     return base + tier2Qty * baseRate + tier3Qty * volRate;
   };
 
+  // Same real Stripe rate as apps/api/src/pricing/pricing.utils.ts's
+  // applyStripeFee() — mirrored locally for the same reason as tieredCost.
+  const STRIPE_RATE = 0.029;
+  const STRIPE_FIXED = 0.30;
   const customerPrice = (item: any, qty = 1) => {
     const cost = tieredCost(item, qty);
     const gm = item.gmPercent != null ? parseFloat(item.gmPercent) : 15;
-    return Math.ceil(cost / (1 - gm / 100));
+    const subtotal = cost / (1 - gm / 100);
+    return Math.ceil(subtotal + (subtotal * STRIPE_RATE + STRIPE_FIXED));
   };
 
   // The one catalog item flagged isQuotaInspection (see admin Pricing page)
