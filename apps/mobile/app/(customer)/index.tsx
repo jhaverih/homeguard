@@ -127,7 +127,7 @@ function ServiceSearchCard({ catalog, availableCapabilityIds, scrollViewRef }: {
 // matching constant in request.tsx. Only ever reorders these; everything
 // else keeps its existing relative order (stable sort, ranks Infinity).
 const INSPECTION_ORDER: Record<string, number> = {
-  'General Inspection': 0,
+  'Preventative Home Assessment': 0,
   'Comprehensive Home Inspection': 1,
   'HVAC Full Inspection': 2,
 };
@@ -358,7 +358,7 @@ function UpcomingServiceCard({ requests }: { requests: any[] }) {
       <Text style={styles.upcomingType}>
         {upcoming.type === 'ADDITIONAL_SERVICE'
           ? (upcoming.additionalServices?.[0]?.name || 'Service Request')
-          : 'Home Inspection'}
+          : 'Preventative Home Assessment'}
       </Text>
       {upcoming.scheduledDate && (
         <Text style={styles.upcomingDate}>

@@ -98,14 +98,14 @@ export default function AssistantScreen() {
     const notes = `${label} maintenance requested:\n${lines}`;
     setActivePanel(null);
     // Seasonal tasks aren't tied to a specific catalog item, so this hands
-    // off to the same "General Inspection" visit the dashboard's Inspect
-    // group offers — preselecting it (rather than leaving preselect empty)
-    // is what keeps this landing on the trimmed review screen instead of
-    // the retired full tabbed browse UI (see request.tsx's isPreselectedFlow).
+    // off to the same "Preventative Home Assessment" visit the dashboard's
+    // Inspect group offers — preselecting it (rather than leaving preselect
+    // empty) is what keeps this landing on the trimmed review screen instead
+    // of the retired full tabbed browse UI (see request.tsx's isPreselectedFlow).
     let generalInspectionId: string | undefined;
     try {
       const catalog = await pricingApi.getAll() as any;
-      generalInspectionId = catalog.find((i: any) => i.name === 'General Inspection')?.id;
+      generalInspectionId = catalog.find((i: any) => i.name === 'Preventative Home Assessment')?.id;
     } catch {}
     router.push({
       pathname: '/(customer)/request',

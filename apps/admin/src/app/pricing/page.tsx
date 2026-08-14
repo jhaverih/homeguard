@@ -108,9 +108,13 @@ const ADD_NEW_UNIT_LABEL = '__add_new_label__';
 // preview elsewhere on this page (including the Stripe pass-through fee, so
 // the dollar figure quoted here agrees with that column instead of a raw
 // backend-only number), just narrated instead of only computed.
-function formatFormulaReference(state: EditState, globalGM: string, unitLabels: UnitLabelRow[]): string {
+function formatFormulaReference(state: EditState, globalGM: string, unitLabels: UnitLabelRow[], useCharacteristicPricing?: boolean): string {
   if (state.pricingMethod === 'REQUEST_QUOTE') {
     return 'Priced case-by-case by an admin — no fixed formula.';
+  }
+  if (useCharacteristicPricing) {
+    const base = parseFloat(state.basePrice) || 0;
+    return `Flat $${base.toFixed(2)} base + a home-characteristics surcharge (capped $100) computed at booking time — no GM%, no payment processing fee added. Vendor payout is a separate fixed $100 + its own capped surcharge, set up on the backend, not per-item.`;
   }
   const dynamic = isDynamicGmCategory(state.category);
   const effectivePct = state.gmPercent !== ''
@@ -213,6 +217,7 @@ type PriceRow = {
   customerRequestable: boolean;
   isQuotaInspection: boolean;
   formulaDescription: string | null;
+  useCharacteristicPricing: boolean;
 };
 
 type EditState = {
@@ -1300,6 +1305,7 @@ export default function PricingPage() {
                       : 1;
                     const previewCost = calcTieredCost(state, previewQty);
                     const rowDynamic = isDynamicGmCategory(state.category);
+                    const rowCharPriced = !!price.useCharacteristicPricing;
                     const { stripeFee, customerPrice } = rowDynamic ? calcDynamicPricing(previewCost) : calcPricing(previewCost, effectivePct);
                     const isSaving = saving.has(price.id);
                     const isDirty = !statesEqual(state, rowToEdit(price));
@@ -1537,9 +1543,16 @@ export default function PricingPage() {
                     </td>
                     {/* GM% */}
                     <td className="px-4 py-3">
-                      {rowDynamic ? (
-                        <div className="flex items-center justify-end" title="This category's GM% is calculated dynamically from total vendor cost — set up on the backend, not per-item.">
-                          <span className="w-20 text-right text-xs text-steel italic bg-canvas rounded-lg px-2 py-1.5 border border-border">Calculated</span>
+                      {rowDynamic || rowCharPriced ? (
+                        <div
+                          className="flex items-center justify-end"
+                          title={rowCharPriced
+                            ? 'This item bypasses GM% entirely — a flat base + home-characteristics surcharge, set up on the backend.'
+                            : "This category's GM% is calculated dynamically from total vendor cost — set up on the backend, not per-item."}
+                        >
+                          <span className="w-20 text-right text-xs text-steel italic bg-canvas rounded-lg px-2 py-1.5 border border-border">
+                            {rowCharPriced ? 'N/A' : 'Calculated'}
+                          </span>
                         </div>
                       ) : (
                         <div className="flex items-center justify-end gap-1">
@@ -1567,25 +1580,30 @@ export default function PricingPage() {
                     </td>
                     {/* Formula Reference — auto-generated, read-only, never saved */}
                     <td className="px-4 py-3 text-xs text-steel min-w-[240px]">
-                      {formatFormulaReference(state, globalGM, unitLabels)}
+                      {formatFormulaReference(state, globalGM, unitLabels, rowCharPriced)}
                     </td>
                     {/* Stripe Fee — informational only, already included in Customer Price */}
                     <td className="px-4 py-3 text-right">
-                      {!state.requiresQuote && (
+                      {!state.requiresQuote && !rowCharPriced && (
                         <span className="text-steel tabular-nums">${stripeFee.toFixed(2)}</span>
                       )}
+                      {rowCharPriced && <span className="text-steel text-xs italic">N/A</span>}
                     </td>
                     {/* Customer Price */}
                     <td className="px-4 py-3 text-right">
                       {state.requiresQuote ? (
                         <span className="text-xs font-semibold text-purple-600 bg-purple-50 rounded-full px-2 py-1">Request a Quote</span>
+                      ) : rowCharPriced ? (
+                        <span className="font-bold text-lantern-deep tabular-nums" title="Actual price varies by customer home characteristics, computed at booking time">
+                          From ${Math.ceil(parseFloat(state.basePrice) || 0)}
+                        </span>
                       ) : (
                         <span className="font-bold text-lantern-deep tabular-nums">${Math.ceil(customerPrice)}</span>
                       )}
                     </td>
                     {/* Global GM% field */}
                     <td className="px-4 py-3 text-right">
-                      {state.gmPercent === '' && !state.requiresQuote && (
+                      {state.gmPercent === '' && !state.requiresQuote && !rowCharPriced && (
                         <div className="flex items-center justify-end gap-1">
                           <input
                             type="number"

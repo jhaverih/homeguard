@@ -146,7 +146,7 @@ export default function BundleCloseAllScreen() {
       )}
 
       {members.map((m) => {
-        const serviceName = m.job.type === 'ADDITIONAL_SERVICE' ? (m.job.additionalServices?.[0]?.name || 'Service Request') : 'Home Inspection';
+        const serviceName = m.job.type === 'ADDITIONAL_SERVICE' ? (m.job.additionalServices?.[0]?.name || 'Service Request') : 'Preventative Home Assessment';
         return (
           <View key={m.job.id} style={styles.memberCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

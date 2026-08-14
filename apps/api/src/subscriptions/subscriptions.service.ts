@@ -13,6 +13,8 @@ import { YolinkService } from '../yolink/yolink.service';
 import { PricingService } from '../pricing/pricing.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { CURRENT_CUSTOMER_TOS_VERSION } from '../common/constants/tos';
+import { PropertyCharacteristicsService } from '../users/property-characteristics.service';
+import { calcCarePlusSurcharge } from '../common/utils/property-surcharge.utils';
 
 @Injectable()
 export class SubscriptionsService implements OnModuleInit {
@@ -31,6 +33,7 @@ export class SubscriptionsService implements OnModuleInit {
     private yolinkService: YolinkService,
     private pricingService: PricingService,
     private notificationsService: NotificationsService,
+    private propertyCharacteristicsService: PropertyCharacteristicsService,
   ) {
     this.stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY', ''), {
       apiVersion: '2024-04-10',
@@ -39,6 +42,29 @@ export class SubscriptionsService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedPlans();
+    await this.renameHomeInspectionInPlanText();
+  }
+
+  // Plan description/features text was set directly against the live DB
+  // (the BASIC/STANDARD seed array below is stale — live prices/descriptions
+  // already diverged from it before this ran) and repeatedly says "Home
+  // Inspection" (e.g. CarePlus's "One (1) Home Inspection per year..."),
+  // naming the catalog item just renamed to "Preventative Home Assessment"
+  // in pricing.service.ts. A plain substring replace also handles the plural
+  // ("Home Inspections" -> "Preventative Home Assessments") since the "s"
+  // simply carries through unchanged. Idempotent — re-running finds nothing
+  // left to replace.
+  private async renameHomeInspectionInPlanText() {
+    const plans = await this.plansRepo.find();
+    for (const plan of plans) {
+      const newDescription = plan.description?.replace(/Home Inspection/g, 'Preventative Home Assessment') ?? plan.description;
+      const newFeatures = (plan.features ?? []).map((f) => f.replace(/Home Inspection/g, 'Preventative Home Assessment'));
+      const descChanged = newDescription !== plan.description;
+      const featuresChanged = newFeatures.some((f, i) => f !== plan.features?.[i]);
+      if (descChanged || featuresChanged) {
+        await this.plansRepo.update(plan.id, { description: newDescription, features: newFeatures });
+      }
+    }
   }
 
   private async seedPlans() {
@@ -135,6 +161,41 @@ export class SubscriptionsService implements OnModuleInit {
     });
   }
 
+  // BASIC (CarePlus) is the only tier priced per-customer — every other tier
+  // just uses its shared plan.stripePriceId unchanged. Returns plan.stripePriceId
+  // itself whenever there's nothing to surcharge for (no characteristics on file,
+  // or a $0 surcharge), so callers never need to special-case the "no surcharge"
+  // case separately.
+  private async resolveTargetStripePriceId(customerId: string, plan: SubscriptionPlan): Promise<string> {
+    if (!plan.stripePriceId || plan.tier !== PlanTier.BASIC) return plan.stripePriceId;
+    const characteristics = await this.propertyCharacteristicsService.get(customerId);
+    if (!characteristics) return plan.stripePriceId;
+    const surcharge = calcCarePlusSurcharge(characteristics);
+    if (surcharge <= 0) return plan.stripePriceId;
+    return this.getOrCreateCarePlusStripePriceId(plan, surcharge);
+  }
+
+  // One Stripe Price per distinct surcharge amount (not per customer) — every
+  // customer with the same home characteristics-derived surcharge shares the
+  // same Price object, keyed by a lookup_key derived from the dollar amount,
+  // same reuse pattern as ensureStripePriceForPlan's lookup_key.
+  private async getOrCreateCarePlusStripePriceId(plan: SubscriptionPlan, surcharge: number): Promise<string> {
+    const lookupKey = `homeguard_careplus_surcharge_${Math.round(surcharge * 100)}`;
+    const existing = await this.stripe.prices.list({ lookup_keys: [lookupKey], active: true });
+    if (existing.data.length > 0) return existing.data[0].id;
+
+    const basePrice = await this.stripe.prices.retrieve(plan.stripePriceId);
+    const price = await this.stripe.prices.create({
+      product: basePrice.product as string,
+      unit_amount: Math.round((Number(plan.price) + surcharge) * 100),
+      currency: 'usd',
+      recurring: { interval: 'year' },
+      lookup_key: lookupKey,
+      metadata: { planTier: plan.tier, surcharge: String(surcharge) },
+    });
+    return price.id;
+  }
+
   async getOrCreateStripeCustomer(userId: string): Promise<string> {
     const user = await this.usersService.findById(userId);
 
@@ -197,7 +258,8 @@ export class SubscriptionsService implements OnModuleInit {
     }
 
     if (plan.stripePriceId) {
-      return this.subscribeViaStripe(customerId, plan);
+      const priceId = await this.resolveTargetStripePriceId(customerId, plan);
+      return this.subscribeViaStripe(customerId, plan, priceId);
     }
 
     // Fallback: manual subscription (no Stripe price configured yet)
@@ -214,12 +276,12 @@ export class SubscriptionsService implements OnModuleInit {
     return { clientSecret: '' };
   }
 
-  private async subscribeViaStripe(customerId: string, plan: SubscriptionPlan): Promise<{ clientSecret: string; subscriptionId: string }> {
+  private async subscribeViaStripe(customerId: string, plan: SubscriptionPlan, priceId: string = plan.stripePriceId): Promise<{ clientSecret: string; subscriptionId: string }> {
     const stripeCustomerId = await this.getOrCreateStripeCustomer(customerId);
 
     const subscription = await this.stripe.subscriptions.create({
       customer: stripeCustomerId,
-      items: [{ price: plan.stripePriceId }],
+      items: [{ price: priceId }],
       payment_behavior: 'default_incomplete',
       // Card-only — the app has no deep-link/return-URL handling built, and
       // redirect-based payment methods would require a return_url at
@@ -281,6 +343,7 @@ export class SubscriptionsService implements OnModuleInit {
     if (!plan) throw new NotFoundException('Plan not found');
 
     if (sub.stripeSubscriptionId && plan.stripePriceId) {
+      const priceId = await this.resolveTargetStripePriceId(sub.customerId, plan);
       const stripeSub = await this.stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
 
       if (stripeSub.status === 'incomplete') {
@@ -289,11 +352,11 @@ export class SubscriptionsService implements OnModuleInit {
         // member restarting checkout doesn't fork off a separate subscription.
         try { await this.stripe.subscriptions.cancel(sub.stripeSubscriptionId); } catch { /* ignore */ }
         await this.subscriptionsRepo.remove(sub);
-        return this.subscribeViaStripe(sub.customerId, plan);
+        return this.subscribeViaStripe(sub.customerId, plan, priceId);
       }
 
       await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
-        items: [{ id: stripeSub.items.data[0].id, price: plan.stripePriceId }],
+        items: [{ id: stripeSub.items.data[0].id, price: priceId }],
         proration_behavior: 'create_prorations',
       });
     }
@@ -337,6 +400,29 @@ export class SubscriptionsService implements OnModuleInit {
         { customerId: sub.customerId },
       );
     }
+  }
+
+  // Called after a customer adds/edits PropertyCharacteristics while already on
+  // CarePlus — swaps their live subscription onto whatever Stripe Price the
+  // current characteristics now resolve to (reuses the same swap-Stripe-price
+  // mechanism as changePlan). A no-op for every other tier, or a customer whose
+  // recomputed price hasn't actually changed.
+  async repriceCarePlus(customerId: string): Promise<{ ok: boolean }> {
+    const ownerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
+    const sub = await this.getActiveSubscription(ownerId);
+    if (!sub || sub.plan.tier !== PlanTier.BASIC || !sub.stripeSubscriptionId || !sub.plan.stripePriceId) {
+      return { ok: false };
+    }
+
+    const priceId = await this.resolveTargetStripePriceId(ownerId, sub.plan);
+    const stripeSub = await this.stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+    if (stripeSub.items.data[0].price.id === priceId) return { ok: true };
+
+    await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
+      items: [{ id: stripeSub.items.data[0].id, price: priceId }],
+      proration_behavior: 'create_prorations',
+    });
+    return { ok: true };
   }
 
   async updatePlan(planId: string, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {

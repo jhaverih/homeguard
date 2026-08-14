@@ -847,7 +847,7 @@ export default function ActiveJobScreen() {
           <Text style={styles.jobTitle}>
             {isService
               ? (job.additionalServices?.[0]?.name || 'Service Request')
-              : 'Full home inspection — HVAC, plumbing, water leak check & bulb replacement'}
+              : 'Preventative Home Assessment — HVAC, plumbing, water leak check & bulb replacement'}
           </Text>
           {isService && job.additionalServices?.[0]?.description ? (
             <Text style={styles.jobDescription}>{job.additionalServices[0].description}</Text>

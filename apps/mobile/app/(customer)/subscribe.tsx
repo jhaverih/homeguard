@@ -7,9 +7,10 @@ import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe } from '@stripe/stripe-react-native';
-import { subscriptionsApi, TERMS_URL } from '../../src/services/api';
+import { subscriptionsApi, propertyCharacteristicsApi, PropertyCharacteristics, TERMS_URL } from '../../src/services/api';
 import { colors } from '../../src/theme';
 import CancellationFeedbackModal from '../../src/components/CancellationFeedbackModal';
+import HomeCharacteristicsModal from '../../src/components/HomeCharacteristicsModal';
 import { PlanName } from '../../src/components/PlanName';
 
 export default function SubscribeScreen() {
@@ -22,6 +23,11 @@ export default function SubscribeScreen() {
   const [showChangePlan, setShowChangePlan] = useState(false);
   const [showCancelFeedback, setShowCancelFeedback] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [characteristics, setCharacteristics] = useState<PropertyCharacteristics | null>(null);
+  // Which flow the modal should resume once characteristics are saved —
+  // subscribing fresh, switching plans, or just editing on an existing
+  // CarePlus subscription (which reprices instead of subscribing).
+  const [charModalIntent, setCharModalIntent] = useState<'subscribe' | 'changePlan' | 'edit' | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -29,9 +35,11 @@ export default function SubscribeScreen() {
       Promise.all([
         subscriptionsApi.getPlans().catch(() => []),
         subscriptionsApi.getMySubscription().catch(() => null),
-      ]).then(([p, s]: any[]) => {
+        propertyCharacteristicsApi.getMine().catch(() => null),
+      ]).then(([p, s, c]: any[]) => {
         setPlans(p || []);
         setSubscription(s || null);
+        setCharacteristics(c || null);
       }).finally(() => setFetching(false));
     }, [])
   );
@@ -68,6 +76,11 @@ export default function SubscribeScreen() {
       Alert.alert('Terms Required', 'Please accept the Terms and Conditions to subscribe.');
       return;
     }
+    const plan = plans.find((p: any) => p.id === selectedPlanId);
+    if (plan?.tier === 'BASIC' && !characteristics) {
+      setCharModalIntent('subscribe');
+      return;
+    }
     setLoading(true);
     try {
       const res: any = await subscriptionsApi.subscribe(selectedPlanId, acceptedTerms);
@@ -91,6 +104,11 @@ export default function SubscribeScreen() {
       Alert.alert('Select a Plan', 'Please select the plan you want to switch to.');
       return;
     }
+    const plan = plans.find((p: any) => p.id === selectedPlanId);
+    if (plan?.tier === 'BASIC' && !characteristics) {
+      setCharModalIntent('changePlan');
+      return;
+    }
     setLoading(true);
     try {
       const res: any = await subscriptionsApi.changePlan(selectedPlanId);
@@ -108,6 +126,23 @@ export default function SubscribeScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCharacteristicsSaved = async (data: PropertyCharacteristics) => {
+    setCharacteristics(data);
+    const intent = charModalIntent;
+    setCharModalIntent(null);
+    if (intent === 'edit') {
+      try {
+        await subscriptionsApi.reprice();
+        Alert.alert('Updated', 'Your CarePlus price has been updated to reflect your home details.');
+      } catch (e: any) {
+        Alert.alert('Error', e.message);
+      }
+      return;
+    }
+    if (intent === 'changePlan') await changePlan();
+    else if (intent === 'subscribe') await subscribe();
   };
 
   const cancelPlan = () => {
@@ -186,6 +221,14 @@ export default function SubscribeScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.steel} />
         </TouchableOpacity>
 
+        {subscription.plan?.tier === 'BASIC' && !isCancelled && (
+          <TouchableOpacity style={styles.paymentsBtn} onPress={() => setCharModalIntent('edit')}>
+            <Ionicons name="home-outline" size={18} color={colors.lanternDeep} />
+            <Text style={styles.paymentsBtnText}>Edit Home Details</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.steel} />
+          </TouchableOpacity>
+        )}
+
         {isCancelled ? (
           <>
             <View style={styles.cancelledNote}>
@@ -226,11 +269,19 @@ export default function SubscribeScreen() {
         stopTimingMessage={`Your access continues until ${endDate}.`}
         onDone={finalizeCancel}
       />
+      <HomeCharacteristicsModal
+        visible={charModalIntent != null}
+        mode="careplus"
+        initial={characteristics}
+        onClose={() => setCharModalIntent(null)}
+        onSaved={handleCharacteristicsSaved}
+      />
       </>
     );
   }
 
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {showChangePlan && (
         <TouchableOpacity style={styles.backRow} onPress={() => setShowChangePlan(false)}>
@@ -296,6 +347,14 @@ export default function SubscribeScreen() {
         </TouchableOpacity>
       )}
     </ScrollView>
+    <HomeCharacteristicsModal
+      visible={charModalIntent != null}
+      mode="careplus"
+      initial={characteristics}
+      onClose={() => setCharModalIntent(null)}
+      onSaved={handleCharacteristicsSaved}
+    />
+    </>
   );
 }
 

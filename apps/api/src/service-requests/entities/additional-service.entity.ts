@@ -70,6 +70,14 @@ export class AdditionalService {
   @Column({ default: false })
   isMaterial: boolean;
 
+  // Set only for a useCharacteristicPricing catalog item (Preventative Home
+  // Assessment) — the fixed vendor payout computed from the customer's home
+  // characteristics at booking time, independent of `price` above. When set,
+  // PaymentsService.chargeForCompletedService pays this exact amount instead
+  // of its usual percentage-of-price split.
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  fixedVendorPayout: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

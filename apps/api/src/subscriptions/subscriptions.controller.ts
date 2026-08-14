@@ -53,6 +53,14 @@ export class SubscriptionsController {
     return this.service.changePlan(req.user.id, planId);
   }
 
+  @Post('reprice')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Recompute my CarePlus surcharge from my current home characteristics' })
+  reprice(@Request() req) {
+    return this.service.repriceCarePlus(req.user.id);
+  }
+
   @Patch('plans/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, AdminLevelGuard)

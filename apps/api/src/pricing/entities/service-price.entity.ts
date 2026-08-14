@@ -78,7 +78,7 @@ export class ServicePrice {
   @Column({ default: true })
   customerRequestable: boolean;
 
-  // Marks the catalog row (expected: exactly one, "General Inspection") that
+  // Marks the catalog row (expected: exactly one, "Preventative Home Assessment") that
   // draws from the same subscription.inspectionsPerYear pool as the built-in
   // Inspection tab, instead of always charging its listed price — see
   // ServiceRequestsService.getInspectionsRemaining().
@@ -90,6 +90,16 @@ export class ServicePrice {
   // every non-inspection catalog item. See ServiceRequestsService.createStandaloneService().
   @Column({ nullable: true })
   checklistGroupKey: string | null;
+
+  // Marks the one catalog row (expected: "Preventative Home Assessment") that
+  // bypasses the standard tiered-cost/GM%/Stripe-fee customer pricing and
+  // percentage-of-charge vendor payout entirely, in favor of a fixed base +
+  // home-characteristics surcharge on both sides — see
+  // ServiceRequestsService.createStandaloneService() and
+  // property-surcharge.utils.ts. basePrice on this row is still used as the
+  // customer-facing base ($249), just not run through calcTieredCost/GM%.
+  @Column({ default: false })
+  useCharacteristicPricing: boolean;
 
   // Free-text admin notes on why this item is priced the way it is — separate
   // from the auto-generated formula reference shown alongside it in the admin

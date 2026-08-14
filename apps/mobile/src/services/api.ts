@@ -78,6 +78,28 @@ export const subscriptionsApi = {
     api.post(`/subscriptions/subscribe/${planId}`, { acceptedTerms }) as any,
   cancelSubscription: () => api.post('/subscriptions/cancel'),
   changePlan: (planId: string) => api.post(`/subscriptions/change/${planId}`),
+  // Swaps a live CarePlus subscription onto whatever Stripe Price its current
+  // home characteristics now resolve to — call after saving/editing characteristics.
+  reprice: (): Promise<{ ok: boolean }> => api.post('/subscriptions/reprice') as any,
+};
+
+export type PropertyCharacteristics = {
+  squareFootage: number;
+  hvacCount: number;
+  waterHeaterCount: number;
+  bathroomCount: number;
+  kitchenCount: number;
+  hasDetachedGarage: boolean;
+};
+
+export const propertyCharacteristicsApi = {
+  getMine: (): Promise<PropertyCharacteristics | null> => api.get('/property-characteristics/me') as any,
+  upsertMine: (data: PropertyCharacteristics): Promise<PropertyCharacteristics> => api.put('/property-characteristics/me', data) as any,
+  // Pure computation, no persistence — lets the UI show a live surcharge
+  // breakdown as the customer fills in the form, before saving.
+  quote: (data: PropertyCharacteristics): Promise<{
+    carePlusSurcharge: number; assessmentCustomerSurcharge: number; assessmentVendorCost: number;
+  }> => api.post('/property-characteristics/quote', data) as any,
 };
 
 export const cancellationFeedbackApi = {

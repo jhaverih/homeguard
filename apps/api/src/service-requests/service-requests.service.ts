@@ -26,6 +26,8 @@ import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
 import { calcTieredCost, applyStripeFee, isDynamicGmCategory, calcGraduatedPrice } from '../pricing/pricing.utils';
+import { calcAssessmentCustomerSurcharge, calcAssessmentVendorCost } from '../common/utils/property-surcharge.utils';
+import { PropertyCharacteristicsService } from '../users/property-characteristics.service';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
 
@@ -91,6 +93,7 @@ export class ServiceRequestsService {
     private servicePriceRepo: Repository<ServicePrice>,
     private configService: ConfigService,
     private dataSource: DataSource,
+    private propertyCharacteristicsService: PropertyCharacteristicsService,
   ) {}
 
   private async generateTicketNumber(): Promise<string> {
@@ -264,19 +267,36 @@ export class ServiceRequestsService {
     const minQty = servicePrice.minimumQuantity ? Number(servicePrice.minimumQuantity) : 0;
     const billedQty = isPerUnit && minQty > 0 ? Math.max(enteredQty, minQty) : enteredQty;
 
-    // The one catalog item flagged isQuotaInspection (expected: "General
-    // Inspection") is free while the plan's shared inspection allowance
-    // remains — see getInspectionsRemaining — and charges its normal
-    // tiered/GM price once that allowance is used up.
+    // The one catalog item flagged isQuotaInspection (expected: "Preventative
+    // Home Assessment") is free while the plan's shared inspection allowance
+    // remains — see getInspectionsRemaining — and charges its normal price
+    // once that allowance is used up.
     const isQuotaCovered = servicePrice.isQuotaInspection && (await this.getInspectionsRemaining(subscription)).remaining > 0;
-    const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
-    const cost = calcTieredCost(servicePrice, billedQty);
-    // No materials exist yet at booking time, so for dynamic-GM categories
-    // this is a graduated lookup on the tiered service cost alone — the
-    // real (materials-inclusive) price is only finalized at completion, see
-    // prepCompletion.
-    const bookingSubtotal = isDynamicGmCategory(servicePrice.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
-    const customerPrice = isQuotaCovered ? 0 : Math.round(applyStripeFee(bookingSubtotal) * 100) / 100;
+
+    let customerPrice: number;
+    let fixedVendorPayout: number | null = null;
+
+    if (servicePrice.useCharacteristicPricing) {
+      // Fixed base + home-characteristics surcharge on both sides — entirely
+      // bypasses calcTieredCost/GM%/applyStripeFee, see property-surcharge.utils.ts.
+      const characteristics = await this.propertyCharacteristicsService.get(subscriptionOwnerId);
+      if (!characteristics) {
+        throw new BadRequestException('Please add your home characteristics before booking this service.');
+      }
+      customerPrice = isQuotaCovered
+        ? 0
+        : Math.round((Number(servicePrice.basePrice) + calcAssessmentCustomerSurcharge(characteristics)) * 100) / 100;
+      fixedVendorPayout = Math.round(calcAssessmentVendorCost(characteristics) * 100) / 100;
+    } else {
+      const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
+      const cost = calcTieredCost(servicePrice, billedQty);
+      // No materials exist yet at booking time, so for dynamic-GM categories
+      // this is a graduated lookup on the tiered service cost alone — the
+      // real (materials-inclusive) price is only finalized at completion, see
+      // prepCompletion.
+      const bookingSubtotal = isDynamicGmCategory(servicePrice.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
+      customerPrice = isQuotaCovered ? 0 : Math.round(applyStripeFee(bookingSubtotal) * 100) / 100;
+    }
     const profile = await this.usersService.getCustomerProfile(customerId);
 
     const saved = await this.saveNewRequest((ticketNumber) => ({
@@ -311,6 +331,7 @@ export class ServiceRequestsService {
       approved: true,
       approvedAt: new Date(),
       isQuotaCovered,
+      fixedVendorPayout,
     }));
 
     const vendors = await this.usersService.findAvailableVendors();
@@ -593,6 +614,7 @@ export class ServiceRequestsService {
             Number(svc.price),
             svc.name,
             PaymentType.ADDITIONAL_SERVICE,
+            svc.fixedVendorPayout != null ? Number(svc.fixedVendorPayout) : undefined,
           );
         } catch (err) {
           // Don't block job completion if payment fails
@@ -636,7 +658,7 @@ export class ServiceRequestsService {
     // emailVerificationCode lookup.
     const approvedServices = await this.additionalRepo.find({
       where: { serviceRequestId: requestId, approved: true },
-      select: ['id', 'serviceRequestId', 'name', 'description', 'price', 'servicePriceId', 'quantity', 'finalQuantity', 'approved', 'isQuotaCovered', 'approvedAt', 'materialCost', 'isMaterial', 'createdAt'],
+      select: ['id', 'serviceRequestId', 'name', 'description', 'price', 'servicePriceId', 'quantity', 'finalQuantity', 'approved', 'isQuotaCovered', 'approvedAt', 'materialCost', 'isMaterial', 'createdAt', 'fixedVendorPayout'],
     });
     const quotaCoveredCount = approvedServices.filter((s) => s.isQuotaCovered).length;
 
@@ -894,7 +916,7 @@ export class ServiceRequestsService {
     vendorId: string,
     items: { serviceRequestId: string; completionPhotoKeys: string[]; finalQuantities?: Record<string, number> }[],
   ): Promise<ServiceRequest[]> {
-    const chargeLines: { serviceRequestId: string; customerId: string; svcId: string; name: string; price: number }[] = [];
+    const chargeLines: { serviceRequestId: string; customerId: string; svcId: string; name: string; price: number; fixedVendorPayout?: number }[] = [];
     const completed: ServiceRequest[] = [];
 
     for (const item of items) {
@@ -911,6 +933,7 @@ export class ServiceRequestsService {
         if (request.marketplaceSubscriptionId) continue;
         chargeLines.push({
           serviceRequestId: request.id, customerId: request.customerId, svcId: svc.id, name: svc.name, price: Number(svc.price),
+          fixedVendorPayout: svc.fixedVendorPayout != null ? Number(svc.fixedVendorPayout) : undefined,
         });
       }
     }

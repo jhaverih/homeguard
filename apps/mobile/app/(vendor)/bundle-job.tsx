@@ -200,7 +200,7 @@ export default function BundleJobScreen() {
 
       <Text style={styles.sectionTitle}>Services in This Visit</Text>
       {members.map((m) => {
-        const serviceName = m.type === 'ADDITIONAL_SERVICE' ? (m.additionalServices?.[0]?.name || 'Service Request') : 'Home Inspection';
+        const serviceName = m.type === 'ADDITIONAL_SERVICE' ? (m.additionalServices?.[0]?.name || 'Service Request') : 'Preventative Home Assessment';
         return (
           <TouchableOpacity key={m.id} style={styles.memberCard} onPress={() => router.push(`/(vendor)/active-job?id=${m.id}`)}>
             <View style={{ flex: 1 }}>

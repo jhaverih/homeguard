@@ -151,14 +151,26 @@ export class PaymentsService {
     amount: number,
     description: string,
     type: PaymentType = PaymentType.ADDITIONAL_SERVICE,
+    // Set only for a useCharacteristicPricing catalog item (Preventative Home
+    // Assessment) — the vendor gets exactly this amount instead of the usual
+    // percentage-of-charge split; platformFee below absorbs whatever's left
+    // over after this fixed payout and the real Stripe fee.
+    fixedVendorPayout?: number,
   ): Promise<Payment> {
     const { accountId: vendorAccountId } = await this.usersService.getCompanyStripeAccount(vendorId);
 
-    const platformFeePercent = Number(this.configService.get('PLATFORM_FEE_PERCENT', '15'));
     const amountInCents = Math.round(amount * 100);
-    const platformFeeInCents = Math.round(amountInCents * (platformFeePercent / 100));
     const stripeFee = Math.round(amountInCents * 0.029 + 30);
-    const vendorAmountInCents = amountInCents - platformFeeInCents - stripeFee;
+    let platformFeeInCents: number;
+    let vendorAmountInCents: number;
+    if (fixedVendorPayout != null) {
+      vendorAmountInCents = Math.round(fixedVendorPayout * 100);
+      platformFeeInCents = amountInCents - vendorAmountInCents - stripeFee;
+    } else {
+      const platformFeePercent = Number(this.configService.get('PLATFORM_FEE_PERCENT', '15'));
+      platformFeeInCents = Math.round(amountInCents * (platformFeePercent / 100));
+      vendorAmountInCents = amountInCents - platformFeeInCents - stripeFee;
+    }
 
     const transferParams: Partial<Stripe.PaymentIntentCreateParams> = vendorAccountId
       ? { application_fee_amount: platformFeeInCents, transfer_data: { destination: vendorAccountId } }
@@ -253,7 +265,7 @@ export class PaymentsService {
   // has no unique constraint and the webhook reconciles by a bulk update on
   // that column, updating every row sharing an intent together.
   async chargeForCompletedBundle(
-    lines: { serviceRequestId: string; customerId: string; svcId: string; name: string; price: number }[],
+    lines: { serviceRequestId: string; customerId: string; svcId: string; name: string; price: number; fixedVendorPayout?: number }[],
     vendorId: string,
   ): Promise<Payment[]> {
     const customerId = lines[0].customerId; // enforced uniform by the caller (acceptAsBundle/acceptGroup both require one customer)
@@ -265,8 +277,17 @@ export class PaymentsService {
     const totalStripeFeeCents = Math.round(totalCents * 0.029 + 30);
     const description = lines.length === 1 ? lines[0].name : `${lines.length} services (bundled visit)`;
 
+    // A fixed-payout line (Preventative Home Assessment) contributes its own
+    // amount-minus-payout to the total platform fee instead of the usual
+    // percentage share — summed here so application_fee_amount below reflects
+    // the real combined total even in a mixed bundle.
+    const totalPlatformFeeCents = lines.reduce((sum, l, i) => {
+      if (l.fixedVendorPayout != null) return sum + (lineCents[i] - Math.round(l.fixedVendorPayout * 100));
+      return sum + Math.round(lineCents[i] * (platformFeePercent / 100));
+    }, 0);
+
     const transferParams: Partial<Stripe.PaymentIntentCreateParams> = vendorAccountId
-      ? { application_fee_amount: Math.round(totalCents * (platformFeePercent / 100)), transfer_data: { destination: vendorAccountId } }
+      ? { application_fee_amount: totalPlatformFeeCents, transfer_data: { destination: vendorAccountId } }
       : {};
 
     const basePaymentFields = { customerId, vendorId, type: PaymentType.ADDITIONAL_SERVICE, currency: 'usd' };
@@ -329,7 +350,9 @@ export class PaymentsService {
       const cents = lineCents[i];
       const lineStripeFeeCents = i === largestIdx ? feeRemainder : Math.round(totalStripeFeeCents * (cents / totalCents));
       if (i !== largestIdx) feeRemainder -= lineStripeFeeCents;
-      const linePlatformFeeCents = Math.round(cents * (platformFeePercent / 100));
+      const linePlatformFeeCents = line.fixedVendorPayout != null
+        ? cents - Math.round(line.fixedVendorPayout * 100) - lineStripeFeeCents
+        : Math.round(cents * (platformFeePercent / 100));
       return this.paymentsRepo.create({
         ...basePaymentFields,
         serviceRequestId: line.serviceRequestId,

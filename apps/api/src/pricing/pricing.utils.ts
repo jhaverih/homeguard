@@ -110,6 +110,15 @@ export function calcGraduatedPrice(totalCost: number): number {
 // basePrice.
 export function formatCustomerPriceDisplay(item: ServicePrice, labelMap: Record<string, string>): string {
   if (item.requiresQuote) return 'Request a Quote';
+  // No specific customer/home-characteristics context at catalog-browse time —
+  // show the flat base with a note rather than attempting a live computed
+  // number. The real per-customer price is computed at booking time, see
+  // ServiceRequestsService.createStandaloneService().
+  if (item.useCharacteristicPricing) {
+    const base = Number(item.basePrice);
+    const formatted = Number.isInteger(base) ? base.toFixed(0) : base.toFixed(2);
+    return `From $${formatted} (may vary based on home details)`;
+  }
   const qty = item.pricingMethod === PricingMethod.PER_UNIT && item.includeQty != null ? Number(item.includeQty) : 1;
   const cost = calcTieredCost(item, qty);
   const gm = item.gmPercent != null ? Number(item.gmPercent) : 15;

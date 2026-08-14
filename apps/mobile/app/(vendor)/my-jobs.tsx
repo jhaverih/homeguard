@@ -140,7 +140,7 @@ export default function MyJobsScreen() {
             const typeLabel = TYPE_LABEL[job.type] ?? job.type;
             const serviceName = job.type === 'ADDITIONAL_SERVICE'
               ? (job.additionalServices?.[0]?.name || 'Service Request')
-              : 'Home Inspection';
+              : 'Preventative Home Assessment';
             return (
               <TouchableOpacity
                 key={job.id}
@@ -209,7 +209,7 @@ export default function MyJobsScreen() {
               <Text style={styles.customerName}>{customerName}</Text>
               {group.items.map((j: any) => (
                 <Text key={j.id} style={styles.bundleServiceLine}>
-                  • {j.type === 'ADDITIONAL_SERVICE' ? (j.additionalServices?.[0]?.name || 'Service Request') : 'Home Inspection'}
+                  • {j.type === 'ADDITIONAL_SERVICE' ? (j.additionalServices?.[0]?.name || 'Service Request') : 'Preventative Home Assessment'}
                 </Text>
               ))}
               <Text style={styles.cardDate}>

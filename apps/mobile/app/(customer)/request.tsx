@@ -6,10 +6,14 @@ import {
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { requestsApi, userApi, subscriptionsApi, pricingApi, standaloneServiceApi } from '../../src/services/api';
+import {
+  requestsApi, userApi, subscriptionsApi, pricingApi, standaloneServiceApi,
+  propertyCharacteristicsApi, PropertyCharacteristics,
+} from '../../src/services/api';
 import { scheduleLocalReminder } from '../../src/services/notifications';
 import { fmtUSD } from '../../src/utils/currency';
 import { colors } from '../../src/theme';
+import HomeCharacteristicsModal from '../../src/components/HomeCharacteristicsModal';
 
 function DateTimeField({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
   const [showDate, setShowDate] = useState(false);
@@ -76,7 +80,7 @@ const CATEGORY_ORDER = ['INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUST
 // order in the trailing "Other Services" group). Only ever reorders these —
 // everything else keeps its existing relative order (stable sort, ranks Infinity).
 const INSPECTION_ORDER: Record<string, number> = {
-  'General Inspection': 0,
+  'Preventative Home Assessment': 0,
   'Comprehensive Home Inspection': 1,
   'HVAC Full Inspection': 2,
 };
@@ -162,6 +166,8 @@ export default function RequestScreen() {
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [serviceQuantities, setServiceQuantities] = useState<Record<string, string>>({});
   const [serviceConfirmModal, setServiceConfirmModal] = useState(false);
+  const [characteristics, setCharacteristics] = useState<PropertyCharacteristics | null>(null);
+  const [showCharModal, setShowCharModal] = useState(false);
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -246,12 +252,13 @@ export default function RequestScreen() {
       }
     }).catch(() => {});
     subscriptionsApi.getMySubscription().then((s: any) => setSubscription(s)).catch(() => {});
+    propertyCharacteristicsApi.getMine().then((c) => setCharacteristics(c)).catch(() => {});
   }, []);
 
   // Accurate used+pending breakdown against the plan's shared inspection
   // allowance (apps/api/.../getInspectionsQuota) — subscription.inspectionsUsed
   // alone only reflects *completed* inspections, so it never moved when a
-  // General Inspection (or a built-in-tab inspection) was booked-but-pending,
+  // Preventative Home Assessment (or a built-in-tab inspection) was booked-but-pending,
   // and never moved back down when one was cancelled either. Refetched on
   // every focus (not just mount) so returning here after cancelling a
   // pending booking elsewhere shows the real, updated count.
@@ -467,7 +474,14 @@ export default function RequestScreen() {
   // what actually decides the charge; this only keeps the displayed
   // estimate honest.
   const isQuotaFree = (item: any) => !!item.isQuotaInspection && (inspectionsRemaining ?? 0) > 0;
-  const displayPrice = (item: any, qty = 1) => (isQuotaFree(item) ? 0 : customerPrice(item, qty));
+  // useCharacteristicPricing items (Preventative Home Assessment) don't run
+  // through the standard tiered/GM formula — their real price depends on
+  // home characteristics collected just before booking (see
+  // customerPriceDisplay's "From $X..." text for the catalog-browse
+  // estimate) and is only known for certain once the backend computes it.
+  const displayPrice = (item: any, qty = 1) => (
+    isQuotaFree(item) ? 0 : item.useCharacteristicPricing ? Number(item.basePrice) : customerPrice(item, qty)
+  );
 
   // Per Unit pricing floors the billed quantity at minimumQuantity (when
   // set) so the shown estimate always matches what will actually be
@@ -527,14 +541,17 @@ export default function RequestScreen() {
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 12 }}>
               <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>
-                {item.requiresQuote ? 'Request a Quote' : quotaFree ? 'Included' : `$${Number(price).toLocaleString('en-US')}`}
+                {item.requiresQuote ? 'Request a Quote'
+                  : quotaFree ? 'Included'
+                  : item.useCharacteristicPricing ? item.customerPriceDisplay
+                  : `$${Number(price).toLocaleString('en-US')}`}
               </Text>
               {isSelected && (
                 <Ionicons name="checkmark-circle" size={22} color={colors.lanternDeep} />
               )}
             </View>
           </View>
-          {item.customerPriceDisplay && !item.requiresQuote && !quotaFree && (
+          {item.customerPriceDisplay && !item.requiresQuote && !quotaFree && !item.useCharacteristicPricing && (
             <Text style={styles.priceNote}>{item.customerPriceDisplay}</Text>
           )}
           {item.isQuotaInspection && subscription && (
@@ -691,6 +708,14 @@ export default function RequestScreen() {
   const handleServiceSubmit = () => {
     if (selectedServices.length === 0) {
       Alert.alert('Select a Service', 'Please choose at least one service from the list.');
+      return;
+    }
+    // A Preventative Home Assessment (isQuotaCovered aside) needs home
+    // characteristics on file to price correctly — collect them first if
+    // missing, same gate the backend itself enforces at booking time.
+    const needsCharacteristics = selectedServices.some((s) => s.useCharacteristicPricing) && !characteristics;
+    if (needsCharacteristics) {
+      setShowCharModal(true);
       return;
     }
     setServiceConfirmModal(true);
@@ -1041,6 +1066,18 @@ export default function RequestScreen() {
             </View>
           </View>
         </Modal>
+
+        <HomeCharacteristicsModal
+          visible={showCharModal}
+          mode="assessment"
+          initial={characteristics}
+          onClose={() => setShowCharModal(false)}
+          onSaved={(data) => {
+            setCharacteristics(data);
+            setShowCharModal(false);
+            setServiceConfirmModal(true);
+          }}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

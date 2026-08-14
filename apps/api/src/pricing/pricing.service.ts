@@ -208,7 +208,17 @@ export class PricingService implements OnModuleInit {
     // (see inspection-checklist-seed.service.ts) — same always-run, idempotent
     // update pattern as the quantityLabel backfill directly above.
     await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { checklistGroupKey: 'HVAC_FULL_INSPECTION' });
-    await this.pricesRepo.update({ name: 'General Inspection' }, { checklistGroupKey: 'GENERAL_HOME_INSPECTION' });
+    // "General Inspection" (created by an admin renaming "Additional Inspection"
+    // directly in the live DB — never a code seed) becomes "Preventative Home
+    // Assessment", repriced to the new $249 base + home-characteristics surcharge
+    // model (see property-surcharge.utils.ts) instead of the standard tiered/GM
+    // formula. Idempotent per-name like the checklistGroupKey line below — only
+    // ever matches once, while the row still carries the old name.
+    await this.pricesRepo.update(
+      { name: 'General Inspection' },
+      { name: 'Preventative Home Assessment', useCharacteristicPricing: true, basePrice: 249, pricingMethod: PricingMethod.FLAT_PRICE, requiresQuote: false },
+    );
+    await this.pricesRepo.update({ name: 'Preventative Home Assessment' }, { checklistGroupKey: 'GENERAL_HOME_INSPECTION' });
     // "Comprehensive Home Inspection" already existed as a real, bookable catalog
     // item (created 2026-07-18, $500/$575, PER_UNIT by SqFt) before this checklist
     // work — missed during research, which only found a same-named dead reference

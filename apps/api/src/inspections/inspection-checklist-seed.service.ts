@@ -934,7 +934,7 @@ export class InspectionChecklistSeedService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const group = await this.ensureGroup('GENERAL_HOME_INSPECTION', 'General Home Inspection', 0);
+    const group = await this.ensureGroup('GENERAL_HOME_INSPECTION', 'Preventative Home Assessment', 0);
 
     const hvacVisualSub = await this.ensureSubgroup(group.id, 'HVAC_VISUAL_INSPECTION', 'HVAC', 0);
     const leakSub = await this.ensureSubgroup(group.id, 'LEAK_INSPECTION', 'Leak Inspection', 2);

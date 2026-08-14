@@ -390,7 +390,7 @@ export default function OpenRequestsScreen() {
                 {/* Inspection scope summary */}
                 {req.type === 'SCHEDULED_INSPECTION' && (
                   <View style={styles.serviceDetailBox}>
-                    <Text style={styles.serviceDetailName}>Full home inspection — HVAC, plumbing, water leak check &amp; bulb replacement</Text>
+                    <Text style={styles.serviceDetailName}>Preventative Home Assessment — HVAC, plumbing, water leak check &amp; bulb replacement</Text>
                   </View>
                 )}
 

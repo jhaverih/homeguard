@@ -211,7 +211,7 @@ export default function InspectionConfigPage() {
         <div>
           <h1 className="text-2xl font-bold text-lantern-deep mb-2">Inspection Configurator</h1>
           <p className="text-steel text-sm max-w-2xl">
-            Configure the checklist a vendor completes during a General Home Inspection. Every change here — field edits,
+            Configure the checklist a vendor completes during a Preventative Home Assessment. Every change here — field edits,
             adding a task or checklist, or deleting one — is staged and only takes effect when you press Save Changes.
             {!isSuperUser && ' Deleting a checklist or task requires a Super User.'}
           </p>
