@@ -54,7 +54,7 @@ export default function ApprovalsScreen() {
     // Declining simply dismisses from the list locally — vendor's note stays on the request
     Alert.alert(
       'Dismiss Recommendation?',
-      `Dismiss "${svc.name}"? You can still review it inside the inspection request.`,
+      `Dismiss "${svc.name}"? You can still review it inside the service request.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Dismiss', style: 'destructive', onPress: () => setServices((prev) => prev.filter((s) => s.id !== svc.id)) },

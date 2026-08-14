@@ -16,8 +16,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.attenteve.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Attenteve needs camera access to take inspection photos.",
-        "NSPhotoLibraryUsageDescription": "Attenteve needs photo library access to upload inspection photos.",
+        "NSCameraUsageDescription": "Attenteve needs camera access to take service photos.",
+        "NSPhotoLibraryUsageDescription": "Attenteve needs photo library access to upload service photos.",
         "NSLocationWhenInUseUsageDescription": "Attenteve uses your location to match you with nearby service requests and vendors.",
         "NSFaceIDUsageDescription": "Attenteve uses Face ID to let you sign in securely.",
         "ITSAppUsesNonExemptEncryption": false

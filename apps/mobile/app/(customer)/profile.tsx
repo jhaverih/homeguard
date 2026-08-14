@@ -73,7 +73,7 @@ export default function CustomerProfileScreen() {
       setFamilyMembers(Array.isArray(members) ? members : []);
       setFamilyEmail('');
       setShowFamilyForm(false);
-      Alert.alert('Added', 'Family member added. They can now see your inspections.');
+      Alert.alert('Added', 'Family member added. They can now see your assessments.');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {

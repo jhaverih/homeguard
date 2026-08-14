@@ -19,14 +19,14 @@ import { formatPriceDisplay, formatCustomerPriceDisplay } from './pricing.utils'
 // would otherwise resurrect them on every restart.
 const NEW_CATALOG = [
   {
-    name: 'Additional Inspection',
-    description: 'Add-on inspection visit outside subscription plan',
+    name: 'Additional Assessment',
+    description: 'Add-on assessment visit outside subscription plan',
     basePrice: 40,
     pricingMethod: PricingMethod.FLAT_PRICE,
   },
   {
-    name: 'HVAC Full Inspection',
-    description: 'Comprehensive HVAC system inspection by certified technician',
+    name: 'HVAC Full Assessment',
+    description: 'Comprehensive HVAC system assessment by certified technician',
     basePrice: 175,
     pricingMethod: PricingMethod.FLAT_PRICE,
   },
@@ -197,17 +197,34 @@ export class PricingService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    // "Inspection" -> "Assessment" wording sweep, 2026-08-14 — these 3 catalog
+    // items were seeded/admin-created under their old names on the live DB.
+    // Idempotent per-name like the "General Inspection" rename below: only
+    // ever matches once, while a row still carries the old name (a no-op on
+    // an already-renamed row, or a fresh install seeded with the new name
+    // directly via NEW_CATALOG below). Every other `.update({name: ...})`
+    // match in this method already uses the new name, since this runs first.
+    await this.pricesRepo.update(
+      { name: 'HVAC Full Inspection' },
+      { name: 'HVAC Full Assessment', description: 'Comprehensive HVAC system assessment by certified technician' },
+    );
+    await this.pricesRepo.update({ name: 'Comprehensive Home Inspection' }, { name: 'Comprehensive Home Assessment' });
+    await this.pricesRepo.update(
+      { name: 'Additional Inspection' },
+      { name: 'Additional Assessment', description: 'Add-on assessment visit outside subscription plan' },
+    );
+
     // One-time consolidation of the five old per-X pricing methods into
     // PER_UNIT + a separate Unit Label ran directly against the live DB
     // during the 2026-07-16 deploy (TypeORM's own schema sync runs before
     // onModuleInit and fails outright on rows still holding a
     // soon-to-be-removed enum value, so this couldn't safely run as
     // application code — it's done and verified, not reintroduced here).
-    await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { quantityLabel: 'AC_UNIT' });
+    await this.pricesRepo.update({ name: 'HVAC Full Assessment' }, { quantityLabel: 'AC_UNIT' });
     // Links this catalog item to the new HVAC_FULL_INSPECTION checklist group
     // (see inspection-checklist-seed.service.ts) — same always-run, idempotent
     // update pattern as the quantityLabel backfill directly above.
-    await this.pricesRepo.update({ name: 'HVAC Full Inspection' }, { checklistGroupKey: 'HVAC_FULL_INSPECTION' });
+    await this.pricesRepo.update({ name: 'HVAC Full Assessment' }, { checklistGroupKey: 'HVAC_FULL_INSPECTION' });
     // "General Inspection" (created by an admin renaming "Additional Inspection"
     // directly in the live DB — never a code seed) becomes "Preventative Home
     // Assessment", repriced to the new $249 base + home-characteristics surcharge
@@ -226,7 +243,7 @@ export class PricingService implements OnModuleInit {
     // separate "Comprehensive Inspection" ($249) was mistakenly seeded as a
     // duplicate; deactivated live via psql and seedComprehensiveInspection() below
     // removed. This just links the REAL existing item to its checklist group.
-    await this.pricesRepo.update({ name: 'Comprehensive Home Inspection' }, { checklistGroupKey: 'COMPREHENSIVE_INSPECTION' });
+    await this.pricesRepo.update({ name: 'Comprehensive Home Assessment' }, { checklistGroupKey: 'COMPREHENSIVE_INSPECTION' });
     await this.seedPrices();
     await this.seedMonitoringService();
     await this.seedTradeServices();

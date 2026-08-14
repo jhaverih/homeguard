@@ -15,19 +15,19 @@ import { InspectionsService } from '../inspections/inspections.service';
 import { SEASONAL_TIPS, getCurrentSeason, SeasonGroup } from './seasonal-tips.data';
 import { matchDiyTopicsFromText } from './diy-topics.data';
 
-const SYSTEM_PROMPT = `You are eveAi, the maintenance assistant built into the Attenteve app. Attenteve is a home-services platform that connects homeowners with vetted vendors for inspections and maintenance. You are speaking directly to an Attenteve customer.
+const SYSTEM_PROMPT = `You are eveAi, the maintenance assistant built into the Attenteve app. Attenteve is a home-services platform that connects homeowners with vetted vendors for assessments and maintenance. You are speaking directly to an Attenteve customer.
 
 Your role:
-- Help homeowners understand their inspection results and plan home maintenance
+- Help homeowners understand their assessment results and plan home maintenance
 - Answer questions about home upkeep, common issues, and when to call a professional
-- When a customer wants to book an inspection or a service, tell them to tap "Request a Service" in the app (the wrench icon in the bottom navigation), or use the request button that may appear in this chat. You cannot book for them — the customer always has to review and submit the request themselves.
+- When a customer wants to book an assessment or a service, tell them to tap "Request a Service" in the app (the wrench icon in the bottom navigation), or use the request button that may appear in this chat. You cannot book for them — the customer always has to review and submit the request themselves.
 - Do not suggest contacting anyone through any channel outside this app — all booking happens inside Attenteve.
 
-Stay tightly focused on what the customer actually asked. Do not proactively bring up past inspections, seasonal maintenance, or open issues unless the customer's message is about them, or unless the context below is explicitly about this turn's question. Only state facts that are explicitly present in the context provided to you below — never guess, assume, or fill in gaps about the customer's home, past service history, or an inspection you don't have data for. If you don't have the information needed to answer, say so plainly and ask a clarifying question instead of guessing.
+Stay tightly focused on what the customer actually asked. Do not proactively bring up past assessments, seasonal maintenance, or open issues unless the customer's message is about them, or unless the context below is explicitly about this turn's question. Only state facts that are explicitly present in the context provided to you below — never guess, assume, or fill in gaps about the customer's home, past service history, or an assessment you don't have data for. If you don't have the information needed to answer, say so plainly and ask a clarifying question instead of guessing.
 
 The customer's message itself may have typos, missing words, or be genuinely ambiguous. First try to reasonably infer what they mean — a misspelling or awkward phrasing is not by itself a reason to ask for clarification. For example, "my toilit is runing" clearly means a running toilet; just answer it. Only ask a clarifying question when you truly cannot tell what they're asking, or when more than one very different interpretation is plausible (e.g. "the thing in the bathroom is broken" — which thing?). When you do need to ask, ask one short, specific question naming exactly what's unclear, rather than a generic "can you tell me more?"
 
-Any information below about past inspections or open issues was recorded by a vendor and may be out of date. If the customer's own words — in this message or earlier in this conversation — say something different (an issue is already fixed, was about a different area, etc.), always treat what the customer says as more current and correct than the recorded data, for the rest of this conversation. Don't repeat or re-assert a detail the customer has already corrected.
+Any information below about past assessments or open issues was recorded by a vendor and may be out of date. If the customer's own words — in this message or earlier in this conversation — say something different (an issue is already fixed, was about a different area, etc.), always treat what the customer says as more current and correct than the recorded data, for the rest of this conversation. Don't repeat or re-assert a detail the customer has already corrected.
 
 What a handyman CAN do (no trade license needed): drywall patching/repair, trim and molding work, cabinet repair, weatherproofing/caulking, replacing existing light fixtures/switches/outlets/smart-home devices (not new wiring or breaker panel work), replacing faucets/showerheads, toilet maintenance, sealing minor gaps (not main water lines, sewage, or gas lines), mounting TVs/shelving/window treatments/safety rails, furniture assembly, door and pet-door installation, gutter cleaning, pressure washing, fencing, and deck upkeep.
 
@@ -37,7 +37,7 @@ When sharing DIY guidance (see any DIY guidance provided in context below), pres
 
 When the customer is asking how to do or fix something themselves — "how do I...", "how can I fix...", troubleshooting a specific problem, or anything else where a sequence of actions is the actual answer — do NOT compress it into 2-5 sentences. Instead give a clearly numbered, step-by-step list (1., 2., 3., ...), one concrete action per step, in the order they should be done. Start with a single short sentence naming the issue, then the numbered steps, then (only if genuinely needed) one closing sentence on when to stop and call a professional instead. This is the one case where a longer, structured answer is correct.
 
-For every other kind of question — general advice, explaining an inspection result, yes/no questions, etc. — keep responses concise and practical: 2-5 sentences unless a detailed list is genuinely needed.
+For every other kind of question — general advice, explaining an assessment result, yes/no questions, etc. — keep responses concise and practical: 2-5 sentences unless a detailed list is genuinely needed.
 Always be friendly and reassuring.
 Do not provide legal or structural engineering advice; recommend a licensed professional for those.
 
@@ -93,7 +93,7 @@ export class MaintenanceBotService implements OnModuleInit {
   // history at all — keeps the model from pivoting every reply toward
   // inspection talk when the customer asked about something unrelated.
   private static readonly HISTORY_RELEVANCE_KEYWORDS = [
-    'inspection', 'report', 'found', 'issue', 'problem', 'last time',
+    'inspection', 'assessment', 'report', 'found', 'issue', 'problem', 'last time',
     'you said', 'fix', 'still', 'again', 'recommend', 'pending', 'history', 'vendor',
   ];
 
@@ -130,14 +130,14 @@ export class MaintenanceBotService implements OnModuleInit {
     if (wantsLastReport) {
       if (lastReportSummary!.found) {
         lines.push(
-          "\n\nThe customer is asking about their last inspection report. Here are the facts — give a brief, "
+          "\n\nThe customer is asking about their last assessment report. Here are the facts — give a brief, "
           + 'high-level explanation using only this information, then mention they can view the full report in the app:',
         );
         lines.push(lastReportSummary!.summary);
       } else {
         lines.push(
-          '\n\nThe customer is asking about their last inspection report, but they have no completed '
-          + 'inspection on file. Tell them plainly that there is no inspection report yet.',
+          '\n\nThe customer is asking about their last assessment report, but they have no completed '
+          + 'assessment on file. Tell them plainly that there is no assessment report yet.',
         );
       }
     } else if (relevant) {
@@ -156,8 +156,8 @@ export class MaintenanceBotService implements OnModuleInit {
         const date = recentRequest.completedAt
           ? new Date(recentRequest.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           : 'Unknown date';
-        lines.push('\n\nMost recent completed inspection:');
-        lines.push(`Inspection on ${date} at ${recentRequest.address}, ${recentRequest.city}, ${recentRequest.state}:`);
+        lines.push('\n\nMost recent completed service visit:');
+        lines.push(`Visit on ${date} at ${recentRequest.address}, ${recentRequest.city}, ${recentRequest.state}:`);
         if (recentRequest.vendorNotes) lines.push(`  Vendor notes: ${recentRequest.vendorNotes}`);
         for (const n of notes) lines.push(`  ${n.title}: ${n.content}`);
       }
@@ -166,7 +166,7 @@ export class MaintenanceBotService implements OnModuleInit {
     if (relevant) {
       const openIssues = await this.inspectionsService.getOpenIssuesForCustomer(customerId);
       if (openIssues.length > 0) {
-        lines.push('\n\nOpen issues from past inspections (not yet resolved):');
+        lines.push('\n\nOpen issues from past assessments (not yet resolved):');
         for (const issue of openIssues) {
           lines.push(`  - ${issue.label} (${issue.status}): ${issue.findings ?? issue.recommendation ?? 'flagged, no further detail recorded'}`);
         }
@@ -251,8 +251,8 @@ export class MaintenanceBotService implements OnModuleInit {
       lines.push(
         '\n\nIMPORTANT — before you answer: decide if one of the services listed above is the right next step for this customer.'
         + '\nIf yes: write your normal helpful reply (do not paste the list above into it), then on its own new final line write exactly: RECOMMEND: <the exact service name from the list above>'
-        + '\nIf no listed service fits (general question, past-inspection question, needs a licensed trade not in the list): write your reply and add no such line.'
-        + '\nExample final line when clogged gutters come up: RECOMMEND: Gutters Inspection & Cleaning',
+        + '\nIf no listed service fits (general question, past-assessment question, needs a licensed trade not in the list): write your reply and add no such line.'
+        + '\nExample final line when clogged gutters come up: RECOMMEND: Gutter Cleaning',
       );
     }
 
@@ -312,11 +312,11 @@ export class MaintenanceBotService implements OnModuleInit {
     if (!MaintenanceBotService.BOOKING_INTENT_RE.test(userMessage)) return null;
     const matches = this.matchCatalogFromText(userMessage, bookable);
     if (matches.length === 1) return { preselectServicePriceId: matches[0].id };
-    if (matches.length === 0 && /inspection/i.test(userMessage)) return { prefilledNotes: userMessage };
+    if (matches.length === 0 && /inspection|assessment/i.test(userMessage)) return { prefilledNotes: userMessage };
     return null;
   }
 
-  private static readonly SCHEDULING_CONTEXT_RE = /\b(inspection|schedule|next visit|appointment)\b/i;
+  private static readonly SCHEDULING_CONTEXT_RE = /\b(inspection|assessment|schedule|next visit|appointment)\b/i;
 
   private extractInspectionDateIntent(userMessage: string, history: ChatHistoryEntry[]): string | null {
     const lastAssistant = [...history].reverse().find((h) => h.role === 'assistant');
@@ -329,7 +329,7 @@ export class MaintenanceBotService implements OnModuleInit {
     return parsed.toISOString();
   }
 
-  private static readonly LAST_REPORT_RE = /\blast (inspection|report)\b|\binspection report\b/i;
+  private static readonly LAST_REPORT_RE = /\blast (inspection|assessment|report)\b|\b(inspection|assessment) report\b/i;
   private static readonly OPEN_ISSUES_RE = /\bopen issues?\b|\bstill pending\b|\bpending issues?\b/i;
 
   // ── Self-harm safety net (deterministic, checked before the model ever
@@ -391,8 +391,8 @@ export class MaintenanceBotService implements OnModuleInit {
     if (MaintenanceBotService.OPEN_ISSUES_RE.test(message)) {
       const openIssues = await this.inspectionsService.getOpenIssuesForCustomer(customerId);
       const reply = openIssues.length === 0
-        ? "You don't have any open issues from past inspections right now — everything flagged has been addressed."
-        : `Here's what's still open from past inspections:\n\n${openIssues.map((i) => `• ${i.label}: ${i.findings ?? i.recommendation ?? 'flagged for follow-up'}`).join('\n')}`;
+        ? "You don't have any open issues from past assessments right now — everything flagged has been addressed."
+        : `Here's what's still open from past assessments:\n\n${openIssues.map((i) => `• ${i.label}: ${i.findings ?? i.recommendation ?? 'flagged for follow-up'}`).join('\n')}`;
       await this.messagesRepo.save(
         this.messagesRepo.create({ sessionId: session.id, role: 'assistant', content: reply }),
       );
@@ -430,13 +430,17 @@ export class MaintenanceBotService implements OnModuleInit {
   }
 
   // Includes generic words that recur across multiple, unrelated catalog
-  // items (e.g. "Full" in "HVAC Full Inspection" collided with "full of
+  // items (e.g. "Full" in "HVAC Full Assessment" collided with "full of
   // leaves" in an unrelated gutter question during testing) — these add
-  // false-positive risk without adding real matching signal.
+  // false-positive risk without adding real matching signal. "assessment"
+  // now recurs across all 3 renamed assessment-family items (Preventative/
+  // HVAC Full/Comprehensive Home Assessment) for the same reason "inspection"
+  // did before the 2026-08-14 rename — kept alongside it rather than replaced,
+  // since a customer's own message may still use either word.
   private static readonly CATALOG_MATCH_STOPWORDS = new Set([
     'and', 'the', 'for', 'with', 'your', 'service', 'services', 'system', 'work', 'works',
     'full', 'new', 'included', 'home', 'house', 'unit', 'project', 'repair', 'repairs',
-    'replace', 'replacement', 'inspection', 'patio',
+    'replace', 'replacement', 'inspection', 'assessment', 'patio',
   ]);
 
   // A 1B-parameter local model does not reliably follow the "RECOMMEND: <name>"

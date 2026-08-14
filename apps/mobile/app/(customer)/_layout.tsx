@@ -104,7 +104,7 @@ export default function CustomerLayout() {
       <Tabs.Screen name="assistant" options={{ href: null, title: 'eveAi', headerTitle: () => <EveAiTitle /> }} />
       <Tabs.Screen name="approvals" options={{ href: null, title: 'Approvals' }} />
       <Tabs.Screen name="dispute" options={{ href: null, title: 'Dispute' }} />
-      <Tabs.Screen name="inspection-report" options={{ href: null, title: 'Inspection Report' }} />
+      <Tabs.Screen name="inspection-report" options={{ href: null, title: 'Assessment Report' }} />
       <Tabs.Screen name="marketplace-house-cleaning" options={{ href: null, title: 'House Cleaning' }} />
       <Tabs.Screen name="marketplace-lawncare" options={{ href: null, title: 'Lawncare' }} />
       <Tabs.Screen name="marketplace-pest-control" options={{ href: null, title: 'Pest Control' }} />

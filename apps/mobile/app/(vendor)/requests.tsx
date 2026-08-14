@@ -259,7 +259,7 @@ export default function OpenRequestsScreen() {
       Alert.alert(
         sameTime ? 'Job Confirmed!' : 'Time Proposed!',
         sameTime
-          ? 'The job is locked in. Get ready for your inspection!'
+          ? 'The job is locked in. Get ready for your visit!'
           : 'Your proposed time has been sent to the customer. The job will be confirmed once they accept.',
       );
       load();
@@ -362,7 +362,7 @@ export default function OpenRequestsScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }, req.type === 'ADDITIONAL_SERVICE' ? { backgroundColor: '#f0effe' } : { backgroundColor: colors.mist }]}>
                     <Text style={[{ fontSize: 11, fontWeight: '700' }, req.type === 'ADDITIONAL_SERVICE' ? { color: '#635bff' } : { color: colors.lanternDeep }]}>
-                      {req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection'}
+                      {req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Assessment'}
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -494,7 +494,7 @@ export default function OpenRequestsScreen() {
             <Text style={styles.modalTitle}>Confirm Scheduled Date</Text>
             <Text style={styles.modalSubtitle}>Pre-filled with the customer's requested date. Change it if needed.</Text>
             <DateTimeField
-              label="Inspection Date & Time"
+              label="Visit Date & Time"
               value={scheduledDate}
               onChange={setScheduledDate}
               accentColor={colors.lanternDeep}

@@ -494,7 +494,7 @@ export default function RegisterScreen() {
               </View>
               <View style={styles.roleCardText}>
                 <Text style={styles.roleCardTitle}>Homeowner</Text>
-                <Text style={styles.roleCardDesc}>Book inspections, maintenance, and home monitoring services.</Text>
+                <Text style={styles.roleCardDesc}>Book assessments, maintenance, and home monitoring services.</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.steel} />
             </TouchableOpacity>

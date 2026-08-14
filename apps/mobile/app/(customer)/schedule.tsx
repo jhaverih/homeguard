@@ -239,9 +239,9 @@ export default function CustomerSchedule() {
       {scheduled.length === 0 && (
         <View style={[styles.emptyCard, { margin: 16 }]}>
           <Text style={styles.emptyIcon}>📅</Text>
-          <Text style={styles.emptyText}>No scheduled visits yet.{'\n'}Request an inspection to get started!</Text>
+          <Text style={styles.emptyText}>No scheduled visits yet.{'\n'}Request an assessment to get started!</Text>
           <TouchableOpacity style={styles.requestBtn} onPress={() => router.push('/(customer)')}>
-            <Text style={styles.requestBtnText}>Request Inspection</Text>
+            <Text style={styles.requestBtnText}>Request Assessment</Text>
           </TouchableOpacity>
         </View>
       )}

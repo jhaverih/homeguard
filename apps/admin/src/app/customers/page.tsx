@@ -30,7 +30,7 @@ export default function CustomersPage() {
                 <th className="text-left px-6 py-4 font-semibold text-steel">Name</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel">Email</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel">Plan</th>
-                <th className="text-left px-6 py-4 font-semibold text-steel">Inspections</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Assessments</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel">Joined</th>
               </tr>
             </thead>

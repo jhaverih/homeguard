@@ -57,7 +57,7 @@ export default function InspectionReportScreen() {
       setTaskResults(tasks || []);
       subscriptionsApi.getMySubscription().then(setSubscription).catch(() => {});
     } catch {
-      Alert.alert('Error', 'Could not load inspection report.');
+      Alert.alert('Error', 'Could not load assessment report.');
     } finally {
       setLoading(false);
     }
@@ -306,7 +306,7 @@ export default function InspectionReportScreen() {
       <View style={styles.headerRow}>
         <View style={styles.statusPill}>
           <View style={styles.statusDot} />
-          <Text style={styles.statusPillText}>{isHvacReport ? 'HVAC Inspection Complete' : 'Inspection Complete'}</Text>
+          <Text style={styles.statusPillText}>{isHvacReport ? 'HVAC Assessment Complete' : 'Assessment Complete'}</Text>
         </View>
         <Text style={styles.headerDate}>{completedDate}</Text>
       </View>
@@ -325,12 +325,12 @@ export default function InspectionReportScreen() {
         </View>
       )}
 
-      {/* ── HVAC Inspection Report ── */}
+      {/* ── HVAC Assessment Report ── */}
       {isHvacReport && (
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="thermometer-outline" size={14} color={C.tealDeep} />
-            <Text style={[styles.sectionLabel, { color: C.tealDeep, flex: 1 }]}>HVAC Inspection Report</Text>
+            <Text style={[styles.sectionLabel, { color: C.tealDeep, flex: 1 }]}>HVAC Assessment Report</Text>
           </View>
 
           {HVAC_REPORT_SECTIONS.map((sec) => {
@@ -523,7 +523,7 @@ export default function InspectionReportScreen() {
       {/* Included in your inspection (legacy notes) */}
       <View style={styles.section}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionLabel}>Included in your inspection</Text>
+          <Text style={styles.sectionLabel}>Included in your assessment</Text>
           {totalNotes > 0 && (
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>{totalNotes}</Text>
@@ -532,7 +532,7 @@ export default function InspectionReportScreen() {
         </View>
 
         {totalNotes === 0 ? (
-          <Text style={styles.emptyText}>No inspection notes recorded.</Text>
+          <Text style={styles.emptyText}>No assessment notes recorded.</Text>
         ) : (
           <>
             {findings.map((note: any) => (
@@ -639,7 +639,7 @@ export default function InspectionReportScreen() {
       {subscription && inspTotal > 0 && (
         <View style={styles.usageBlock}>
           <View style={styles.usageLabelRow}>
-            <Text style={styles.usageLabel}>Inspection visits used</Text>
+            <Text style={styles.usageLabel}>Assessment visits used</Text>
             <Text style={styles.usageCount}>{inspUsed} of {inspTotal} this year</Text>
           </View>
           <View style={styles.progressTrack}>
@@ -655,7 +655,7 @@ export default function InspectionReportScreen() {
         activeOpacity={0.75}
       >
         <View style={{ flex: 1 }}>
-          <Text style={styles.addonCTATitle}>Request an add-on inspection</Text>
+          <Text style={styles.addonCTATitle}>Request an add-on assessment</Text>
           <Text style={styles.addonCTASub}>Schedule an extra visit outside your plan</Text>
         </View>
         <Ionicons name="arrow-forward" size={18} color={C.teal} />

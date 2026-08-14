@@ -205,7 +205,7 @@ export default function SubscribeScreen() {
           <View style={styles.divider} />
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Inspections used</Text>
+            <Text style={styles.infoLabel}>Assessments used</Text>
             <Text style={styles.infoVal}>{subscription.inspectionsUsed} / {subscription.plan?.inspectionsPerYear}</Text>
           </View>
           <View style={styles.infoRow}>

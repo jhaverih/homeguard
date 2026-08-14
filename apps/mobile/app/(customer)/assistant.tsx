@@ -21,8 +21,8 @@ type Message = {
 // Tapping any of these sends immediately — each is a single, unambiguous
 // action rather than a starting point for editing.
 const QUICK_PROMPTS = [
-  'Set my next inspection date',
-  'Explain my last inspection report',
+  'Set my next assessment date',
+  'Explain my last assessment report',
   'Which open issues are still pending?',
 ];
 
@@ -44,7 +44,7 @@ const uid = () => String(++msgId);
 const INITIAL_MESSAGE: Message = {
   id: uid(),
   role: 'assistant',
-  content: "Hi! I'm eveAi, your Attenteve maintenance assistant. I can answer questions about your home maintenance, explain your inspection results, or help you plan upkeep. What can I help you with?",
+  content: "Hi! I'm eveAi, your Attenteve maintenance assistant. I can answer questions about your home maintenance, explain your assessment results, or help you plan upkeep. What can I help you with?",
 };
 
 type ActivePanel = 'seasonal' | 'prompts' | null;

@@ -53,7 +53,7 @@ function getServiceKey(job: any): 'inspection' | 'gutters' | 'solar' | 'hvac' | 
   if (name.includes('gutter')) return 'gutters';
   if (name.includes('hvac') || name.includes('heating') || name.includes('air conditioning') || name.includes('furnace')) return 'hvac';
   if (job.type === 'SCHEDULED_INSPECTION') return 'inspection';
-  if (name.includes('inspection')) return 'inspection';
+  if (name.includes('assessment')) return 'inspection';
   if (name.includes('solar')) return 'solar';
   return 'other';
 }
@@ -572,7 +572,7 @@ export default function ActiveJobScreen() {
         Alert.alert('Required', 'Enter a name and price.'); return;
       }
       name = upsellCustomName.trim();
-      description = `Recommendation from inspection task: ${upsellTask?.label}`;
+      description = `Recommendation from checklist task: ${upsellTask?.label}`;
       price = parseCurrencyRaw(upsellCustomPrice);
       if (isNaN(price) || price <= 0) { Alert.alert('Invalid price', 'Enter a valid amount.'); return; }
     } else if (upsellSelectedId) {
@@ -841,7 +841,7 @@ export default function ActiveJobScreen() {
         {/* Job header */}
         <View style={styles.customerBox}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={styles.customerLabel}>{isService ? 'Service Request' : 'Inspection'}</Text>
+            <Text style={styles.customerLabel}>{isService ? 'Service Request' : 'Assessment'}</Text>
             {job.ticketNumber && <Text style={{ fontSize: 11, color: '#a8d5a2', fontFamily: 'monospace' }}>{job.ticketNumber}</Text>}
           </View>
           <Text style={styles.jobTitle}>
@@ -1053,7 +1053,7 @@ export default function ActiveJobScreen() {
                 <View style={[styles.progressFill, { width: `${checklistFraction * 100}%` as any }]} />
               </View>
               {isCompleted
-                ? <Text style={[styles.progressHint, { color: '#059669' }]}>Inspection submitted — results are locked</Text>
+                ? <Text style={[styles.progressHint, { color: '#059669' }]}>Assessment submitted — results are locked</Text>
                 : !checklistReady && <Text style={styles.progressHint}>Complete all items to close the job</Text>
               }
             </View>
@@ -1552,7 +1552,7 @@ export default function ActiveJobScreen() {
         {canReschedule && (serviceKey !== 'solar' || solarConsultationConfirmed) && (
           <TouchableOpacity style={styles.rescheduleBtn}
             onPress={() => { setNewDate(job.scheduledDate ? new Date(job.scheduledDate) : new Date()); setRescheduleModal(true); }}>
-            <Text style={styles.rescheduleBtnText}>{serviceKey === 'solar' ? 'Reschedule Consultation' : 'Reschedule Inspection'}</Text>
+            <Text style={styles.rescheduleBtnText}>{serviceKey === 'solar' ? 'Reschedule Consultation' : 'Reschedule Visit'}</Text>
           </TouchableOpacity>
         )}
 
@@ -1785,7 +1785,7 @@ export default function ActiveJobScreen() {
       <Modal visible={rescheduleModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Reschedule Inspection</Text>
+            <Text style={styles.modalTitle}>Reschedule Visit</Text>
             <Text style={styles.modalSubtitle}>The customer will be notified automatically.</Text>
             <DateTimeField value={newDate} onChange={setNewDate} />
             <TouchableOpacity style={styles.confirmBtn} onPress={submitReschedule}>

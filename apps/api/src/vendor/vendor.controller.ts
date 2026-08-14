@@ -45,7 +45,7 @@ export class VendorController {
   }
 
   @Get('jobs/:id/report')
-  @ApiOperation({ summary: 'Inspection report + photos for one job' })
+  @ApiOperation({ summary: 'Assessment report + photos for one job' })
   getJobReport(@Request() req, @Param('id') id: string) {
     return this.service.getJobReport(req.user.id, id);
   }

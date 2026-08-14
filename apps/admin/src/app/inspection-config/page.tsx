@@ -209,7 +209,7 @@ export default function InspectionConfigPage() {
     <div>
       <div className="flex items-start justify-between gap-4 flex-wrap mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-lantern-deep mb-2">Inspection Configurator</h1>
+          <h1 className="text-2xl font-bold text-lantern-deep mb-2">Assessment Configurator</h1>
           <p className="text-steel text-sm max-w-2xl">
             Configure the checklist a vendor completes during a Preventative Home Assessment. Every change here — field edits,
             adding a task or checklist, or deleting one — is staged and only takes effect when you press Save Changes.

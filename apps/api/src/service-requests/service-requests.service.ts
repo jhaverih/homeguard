@@ -194,7 +194,7 @@ export class ServiceRequestsService {
 
     const limitReached = (await this.getInspectionsRemaining(subscription)).remaining <= 0;
     if (limitReached && !dto.isPaidAddon) {
-      throw new BadRequestException('No inspections remaining on your subscription');
+      throw new BadRequestException('No assessments remaining on your subscription');
     }
 
     const addonPrice = limitReached && dto.isPaidAddon
@@ -229,8 +229,8 @@ export class ServiceRequestsService {
       await this.notificationsService.notifyVendors(
         vendors,
         NotificationType.NEW_REQUEST,
-        'New Inspection Request',
-        `A customer in ${dto.city}, ${dto.state} needs an inspection.`,
+        'New Assessment Request',
+        `A customer in ${dto.city}, ${dto.state} needs an assessment.`,
         { serviceRequestId: saved.id },
       );
     }
@@ -463,7 +463,7 @@ export class ServiceRequestsService {
         request.customerId,
         NotificationType.REQUEST_ACCEPTED,
         'Vendor Accepted Your Request',
-        `Your inspection has been scheduled for ${proposed.toLocaleDateString()}.`,
+        `Your service has been scheduled for ${proposed.toLocaleDateString()}.`,
         { serviceRequestId: saved.id },
       );
       return saved;
@@ -670,7 +670,7 @@ export class ServiceRequestsService {
     if (request.checklistGroupKey) {
       const checklistDone = await this.inspectionsService.isChecklistComplete(requestId);
       if (!checklistDone) {
-        throw new BadRequestException('All inspection checklist items must be completed before closing the job');
+        throw new BadRequestException('All assessment checklist items must be completed before closing the job');
       }
     }
 
@@ -783,12 +783,12 @@ export class ServiceRequestsService {
       [ServiceRequestStatus.IN_PROGRESS]: {
         type: NotificationType.VENDOR_ARRIVED,
         title: 'Vendor Has Arrived',
-        body: 'Your vendor has arrived and started the inspection.',
+        body: 'Your vendor has arrived and started the job.',
       },
       [ServiceRequestStatus.COMPLETED]: {
         type: NotificationType.JOB_COMPLETED,
-        title: 'Inspection Complete',
-        body: 'Your inspection has been completed. Check the notes in the app.',
+        title: 'Job Complete',
+        body: 'Your job has been completed. Check the notes in the app.',
       },
     };
 
@@ -1331,7 +1331,7 @@ export class ServiceRequestsService {
     const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
     if (!relatedIds.includes(req.customerId)) throw new ForbiddenException();
     if (req.status === ServiceRequestStatus.COMPLETED) {
-      throw new BadRequestException('Cannot cancel a completed inspection');
+      throw new BadRequestException('Cannot cancel a completed request');
     }
     if (req.status === ServiceRequestStatus.CANCELLED) {
       throw new BadRequestException('Request is already cancelled');
@@ -1380,8 +1380,8 @@ export class ServiceRequestsService {
       await this.notificationsService.notifyUser(
         req.vendorId,
         NotificationType.JOB_COMPLETED,
-        'Inspection Cancelled',
-        'The customer has cancelled this inspection request.',
+        'Request Cancelled',
+        'The customer has cancelled this request.',
         { serviceRequestId: saved.id },
       );
     }
@@ -1510,7 +1510,7 @@ export class ServiceRequestsService {
         otherPartyId,
         NotificationType.SCHEDULE_CHANGED,
         'Schedule Updated',
-        `The inspection has been rescheduled to ${proposed.toLocaleDateString()}.`,
+        `The visit has been rescheduled to ${proposed.toLocaleDateString()}.`,
         { serviceRequestId: saved.id },
       );
     }

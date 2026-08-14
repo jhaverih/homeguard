@@ -27,7 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const TYPE_LABEL: Record<string, string> = {
-  SCHEDULED_INSPECTION: 'Inspection',
+  SCHEDULED_INSPECTION: 'Assessment',
   ADDITIONAL_SERVICE: 'Service',
 };
 

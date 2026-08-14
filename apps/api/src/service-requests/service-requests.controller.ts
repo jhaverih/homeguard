@@ -15,7 +15,7 @@ export class ServiceRequestsController {
   constructor(private readonly service: ServiceRequestsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Customer: create a new inspection request' })
+  @ApiOperation({ summary: 'Customer: create a new assessment request' })
   create(@Request() req, @Body() body: any) {
     return this.service.create(req.user.id, body);
   }
@@ -61,7 +61,7 @@ export class ServiceRequestsController {
   }
 
   @Get('inspections-remaining')
-  @ApiOperation({ summary: "Customer: accurate used+pending breakdown against the plan's inspection allowance" })
+  @ApiOperation({ summary: "Customer: accurate used+pending breakdown against the plan's assessment allowance" })
   getInspectionsRemaining(@Request() req) {
     return this.service.getInspectionsQuota(req.user.id);
   }
@@ -130,7 +130,7 @@ export class ServiceRequestsController {
   }
 
   @Patch(':id/notes')
-  @ApiOperation({ summary: 'Vendor: add inspection notes' })
+  @ApiOperation({ summary: 'Vendor: add job notes' })
   addNotes(@Request() req, @Param('id') id: string, @Body() body: { notes: string }) {
     return this.service.addVendorNotes(id, req.user.id, body.notes);
   }
@@ -173,13 +173,13 @@ export class ServiceRequestsController {
   }
 
   @Patch(':id/reschedule')
-  @ApiOperation({ summary: 'Reschedule an inspection (customer or vendor)' })
+  @ApiOperation({ summary: 'Reschedule a visit (customer or vendor)' })
   reschedule(@Request() req, @Param('id') id: string, @Body() body: { newDate: string }) {
     return this.service.reschedule(id, req.user.id, body.newDate);
   }
 
   @Patch(':id/cancel')
-  @ApiOperation({ summary: 'Customer: cancel an inspection request' })
+  @ApiOperation({ summary: 'Customer: cancel a service request' })
   cancel(@Request() req, @Param('id') id: string) {
     return this.service.cancelRequest(id, req.user.id);
   }

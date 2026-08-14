@@ -128,8 +128,8 @@ function ServiceSearchCard({ catalog, availableCapabilityIds, scrollViewRef }: {
 // else keeps its existing relative order (stable sort, ranks Infinity).
 const INSPECTION_ORDER: Record<string, number> = {
   'Preventative Home Assessment': 0,
-  'Comprehensive Home Inspection': 1,
-  'HVAC Full Inspection': 2,
+  'Comprehensive Home Assessment': 1,
+  'HVAC Full Assessment': 2,
 };
 const inspectionRank = (name: string) => INSPECTION_ORDER[name] ?? Infinity;
 
@@ -510,7 +510,7 @@ export default function CustomerDashboard() {
               <Text style={{ color: colors.lantern }}>eve</Text>
               <Text style={{ color: colors.mist }}>Ai</Text>
             </Text>
-            <Text style={styles.aiCardSub}>Ask about maintenance, repairs & inspections</Text>
+            <Text style={styles.aiCardSub}>Ask about maintenance, repairs & assessments</Text>
           </View>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.mistDim} />

@@ -188,7 +188,7 @@ export const DIY_TOPICS: DiyTopic[] = [
     key: 'attic_ventilation_check',
     keywords: ['attic ventilation', 'attic too hot', 'attic vents blocked'],
     title: 'Basic attic ventilation checks',
-    guidance: 'On a visit to the attic, confirm soffit vents (under the roof eaves) aren\'t blocked by insulation, and that ridge or gable vents aren\'t obstructed by debris or nests. Good airflow here reduces summer heat buildup and winter moisture — visible mold, frost, or consistently very high attic temps are worth a professional inspection.',
+    guidance: 'On a visit to the attic, confirm soffit vents (under the roof eaves) aren\'t blocked by insulation, and that ridge or gable vents aren\'t obstructed by debris or nests. Good airflow here reduces summer heat buildup and winter moisture — visible mold, frost, or consistently very high attic temps are worth a professional assessment.',
   },
   {
     key: 'lawn_mower_maintenance',
@@ -218,7 +218,7 @@ export const DIY_TOPICS: DiyTopic[] = [
     key: 'vent_register_cleaning',
     keywords: ['dusty air vents', 'clean air vents', 'vent registers dusty'],
     title: 'Cleaning dusty air vents/registers',
-    guidance: 'Remove each register cover (usually a couple of screws or clips) and wash it in warm soapy water, then vacuum inside the duct opening as far as your vacuum hose/attachment reaches. This is separate from a full duct cleaning — persistent heavy dust after doing this across every room can be worth a professional duct inspection.',
+    guidance: 'Remove each register cover (usually a couple of screws or clips) and wash it in warm soapy water, then vacuum inside the duct opening as far as your vacuum hose/attachment reaches. This is separate from a full duct cleaning — persistent heavy dust after doing this across every room can be worth a professional duct assessment.',
   },
   {
     key: 'pest_entry_sealing',

@@ -106,7 +106,7 @@ export default function MyServicesScreen() {
             <>
               <Ionicons name="home-outline" size={48} color="#cbd5e0" />
               <Text style={styles.emptyTitle}>No services yet</Text>
-              <Text style={styles.emptyText}>Book an inspection or service to get started.</Text>
+              <Text style={styles.emptyText}>Book an assessment or service to get started.</Text>
               <TouchableOpacity style={styles.emptyBookBtn} onPress={() => router.push('/(customer)')}>
                 <Text style={styles.emptyBookBtnText}>Book a Service</Text>
               </TouchableOpacity>
@@ -120,7 +120,7 @@ export default function MyServicesScreen() {
           const color = STATUS_COLOR[req.status] || colors.steel;
           const isEnRoute = req.status === 'VENDOR_EN_ROUTE';
           const isActive = ACTIVE_STATUSES.includes(req.status);
-          const typeLabel = req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Inspection';
+          const typeLabel = req.type === 'ADDITIONAL_SERVICE' ? 'Service' : 'Assessment';
           const serviceName = req.type === 'ADDITIONAL_SERVICE'
             ? (req.additionalServices?.[0]?.name || 'Service Request')
             : null;

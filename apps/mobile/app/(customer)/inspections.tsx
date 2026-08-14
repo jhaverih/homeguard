@@ -91,7 +91,7 @@ export default function InspectionHistoryScreen() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
-      <Text style={styles.pageTitle}>Inspection History</Text>
+      <Text style={styles.pageTitle}>Assessment History</Text>
 
       {/* Tab bar */}
       <View style={styles.tabBar}>
@@ -115,7 +115,7 @@ export default function InspectionHistoryScreen() {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyIcon}>🏠</Text>
               <Text style={styles.emptyTitle}>No History Yet</Text>
-              <Text style={styles.emptyText}>Your inspection history by appliance and area will appear here after your first inspection.</Text>
+              <Text style={styles.emptyText}>Your assessment history by appliance and area will appear here after your first assessment.</Text>
             </View>
           ) : (
             groups.map(({ area, items }) => {
@@ -189,8 +189,8 @@ export default function InspectionHistoryScreen() {
           {notes.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>No Inspection Notes Yet</Text>
-              <Text style={styles.emptyText}>When a vendor completes an inspection, their notes will appear here.</Text>
+              <Text style={styles.emptyTitle}>No Assessment Notes Yet</Text>
+              <Text style={styles.emptyText}>When a vendor completes an assessment, their notes will appear here.</Text>
             </View>
           ) : (
             notes.map((note: any) => (

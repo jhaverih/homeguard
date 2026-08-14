@@ -81,8 +81,8 @@ const CATEGORY_ORDER = ['INTERIOR_REPAIRS_MAINTENANCE', 'MINOR_ELECTRICAL_ADJUST
 // everything else keeps its existing relative order (stable sort, ranks Infinity).
 const INSPECTION_ORDER: Record<string, number> = {
   'Preventative Home Assessment': 0,
-  'Comprehensive Home Inspection': 1,
-  'HVAC Full Inspection': 2,
+  'Comprehensive Home Assessment': 1,
+  'HVAC Full Assessment': 2,
 };
 const inspectionRank = (name: string) => INSPECTION_ORDER[name] ?? Infinity;
 const CATEGORY_LABELS: Record<string, string> = {
@@ -576,7 +576,7 @@ export default function RequestScreen() {
                 color={quotaFree ? '#065f46' : '#92400e'}
               />
               <Text style={[styles.quotaPillText, !quotaFree && styles.quotaPillTextWarn]}>
-                {inspectionsConsumed} of {inspectionsPerYear} inspections
+                {inspectionsConsumed} of {inspectionsPerYear} assessments
               </Text>
             </View>
           )}
@@ -701,13 +701,13 @@ export default function RequestScreen() {
       });
       scheduleLocalReminder(
         preferredDate,
-        'Upcoming Inspection',
-        `Your Attenteve inspection is coming up on ${preferredDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`,
+        'Upcoming Assessment',
+        `Your Attenteve assessment is coming up on ${preferredDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`,
       ).catch(() => {});
       Alert.alert(
         'Request Sent!',
         isPaidAddon
-          ? `Your additional inspection has been requested. You will be billed ${fmtUSD(addonPrice)} upon completion.`
+          ? `Your additional assessment has been requested. You will be billed ${fmtUSD(addonPrice)} upon completion.`
           : 'We are finding available vendors. You will be notified when one accepts.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
@@ -836,7 +836,7 @@ export default function RequestScreen() {
               onPress={() => setTab('inspection')}
             >
               <Ionicons name="clipboard-outline" size={16} color={tab === 'inspection' ? colors.ink : colors.lanternDeep} />
-              <Text style={[styles.tabBtnText, tab === 'inspection' && styles.tabBtnTextActive]}>Inspection</Text>
+              <Text style={[styles.tabBtnText, tab === 'inspection' && styles.tabBtnTextActive]}>Assessment</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tabBtn, tab === 'service' && styles.tabBtnActive]}
@@ -864,8 +864,8 @@ export default function RequestScreen() {
                 />
                 <Text style={[styles.quotaText, limitReached ? styles.quotaTextWarn : styles.quotaTextOk]}>
                   {limitReached
-                    ? `All ${subscription.plan?.inspectionsPerYear} plan inspections used. Additional inspections available for ${fmtUSD(addonPrice)} each.`
-                    : `${inspectionsRemaining} inspection${inspectionsRemaining === 1 ? '' : 's'} remaining on your plan.`
+                    ? `All ${subscription.plan?.inspectionsPerYear} plan assessments used. Additional assessments available for ${fmtUSD(addonPrice)} each.`
+                    : `${inspectionsRemaining} assessment${inspectionsRemaining === 1 ? '' : 's'} remaining on your plan.`
                   }
                 </Text>
               </View>
@@ -885,12 +885,12 @@ export default function RequestScreen() {
             />
 
             <View style={styles.infoBox}>
-              <Text style={styles.infoTitle}>What's included in your inspection:</Text>
-              <Text style={styles.infoItem}>✓ AC visual inspection & filter replacement</Text>
+              <Text style={styles.infoTitle}>What's included in your assessment:</Text>
+              <Text style={styles.infoItem}>✓ AC visual assessment & filter replacement</Text>
               <Text style={styles.infoItem}>✓ Toilet water leakage check</Text>
               <Text style={styles.infoItem}>✓ Sink & washer pan leak check</Text>
               <Text style={styles.infoItem}>✓ Light bulb replacement</Text>
-              <Text style={styles.infoItem}>✓ Full checklist report after inspection</Text>
+              <Text style={styles.infoItem}>✓ Full checklist report after assessment</Text>
             </View>
 
             <View style={styles.noShowNotice}>
@@ -904,7 +904,7 @@ export default function RequestScreen() {
               {loading
                 ? <ActivityIndicator color={colors.ink} />
                 : <Text style={styles.buttonText}>
-                    {limitReached ? `Book Additional Inspection (${fmtUSD(addonPrice)})` : 'Send Request'}
+                    {limitReached ? `Book Additional Assessment (${fmtUSD(addonPrice)})` : 'Send Request'}
                   </Text>
               }
             </TouchableOpacity>
@@ -1022,16 +1022,16 @@ export default function RequestScreen() {
           <View style={styles.addonOverlay}>
             <View style={styles.addonCard}>
               <Ionicons name="calendar-outline" size={40} color={colors.lanternDeep} style={{ alignSelf: 'center', marginBottom: 12 }} />
-              <Text style={styles.addonTitle}>Book Additional Inspection</Text>
+              <Text style={styles.addonTitle}>Book Additional Assessment</Text>
               <Text style={styles.addonBody}>
-                You've used all inspections included in your {subscription?.plan?.name}. This additional
-                inspection will be billed separately.
+                You've used all assessments included in your {subscription?.plan?.name}. This additional
+                assessment will be billed separately.
               </Text>
               <View style={styles.addonPriceRow}>
-                <Text style={styles.addonPriceLabel}>Additional Inspection Fee</Text>
+                <Text style={styles.addonPriceLabel}>Additional Assessment Fee</Text>
                 <Text style={styles.addonPrice}>{fmtUSD(addonPrice)}</Text>
               </View>
-              <Text style={styles.addonNote}>Payment will be processed upon completion of the inspection.</Text>
+              <Text style={styles.addonNote}>Payment will be processed upon completion of the assessment.</Text>
               <TouchableOpacity style={styles.addonConfirmBtn} onPress={() => doSubmitInspection(true)}>
                 <Text style={styles.addonConfirmText}>Confirm & Book — {fmtUSD(addonPrice)}</Text>
               </TouchableOpacity>

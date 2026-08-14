@@ -207,7 +207,7 @@ export default function RequestDetailScreen() {
     setScheduleBusy(true);
     try {
       await requestsApi.confirmSchedule(id);
-      Alert.alert('Confirmed', 'The inspection time has been confirmed.');
+      Alert.alert('Confirmed', 'The assessment time has been confirmed.');
       load();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -312,7 +312,7 @@ export default function RequestDetailScreen() {
     try {
       await requestsApi.reschedule(id, newDate.toISOString());
       setRescheduleModal(false);
-      Alert.alert('Updated', 'Your inspection has been rescheduled.');
+      Alert.alert('Updated', 'Your assessment has been rescheduled.');
       load();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -344,7 +344,7 @@ export default function RequestDetailScreen() {
       {request.isPaidAddon && (
         <View style={styles.addonBanner}>
           <Text style={styles.addonBannerText}>
-            Additional Inspection — {fmtUSD(request.addonPrice)} billed upon completion
+            Additional Assessment — {fmtUSD(request.addonPrice)} billed upon completion
           </Text>
         </View>
       )}
@@ -508,7 +508,7 @@ export default function RequestDetailScreen() {
 
       {notes.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Inspection Notes</Text>
+          <Text style={styles.sectionTitle}>Assessment Notes</Text>
           {notes.map((n: any) => (
             <View key={n.id} style={[styles.noteCard, n.type === 'FINDING' && styles.noteCardFinding]}>
               {n.type === 'FINDING' && (
@@ -781,8 +781,8 @@ export default function RequestDetailScreen() {
           <Ionicons name="document-text-outline" size={18} color={colors.ink} />
           <Text style={styles.reportBtnText}>
             {(request.additionalServices?.[0]?.name || '').toLowerCase().includes('hvac')
-              ? 'View HVAC Inspection Report'
-              : 'View Inspection Report'}
+              ? 'View HVAC Assessment Report'
+              : 'View Assessment Report'}
           </Text>
         </TouchableOpacity>
       )}
@@ -861,7 +861,7 @@ export default function RequestDetailScreen() {
       <Modal visible={rescheduleModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Reschedule Inspection</Text>
+            <Text style={styles.modalTitle}>Reschedule Visit</Text>
             <DateTimeField value={newDate} onChange={setNewDate} />
             <TouchableOpacity style={styles.confirmBtn} onPress={submitReschedule}>
               <Text style={styles.confirmText}>Confirm New Date</Text>

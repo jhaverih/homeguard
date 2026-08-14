@@ -10,7 +10,7 @@ export default function WelcomeScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.hero}>
           <AttenteveLogo size="xl" onDark />
-          <Text style={styles.tagline}>Professional Home Care & Inspections</Text>
+          <Text style={styles.tagline}>Professional Home Care & Assessments</Text>
         </View>
 
         <View style={styles.cards}>
@@ -26,7 +26,7 @@ export default function WelcomeScreen() {
             </View>
             <View style={styles.cardBody}>
               <Text style={styles.cardTitle}>I'm a Homeowner</Text>
-              <Text style={styles.cardDesc}>Schedule inspections, manage your home</Text>
+              <Text style={styles.cardDesc}>Schedule assessments, manage your home</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.border} />
           </TouchableOpacity>

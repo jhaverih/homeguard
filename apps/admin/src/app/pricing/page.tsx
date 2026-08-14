@@ -148,7 +148,7 @@ function formatFormulaReference(state: EditState, globalGM: string, unitLabels: 
 }
 
 const CATEGORIES: { value: string; label: string }[] = [
-  { value: 'INSPECTIONS', label: 'Inspections' },
+  { value: 'INSPECTIONS', label: 'Assessments' },
   { value: 'INTERIOR_REPAIRS_MAINTENANCE', label: 'Interior Repairs and Maintenance' },
   { value: 'MINOR_ELECTRICAL_ADJUSTMENTS', label: 'Minor Electrical Adjustments' },
   { value: 'MINOR_PLUMBING_FIXES', label: 'Minor Plumbing Fixes' },
@@ -1217,7 +1217,7 @@ export default function PricingPage() {
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[150px]">Pricing Method</th>
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Quote Only</th>
                 <th className="px-4 py-3 text-center font-semibold text-steel w-24">Customer Requestable</th>
-                <th className="px-4 py-3 text-center font-semibold text-steel w-24" title="Draws from the plan's included inspections (subscription.inspectionsPerYear) instead of always charging its listed price — expected on exactly one row">Quota Inspection</th>
+                <th className="px-4 py-3 text-center font-semibold text-steel w-24" title="Draws from the plan's included assessments (subscription.inspectionsPerYear) instead of always charging its listed price — expected on exactly one row">Quota Assessment</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel w-40">Required Capability</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[190px]">Category</th>
                 <th className="px-4 py-3 text-left font-semibold text-steel min-w-[220px]">Type of Service</th>
@@ -1382,13 +1382,13 @@ export default function PricingPage() {
                         className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
                     </td>
-                    {/* Quota Inspection */}
+                    {/* Quota Assessment */}
                     <td className="px-4 py-3 text-center">
                       <input
                         type="checkbox"
                         checked={state.isQuotaInspection}
                         onChange={(e) => updateField(price.id, 'isQuotaInspection', e.target.checked)}
-                        title="Draws from the plan's included inspections instead of always charging its listed price — expected on exactly one row"
+                        title="Draws from the plan's included assessments instead of always charging its listed price — expected on exactly one row"
                         className="w-4 h-4 rounded cursor-pointer accent-lantern"
                       />
                     </td>

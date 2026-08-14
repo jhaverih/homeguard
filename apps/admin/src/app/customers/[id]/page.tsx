@@ -73,7 +73,7 @@ export default function CustomerDetailPage() {
   const { customer, serviceRequests = [], payments = [], disputes = [], alerts = [] } = activity;
 
   const tabs = [
-    { key: 'jobs', label: 'Jobs & Inspections', count: serviceRequests.length },
+    { key: 'jobs', label: 'Jobs & Assessments', count: serviceRequests.length },
     { key: 'payments', label: 'Payments', count: payments.length },
     { key: 'disputes', label: 'Disputes', count: disputes.length },
     { key: 'alerts', label: 'Alerts', count: alerts.length },
@@ -203,7 +203,7 @@ export default function CustomerDetailPage() {
       {tab === 'jobs' && (
         <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
           {serviceRequests.length === 0 ? (
-            <p className="text-steel text-sm p-8 text-center">No jobs or inspections yet.</p>
+            <p className="text-steel text-sm p-8 text-center">No jobs or assessments yet.</p>
           ) : (
             <>
               <div className="grid grid-cols-[80px_1fr_160px_160px_120px] gap-4 px-6 py-3 bg-canvas border-b border-mist-dim text-xs font-semibold text-steel uppercase tracking-wide">

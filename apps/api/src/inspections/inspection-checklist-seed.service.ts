@@ -25,8 +25,8 @@ type SeedTask = {
 const HVAC_VISUAL_TASKS: SeedTask[] = [
   {
     key: 'hvac_visual.units_overview',
-    label: 'AC Unit Count & Per-Unit Inspection',
-    description: 'Enter the number of AC units in the home, then complete visual inspection, nameplate, and filter details for each unit. AHU Filters is now part of this per-unit inspection rather than its own checklist.',
+    label: 'AC Unit Count & Per-Unit Assessment',
+    description: 'Enter the number of AC units in the home, then complete visual assessment, nameplate, and filter details for each unit. AHU Filters is now part of this per-unit assessment rather than its own checklist.',
     promptFields: [
       { key: 'num_units', label: 'Number of AC units in home', type: 'number', placeholder: 'e.g. 2' },
     ],
@@ -36,7 +36,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       label: 'AC Unit',
       fields: [
         { key: 'location', label: 'Unit location', type: 'text', placeholder: 'e.g. garage, attic, closet' },
-        { key: 'visual_ok', label: 'Visual inspection passed', type: 'boolean' },
+        { key: 'visual_ok', label: 'Visual assessment passed', type: 'boolean' },
         { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Carrier 24ACC636A003' },
         { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
         { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
@@ -57,7 +57,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
         ],
       },
     },
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
   {
     key: 'hvac_visual.condenser',
@@ -68,7 +68,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'physical_damage', label: 'Physical damage observed', type: 'boolean' },
       { key: 'level_mounted', label: 'Unit level mounted', type: 'boolean' },
     ],
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
   {
     key: 'hvac_visual.air_handler',
@@ -78,7 +78,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'rust_corrosion', label: 'Rust or corrosion present', type: 'boolean' },
       { key: 'unusual_noise', label: 'Unusual noise or vibration', type: 'boolean' },
     ],
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
   {
     key: 'hvac_visual.refrigerant_lines',
@@ -88,7 +88,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'insulation_damage', label: 'Insulation damage', type: 'boolean' },
       { key: 'oil_residue', label: 'Oil residue / leak evidence', type: 'boolean' },
     ],
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
   {
     key: 'hvac_visual.electrical',
@@ -98,7 +98,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'scorching', label: 'Scorching observed', type: 'boolean' },
       { key: 'loose_wiring', label: 'Loose wiring found', type: 'boolean' },
     ],
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
   {
     key: 'hvac_visual.condensate_drain',
@@ -109,7 +109,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'standing_water', label: 'Standing water present', type: 'boolean' },
       { key: 'mold_found', label: 'Mold observed', type: 'boolean' },
     ],
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
   {
     key: 'hvac_visual.thermostat',
@@ -120,7 +120,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'actual_temp', label: 'Actual temperature (°F)', type: 'number', placeholder: 'e.g. 71' },
       { key: 'cycle_triggers', label: 'Cycle triggers correctly', type: 'boolean' },
     ],
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
   {
     key: 'hvac_visual.ductwork',
@@ -131,7 +131,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
       { key: 'damage', label: 'Damage observed', type: 'boolean' },
       { key: 'excessive_dust', label: 'Excessive dust buildup', type: 'boolean' },
     ],
-    catalogLinks: ['HVAC Full Inspection'],
+    catalogLinks: ['HVAC Full Assessment'],
   },
 ];
 
@@ -142,7 +142,7 @@ const HVAC_VISUAL_TASKS: SeedTask[] = [
 const TOILETS_TASKS: SeedTask[] = [
   {
     key: 'toilet_leak.count',
-    label: 'Toilet Inspection',
+    label: 'Toilet Assessment',
     description: 'Enter the number of toilets in the home, then for each one check the base, wax ring seal, supply line, tank components, run a dye test, and inspect surrounding flooring for signs of a leak.',
     promptFields: [
       { key: 'num_toilets', label: 'Number of toilets in home', type: 'number', placeholder: 'e.g. 2' },
@@ -164,7 +164,7 @@ const TOILETS_TASKS: SeedTask[] = [
         { key: 'dye_test_leak', label: 'Silent leak detected (dye test)', type: 'boolean' },
         { key: 'soft_spots', label: 'Soft spots in flooring', type: 'boolean' },
         { key: 'discoloration', label: 'Discoloration / staining on flooring', type: 'boolean' },
-        { key: 'mold_risk', label: 'Mold / rot risk — further inspection needed', type: 'boolean' },
+        { key: 'mold_risk', label: 'Mold / rot risk — further assessment needed', type: 'boolean' },
         { key: 'overall_status', label: 'Overall Status', type: 'select', options: ['Pass', 'Needs Attention'] },
         { key: 'notes', label: 'Notes / observations', type: 'text', placeholder: 'Any issues noted' },
       ],
@@ -177,7 +177,7 @@ const TOILETS_TASKS: SeedTask[] = [
 const SINKS_TASKS: SeedTask[] = [
   {
     key: 'sink_leak.count',
-    label: 'Sink Inspection',
+    label: 'Sink Assessment',
     description: 'Enter the number of sinks in the home, then for each one check supply lines, the P-trap, faucet connections, cabinet condition, and water pressure for signs of a leak.',
     promptFields: [
       { key: 'num_sinks', label: 'Number of sinks in home', type: 'number', placeholder: 'e.g. 3' },
@@ -376,7 +376,7 @@ const WATER_HEATER_TASKS: SeedTask[] = [
     // real safety caveat from the source checklist, carried here.
     key: 'water_heater_leak.tp_valve',
     label: 'Temperature & Pressure Relief (T&P) Valve',
-    description: 'Visual inspection only — do not test or operate the T&P valve. Confirm the discharge pipe is present, points downward, and shows no visible leaks.',
+    description: 'Visual assessment only — do not test or operate the T&P valve. Confirm the discharge pipe is present, points downward, and shows no visible leaks.',
     promptFields: [
       { key: 'pipe_present', label: 'Discharge pipe present', type: 'boolean' },
       { key: 'pipe_points_down', label: 'Pipe points downward', type: 'boolean' },
@@ -498,7 +498,7 @@ const ROOF_EXTERIOR_TASKS: SeedTask[] = [
   {
     key: 'roof_exterior.covering',
     label: 'Roof Covering',
-    description: 'Ground/binocular inspection only — do not access the roof. Check for missing or damaged shingles and confirm the roofline appears straight.',
+    description: 'Ground/binocular assessment only — do not access the roof. Check for missing or damaged shingles and confirm the roofline appears straight.',
     promptFields: [
       { key: 'no_missing_shingles', label: 'No missing shingles visible', type: 'boolean' },
       { key: 'no_damaged_shingles', label: 'No curling or damaged shingles visible', type: 'boolean' },
@@ -897,7 +897,7 @@ const HVAC_FULL_PERFORMANCE_TASKS: SeedTask[] = [
   {
     key: 'hvac_full_performance.info',
     label: 'Defects & Findings Summary',
-    description: 'Summarize all findings from the inspection.',
+    description: 'Summarize all findings from the assessment.',
     promptFields: [
       { key: 'summary_notes', label: 'Defects & Findings Summary', type: 'text', placeholder: 'Summarize all findings...' },
     ],
@@ -907,7 +907,7 @@ const HVAC_FULL_PERFORMANCE_TASKS: SeedTask[] = [
   { key: 'hvac_full_performance.cooling_cycle', label: 'Cooling cycle completes normally', description: 'Confirm the cooling cycle completes normally.', promptFields: [], catalogLinks: [] },
   { key: 'hvac_full_performance.noise_level', label: 'System noise — within normal range', description: 'Confirm system noise is within the normal range.', promptFields: [], catalogLinks: [] },
   { key: 'hvac_full_performance.no_odors', label: 'No unusual odors during operation', description: 'Confirm no unusual odors are present during operation.', promptFields: [], catalogLinks: [] },
-  { key: 'hvac_full_performance.system_functional', label: 'System fully functional at time of inspection', description: 'Confirm the system is fully functional at the time of inspection.', promptFields: [], catalogLinks: [] },
+  { key: 'hvac_full_performance.system_functional', label: 'System fully functional at time of assessment', description: 'Confirm the system is fully functional at the time of assessment.', promptFields: [], catalogLinks: [] },
 ];
 
 const HVAC_FULL_PHOTOS_TASKS: SeedTask[] = [
@@ -934,17 +934,18 @@ export class InspectionChecklistSeedService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    await this.renameInspectionLabelsToAssessment();
     const group = await this.ensureGroup('GENERAL_HOME_INSPECTION', 'Preventative Home Assessment', 0);
 
     const hvacVisualSub = await this.ensureSubgroup(group.id, 'HVAC_VISUAL_INSPECTION', 'HVAC', 0);
-    const leakSub = await this.ensureSubgroup(group.id, 'LEAK_INSPECTION', 'Leak Inspection', 2);
-    const exteriorSub = await this.ensureSubgroup(group.id, 'EXTERIOR_INSPECTION', 'Exterior Visual Inspection', 3);
+    const leakSub = await this.ensureSubgroup(group.id, 'LEAK_INSPECTION', 'Leak Assessment', 2);
+    const exteriorSub = await this.ensureSubgroup(group.id, 'EXTERIOR_INSPECTION', 'Exterior Visual Assessment', 3);
 
-    const hvacVisualSection = await this.ensureSection(hvacVisualSub.id, 'hvac_visual', 'HVAC Visual Inspection', 0);
-    // Leak Inspection: Toilet Inspection, Sinks, Showers/Tub, Kitchen, Laundry, Water Heater
-    // (Siding belongs to Exterior Visual Inspection, not here — corrected 2026-07-21 after
+    const hvacVisualSection = await this.ensureSection(hvacVisualSub.id, 'hvac_visual', 'HVAC Visual Assessment', 0);
+    // Leak Assessment: Toilet Assessment, Sinks, Showers/Tub, Kitchen, Laundry, Water Heater
+    // (Siding belongs to Exterior Visual Assessment, not here — corrected 2026-07-21 after
     // an earlier, mistaken move; Foundation stays exterior-only too, confirmed with the user)
-    const toiletsSection = await this.ensureSection(leakSub.id, 'toilet_leak', 'Toilet Inspection', 0);
+    const toiletsSection = await this.ensureSection(leakSub.id, 'toilet_leak', 'Toilet Assessment', 0);
     const sinksSection = await this.ensureSection(leakSub.id, 'sink_leak', 'Sinks', 1);
     const showerTubSection = await this.ensureSection(leakSub.id, 'shower_tub_leak', 'Showers/Tub', 2,
       'Recommended photos if an issue is found: shower fixture leak, failed caulking, damaged grout, water damage.');
@@ -953,15 +954,15 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     const laundrySection = await this.ensureSection(leakSub.id, 'washer_pan', 'Laundry', 4,
       'Recommended photos if an issue is found: washer connections, shutoff valves, drain hose.');
     const waterHeaterSection = await this.ensureSection(leakSub.id, 'water_heater_leak', 'Water heater (visual only)', 5,
-      'Visual inspection only — do not operate the water heater or its valves. Recommended photos if an issue is found: full water heater, supply connections, drain pan, any signs of corrosion or leaks.');
+      'Visual assessment only — do not operate the water heater or its valves. Recommended photos if an issue is found: full water heater, supply connections, drain pan, any signs of corrosion or leaks.');
 
-    // Exterior Visual Inspection: Trim & Fascia, Gutters, Roof, Deck/Porch, Concrete Surfaces, Foundation, Vegetation, Windows & Exterior Doors, Siding
+    // Exterior Visual Assessment: Trim & Fascia, Gutters, Roof, Deck/Porch, Concrete Surfaces, Foundation, Vegetation, Windows & Exterior Doors, Siding
     const trimFasciaSection = await this.ensureSection(exteriorSub.id, 'trim_fascia', 'Trim & Fascia', 0,
       'Recommended photos if an issue is found: rot, loose trim, peeling paint.');
     const guttersSection = await this.ensureSection(exteriorSub.id, 'gutters', 'Gutters', 1,
       'Recommended photos if an issue is found: debris, sagging gutters, downspout discharge.');
-    const roofExteriorSection = await this.ensureSection(exteriorSub.id, 'roof_exterior', 'Roof (Ground/Binocular Inspection Only)', 2,
-      'Ground/binocular inspection only — do not access the roof. Recommended photos if an issue is found: missing shingles, debris accumulation, flashing issues.');
+    const roofExteriorSection = await this.ensureSection(exteriorSub.id, 'roof_exterior', 'Roof (Ground/Binocular Assessment Only)', 2,
+      'Ground/binocular assessment only — do not access the roof. Recommended photos if an issue is found: missing shingles, debris accumulation, flashing issues.');
     const deckPorchSection = await this.ensureSection(exteriorSub.id, 'deck_porch', 'Deck / Porch', 3,
       'Recommended photos if an issue is found: loose railings, rot, damaged stairs.');
     const concreteSection = await this.ensureSection(exteriorSub.id, 'concrete', 'Concrete Surfaces', 4,
@@ -992,11 +993,11 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     await this.ensureTasks(concreteSection.id, CONCRETE_TASKS);
     await this.ensureTasks(vegetationSection.id, VEGETATION_TASKS);
 
-    // HVAC Full Inspection — replaces the old hardcoded HVAC_SECTIONS form in
+    // HVAC Full Assessment — replaces the old hardcoded HVAC_SECTIONS form in
     // active-job.tsx. Flat structure (one subgroup) matching the old form's
     // flat 11-tab layout, no invented sub-grouping.
-    const hvacFullGroup = await this.ensureGroup('HVAC_FULL_INSPECTION', 'HVAC Full Inspection', 1);
-    const hvacFullSub = await this.ensureSubgroup(hvacFullGroup.id, 'HVAC_FULL_CHECKLIST', 'HVAC Full Inspection', 0);
+    const hvacFullGroup = await this.ensureGroup('HVAC_FULL_INSPECTION', 'HVAC Full Assessment', 1);
+    const hvacFullSub = await this.ensureSubgroup(hvacFullGroup.id, 'HVAC_FULL_CHECKLIST', 'HVAC Full Assessment', 0);
 
     const hvacSystemIdSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_system_id', 'System Identification', 0);
     const hvacThermostatSection = await this.ensureSection(hvacFullSub.id, 'hvac_full_thermostat', 'Thermostat & Controls', 1);
@@ -1022,14 +1023,138 @@ export class InspectionChecklistSeedService implements OnModuleInit {
     await this.ensureTasks(hvacPerformanceSection.id, HVAC_FULL_PERFORMANCE_TASKS);
     await this.ensureTasks(hvacPhotosSection.id, HVAC_FULL_PHOTOS_TASKS);
 
-    // Comprehensive Inspection — no content specified yet; seeded as an empty,
+    // Comprehensive Assessment — no content specified yet; seeded as an empty,
     // ready-to-build skeleton. Admin populates it via the Configurator's
     // existing "+ New Checklist" / "+ Add Task" UI, same as any other group.
     // Label matches the real bookable catalog item's name ("Comprehensive Home
-    // Inspection", pre-existing since 2026-07-18) — the group KEY is what
-    // resolution logic actually keys off, this is purely for admin-UI clarity.
-    const comprehensiveGroup = await this.ensureGroup('COMPREHENSIVE_INSPECTION', 'Comprehensive Home Inspection', 2);
-    await this.ensureSubgroup(comprehensiveGroup.id, 'COMPREHENSIVE_INSPECTION_MAIN', 'Comprehensive Home Inspection', 0);
+    // Assessment") — the group KEY is what resolution logic actually keys off,
+    // this is purely for admin-UI clarity.
+    const comprehensiveGroup = await this.ensureGroup('COMPREHENSIVE_INSPECTION', 'Comprehensive Home Assessment', 2);
+    await this.ensureSubgroup(comprehensiveGroup.id, 'COMPREHENSIVE_INSPECTION_MAIN', 'Comprehensive Home Assessment', 0);
+  }
+
+  // "Inspection" -> "Assessment" wording sweep, 2026-08-14 — ensureGroup/
+  // ensureSubgroup/ensureSection/ensureTasks below all only set data on
+  // FIRST creation (never update an already-existing row matched by its
+  // stable `key`), so simply editing the seed literals above only helps
+  // brand-new environments. This always-run, convergent update covers every
+  // already-seeded row on the live DB — matches by key (never renamed) and
+  // writes the current literal label/description/dynamicGroups, so it's a
+  // no-op once already applied.
+  private async renameInspectionLabelsToAssessment() {
+    await this.groupsRepo.update({ key: 'HVAC_FULL_INSPECTION' }, { label: 'HVAC Full Assessment' });
+    await this.groupsRepo.update({ key: 'COMPREHENSIVE_INSPECTION' }, { label: 'Comprehensive Home Assessment' });
+
+    await this.subgroupsRepo.update({ key: 'LEAK_INSPECTION' }, { label: 'Leak Assessment' });
+    await this.subgroupsRepo.update({ key: 'EXTERIOR_INSPECTION' }, { label: 'Exterior Visual Assessment' });
+    await this.subgroupsRepo.update({ key: 'HVAC_FULL_CHECKLIST' }, { label: 'HVAC Full Assessment' });
+    await this.subgroupsRepo.update({ key: 'COMPREHENSIVE_INSPECTION_MAIN' }, { label: 'Comprehensive Home Assessment' });
+
+    await this.sectionsRepo.update({ key: 'hvac_visual' }, { label: 'HVAC Visual Assessment' });
+    await this.sectionsRepo.update({ key: 'toilet_leak' }, { label: 'Toilet Assessment' });
+    await this.sectionsRepo.update(
+      { key: 'water_heater_leak' },
+      { description: 'Visual assessment only — do not operate the water heater or its valves. Recommended photos if an issue is found: full water heater, supply connections, drain pan, any signs of corrosion or leaks.' },
+    );
+    await this.sectionsRepo.update(
+      { key: 'roof_exterior' },
+      {
+        label: 'Roof (Ground/Binocular Assessment Only)',
+        description: 'Ground/binocular assessment only — do not access the roof. Recommended photos if an issue is found: missing shingles, debris accumulation, flashing issues.',
+      },
+    );
+
+    await this.tasksRepo.update(
+      { key: 'hvac_visual.units_overview' },
+      {
+        label: 'AC Unit Count & Per-Unit Assessment',
+        description: 'Enter the number of AC units in the home, then complete visual assessment, nameplate, and filter details for each unit. AHU Filters is now part of this per-unit assessment rather than its own checklist.',
+        dynamicGroups: {
+          countKey: 'num_units',
+          prefix: 'unit',
+          label: 'AC Unit',
+          fields: [
+            { key: 'location', label: 'Unit location', type: 'text', placeholder: 'e.g. garage, attic, closet' },
+            { key: 'visual_ok', label: 'Visual assessment passed', type: 'boolean' },
+            { key: 'make_model', label: 'Make / Model', type: 'text', placeholder: 'e.g. Carrier 24ACC636A003' },
+            { key: 'serial', label: 'Serial number', type: 'text', placeholder: 'e.g. 1234A12345' },
+            { key: 'install_date', label: 'Install / manufacture date', type: 'text', placeholder: 'e.g. 2018 or not visible' },
+            { key: 'num_filters', label: 'Number of filters in this unit', type: 'number', placeholder: 'e.g. 1' },
+          ],
+          subGroups: {
+            countKey: 'num_filters',
+            prefix: 'filter',
+            label: 'AHU Filter',
+            fields: [
+              { key: 'filter_location', label: 'Filter Location', type: 'text', placeholder: 'e.g. return air grille, air handler front' },
+              { key: 'size', label: 'Filter size', type: 'text', placeholder: 'e.g. 20x25x1' },
+              { key: 'dirt_level', label: 'Filter Dirt/clog level', type: 'select', options: ['Light', 'Moderate', 'Heavy', 'Severely clogged'] },
+              { key: 'merv', label: 'New Filter MERV Rating', type: 'number', placeholder: 'e.g. 11' },
+              { key: 'airflow_correct', label: 'Airflow direction correct (arrow toward unit)', type: 'boolean' },
+              { key: 'next_replacement_days', label: 'Recommended next replacement (in days)', type: 'number', placeholder: 'e.g. 75' },
+              { key: 'finding_notes', label: 'Finding Notes', type: 'text', placeholder: 'Any issues noted' },
+            ],
+          },
+        } as any,
+      },
+    );
+    await this.tasksRepo.update(
+      { key: 'toilet_leak.count' },
+      {
+        label: 'Toilet Assessment',
+        dynamicGroups: {
+          countKey: 'num_toilets',
+          prefix: 'toilet',
+          label: 'Toilet',
+          fields: [
+            { key: 'location', label: 'Location', type: 'text', placeholder: 'e.g. master bath, hall bath, half bath' },
+            { key: 'water_found', label: 'Water or staining found at base', type: 'boolean' },
+            { key: 'toilet_rocks', label: 'Toilet rocks / moves', type: 'boolean' },
+            { key: 'seal_damage', label: 'Seal damage visible', type: 'boolean' },
+            { key: 'supply_drips', label: 'Active drips at supply line', type: 'boolean' },
+            { key: 'supply_corrosion', label: 'Corrosion present at supply line/valve', type: 'boolean' },
+            { key: 'bolt_leak', label: 'Tank bolt leak', type: 'boolean' },
+            { key: 'flapper_leak', label: 'Flapper not sealing', type: 'boolean' },
+            { key: 'fill_valve_ok', label: 'Fill valve functioning normally', type: 'boolean' },
+            { key: 'dye_test_leak', label: 'Silent leak detected (dye test)', type: 'boolean' },
+            { key: 'soft_spots', label: 'Soft spots in flooring', type: 'boolean' },
+            { key: 'discoloration', label: 'Discoloration / staining on flooring', type: 'boolean' },
+            { key: 'mold_risk', label: 'Mold / rot risk — further assessment needed', type: 'boolean' },
+            { key: 'overall_status', label: 'Overall Status', type: 'select', options: ['Pass', 'Needs Attention'] },
+            { key: 'notes', label: 'Notes / observations', type: 'text', placeholder: 'Any issues noted' },
+          ],
+        } as any,
+      },
+    );
+    await this.tasksRepo.update({ key: 'sink_leak.count' }, { label: 'Sink Assessment' });
+    await this.tasksRepo.update(
+      { key: 'water_heater_leak.tp_valve' },
+      { description: 'Visual assessment only — do not test or operate the T&P valve. Confirm the discharge pipe is present, points downward, and shows no visible leaks.' },
+    );
+    await this.tasksRepo.update({ key: 'hvac_full_performance.info' }, { description: 'Summarize all findings from the assessment.' });
+    await this.tasksRepo.update(
+      { key: 'hvac_full_performance.system_functional' },
+      { label: 'System fully functional at time of assessment', description: 'Confirm the system is fully functional at the time of assessment.' },
+    );
+
+    // catalogLinks holds a literal ServicePrice.name string, matched by exact
+    // equality against the live catalog (see active-job.tsx's upsell picker,
+    // `catalogItems.find(c => c.name === name)`) — same lockstep-rename risk
+    // as the mobile INSPECTION_ORDER maps. ensureTasks() is create-only, so
+    // these 8 already-seeded HVAC Visual tasks need the same live update.
+    const hvacVisualCatalogLinkKeys = [
+      'hvac_visual.units_overview', 'hvac_visual.condenser', 'hvac_visual.air_handler',
+      'hvac_visual.refrigerant_lines', 'hvac_visual.electrical', 'hvac_visual.condensate_drain',
+      'hvac_visual.thermostat', 'hvac_visual.ductwork',
+    ];
+    for (const key of hvacVisualCatalogLinkKeys) {
+      await this.tasksRepo.update({ key }, { catalogLinks: ['HVAC Full Assessment'] });
+    }
+
+    await this.tasksRepo.update(
+      { key: 'roof_exterior.covering' },
+      { description: 'Ground/binocular assessment only — do not access the roof. Check for missing or damaged shingles and confirm the roofline appears straight.' },
+    );
   }
 
   private async ensureGroup(key: string, label: string, sortOrder: number) {
