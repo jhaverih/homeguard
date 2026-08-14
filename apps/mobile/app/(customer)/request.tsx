@@ -568,9 +568,6 @@ export default function RequestScreen() {
           {item.useCharacteristicPricing && !quotaFree && !item.requiresQuote && (
             <Text style={styles.priceNote}>Price varies based on your home details — confirmed before booking.</Text>
           )}
-          {item.customerPriceDisplay && !item.requiresQuote && !quotaFree && !item.useCharacteristicPricing && hasUnitLabel(item) && (
-            <Text style={styles.priceNote}>{item.customerPriceDisplay}</Text>
-          )}
           {item.isQuotaInspection && subscription && (
             <View style={[styles.quotaPill, !quotaFree && styles.quotaPillWarn]}>
               <Ionicons
