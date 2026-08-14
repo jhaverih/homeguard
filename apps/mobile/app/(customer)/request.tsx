@@ -544,7 +544,7 @@ export default function RequestScreen() {
           <View style={styles.serviceCardRow}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.serviceName, isSelected && styles.serviceNameSelected]}>{item.name}</Text>
-              <Text style={styles.serviceDesc}>{item.description}</Text>
+              {!item.useCharacteristicPricing && <Text style={styles.serviceDesc}>{item.description}</Text>}
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 12 }}>
               {assessmentIncluded ? (
