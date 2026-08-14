@@ -43,6 +43,64 @@ export class SubscriptionsService implements OnModuleInit {
   async onModuleInit() {
     await this.seedPlans();
     await this.renameHomeInspectionInPlanText();
+    await this.updateCarePlusProactiveContent();
+  }
+
+  // Always-run, unconditional content rewrite for CarePlus/Proactive's
+  // description + feature checklist (converges to the same literal content
+  // every boot, so no "already applied" guard is needed — same pattern as
+  // renameHomeInspectionInPlanText above). Sub-items (e.g. under "Water
+  // Leaks:") are plain strings in the flat features array prefixed with
+  // "- " — apps/mobile/app/(customer)/subscribe.tsx strips that prefix and
+  // renders those lines indented with no checkmark icon, everything else
+  // keeps the normal checkmark row.
+  private async updateCarePlusProactiveContent() {
+    const inspectionScopeFeatures = [
+      'HVAC Visual Assessment',
+      'Doors & Windows',
+      'Water Leaks:',
+      '- Bathrooms',
+      '- Kitchen',
+      '- Water Heater',
+      '- Laundry',
+      'Exterior Visual Assessment:',
+      '- Trim and Facia',
+      '- Gutters',
+      '- Roof',
+      '- Decks',
+      '- Siding',
+      '- Concrete surfaces',
+      '- Vegetation',
+    ];
+
+    await this.plansRepo.update(
+      { tier: PlanTier.BASIC },
+      {
+        description: '',
+        features: [
+          'One (1) Preventative Home Assessment per year — Includes:',
+          ...inspectionScopeFeatures,
+          'Smoke Detector testing',
+          'Materials not included',
+        ],
+      },
+    );
+
+    await this.plansRepo.update(
+      { tier: PlanTier.STANDARD },
+      {
+        description: '',
+        features: [
+          'Two (2) Preventative Home Assessments per year — Includes:',
+          ...inspectionScopeFeatures,
+          'Smoke Detector testing',
+          'Washer machine pan Monitoring and Alert',
+          'AC drainage pan water leak Monitoring and Alert',
+          'Low Temperature Monitoring and Alert',
+          'Materials not included',
+        ],
+      },
+    );
   }
 
   // Plan description/features text was set directly against the live DB

@@ -115,16 +115,17 @@ export function formatCustomerPriceDisplay(item: ServicePrice, labelMap: Record<
   // number. The real per-customer price is computed at booking time, see
   // ServiceRequestsService.createStandaloneService().
   if (item.useCharacteristicPricing) {
-    const base = Number(item.basePrice);
-    const formatted = Number.isInteger(base) ? base.toFixed(0) : base.toFixed(2);
-    return `From $${formatted} (may vary based on home details)`;
+    return `From $${Math.ceil(Number(item.basePrice))} (may vary based on home details)`;
   }
   const qty = item.pricingMethod === PricingMethod.PER_UNIT && item.includeQty != null ? Number(item.includeQty) : 1;
   const cost = calcTieredCost(item, qty);
   const gm = item.gmPercent != null ? Number(item.gmPercent) : 15;
   const subtotal = isDynamicGmCategory(item.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
-  const amount = applyStripeFee(subtotal);
-  const formatted = Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2);
+  // Rounded up to a whole dollar to match the client-side preview formula
+  // (mobile's own customerPrice()/displayPrice()) exactly — this string used
+  // to show unrounded cents while every renderer of the real price rounded
+  // up, producing two different-looking numbers for the same charge.
+  const formatted = String(Math.ceil(applyStripeFee(subtotal)));
   if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== 'NONE') {
     const unitLabel = labelMap[item.quantityLabel] ?? item.quantityLabel;
     if (item.includeQty != null) {

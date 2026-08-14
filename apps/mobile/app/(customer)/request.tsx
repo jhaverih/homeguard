@@ -526,6 +526,13 @@ export default function RequestScreen() {
     const price = displayPrice(item, billedQtyFor(item));
     const isSelected = selectedServices.some((s) => s.id === item.id);
     const quotaFree = isQuotaFree(item);
+    // The one useCharacteristicPricing item (Preventative Home Assessment) is
+    // the only isQuotaInspection row — while quota remains it's genuinely
+    // $0, so show what it'd normally cost struck through plus "Included"
+    // instead of the generic bare "Included" text every other quota-covered
+    // item would show (there are none today, but this stays scoped to this
+    // item specifically via the `&& item.useCharacteristicPricing` check).
+    const assessmentIncluded = item.useCharacteristicPricing && quotaFree;
     return (
       <Fragment key={item.id}>
         <TouchableOpacity
@@ -540,18 +547,28 @@ export default function RequestScreen() {
               <Text style={styles.serviceDesc}>{item.description}</Text>
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 12 }}>
-              <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>
-                {item.requiresQuote ? 'Request a Quote'
-                  : quotaFree ? 'Included'
-                  : item.useCharacteristicPricing ? item.customerPriceDisplay
-                  : `$${Number(price).toLocaleString('en-US')}`}
-              </Text>
+              {assessmentIncluded ? (
+                <>
+                  <Text style={styles.servicePriceStrike}>${Math.ceil(Number(item.basePrice))}</Text>
+                  <Text style={styles.includedLabel}>Included</Text>
+                </>
+              ) : (
+                <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>
+                  {item.requiresQuote ? 'Request a Quote'
+                    : quotaFree ? 'Included'
+                    : item.useCharacteristicPricing ? `From $${Math.ceil(Number(item.basePrice))}`
+                    : `$${Number(price).toLocaleString('en-US')}`}
+                </Text>
+              )}
               {isSelected && (
                 <Ionicons name="checkmark-circle" size={22} color={colors.lanternDeep} />
               )}
             </View>
           </View>
-          {item.customerPriceDisplay && !item.requiresQuote && !quotaFree && !item.useCharacteristicPricing && (
+          {item.useCharacteristicPricing && !quotaFree && !item.requiresQuote && (
+            <Text style={styles.priceNote}>Price varies based on your home details — confirmed before booking.</Text>
+          )}
+          {item.customerPriceDisplay && !item.requiresQuote && !quotaFree && !item.useCharacteristicPricing && hasUnitLabel(item) && (
             <Text style={styles.priceNote}>{item.customerPriceDisplay}</Text>
           )}
           {item.isQuotaInspection && subscription && (
@@ -1133,6 +1150,8 @@ const styles = StyleSheet.create({
   serviceDesc: { fontSize: 13, color: colors.steel, lineHeight: 18 },
   servicePrice: { fontSize: 15, fontWeight: '700', color: colors.steel },
   servicePriceSelected: { color: colors.lanternDeep },
+  servicePriceStrike: { fontSize: 14, fontWeight: '600', color: colors.steel, textDecorationLine: 'line-through' },
+  includedLabel: { fontSize: 12, fontWeight: '700', color: '#059669' },
   priceNote: { fontSize: 12, color: colors.steel, marginTop: 6 },
   quotaPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#ecfdf5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, marginTop: 8, alignSelf: 'flex-start' },
   quotaPillWarn: { backgroundColor: '#fffbeb' },

@@ -13,6 +13,12 @@ import CancellationFeedbackModal from '../../src/components/CancellationFeedback
 import HomeCharacteristicsModal from '../../src/components/HomeCharacteristicsModal';
 import { PlanName } from '../../src/components/PlanName';
 
+// A plan feature line prefixed with "- " (e.g. "- Bathrooms" under "Water
+// Leaks:") is a nested sub-item — rendered indented with no checkmark icon,
+// distinct from every other top-level checkmarked feature line.
+const isSubFeature = (f: string) => f.startsWith('- ');
+const stripSubFeaturePrefix = (f: string) => f.slice(2);
+
 export default function SubscribeScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [plans, setPlans] = useState<any[]>([]);
@@ -208,10 +214,14 @@ export default function SubscribeScreen() {
           </View>
 
           {subscription.plan?.features?.map((f: string, i: number) => (
-            <View key={i} style={styles.featureRow}>
-              <Ionicons name="checkmark-circle" size={16} color="#059669" />
-              <Text style={styles.featureText}>{f}</Text>
-            </View>
+            isSubFeature(f) ? (
+              <Text key={i} style={styles.featureSubText}>{stripSubFeaturePrefix(f)}</Text>
+            ) : (
+              <View key={i} style={styles.featureRow}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={styles.featureText}>{f}</Text>
+              </View>
+            )
           ))}
         </View>
 
@@ -308,9 +318,13 @@ export default function SubscribeScreen() {
               <PlanName name={plan.name} style={styles.planName} />
               <Text style={styles.planPrice}>${plan.price}<Text style={styles.planPer}>/yr</Text></Text>
             </View>
-            <Text style={styles.planDesc}>{plan.description}</Text>
+            {!!plan.description && <Text style={styles.planDesc}>{plan.description}</Text>}
             {plan.features?.map((f: string, i: number) => (
-              <Text key={i} style={styles.planFeature}>✓  {f}</Text>
+              isSubFeature(f) ? (
+                <Text key={i} style={styles.planFeatureSub}>{stripSubFeaturePrefix(f)}</Text>
+              ) : (
+                <Text key={i} style={styles.planFeature}>✓  {f}</Text>
+              )
             ))}
             {isCurrent && <Text style={styles.currentLabel}>Current Plan</Text>}
           </TouchableOpacity>
@@ -380,6 +394,7 @@ const styles = StyleSheet.create({
   infoVal: { fontSize: 14, fontWeight: '600', color: colors.ink },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   featureText: { fontSize: 13, color: '#444', flex: 1 },
+  featureSubText: { fontSize: 12, color: colors.steel, marginTop: 4, marginLeft: 28 },
   cancelledNote: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     backgroundColor: '#fffbeb', borderRadius: 12, padding: 14, marginBottom: 12,
@@ -421,6 +436,7 @@ const styles = StyleSheet.create({
   planPer: { fontSize: 13, fontWeight: '400', color: colors.steel },
   planDesc: { fontSize: 13, color: '#666', marginBottom: 10, lineHeight: 18 },
   planFeature: { fontSize: 13, color: '#444', lineHeight: 22 },
+  planFeatureSub: { fontSize: 12, color: colors.steel, lineHeight: 20, marginLeft: 22 },
   currentLabel: { marginTop: 8, fontSize: 12, color: colors.steel, fontStyle: 'italic' },
   termsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 2 },
   checkbox: {
