@@ -214,12 +214,10 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription, scro
     router.push({ pathname: '/(customer)/request', params: { preselectServicePriceIds: ids.join(',') } });
   };
 
-  // Without a core plan, Inspect/Repair/Improve/Maintain don't apply — only
-  // Marketplace items (e.g. Move-Out cleaning) are bookable subscription-free.
-  // Still shown (not the old full-replacement "No Active Subscription" card)
-  // so a non-member can actually reach that flow — see request.tsx's
-  // createMarketplaceBooking and its requireCoreSubscription flag.
-  const visibleGroups = subscription ? GROUP_META : GROUP_META.filter((g) => g.key === 'MARKETPLACE');
+  // Without a core plan, nothing is bookable — every group (including
+  // Marketplace) is hidden and the banner below is the only thing shown,
+  // prompting the customer to subscribe first.
+  const visibleGroups = subscription ? GROUP_META : [];
 
   return (
     <View style={styles.groupsCard} onLayout={(e) => { cardY.current = e.nativeEvent.layout.y; }}>
@@ -236,10 +234,11 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription, scro
 
       {!subscription && (
         <TouchableOpacity style={styles.noSubNote} onPress={() => router.push('/(customer)/subscribe')}>
-          <Text style={styles.noSubNoteText}>No active plan — Inspect/Repair/Improve/Maintain need a subscription. Tap to choose a plan.</Text>
+          <Text style={styles.noSubNoteText}>No active plan — subscribe to unlock Inspect, Repair, Improve, Maintain, and Marketplace. Tap to choose a plan.</Text>
         </TouchableOpacity>
       )}
 
+      {visibleGroups.length > 0 && (
       <View style={styles.groupGrid}>
         {visibleGroups.map((g) => {
           const isActive = activeGroup === g.key;
@@ -258,6 +257,7 @@ function ServiceGroupsCard({ catalog, availableCapabilityIds, subscription, scro
           );
         })}
       </View>
+      )}
 
       {activeGroup && (
         <Animated.View style={[styles.groupList, animatedListStyle]}>
