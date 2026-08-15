@@ -213,6 +213,13 @@ export class PricingService implements OnModuleInit {
       { name: 'Additional Inspection' },
       { name: 'Additional Assessment', description: 'Add-on assessment visit outside subscription plan' },
     );
+    // Description was admin-set live (not a code seed) and missed in the
+    // 2026-08-14 rename above — matches by the already-renamed name since
+    // this always runs, converging to the same fixed text every boot.
+    await this.pricesRepo.update(
+      { name: 'Comprehensive Home Assessment' },
+      { description: 'Comprehensive assessment includes, electrical, plumbing, thermal analysis focused, on safety, energy efficiency and code compliance' },
+    );
 
     // One-time consolidation of the five old per-X pricing methods into
     // PER_UNIT + a separate Unit Label ran directly against the live DB
