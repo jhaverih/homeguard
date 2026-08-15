@@ -920,6 +920,15 @@ export default function RequestScreen() {
                 : 'Select one or more services. A vendor will come to your home on the requested date.'}
             </Text>
 
+            {isPreselectedFlow && !!prefilledNotes && (
+              <View style={styles.noShowNotice}>
+                <Ionicons name="information-circle-outline" size={16} color="#92400e" />
+                <Text style={styles.noShowText}>
+                  The maintenance items you picked have been added as notes below — a vendor will complete them during this visit.
+                </Text>
+              </View>
+            )}
+
             {catalogLoading ? (
               <ActivityIndicator color={colors.lanternDeep} style={{ marginVertical: 24 }} />
             ) : isPreselectedFlow ? (
