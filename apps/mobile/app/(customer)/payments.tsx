@@ -87,13 +87,14 @@ export default function PaymentsScreen() {
 
   // A verified card must always be on file (an ongoing/outstanding service
   // may still need to be paid through the platform even after a customer
-  // cancels their subscription) — so there's no bare "delete", only
-  // "Replace": collect a new card first via the same PaymentSheet flow
-  // addCard uses, and only detach the old one once that succeeds. If the
-  // sheet is cancelled or fails, nothing is removed. The backend also
-  // enforces this as a hard invariant (PaymentsService.removePaymentMethod),
-  // so this is about the flow being sensible, not the only thing stopping
-  // a customer from ending up with zero cards.
+  // cancels their subscription). Two rules, mirroring the backend's own
+  // guards in PaymentsService.removePaymentMethod:
+  //  - a customer's only card can't be bare-deleted — only "Replace" (add a
+  //    new one first, then the old one comes out; if the sheet is cancelled
+  //    or fails, nothing is removed).
+  //  - the default card can't be deleted directly either, even with other
+  //    cards on file — switch default to another card first (setDefaultMethod
+  //    below), then the now-non-default old default can be removed normally.
   const replaceCard = (oldId: string) => {
     Alert.alert(
       'Replace Card',
@@ -105,6 +106,7 @@ export default function PaymentsScreen() {
           onPress: async () => {
             setMethodBusyId(oldId);
             try {
+              const priorIds = new Set(methods.map((m) => m.id));
               const { setupIntentClientSecret, ephemeralKeySecret, customerId } = await paymentsApi.createSetupIntent();
               const { error: initErr } = await initPaymentSheet({
                 setupIntentClientSecret,
@@ -118,6 +120,13 @@ export default function PaymentsScreen() {
                 if (presentErr.code !== 'Canceled') Alert.alert('Error', presentErr.message);
                 return;
               }
+              // The old card being replaced is still the default at this point
+              // (it's only ever the sole/default card that reaches this flow) —
+              // promote the new one first so removeMethod's own "can't remove
+              // the default" guard doesn't reject the next call.
+              const freshMethods = await paymentsApi.listMethods();
+              const newCard = freshMethods.find((m) => !priorIds.has(m.id));
+              if (newCard) await paymentsApi.setDefaultMethod(newCard.id);
               await paymentsApi.removeMethod(oldId);
               await load();
               Alert.alert('Card Replaced', 'Your new card has been saved and the old one removed.');
@@ -130,6 +139,26 @@ export default function PaymentsScreen() {
         },
       ],
     );
+  };
+
+  const removeCard = (id: string) => {
+    Alert.alert('Remove Card', 'Remove this saved card?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive',
+        onPress: async () => {
+          setMethodBusyId(id);
+          try {
+            await paymentsApi.removeMethod(id);
+            await load();
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Could not remove card.');
+          } finally {
+            setMethodBusyId(null);
+          }
+        },
+      },
+    ]);
   };
 
   const handlePay = async (payment: any) => {
@@ -203,19 +232,30 @@ export default function PaymentsScreen() {
                 </View>
                 {methodBusyId === m.id ? (
                   <ActivityIndicator size="small" color={colors.lanternDeep} />
+                ) : methods.length === 1 ? (
+                  // The only card on file — can't be bare-deleted, only replaced.
+                  <TouchableOpacity onPress={() => replaceCard(m.id)} style={styles.methodActionBtn}>
+                    <Text style={styles.methodActionText}>Replace</Text>
+                  </TouchableOpacity>
+                ) : m.isDefault ? (
+                  // Other cards exist, but this one is default — no action
+                  // shown here; switch default to a different card first (see
+                  // the note below), then this one becomes removable.
+                  null
                 ) : (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {!m.isDefault && (
-                      <TouchableOpacity onPress={() => setDefaultMethod(m.id)} style={styles.methodActionBtn}>
-                        <Text style={styles.methodActionText}>Set Default</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity onPress={() => replaceCard(m.id)} style={styles.methodActionBtn}>
-                      <Text style={styles.methodActionText}>Replace</Text>
+                    <TouchableOpacity onPress={() => setDefaultMethod(m.id)} style={styles.methodActionBtn}>
+                      <Text style={styles.methodActionText}>Set Default</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => removeCard(m.id)} style={[styles.methodActionBtn, styles.methodActionBtnDanger]}>
+                      <Text style={[styles.methodActionText, styles.methodActionTextDanger]}>Remove</Text>
                     </TouchableOpacity>
                   </View>
                 )}
               </View>
+              {methods.length > 1 && m.isDefault && (
+                <Text style={styles.defaultCardHint}>Set another card as default to remove this one.</Text>
+              )}
             </View>
           ))
         )}
@@ -351,7 +391,10 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 24, alignItems: 'center', gap: 8, marginBottom: 12 },
   emptyText: { fontSize: 14, color: colors.steel },
   methodActionBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
+  methodActionBtnDanger: { borderColor: '#fed7d7' },
   methodActionText: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep },
+  methodActionTextDanger: { color: '#c53030' },
+  defaultCardHint: { fontSize: 11, color: colors.steel, marginTop: -6 },
   addCardBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderRadius: 12, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', padding: 14,

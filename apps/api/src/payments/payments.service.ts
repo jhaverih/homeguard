@@ -754,14 +754,16 @@ export class PaymentsService {
 
   // A verified card must always be on file — a customer could have an
   // ongoing/outstanding service that still needs to be paid through the
-  // platform even after cancelling their subscription. The mobile app never
-  // offers a bare "delete" for a customer's last card (only "Replace", which
-  // adds a new one first) — this guard is the hard backend invariant behind
-  // that, so it holds regardless of call path. When the removed card was the
-  // default, another remaining card is auto-promoted rather than leaving no
-  // default set at all.
+  // platform even after cancelling their subscription. Two hard invariants,
+  // both enforced here regardless of call path (mobile mirrors these as
+  // UI-level guards, but this is the real one):
+  //  - never leave a customer with zero cards — their only card can't be
+  //    removed at all (the mobile app's "Replace" flow adds a new one first,
+  //    then removes the old one, so it never actually hits this branch).
+  //  - never remove the default card directly — the customer must switch
+  //    default to a different card first (a separate, deliberate action),
+  //    then the now-non-default old default can be removed normally.
   async removePaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
-    const user = await this.usersService.findById(userId);
     const methods = await this.listPaymentMethods(userId);
     const target = methods.find((m) => m.id === paymentMethodId);
     if (!target) {
@@ -770,12 +772,8 @@ export class PaymentsService {
     if (methods.length <= 1) {
       throw new BadRequestException('Add a replacement card before removing your last one.');
     }
-
-    if (target.isDefault && user.stripeCustomerId) {
-      const replacement = methods.find((m) => m.id !== paymentMethodId);
-      if (replacement) {
-        await this.applyDefaultPaymentMethod(userId, user.stripeCustomerId, replacement.id);
-      }
+    if (target.isDefault) {
+      throw new BadRequestException('Set a different card as default before removing this one.');
     }
 
     await this.stripe.paymentMethods.detach(paymentMethodId);
