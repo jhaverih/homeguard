@@ -186,6 +186,12 @@ export default function CustomerProfileScreen() {
         {subscription?.plan && <Row label="Current Plan" value={subscription.plan.name} />}
       </View>
 
+      <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(customer)/payments')}>
+        <Ionicons name="card-outline" size={20} color={colors.lanternDeep} />
+        <Text style={styles.linkRowText}>Payment Methods</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.steel} />
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/(customer)/notifications')}>
         <Ionicons name="notifications-outline" size={20} color={colors.lanternDeep} />
         <Text style={styles.linkRowText}>Notifications</Text>

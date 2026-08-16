@@ -85,24 +85,51 @@ export default function PaymentsScreen() {
     }
   };
 
-  const removeMethod = (id: string) => {
-    Alert.alert('Remove Card', 'Remove this saved card?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive',
-        onPress: async () => {
-          setMethodBusyId(id);
-          try {
-            await paymentsApi.removeMethod(id);
-            await load();
-          } catch (e: any) {
-            Alert.alert('Error', e.message || 'Could not remove card.');
-          } finally {
-            setMethodBusyId(null);
-          }
+  // A verified card must always be on file (an ongoing/outstanding service
+  // may still need to be paid through the platform even after a customer
+  // cancels their subscription) — so there's no bare "delete", only
+  // "Replace": collect a new card first via the same PaymentSheet flow
+  // addCard uses, and only detach the old one once that succeeds. If the
+  // sheet is cancelled or fails, nothing is removed. The backend also
+  // enforces this as a hard invariant (PaymentsService.removePaymentMethod),
+  // so this is about the flow being sensible, not the only thing stopping
+  // a customer from ending up with zero cards.
+  const replaceCard = (oldId: string) => {
+    Alert.alert(
+      'Replace Card',
+      "You'll be asked to enter a new card, then this one will be removed.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: async () => {
+            setMethodBusyId(oldId);
+            try {
+              const { setupIntentClientSecret, ephemeralKeySecret, customerId } = await paymentsApi.createSetupIntent();
+              const { error: initErr } = await initPaymentSheet({
+                setupIntentClientSecret,
+                customerId,
+                customerEphemeralKeySecret: ephemeralKeySecret,
+                merchantDisplayName: 'Attenteve',
+              });
+              if (initErr) { Alert.alert('Error', initErr.message); return; }
+              const { error: presentErr } = await presentPaymentSheet();
+              if (presentErr) {
+                if (presentErr.code !== 'Canceled') Alert.alert('Error', presentErr.message);
+                return;
+              }
+              await paymentsApi.removeMethod(oldId);
+              await load();
+              Alert.alert('Card Replaced', 'Your new card has been saved and the old one removed.');
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Could not replace card.');
+            } finally {
+              setMethodBusyId(null);
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handlePay = async (payment: any) => {
@@ -183,8 +210,8 @@ export default function PaymentsScreen() {
                         <Text style={styles.methodActionText}>Set Default</Text>
                       </TouchableOpacity>
                     )}
-                    <TouchableOpacity onPress={() => removeMethod(m.id)} style={[styles.methodActionBtn, styles.methodActionBtnDanger]}>
-                      <Text style={[styles.methodActionText, styles.methodActionTextDanger]}>Remove</Text>
+                    <TouchableOpacity onPress={() => replaceCard(m.id)} style={styles.methodActionBtn}>
+                      <Text style={styles.methodActionText}>Replace</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -324,9 +351,7 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 24, alignItems: 'center', gap: 8, marginBottom: 12 },
   emptyText: { fontSize: 14, color: colors.steel },
   methodActionBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
-  methodActionBtnDanger: { borderColor: '#fed7d7' },
   methodActionText: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep },
-  methodActionTextDanger: { color: '#c53030' },
   addCardBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderRadius: 12, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', padding: 14,

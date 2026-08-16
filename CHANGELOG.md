@@ -12,6 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-16
+
+### Added
+- **mobile**: "Payment Methods" is now also reachable from the Profile screen (previously only found by drilling into an active subscription's "View Payments & History" button) — the add-card/set-default UI already existed but was effectively undiscoverable outside that one path.
+
+### Changed
+- **api/mobile**: A verified card must always stay on file — a customer can have an outstanding/ongoing service that still needs to be paid through the platform even after cancelling their subscription. Every card's action on the Payment Methods screen is now "Replace" instead of "Remove": it collects a new card via the existing Stripe PaymentSheet flow first, and only detaches the old one once that succeeds — there's no bare delete anywhere. `PaymentsService.removePaymentMethod` enforces this as a hard backend invariant too (rejects leaving a customer with zero cards, regardless of call path) and auto-promotes another remaining card to default if the one being removed was it — previously there was no such auto-promotion at all.
+
 ## 2026-08-14
 
 ### Changed

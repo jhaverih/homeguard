@@ -719,20 +719,15 @@ export class PaymentsService {
     }));
   }
 
-  async setDefaultPaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
-    const user = await this.usersService.findById(userId);
-    if (!user.stripeCustomerId) throw new BadRequestException('No saved payment methods for this account');
-
-    const methods = await this.listPaymentMethods(userId);
-    if (!methods.some((m) => m.id === paymentMethodId)) {
-      throw new ForbiddenException('That payment method does not belong to your account');
-    }
-
-    await this.stripe.customers.update(user.stripeCustomerId, {
+  // Shared by setDefaultPaymentMethod (explicit customer choice) and
+  // removePaymentMethod (auto-promoting a replacement when the removed card
+  // was the default) — keeps the household's active subscription (if any) on
+  // the same default card either way.
+  private async applyDefaultPaymentMethod(userId: string, stripeCustomerId: string, paymentMethodId: string): Promise<void> {
+    await this.stripe.customers.update(stripeCustomerId, {
       invoice_settings: { default_payment_method: paymentMethodId },
     });
 
-    // Keep the household's active subscription (if any) on the same default card.
     const ownerId = await this.usersService.getEffectiveSubscriptionOwnerId(userId);
     const sub = await this.subscriptionsService.getActiveSubscription(ownerId);
     if (sub?.stripeSubscriptionId) {
@@ -742,15 +737,47 @@ export class PaymentsService {
         this.logger.warn(`Could not update subscription default payment method: ${err.message}`);
       }
     }
-
-    return { success: true };
   }
 
-  async removePaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
+  async setDefaultPaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
+    const user = await this.usersService.findById(userId);
+    if (!user.stripeCustomerId) throw new BadRequestException('No saved payment methods for this account');
+
     const methods = await this.listPaymentMethods(userId);
     if (!methods.some((m) => m.id === paymentMethodId)) {
       throw new ForbiddenException('That payment method does not belong to your account');
     }
+
+    await this.applyDefaultPaymentMethod(userId, user.stripeCustomerId, paymentMethodId);
+    return { success: true };
+  }
+
+  // A verified card must always be on file — a customer could have an
+  // ongoing/outstanding service that still needs to be paid through the
+  // platform even after cancelling their subscription. The mobile app never
+  // offers a bare "delete" for a customer's last card (only "Replace", which
+  // adds a new one first) — this guard is the hard backend invariant behind
+  // that, so it holds regardless of call path. When the removed card was the
+  // default, another remaining card is auto-promoted rather than leaving no
+  // default set at all.
+  async removePaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
+    const user = await this.usersService.findById(userId);
+    const methods = await this.listPaymentMethods(userId);
+    const target = methods.find((m) => m.id === paymentMethodId);
+    if (!target) {
+      throw new ForbiddenException('That payment method does not belong to your account');
+    }
+    if (methods.length <= 1) {
+      throw new BadRequestException('Add a replacement card before removing your last one.');
+    }
+
+    if (target.isDefault && user.stripeCustomerId) {
+      const replacement = methods.find((m) => m.id !== paymentMethodId);
+      if (replacement) {
+        await this.applyDefaultPaymentMethod(userId, user.stripeCustomerId, replacement.id);
+      }
+    }
+
     await this.stripe.paymentMethods.detach(paymentMethodId);
     return { success: true };
   }
