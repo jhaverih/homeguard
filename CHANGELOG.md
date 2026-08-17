@@ -12,6 +12,12 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-17
+
+### Added
+- **mobile**: Customer app's "Alerts" tab is now "Monitoring" — same tab slot/position/badge, but the screen now opens with a "Home Sensors" grid (live tiles for the customer's actual linked Yolink devices: today that's one temperature sensor + two water leak detectors, nothing hardcoded/placeholder) above the existing alert feed, plus a static Home Assistant upsell teaser at the bottom. Each tile shows a green/red status dot reflecting whether that device has reported within the last 2 hours (`isStreaming`, not tied to the sensor's reading itself — a leak sensor actively detecting a leak while still reporting is green, the leak shows as its text state) and a formatted reading (°F for temperature, Dry/Leak Detected for leak sensors).
+- **api**: New `YolinkDevice` catalog table (`yolink_devices`) and `GET /yolink/devices` endpoint. Previously the Yolink integration only ever persisted alert-worthy events into the `Alert` table — routine MQTT "report" messages (which carry live temperature/leak-state data) were silently dropped, and `Home.getDeviceList`'s per-device `type` field was fetched but discarded. Now every incoming MQTT message (alert or not) upserts the matching device's `lastReportedAt`/`lastState`, and the customer's Monitoring tab additionally triggers a live REST reseed via `Home.getDeviceList` on load/pull-to-refresh so devices don't show red just because they haven't reported since deploy. The endpoint returns only `THSensor`/`LeakSensor` devices — any other Yolink device type is excluded, not just hidden.
+
 ## 2026-08-16
 
 ### Added

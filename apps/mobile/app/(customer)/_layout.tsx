@@ -92,8 +92,8 @@ export default function CustomerLayout() {
       <Tabs.Screen
         name="alerts"
         options={{
-          title: 'Alerts',
-          tabBarIcon: ({ color }) => <Ionicons name="warning" size={22} color={color} />,
+          title: 'Monitoring',
+          tabBarIcon: ({ color }) => <Ionicons name="pulse" size={22} color={color} />,
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: '#dc2626', color: '#fff', fontSize: 10 },
         }}

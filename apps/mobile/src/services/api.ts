@@ -232,10 +232,20 @@ export const alertsApi = {
   requestDispatch: (id: string) => api.post(`/alerts/${id}/dispatch`),
 };
 
+export type MonitoringDevice = {
+  id: string;
+  deviceType: string;
+  name: string;
+  isStreaming: boolean;
+  lastReportedAt: string | null;
+  reading: string | null;
+};
+
 export const yolinkApi = {
   getMyHomes: () => api.get('/yolink/my-homes'),
   linkHome: (body: { customerId: string; yolinkUAID: string; yolinkSecretKey: string; homeName: string; address?: string }): Promise<{ home: any; devices: any[] }> =>
     api.post('/yolink/link', body) as any,
+  getDevices: (): Promise<MonitoringDevice[]> => api.get('/yolink/devices') as any,
 };
 
 export const notificationsApi = {

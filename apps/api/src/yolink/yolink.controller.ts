@@ -30,6 +30,14 @@ export class YolinkController {
     return this.service.getLinkedHomes(req.user.id);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('devices')
+  @ApiOperation({ summary: "Monitoring tab: current customer's live sensor devices (temperature/leak only)" })
+  getDevices(@Request() req: any) {
+    return this.service.getDeviceStates(req.user.id);
+  }
+
   // Admin / Vendor routes ─────────────────────────────────────────────────────
 
   @ApiBearerAuth()

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import axios from 'axios';
 import * as mqtt from 'mqtt';
 import { YolinkHome } from './entities/yolink-home.entity';
+import { YolinkDevice } from './entities/yolink-device.entity';
 import { AlertsService } from '../alerts/alerts.service';
 import { AlertSeverity } from '../alerts/entities/alert.entity';
 import { encrypt, decrypt } from '../common/crypto/encryption.util';
@@ -16,6 +17,17 @@ const MQTT_BROKER     = 'mqtt://mqtt.api.yosmart.com:8003';
 // display mode — convert to Fahrenheit here so alert text matches what the
 // customer sees in the Yolink app itself.
 const celsiusToFahrenheit = (c: number): number => Math.round((c * 9 / 5 + 32) * 10) / 10;
+
+// The only device types the customer Monitoring dashboard shows today (see
+// YolinkService.getDeviceStates) — any other Yolink device type is excluded
+// entirely, not just hidden, per product decision 2026-08-17.
+const MONITORED_DEVICE_TYPES = ['THSensor', 'LeakSensor'];
+
+// A device counts as "streaming" (green, see getDeviceStates) if it's
+// reported within this window — conservative default for battery-powered
+// sensors that report periodically rather than continuously; tune once real
+// report intervals are observed in production.
+const STREAMING_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const EVENT_CONFIG: Record<string, { severity: AlertSeverity; message: (d: any, name: string) => string }> = {
   'DoorSensor.Alert':        { severity: AlertSeverity.MEDIUM,   message: (d, n) => `${n}: Door/window ${d?.state === 'open' ? 'opened' : 'closed'}` },
@@ -69,6 +81,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @InjectRepository(YolinkHome) private homesRepo: Repository<YolinkHome>,
+    @InjectRepository(YolinkDevice) private devicesRepo: Repository<YolinkDevice>,
     private alertsService: AlertsService,
   ) {}
 
@@ -137,12 +150,138 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
   private async refreshDeviceNames(home: Pick<YolinkHome, 'id' | 'homeName' | 'yolinkUAID' | 'yolinkSecretKey'>, yolinkHomeId: string): Promise<void> {
     try {
       const deviceData = await this.yolinkRequest(home, 'Home.getDeviceList', { homeId: yolinkHomeId });
-      this.cacheDeviceNames(home.id, deviceData?.devices ?? []);
+      const devices = deviceData?.devices ?? [];
+      this.cacheDeviceNames(home.id, devices);
+      await this.upsertDeviceCatalog(home.id, devices);
     } catch (err: any) {
       // Non-fatal — alert messages just fall back to the device type/generic
       // label until the next successful refresh (e.g. on the next reconnect).
       this.logger.warn(`Could not refresh Yolink device names for "${home.homeName}": ${err.message}`);
     }
+  }
+
+  // ── Monitoring dashboard: device catalog + live state ───────────────────────
+  // Keeps a YolinkDevice row per physical device (deviceType/name from
+  // Home.getDeviceList, which discarded these before — see refreshDeviceNames/
+  // linkHomeToCustomer call sites) live via two independent paths: every MQTT
+  // message (upsertDeviceState, alert-worthy or not) and a best-effort REST
+  // reseed on Monitoring-tab load (refreshDeviceStates).
+
+  private async upsertDeviceCatalog(yolinkHomeDbId: string, devices: any[]): Promise<void> {
+    for (const dev of devices) {
+      if (!dev?.deviceId) continue;
+      const existing = await this.devicesRepo.findOne({ where: { yolinkHomeId: yolinkHomeDbId, deviceId: dev.deviceId } });
+      if (existing) {
+        existing.name = dev.name ?? existing.name;
+        existing.deviceType = dev.type ?? existing.deviceType;
+        await this.devicesRepo.save(existing);
+      } else {
+        await this.devicesRepo.save(this.devicesRepo.create({
+          yolinkHomeId: yolinkHomeDbId,
+          deviceId: dev.deviceId,
+          deviceType: dev.type ?? 'Unknown',
+          name: dev.name ?? dev.deviceId,
+        }));
+      }
+    }
+  }
+
+  // Called for every MQTT message (report or alert), before the EVENT_CONFIG
+  // alert-matching gate — this is the piece that was completely missing:
+  // routine reports used to be silently dropped instead of updating a live
+  // "last seen" state.
+  private async upsertDeviceState(home: YolinkHome, payload: any): Promise<void> {
+    const { deviceId, deviceType, data } = payload;
+    if (!deviceId) return;
+    const existing = await this.devicesRepo.findOne({ where: { yolinkHomeId: home.id, deviceId } });
+    if (existing) {
+      existing.lastReportedAt = new Date();
+      existing.lastState = data ?? null;
+      if (deviceType) existing.deviceType = deviceType;
+      await this.devicesRepo.save(existing);
+    } else if (deviceType) {
+      // Seen via MQTT before any Home.getDeviceList catalog refresh ran — a
+      // minimal row so the live state isn't lost; name backfills on the next
+      // refreshDeviceNames/refreshDeviceStates call.
+      await this.devicesRepo.save(this.devicesRepo.create({
+        yolinkHomeId: home.id, deviceId, deviceType, name: deviceType,
+        lastReportedAt: new Date(), lastState: data ?? null,
+      }));
+    }
+  }
+
+  // Best-effort REST reseed, called once per linked home when the customer's
+  // Monitoring tab loads (and on pull-to-refresh) — so a freshly-linked or
+  // infrequently-reporting device shows real state immediately instead of
+  // waiting on the next MQTT report. The exact shape of Yolink's device-list
+  // `state`/`online` fields isn't confirmed from a real payload yet — this
+  // folds in whatever's present defensively and never regresses a more
+  // recent MQTT-driven lastReportedAt.
+  async refreshDeviceStates(yolinkHomeDbId: string): Promise<void> {
+    const home = await this.homesRepo.findOne({ where: { id: yolinkHomeDbId, isActive: true } });
+    if (!home?.yolinkHomeId) return;
+    try {
+      const deviceData = await this.yolinkRequest(home, 'Home.getDeviceList', { homeId: home.yolinkHomeId });
+      const devices = deviceData?.devices ?? [];
+      await this.upsertDeviceCatalog(home.id, devices);
+      for (const dev of devices) {
+        if (!dev?.deviceId || (dev.state === undefined && dev.online === undefined)) continue;
+        const existing = await this.devicesRepo.findOne({ where: { yolinkHomeId: home.id, deviceId: dev.deviceId } });
+        if (!existing) continue;
+        if (dev.state !== undefined) {
+          existing.lastState = { ...(existing.lastState ?? {}), ...(typeof dev.state === 'object' ? dev.state : { state: dev.state }) };
+        }
+        if (dev.online === true) existing.lastReportedAt = new Date();
+        await this.devicesRepo.save(existing);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not refresh Yolink device states for home ${home.id}: ${err.message}`);
+    }
+  }
+
+  private formatReading(deviceType: string, state: Record<string, any> | null): string | null {
+    if (!state) return null;
+    if (deviceType === 'THSensor') {
+      return typeof state.temperature === 'number' ? `${celsiusToFahrenheit(state.temperature)}°F` : null;
+    }
+    if (deviceType === 'LeakSensor') {
+      // Leak-state field convention isn't confirmed from a real payload —
+      // LeakSensor.StatusChange events use `state.state === 'alert'` (see
+      // EVENT_CONFIG above); treated as the leak-detected signal here too,
+      // with a `leak` boolean as a fallback in case Yolink's report shape
+      // differs from its alert shape.
+      if (state.state === 'alert' || state.leak === true) return 'Leak Detected';
+      if (state.state !== undefined || state.leak !== undefined) return 'Dry';
+      return null;
+    }
+    return null;
+  }
+
+  // Customer-facing: the Monitoring tab's "Home Sensors" section. Reseeds via
+  // REST first (see refreshDeviceStates), then reads the persisted catalog —
+  // filtered to only the device types the dashboard shows at all.
+  async getDeviceStates(customerId: string): Promise<{
+    id: string; deviceType: string; name: string; isStreaming: boolean; lastReportedAt: Date | null; reading: string | null;
+  }[]> {
+    const homes = await this.homesRepo.find({ where: { customerId, isActive: true } });
+    const results: { id: string; deviceType: string; name: string; isStreaming: boolean; lastReportedAt: Date | null; reading: string | null }[] = [];
+    for (const home of homes) {
+      await this.refreshDeviceStates(home.id).catch(() => {});
+      const devices = await this.devicesRepo.find({ where: { yolinkHomeId: home.id } });
+      for (const dev of devices) {
+        if (!MONITORED_DEVICE_TYPES.includes(dev.deviceType)) continue;
+        const isStreaming = !!dev.lastReportedAt && Date.now() - new Date(dev.lastReportedAt).getTime() < STREAMING_WINDOW_MS;
+        results.push({
+          id: dev.id,
+          deviceType: dev.deviceType,
+          name: dev.name,
+          isStreaming,
+          lastReportedAt: dev.lastReportedAt,
+          reading: this.formatReading(dev.deviceType, dev.lastState),
+        });
+      }
+    }
+    return results;
   }
 
   // ── MQTT connection (one per linked home) ────────────────────────────────────
@@ -247,6 +386,12 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`No customer linked to Yolink homeId: ${homeId}`);
       return;
     }
+    // Runs for every message — report or alert — before the alert-matching
+    // gate below, so routine reports keep the Monitoring dashboard's live
+    // state fresh instead of being silently dropped.
+    await this.upsertDeviceState(home, payload).catch((e) =>
+      this.logger.warn(`Could not update live device state for home ${home.id}: ${e.message}`),
+    );
     await this.dispatchAlert(home, payload);
   }
 
@@ -331,10 +476,12 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       }));
     }
 
-    // Seed the name cache immediately from the list already fetched above —
-    // connectMqtt() below refreshes it too, but there's no reason to make the
-    // customer wait on a second network round-trip for names to appear.
+    // Seed the name cache and device catalog immediately from the list
+    // already fetched above — connectMqtt() below refreshes both too, but
+    // there's no reason to make the customer wait on a second network
+    // round-trip for names/catalog rows to appear.
     this.cacheDeviceNames(saved.id, devices);
+    await this.upsertDeviceCatalog(saved.id, devices);
     await this.connectMqtt(saved);
     return { home: saved, devices };
   }
