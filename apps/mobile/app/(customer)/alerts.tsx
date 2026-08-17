@@ -93,12 +93,13 @@ export default function MonitoringScreen() {
   const { setUnreadCount, decrement: decrementBadge } = useAlertsStore();
 
   const load = async () => {
-    subscriptionsApi.getMySubscription().then((sub: any) => setSubscription(sub)).catch(() => {});
     try {
-      const [alertsRes, devicesRes] = await Promise.all([
+      const [sub, alertsRes, devicesRes] = await Promise.all([
+        subscriptionsApi.getMySubscription().catch(() => null),
         alertsApi.getMyAlerts() as Promise<any>,
         yolinkApi.getDevices().catch(() => [] as MonitoringDevice[]),
       ]);
+      setSubscription(sub);
       setAlerts(alertsRes.alerts ?? []);
       setUnread(alertsRes.unread ?? 0);
       setUnreadCount(alertsRes.unread ?? 0);
@@ -155,7 +156,9 @@ export default function MonitoringScreen() {
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
-  const noMonitoringPlan = subscription?.plan?.tier === 'BASIC' || subscription?.plan?.tier === 'FREE';
+  // Monitoring is included on every paid plan (CarePlus/BASIC and up) —
+  // only the FREE tier (or no subscription at all) is gated out.
+  const noMonitoringPlan = !subscription || subscription?.plan?.tier === 'FREE';
   const streamingCount = devices.filter((d) => d.isStreaming).length;
 
   return (
@@ -219,7 +222,12 @@ export default function MonitoringScreen() {
                   <Text style={styles.emptyCardText}>No alerts from your home sensors yet.</Text>
                 </View>
               ) : (
-                <View style={{ gap: 12 }}>
+                <ScrollView
+                  style={styles.alertsScroll}
+                  contentContainerStyle={{ gap: 12 }}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={alerts.length > 3}
+                >
                   {alerts.map((item) => (
                     <AlertCard
                       key={item.id}
@@ -228,7 +236,7 @@ export default function MonitoringScreen() {
                       onDispatch={() => handleDispatch(item)}
                     />
                   ))}
-                </View>
+                </ScrollView>
               )}
             </View>
 
@@ -293,6 +301,11 @@ const styles = StyleSheet.create({
   dispatchedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   dispatchedText: { fontSize: 12, color: '#16a34a', fontWeight: '600' },
 
+  // Caps the list to roughly 3 alert cards tall (matching the mockup), same
+  // as the mockup's own scoped "existing alert feed, unchanged styling"
+  // note — the Home Assistant teaser stays reachable below without having
+  // to scroll through every alert first; extra alerts scroll inside here.
+  alertsScroll: { maxHeight: 360 },
   emptyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 20, alignItems: 'center', gap: 6 },
   emptyCardTitle: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep },
   emptyCardText: { fontSize: 13, color: colors.steel, textAlign: 'center' },

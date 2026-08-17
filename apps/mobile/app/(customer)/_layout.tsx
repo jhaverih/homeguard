@@ -82,14 +82,6 @@ export default function CustomerLayout() {
         options={{ title: 'History', tabBarIcon: ({ color }) => <Ionicons name="time" size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="subscribe"
-        options={{ title: 'My Plan', tabBarIcon: ({ color }) => <Ionicons name="shield-checkmark" size={22} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }}
-      />
-      <Tabs.Screen
         name="alerts"
         options={{
           title: 'Monitoring',
@@ -97,6 +89,14 @@ export default function CustomerLayout() {
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: '#dc2626', color: '#fff', fontSize: 10 },
         }}
+      />
+      <Tabs.Screen
+        name="subscribe"
+        options={{ title: 'My Plan', tabBarIcon: ({ color }) => <Ionicons name="shield-checkmark" size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }}
       />
       <Tabs.Screen name="payments" options={{ href: null, title: 'Payments' }} />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
