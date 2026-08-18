@@ -7,7 +7,7 @@ import * as mqtt from 'mqtt';
 import { YolinkHome } from './entities/yolink-home.entity';
 import { YolinkDevice } from './entities/yolink-device.entity';
 import { AlertsService } from '../alerts/alerts.service';
-import { AlertSeverity } from '../alerts/entities/alert.entity';
+import { Alert, AlertSeverity } from '../alerts/entities/alert.entity';
 import { encrypt, decrypt } from '../common/crypto/encryption.util';
 
 const YOLINK_TOKEN_URL = 'https://api.yosmart.com/open/yolink/token';
@@ -104,10 +104,38 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(YolinkHome) private homesRepo: Repository<YolinkHome>,
     @InjectRepository(YolinkDevice) private devicesRepo: Repository<YolinkDevice>,
+    @InjectRepository(Alert) private alertsRepo: Repository<Alert>,
     private alertsService: AlertsService,
   ) {}
 
+  // One-time reclassification for alerts created before the Alert/Info split
+  // (see EVENT_CONFIG above) existed — those rows have the old hardcoded
+  // severity baked in and won't correct themselves just because the code
+  // that creates NEW alerts changed. Re-derives severity from the same
+  // rawPayload.data every alert already stores, using the same resolver
+  // EVENT_CONFIG uses today. Idempotent — a no-op once everything matches.
+  private async backfillAlertSeverity(): Promise<void> {
+    const targets = await this.alertsRepo.find({
+      where: { event: In(['THSensor.Alert', 'LeakSensor.Alert', 'LeakSensor.StatusChange']) },
+    });
+    let updated = 0;
+    for (const alert of targets) {
+      const config = EVENT_CONFIG[alert.event!];
+      if (!config || typeof config.severity !== 'function') continue;
+      const correctSeverity = config.severity(alert.rawPayload?.data);
+      if (correctSeverity !== alert.severity) {
+        alert.severity = correctSeverity;
+        await this.alertsRepo.save(alert);
+        updated++;
+      }
+    }
+    if (updated > 0) {
+      this.logger.log(`Backfilled severity for ${updated} existing Yolink alert(s) to match the Alert/Info classification.`);
+    }
+  }
+
   async onModuleInit() {
+    await this.backfillAlertSeverity().catch((e) => this.logger.warn(`Alert severity backfill failed: ${e.message}`));
     const homes = await this.homesRepo.find({ where: { isActive: true } });
     if (homes.length === 0) {
       this.logger.log('No linked Yolink homes yet — nothing to connect at startup.');

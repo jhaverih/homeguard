@@ -23,6 +23,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - **api/mobile**: Every Home Sensors alert used to show as a generic "Info" badge regardless of what actually happened. Temperature/leak alerts now split into two categories: **Alert** (an actual threshold crossed — low/high temperature, flooding detected) and **Info** (device-health noise — low battery, routine status restatements, and a new "sensor disconnected" case). Previously a low-battery trip on a leak sensor was mislabeled "Water leak detected!" since the event handler never checked which alarm flag actually fired — it now branches on `data.alarm` the same way THSensor already did.
 - **api**: New scheduled check (`YolinkService.checkDisconnectedSensors`, every 30 min) raises an Info alert the first time a monitored device goes quiet for over 2 hours, instead of that only being visible as a red dot on the next Monitoring-tab visit. Fires once per silence (tracked via a new `YolinkDevice.disconnectAlertedAt` column) and clears automatically as soon as the device reports again.
 
+### Fixed
+- **api**: The Alert/Info reclassification above only changed how *new* alerts are scored — existing rows created before that change still carried their old severity, so already-created alerts kept showing "Info". Added a one-time startup backfill (`YolinkService.backfillAlertSeverity`) that re-derives severity for existing THSensor/LeakSensor alerts from their already-stored raw payload, using the same resolver new alerts use. Idempotent, runs every boot, no-ops once everything matches.
+
 ## 2026-08-16
 
 ### Added

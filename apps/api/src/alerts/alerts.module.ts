@@ -9,6 +9,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
   imports: [TypeOrmModule.forFeature([Alert]), NotificationsModule],
   controllers: [AlertsController],
   providers: [AlertsService],
-  exports: [AlertsService],
+  // Also exports TypeOrmModule so YolinkService can inject the Alert repo
+  // directly for its one-time severity backfill (see YolinkService.onModuleInit)
+  // — that reclassification logic is Yolink-specific and doesn't belong in
+  // AlertsService itself.
+  exports: [AlertsService, TypeOrmModule],
 })
 export class AlertsModule {}
