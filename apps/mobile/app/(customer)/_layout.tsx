@@ -47,12 +47,12 @@ function RoleSwitcher() {
 function MonitoringHeader() {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.monitoringHeader, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.monitoringHeader, { paddingTop: insets.top + 6 }]}>
       <View style={styles.monitoringHeaderRow}>
         <AttenteveLogo size="sm" onDark />
         <RoleSwitcher />
       </View>
-      <Text style={styles.monitoringHeaderTitle}>Monitoring</Text>
+      <Text style={styles.monitoringHeaderTitle}>Dashboard</Text>
     </View>
   );
 }
@@ -134,7 +134,9 @@ export default function CustomerLayout() {
 const styles = StyleSheet.create({
   switchBtn: { marginRight: 16, backgroundColor: colors.lanternDeep, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   switchText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  monitoringHeader: { backgroundColor: colors.ink, paddingHorizontal: 16, paddingBottom: 16 },
+  // Exact values from the dashboard mockup's .app-header/.title CSS —
+  // padding: 6px 20px 16px, title font-size 22px/weight 700/color #fff.
+  monitoringHeader: { backgroundColor: colors.ink, paddingHorizontal: 20, paddingBottom: 16 },
   monitoringHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  monitoringHeaderTitle: { fontSize: 32, fontWeight: '800', color: colors.mist, marginTop: 18 },
+  monitoringHeaderTitle: { fontSize: 22, fontWeight: '700', color: '#fff', marginTop: 8 },
 });
