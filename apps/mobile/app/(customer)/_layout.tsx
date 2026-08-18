@@ -1,6 +1,7 @@
 ﻿import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { useAlertsStore } from '../../src/store/alerts.store';
@@ -36,6 +37,23 @@ function RoleSwitcher() {
     <TouchableOpacity style={styles.switchBtn} onPress={switchToVendor}>
       <Text style={styles.switchText}>Switch to Provider</Text>
     </TouchableOpacity>
+  );
+}
+
+// Monitoring's own header (logo/role-switch row + a large title below, per
+// the dashboard mockup) rather than the plain one-line title the other tabs
+// use — it fully replaces the default header for just this screen, so it
+// carries its own safe-area top inset instead of relying on the navigator.
+function MonitoringHeader() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.monitoringHeader, { paddingTop: insets.top + 8 }]}>
+      <View style={styles.monitoringHeaderRow}>
+        <AttenteveLogo size="sm" onDark />
+        <RoleSwitcher />
+      </View>
+      <Text style={styles.monitoringHeaderTitle}>Monitoring</Text>
+    </View>
   );
 }
 
@@ -85,6 +103,7 @@ export default function CustomerLayout() {
         name="alerts"
         options={{
           title: 'Monitoring',
+          header: () => <MonitoringHeader />,
           tabBarIcon: ({ color }) => <Ionicons name="pulse" size={22} color={color} />,
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: '#dc2626', color: '#fff', fontSize: 10 },
@@ -115,4 +134,7 @@ export default function CustomerLayout() {
 const styles = StyleSheet.create({
   switchBtn: { marginRight: 16, backgroundColor: colors.lanternDeep, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   switchText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  monitoringHeader: { backgroundColor: colors.ink, paddingHorizontal: 16, paddingBottom: 16 },
+  monitoringHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  monitoringHeaderTitle: { fontSize: 32, fontWeight: '800', color: colors.mist, marginTop: 18 },
 });

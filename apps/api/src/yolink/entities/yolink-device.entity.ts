@@ -17,6 +17,11 @@ export class YolinkDevice {
   @Column() name: string;
   @Column({ type: 'timestamp', nullable: true }) lastReportedAt: Date | null;
   @Column({ type: 'jsonb', nullable: true }) lastState: Record<string, any> | null;
+  // Set when the scheduled disconnect check (YolinkService.checkDisconnectedSensors)
+  // has already raised a "Sensor disconnected" alert for the device's current
+  // silence, so it isn't re-raised every run — cleared as soon as the device
+  // reports again (upsertDeviceState / refreshDeviceStates).
+  @Column({ type: 'timestamp', nullable: true }) disconnectAlertedAt: Date | null;
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }

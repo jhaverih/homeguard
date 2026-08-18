@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThan, IsNull, In } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import axios from 'axios';
 import * as mqtt from 'mqtt';
 import { YolinkHome } from './entities/yolink-home.entity';
@@ -29,11 +30,30 @@ const MONITORED_DEVICE_TYPES = ['THSensor', 'LeakSensor'];
 // report intervals are observed in production.
 const STREAMING_WINDOW_MS = 2 * 60 * 60 * 1000;
 
-const EVENT_CONFIG: Record<string, { severity: AlertSeverity; message: (d: any, name: string) => string }> = {
+// Customer-facing category, not a new severity tier — "Alert" is the actual
+// environmental threshold being crossed (temp out of range, flooding); "Info"
+// is device-health/performance noise (low battery, disconnect, routine status
+// restatements). Reuses the existing AlertSeverity values (MEDIUM/LOW) rather
+// than adding new enum members, so mobile's SEVERITY_CONFIG just relabels
+// MEDIUM as "Alert" — no DB migration needed for this distinction.
+const ALERT = AlertSeverity.MEDIUM;
+const INFO = AlertSeverity.LOW;
+
+const EVENT_CONFIG: Record<string, { severity: AlertSeverity | ((d: any) => AlertSeverity); message: (d: any, name: string) => string }> = {
   'DoorSensor.Alert':        { severity: AlertSeverity.MEDIUM,   message: (d, n) => `${n}: Door/window ${d?.state === 'open' ? 'opened' : 'closed'}` },
   'DoorSensor.StatusChange': { severity: AlertSeverity.LOW,      message: (d, n) => `${n}: ${d?.state === 'open' ? 'Opened' : 'Closed'}` },
-  'LeakSensor.Alert':        { severity: AlertSeverity.HIGH,     message: (_d, n) => `${n}: Water leak detected!` },
-  'LeakSensor.StatusChange': { severity: AlertSeverity.HIGH,     message: (d, n) => `${n}: ${d?.state === 'alert' ? 'Water leak detected!' : 'Sensor normal'}` },
+  // Yolink's LeakSensor.Alert/.StatusChange payloads carry the same `data.alarm`
+  // shape as THSensor (lowBattery flag) — branch on it instead of always
+  // reading the event as "flooding", which previously mislabeled a low-battery
+  // trip as "Water leak detected!".
+  'LeakSensor.Alert': {
+    severity: (d) => (d?.alarm?.lowBattery ? INFO : ALERT),
+    message: (d, n) => (d?.alarm?.lowBattery ? `${n}: Low battery` : `${n}: Water leak detected!`),
+  },
+  'LeakSensor.StatusChange': {
+    severity: (d) => (d?.state === 'alert' ? ALERT : INFO),
+    message: (d, n) => `${n}: ${d?.state === 'alert' ? 'Water leak detected!' : 'Sensor normal'}`,
+  },
   'MotionSensor.Alert':      { severity: AlertSeverity.MEDIUM,   message: (_d, n) => `${n}: Motion detected` },
   'SmokeDetector.Alert':     { severity: AlertSeverity.CRITICAL, message: (_d, n) => `${n}: Smoke detected! Check immediately.` },
   'COAlarm.Alert':           { severity: AlertSeverity.CRITICAL, message: (_d, n) => `${n}: CO alarm triggered! Evacuate immediately.` },
@@ -41,8 +61,10 @@ const EVENT_CONFIG: Record<string, { severity: AlertSeverity; message: (d: any, 
   // exactly which threshold tripped (lowTemp/highTemp/lowHumidity/highHumidity/
   // lowBattery) — branch on that instead of always dumping both raw readings,
   // so the message states the actual reason like Yolink's own app does.
+  // Only the temperature thresholds are a real "Alert" — humidity/battery are
+  // device-health "Info", per product decision 2026-08-17.
   'THSensor.Alert': {
-    severity: AlertSeverity.LOW,
+    severity: (d) => (d?.alarm?.lowTemp || d?.alarm?.highTemp ? ALERT : INFO),
     message: (d, n) => {
       const alarm = d?.alarm ?? {};
       const tempF = typeof d?.temperature === 'number' ? celsiusToFahrenheit(d.temperature) : undefined;
@@ -197,6 +219,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     if (existing) {
       existing.lastReportedAt = new Date();
       existing.lastState = data ?? null;
+      existing.disconnectAlertedAt = null;
       if (deviceType) existing.deviceType = deviceType;
       await this.devicesRepo.save(existing);
     } else if (deviceType) {
@@ -231,7 +254,10 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
         if (dev.state !== undefined) {
           existing.lastState = { ...(existing.lastState ?? {}), ...(typeof dev.state === 'object' ? dev.state : { state: dev.state }) };
         }
-        if (dev.online === true) existing.lastReportedAt = new Date();
+        if (dev.online === true) {
+          existing.lastReportedAt = new Date();
+          existing.disconnectAlertedAt = null;
+        }
         await this.devicesRepo.save(existing);
       }
     } catch (err: any) {
@@ -282,6 +308,35 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       }
     }
     return results;
+  }
+
+  // Runs independently of any customer opening the Monitoring tab — a device
+  // that goes quiet should surface an alert on its own, not only the next
+  // time someone happens to look. Fires an "Info" alert once per silence
+  // (disconnectAlertedAt gates re-firing) and clears automatically the moment
+  // the device reports again (see upsertDeviceState/refreshDeviceStates).
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async checkDisconnectedSensors(): Promise<void> {
+    const cutoff = new Date(Date.now() - STREAMING_WINDOW_MS);
+    const staleDevices = await this.devicesRepo.find({
+      where: { deviceType: In(MONITORED_DEVICE_TYPES), lastReportedAt: LessThan(cutoff), disconnectAlertedAt: IsNull() },
+    });
+    for (const dev of staleDevices) {
+      const home = await this.homesRepo.findOne({ where: { id: dev.yolinkHomeId, isActive: true } });
+      if (!home) continue;
+      await this.alertsService.createAlert({
+        customerId: home.customerId,
+        yolinkHomeId: home.id,
+        deviceId: dev.deviceId,
+        deviceName: dev.name,
+        deviceType: dev.deviceType,
+        event: 'Device.Disconnected',
+        severity: AlertSeverity.LOW,
+        message: `${dev.name}: Sensor disconnected — no data received in over 2 hours`,
+      });
+      dev.disconnectAlertedAt = new Date();
+      await this.devicesRepo.save(dev);
+    }
   }
 
   // ── MQTT connection (one per linked home) ────────────────────────────────────
@@ -409,6 +464,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     // populated via Home.getDeviceList, not the event itself.
     const deviceName = this.deviceNameCache.get(home.id)?.get(deviceId) ?? data?.name ?? deviceType ?? 'Device';
     const message = config.message(data, deviceName);
+    const severity = typeof config.severity === 'function' ? config.severity(data) : config.severity;
 
     await this.alertsService.createAlert({
       customerId: home.customerId,
@@ -417,12 +473,12 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       deviceName,
       deviceType,
       event,
-      severity: config.severity,
+      severity,
       message,
       rawPayload: payload,
     });
 
-    this.logger.log(`Alert created for customer ${home.customerId}: [${config.severity}] ${message}`);
+    this.logger.log(`Alert created for customer ${home.customerId}: [${severity}] ${message}`);
   }
 
   // ── Linked home management ────────────────────────────────────────────────────

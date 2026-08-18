@@ -9,10 +9,15 @@ import { alertsApi, subscriptionsApi, yolinkApi, MonitoringDevice } from '../../
 import { useAlertsStore } from '../../src/store/alerts.store';
 import { colors } from '../../src/theme';
 
+// MEDIUM/LOW are relabeled "Alert"/"Info" here rather than their raw severity
+// names — for Home Sensors specifically (see YolinkService's EVENT_CONFIG),
+// MEDIUM means an actual threshold was crossed (low/high temp, flooding) and
+// LOW means device-health noise (battery, disconnect, routine status), so the
+// badge should read as that distinction, not an internal priority tier.
 const SEVERITY_CONFIG = {
   CRITICAL: { color: '#dc2626', bg: '#fef2f2', icon: 'warning' as const, label: 'Critical' },
   HIGH:     { color: '#ea580c', bg: '#fff7ed', icon: 'alert-circle' as const, label: 'High' },
-  MEDIUM:   { color: '#d97706', bg: '#fffbeb', icon: 'notifications' as const, label: 'Medium' },
+  MEDIUM:   { color: '#d97706', bg: '#fffbeb', icon: 'notifications' as const, label: 'Alert' },
   LOW:      { color: '#2563eb', bg: '#eff6ff', icon: 'information-circle' as const, label: 'Info' },
 };
 
@@ -305,7 +310,8 @@ const styles = StyleSheet.create({
   // as the mockup's own scoped "existing alert feed, unchanged styling"
   // note — the Home Assistant teaser stays reachable below without having
   // to scroll through every alert first; extra alerts scroll inside here.
-  alertsScroll: { maxHeight: 360 },
+  // Sized generously since a 2-line wrapped message pushes a card past 140dp.
+  alertsScroll: { maxHeight: 450 },
   emptyCard: { backgroundColor: '#fff', borderRadius: 14, padding: 20, alignItems: 'center', gap: 6 },
   emptyCardTitle: { fontSize: 15, fontWeight: '700', color: colors.lanternDeep },
   emptyCardText: { fontSize: 13, color: colors.steel, textAlign: 'center' },
