@@ -10,6 +10,7 @@ const baseLinks = [
   { href: '/jobs', label: 'Jobs', icon: '🧰' },
   { href: '/customers', label: 'Customers', icon: '🏠' },
   { href: '/payments', label: 'Payments', icon: '💳' },
+  { href: '/rates', label: 'My Rates', icon: '💰' },
   { href: '/disputes', label: 'Disputes', icon: '⚖️' },
   { href: '/capabilities', label: 'My Capabilities', icon: '🎓' },
   { href: '/status', label: 'Status & Plan', icon: '⭐' },

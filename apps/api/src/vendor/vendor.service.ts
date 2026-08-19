@@ -21,6 +21,10 @@ import { UploadsService } from '../uploads/uploads.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { emailEquals } from '../common/utils/email.util';
 import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.utils';
+import { PricingService } from '../pricing/pricing.service';
+import { MarketplaceService } from '../marketplace/marketplace.service';
+import { ServiceGroup, SERVICE_GROUP_META } from '../common/enums/service-group.enum';
+import { calcAssessmentVendorCost } from '../common/utils/property-surcharge.utils';
 
 const CAPABILITY_SEED: {
   name: string;
@@ -84,6 +88,8 @@ export class VendorService implements OnModuleInit {
     private authService: AuthService,
     private uploadsService: UploadsService,
     private notificationsService: NotificationsService,
+    private pricingService: PricingService,
+    private marketplaceService: MarketplaceService,
     private dataSource: DataSource,
   ) {}
 
@@ -494,6 +500,135 @@ export class VendorService implements OnModuleInit {
     if (existing) return existing;
 
     return this.acknowledgmentRepo.save(this.acknowledgmentRepo.create({ userId, capabilityId }));
+  }
+
+  // ── My Rates (vendor-facing compensation reference) ─────────────────────────
+  // Never surfaces customer prices, gmPercent, or the platform-fee percentage —
+  // only the vendor-side numbers admin has configured. Formula-heavy items
+  // (dynamic GM% brackets, the platform-fee-split payout, per-customer
+  // characteristic surcharges) are deliberately reduced to plain-language
+  // base/range figures rather than shown as computed formulas.
+
+  private formatLinearRate(base: number, perUnit: number, includedQty: number, unit: string): { shapeTag: string; rateText: string } {
+    if (!perUnit) return { shapeTag: 'Flat Rate', rateText: `$${base.toFixed(2)} flat` };
+    if (includedQty > 0) {
+      const plural = includedQty !== 1 ? 's' : '';
+      return { shapeTag: 'Tiered', rateText: `$${base.toFixed(2)} for the first ${includedQty} ${unit}${plural}, then $${perUnit.toFixed(2)} per additional ${unit}` };
+    }
+    return { shapeTag: 'Tiered', rateText: `$${base.toFixed(2)} base, plus $${perUnit.toFixed(2)} per ${unit}` };
+  }
+
+  // Package-style entries (Lawncare/Pest/Template) never carry their own
+  // vendor rate — compensation decomposes to whichever underlying services
+  // apply to the actual work order, so every package gets the same
+  // compensation line, only the included-services list changes.
+  private readonly PACKAGE_COMPENSATION_TEXT = 'Based on applicable contracted service rates';
+
+  private resolveLawncareLikeItem(svc: { subCostBase: number; subCostPerUnit: number; includedQty: number; pricingUnit: string }) {
+    return this.formatLinearRate(Number(svc.subCostBase), Number(svc.subCostPerUnit), Number(svc.includedQty || 0), svc.pricingUnit || 'unit');
+  }
+
+  async getRates(userId: string) {
+    const teamIds = await this.usersService.getVendorTeamIds(userId);
+    const selections = await this.selectionRepo.find({ where: { userId: In(teamIds) } });
+    const unlockedCapabilityIds = new Set(selections.map((s) => s.capabilityId));
+
+    // ── Plain catalog (Inspect/Repair/Improve/Maintain) ──────────────────────
+    const catalogItems = await this.pricingService.getAll(false);
+    const catalogGroups = [ServiceGroup.INSPECT, ServiceGroup.REPAIR, ServiceGroup.IMPROVE, ServiceGroup.MAINTAIN]
+      .map((group) => {
+        const items = catalogItems
+          .filter((item) => item.serviceGroups?.includes(group))
+          .filter((item) => !item.requiredCapabilityId || unlockedCapabilityIds.has(item.requiredCapabilityId))
+          .map((item) => {
+            if (item.useCharacteristicPricing) {
+              // calcAssessmentVendorCost is per-customer-home (a formula) — rather
+              // than show that formula, compute its two boundaries (no surcharge /
+              // fully-saturated surcharge) once and show the resulting range.
+              const zero = { squareFootage: 0, hvacCount: 0, waterHeaterCount: 0, bathroomCount: 0, kitchenCount: 0, hasDetachedGarage: false };
+              const max = { squareFootage: 999999, hvacCount: 999, waterHeaterCount: 999, bathroomCount: 999, kitchenCount: 2, hasDetachedGarage: true };
+              const base = calcAssessmentVendorCost(zero);
+              const ceiling = calcAssessmentVendorCost(max);
+              return { id: item.id, name: item.name, shapeTag: 'Flat + Surcharge', rateText: `$${base.toFixed(2)} flat, up to $${ceiling.toFixed(2)} for larger properties` };
+            }
+            if (item.requiresQuote) {
+              return { id: item.id, name: item.name, shapeTag: 'Quoted', rateText: 'Request a Quote' };
+            }
+            return { id: item.id, name: item.name, shapeTag: item.pricingMethod === 'PER_UNIT' ? 'Tiered' : 'Flat Rate', rateText: item.priceDisplay };
+          });
+        return { group, label: SERVICE_GROUP_META[group].label, items };
+      })
+      .filter((g) => g.items.length > 0);
+
+    // ── Lawn Care ─────────────────────────────────────────────────────────────
+    const { services: lawncareServices, packages: lawncarePackages } = await this.marketplaceService.getLawncareConfig(false);
+    const lawncareByKey = new Map(lawncareServices.map((s) => [s.key, s]));
+    const lawnMowing = lawncareByKey.get('lawn_mowing');
+    const lawncare = lawncareServices.length === 0 ? null : {
+      packages: lawncarePackages.map((pkg) => ({
+        id: pkg.id,
+        label: pkg.label,
+        includedServiceLabels: pkg.composition.map((c) => lawncareByKey.get(c.serviceKey)?.label).filter((l): l is string => !!l),
+        compensationText: this.PACKAGE_COMPENSATION_TEXT,
+      })),
+      mowingTiers: lawnMowing?.sizeTiers?.map((t) => ({
+        label: t.label,
+        vendorRateText: t.requiresQuote || t.vendorBase == null ? 'Custom Quote' : `$${Number(t.vendorBase).toFixed(2)}`,
+        adderText: t.requiresQuote || t.vendorAddlRate == null ? '—' : `$${Number(t.vendorAddlRate).toFixed(2)}`,
+      })) ?? null,
+      services: lawncareServices
+        .filter((s) => s.key !== 'lawn_mowing')
+        .map((s) => ({ id: s.id, name: s.label, ...this.resolveLawncareLikeItem(s) })),
+    };
+
+    // ── Pest Control ──────────────────────────────────────────────────────────
+    const { services: pestServices, packages: pestPackages } = await this.marketplaceService.getPestConfig(false);
+    const pestByKey = new Map(pestServices.map((s) => [s.key, s]));
+    const pest = pestServices.length === 0 ? null : {
+      packages: pestPackages.map((pkg) => ({
+        id: pkg.id,
+        label: pkg.label,
+        includedServiceLabels: pkg.composition.map((c) => pestByKey.get(c.serviceKey)?.label).filter((l): l is string => !!l),
+        compensationText: this.PACKAGE_COMPENSATION_TEXT,
+      })),
+      services: pestServices.map((s) => ({ id: s.id, name: s.label, ...this.resolveLawncareLikeItem(s) })),
+    };
+
+    // ── House Cleaning ────────────────────────────────────────────────────────
+    const { plans: cleaningPlans } = await this.marketplaceService.getConfig(false);
+    const houseCleaning = cleaningPlans.length === 0 ? null : {
+      plans: cleaningPlans.map((p) => ({
+        id: p.id,
+        name: `${p.cleaningType.charAt(0)}${p.cleaningType.slice(1).toLowerCase()} Cleaning`,
+        shapeTag: 'Per Unit',
+        rateText: `$${Number(p.costPerUnit).toFixed(2)} per room-unit`,
+      })),
+    };
+
+    // ── Dynamic Offer Templates (admin-created verticals beyond the three above) ──
+    const offerTemplates = await this.marketplaceService.getOfferTemplates(false);
+    const templates = [];
+    for (const tpl of offerTemplates) {
+      if (tpl.requiredCapabilityId && !unlockedCapabilityIds.has(tpl.requiredCapabilityId)) continue;
+      const { packages, services } = await this.marketplaceService.getOfferTemplateConfig(tpl.id, false);
+      if (services.length === 0) continue;
+      const svcByKey = new Map(services.map((s) => [s.key, s]));
+      templates.push({
+        id: tpl.id,
+        name: tpl.name,
+        packages: packages.map((pkg) => ({
+          id: pkg.id,
+          label: pkg.name,
+          includedServiceLabels: services.filter((s) => s.packageIds?.includes(pkg.id)).map((s) => s.label),
+          compensationText: this.PACKAGE_COMPENSATION_TEXT,
+        })),
+        services: services
+          .filter((s) => !svcByKey.get(s.key)?.packageIds?.length) // à la carte only — package-only services are represented via their package's included list above
+          .map((s) => ({ id: s.id, name: s.label, ...this.resolveLawncareLikeItem(s) })),
+      });
+    }
+
+    return { catalogGroups, lawncare, pest, houseCleaning, templates };
   }
 
   // Company-admin-only (enforced at the controller via @VendorAdminOnly()) — shows every

@@ -159,6 +159,12 @@ export class VendorController {
     return this.service.getMyCapabilities(req.user.id);
   }
 
+  @Get('rates')
+  @ApiOperation({ summary: "My company's contracted compensation rates, grouped by service" })
+  getRates(@Request() req) {
+    return this.service.getRates(req.user.id);
+  }
+
   @Patch('me/capabilities')
   @ApiOperation({ summary: 'Set my own selected capabilities' })
   setMyCapabilities(@Request() req, @Body() body: SetCapabilitiesDto) {

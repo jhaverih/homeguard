@@ -28,6 +28,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-08-18
 
+### Added
+- **api/vendor**: New "My Rates" page in the Vendor Portal — each vendor company's own contracted compensation rates, grouped by service group (Inspect/Repair/Improve/Maintain) and by vertical (Lawn Care, Pest Control, House Cleaning, plus any admin-created Offer Template), with a confidentiality note up top. Never shows customer prices, `gmPercent`, or the platform-fee percentage — only vendor-side figures already configured in the Admin Portal (`ServicePrice.basePrice`/tiered fields, `MarketplaceLawncareService`/`MarketplacePestService`/`MarketplaceTemplateService`'s `subCostBase`/`subCostPerUnit`, `MarketplaceLawncareService.sizeTiers` for Lawn Mowing's size-tier table, `MarketplaceCleaningPlan.costPerUnit`). Formula-driven figures (the dynamic GM% brackets, the platform-fee-split job payout, the Preventative Home Assessment's per-home surcharge) are reduced to plain-language base/range text instead of shown as computed formulas, matching the reviewed mockup. New `GET /vendor/rates` endpoint, scoped to the caller's team (`UsersService.getVendorTeamIds`) and filtered by their selected `VendorCapability`s the same way job-matching eligibility already works.
+
 ### Fixed
 - **mobile**: Monitoring tab's icon was an unrelated "pulse" glyph — swapped for the 2x2-grid icon the dashboard mockup actually uses for that tab.
 

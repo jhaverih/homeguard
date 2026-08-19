@@ -77,6 +77,7 @@ export const vendorApi = {
   updateCertification: (id: string, data: any) => api.patch(`/vendor/me/certifications/${id}`, data).then((r) => r.data),
   getApplication: () => api.get('/vendor/application').then((r) => r.data),
   submitApplication: (data: any) => api.post('/vendor/application', data).then((r) => r.data),
+  getRates: () => api.get('/vendor/rates').then((r) => r.data),
 };
 
 export const userApi = {

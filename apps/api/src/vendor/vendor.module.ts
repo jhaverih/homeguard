@@ -11,6 +11,8 @@ import { UsersModule } from '../users/users.module';
 import { AuthModule } from '../auth/auth.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PricingModule } from '../pricing/pricing.module';
+import { MarketplaceModule } from '../marketplace/marketplace.module';
 import { VendorCompany } from './entities/vendor-company.entity';
 import { VendorCapability } from './entities/vendor-capability.entity';
 import { VendorCapabilitySelection } from './entities/vendor-capability-selection.entity';
@@ -29,6 +31,8 @@ import { VendorController } from './vendor.controller';
     AuthModule,
     UploadsModule,
     NotificationsModule,
+    PricingModule,
+    MarketplaceModule,
   ],
   providers: [VendorService],
   controllers: [VendorController],
