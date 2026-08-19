@@ -104,7 +104,9 @@ export default function CustomerLayout() {
         options={{
           title: 'Monitoring',
           header: () => <MonitoringHeader />,
-          tabBarIcon: ({ color }) => <Ionicons name="pulse" size={22} color={color} />,
+          // Matches the dashboard mockup's own icon for this tab — a 2x2
+          // grid of rounded squares — rather than an unrelated glyph.
+          tabBarIcon: ({ color }) => <Ionicons name="grid" size={22} color={color} />,
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: '#dc2626', color: '#fff', fontSize: 10 },
         }}

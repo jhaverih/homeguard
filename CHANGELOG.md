@@ -26,6 +26,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ### Fixed
 - **api**: The Alert/Info reclassification above only changed how *new* alerts are scored — existing rows created before that change still carried their old severity, so already-created alerts kept showing "Info". Added a one-time startup backfill (`YolinkService.backfillAlertSeverity`) that re-derives severity for existing THSensor/LeakSensor alerts from their already-stored raw payload, using the same resolver new alerts use. Idempotent, runs every boot, no-ops once everything matches.
 
+## 2026-08-18
+
+### Fixed
+- **mobile**: Monitoring tab's icon was an unrelated "pulse" glyph — swapped for the 2x2-grid icon the dashboard mockup actually uses for that tab.
+
 ## 2026-08-16
 
 ### Added
