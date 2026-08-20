@@ -16,6 +16,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ### Fixed
 - **api**: `Home Sensors`/HVAC Analytics connectivity status was computed purely from `lastReportedAt` age vs. a fixed 2-hour window — confirmed live against a tagged HVAC drain-pan sensor that this produced false "disconnected" readings (and a repeating false `Device.Disconnected` alert every ~30-90 min, fired 5 times in one day) for a sensor Yolink's own cloud still reports as genuinely online; some sensor types (e.g. a LeakSensor sitting in normal/dry state) legitimately go 3+ hours between MQTT reports without being disconnected. New `YolinkDevice.isOnline` column captures Yolink's own connectivity flag directly (from `<deviceType>.getState`, refreshed every Monitoring-tab load) and is now authoritative over report-age staleness for both the customer-facing streaming dot and the disconnect-alert cron — the age heuristic only applies as a fallback for a device never yet checked via `getState`.
+- **api**: The Monitoring tab's Home Sensors grid could reorder itself between refreshes — the device query had no `ORDER BY`, so Postgres didn't guarantee row order, and every refresh re-saves each device row (touching `updatedAt`), which was visibly reshuffling the tile grid. Now explicitly ordered by `createdAt`, which never changes for a given device, so the tile order stays fixed.
 
 ## 2026-08-17
 

@@ -406,7 +406,12 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     const results: { id: string; deviceType: string; name: string; isStreaming: boolean; lastReportedAt: Date | null; reading: string | null }[] = [];
     for (const home of homes) {
       await this.refreshDeviceStates(home.id).catch(() => {});
-      const devices = await this.devicesRepo.find({ where: { yolinkHomeId: home.id } });
+      // Explicit stable order — without it, Postgres doesn't guarantee row
+      // order, and refreshDeviceStates re-saves every device row on each
+      // call (touching updatedAt), which was visibly reshuffling the tile
+      // grid between Monitoring-tab refreshes. createdAt never changes for
+      // a given device, so this always returns the same order.
+      const devices = await this.devicesRepo.find({ where: { yolinkHomeId: home.id }, order: { createdAt: 'ASC' } });
       for (const dev of devices) {
         if (!MONITORED_DEVICE_TYPES.includes(dev.deviceType)) continue;
         // isOnline (Yolink's own live connectivity flag) is authoritative
