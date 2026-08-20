@@ -24,6 +24,16 @@ export class YolinkDevice {
   // that does.
   @Column({ nullable: true }) yolinkToken: string | null;
   @Column({ type: 'timestamp', nullable: true }) lastReportedAt: Date | null;
+  // Yolink's own connectivity flag (from <deviceType>.getState, refreshed on
+  // every Monitoring-tab load) — authoritative over lastReportedAt's staleness
+  // for "is this device actually connected". Confirmed live 2026-08-20: a
+  // LeakSensor sitting in normal/dry state can genuinely go 3+ hours between
+  // MQTT reports while Yolink's cloud still reports it online — using report
+  // age alone as the streaming signal produced false "disconnected" alerts
+  // every ~30-90 min for a perfectly healthy sensor. Null until the first
+  // successful getState call (e.g. a device only ever seen via MQTT, never
+  // REST-refreshed yet).
+  @Column({ nullable: true }) isOnline: boolean | null;
   @Column({ type: 'jsonb', nullable: true }) lastState: Record<string, any> | null;
   // Set when the scheduled disconnect check (YolinkService.checkDisconnectedSensors)
   // has already raised a "Sensor disconnected" alert for the device's current

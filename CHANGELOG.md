@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-20
+
+### Fixed
+- **api**: `Home Sensors`/HVAC Analytics connectivity status was computed purely from `lastReportedAt` age vs. a fixed 2-hour window — confirmed live against a tagged HVAC drain-pan sensor that this produced false "disconnected" readings (and a repeating false `Device.Disconnected` alert every ~30-90 min, fired 5 times in one day) for a sensor Yolink's own cloud still reports as genuinely online; some sensor types (e.g. a LeakSensor sitting in normal/dry state) legitimately go 3+ hours between MQTT reports without being disconnected. New `YolinkDevice.isOnline` column captures Yolink's own connectivity flag directly (from `<deviceType>.getState`, refreshed every Monitoring-tab load) and is now authoritative over report-age staleness for both the customer-facing streaming dot and the disconnect-alert cron — the age heuristic only applies as a fallback for a device never yet checked via `getState`.
+
 ## 2026-08-17
 
 ### Added

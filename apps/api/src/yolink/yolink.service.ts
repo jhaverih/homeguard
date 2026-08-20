@@ -362,6 +362,10 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       if (!dev.yolinkToken) continue; // not yet seen in a Home.getDeviceList response with a token
       try {
         const state = await this.yolinkDeviceRequest(home, `${dev.deviceType}.getState`, dev.deviceId, dev.yolinkToken);
+        // Recorded unconditionally (true or false) — this is the
+        // authoritative connectivity signal, separate from lastReportedAt's
+        // own staleness (see isOnline's doc comment on the entity).
+        if (typeof state?.online === 'boolean') dev.isOnline = state.online;
         if (state?.online === true) {
           dev.lastReportedAt = state.reportAt ? new Date(state.reportAt) : new Date();
           dev.disconnectAlertedAt = null;
@@ -405,7 +409,14 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       const devices = await this.devicesRepo.find({ where: { yolinkHomeId: home.id } });
       for (const dev of devices) {
         if (!MONITORED_DEVICE_TYPES.includes(dev.deviceType)) continue;
-        const isStreaming = !!dev.lastReportedAt && Date.now() - new Date(dev.lastReportedAt).getTime() < STREAMING_WINDOW_MS;
+        // isOnline (Yolink's own live connectivity flag) is authoritative
+        // when known; the report-age heuristic is only a fallback for a
+        // device that's never been through a getState call yet (no token,
+        // or MQTT-only so far) — see the entity's isOnline doc comment for
+        // why age-of-last-report alone is unreliable.
+        const isStreaming = dev.isOnline != null
+          ? dev.isOnline
+          : !!dev.lastReportedAt && Date.now() - new Date(dev.lastReportedAt).getTime() < STREAMING_WINDOW_MS;
         results.push({
           id: dev.id,
           deviceType: dev.deviceType,
@@ -431,6 +442,11 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       where: { deviceType: In(MONITORED_DEVICE_TYPES), lastReportedAt: LessThan(cutoff), disconnectAlertedAt: IsNull() },
     });
     for (const dev of staleDevices) {
+      // Yolink's own isOnline flag (refreshed via getState on Monitoring-tab
+      // loads) overrides report-age staleness — confirmed 2026-08-20 this
+      // was firing a false "disconnected" alert every ~30-90 min for a
+      // LeakSensor that Yolink itself still reports as online, just quiet.
+      if (dev.isOnline === true) continue;
       const home = await this.homesRepo.findOne({ where: { id: dev.yolinkHomeId, isActive: true } });
       if (!home) continue;
       await this.alertsService.createAlert({
