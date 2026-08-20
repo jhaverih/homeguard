@@ -219,6 +219,22 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     return res.data.data;
   }
 
+  // Per-device live-state query (e.g. "LeakSensor.getState", "THSensor.getState")
+  // — a different request shape than yolinkRequest's home-level RPCs: the
+  // device's own `token` (from Home.getDeviceList) and `targetDevice` go at
+  // the request's top level, not nested under `params`. Confirmed against a
+  // live account 2026-08-19 — returns `{ online, reportAt, state: {...} }`,
+  // the only source of genuine connectivity/live-reading data Yolink's API
+  // offers; Home.getDeviceList itself never carries any of this.
+  private async yolinkDeviceRequest(home: Pick<YolinkHome, 'id' | 'yolinkUAID' | 'yolinkSecretKey'>, method: string, deviceId: string, deviceToken: string): Promise<any> {
+    const accessToken = await this.getAccessToken(home);
+    const res = await axios.post<any>(YOLINK_API_URL, { method, targetDevice: deviceId, token: deviceToken }, {
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    });
+    if (res.data.code !== '000000') throw new Error(`Yolink API error: ${res.data.desc}`);
+    return res.data.data;
+  }
+
   // ── Device name cache (per home) ─────────────────────────────────────────────
 
   private cacheDeviceNames(homeId: string, devices: any[]): void {
@@ -256,6 +272,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       if (existing) {
         existing.name = dev.name ?? existing.name;
         existing.deviceType = dev.type ?? existing.deviceType;
+        if (dev.token) existing.yolinkToken = dev.token;
         await this.devicesRepo.save(existing);
       } else {
         await this.devicesRepo.save(this.devicesRepo.create({
@@ -263,6 +280,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
           deviceId: dev.deviceId,
           deviceType: dev.type ?? 'Unknown',
           name: dev.name ?? dev.deviceId,
+          yolinkToken: dev.token ?? null,
         }));
       }
     }
@@ -310,35 +328,44 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     return null;
   }
 
-  // Best-effort REST reseed, called once per linked home when the customer's
-  // Monitoring tab loads (and on pull-to-refresh) — so a freshly-linked or
+  // REST reseed, called once per linked home when the customer's Monitoring
+  // tab loads (and on pull-to-refresh) — so a freshly-linked or
   // infrequently-reporting device shows real state immediately instead of
-  // waiting on the next MQTT report. The exact shape of Yolink's device-list
-  // `state`/`online` fields isn't confirmed from a real payload yet — this
-  // folds in whatever's present defensively and never regresses a more
-  // recent MQTT-driven lastReportedAt.
+  // waiting on the next MQTT report. Two steps: (1) refresh the catalog from
+  // Home.getDeviceList (metadata only — confirmed 2026-08-19 it carries no
+  // state/online field at all, despite this method's own name), then (2)
+  // actively query live state per monitored device via <type>.getState —
+  // the real source of connectivity data. This is the only way to confirm a
+  // device is genuinely connected without waiting for it to spontaneously
+  // publish an MQTT report — some device types (e.g. a LeakSensor sitting in
+  // normal/dry state) may go a long time between reports on their own, even
+  // though Yolink's cloud already knows they're online. Applies identically
+  // to every monitored device type, not just one.
   async refreshDeviceStates(yolinkHomeDbId: string): Promise<void> {
     const home = await this.homesRepo.findOne({ where: { id: yolinkHomeDbId, isActive: true } });
     if (!home?.yolinkHomeId) return;
     try {
       const deviceData = await this.yolinkRequest(home, 'Home.getDeviceList', { homeId: home.yolinkHomeId });
-      const devices = deviceData?.devices ?? [];
-      await this.upsertDeviceCatalog(home.id, devices);
-      for (const dev of devices) {
-        if (!dev?.deviceId || (dev.state === undefined && dev.online === undefined)) continue;
-        const existing = await this.devicesRepo.findOne({ where: { yolinkHomeId: home.id, deviceId: dev.deviceId } });
-        if (!existing) continue;
-        if (dev.state !== undefined) {
-          existing.lastState = { ...(existing.lastState ?? {}), ...(typeof dev.state === 'object' ? dev.state : { state: dev.state }) };
-        }
-        if (dev.online === true) {
-          existing.lastReportedAt = new Date();
-          existing.disconnectAlertedAt = null;
-        }
-        await this.devicesRepo.save(existing);
-      }
+      await this.upsertDeviceCatalog(home.id, deviceData?.devices ?? []);
     } catch (err: any) {
-      this.logger.warn(`Could not refresh Yolink device states for home ${home.id}: ${err.message}`);
+      this.logger.warn(`Could not refresh Yolink device catalog for home ${home.id}: ${err.message}`);
+      return;
+    }
+
+    const monitored = await this.devicesRepo.find({ where: { yolinkHomeId: home.id, deviceType: In(MONITORED_DEVICE_TYPES) } });
+    for (const dev of monitored) {
+      if (!dev.yolinkToken) continue; // not yet seen in a Home.getDeviceList response with a token
+      try {
+        const state = await this.yolinkDeviceRequest(home, `${dev.deviceType}.getState`, dev.deviceId, dev.yolinkToken);
+        if (state?.online === true) {
+          dev.lastReportedAt = state.reportAt ? new Date(state.reportAt) : new Date();
+          dev.disconnectAlertedAt = null;
+        }
+        if (state?.state) dev.lastState = state.state;
+        await this.devicesRepo.save(dev);
+      } catch (err: any) {
+        this.logger.warn(`Could not query live state for Yolink device ${dev.deviceId}: ${err.message}`);
+      }
     }
   }
 

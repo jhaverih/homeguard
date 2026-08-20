@@ -15,6 +15,13 @@ export class YolinkDevice {
   @Column() deviceId: string;
   @Column() deviceType: string;
   @Column() name: string;
+  // Per-device auth token Yolink issues alongside Home.getDeviceList's own
+  // metadata — required (as `token`, alongside `targetDevice`) to call the
+  // real per-device live-state query, `<deviceType>.getState`. Confirmed
+  // 2026-08-19 against a live account: Home.getDeviceList itself carries no
+  // state/online/battery fields at all, only this token to unlock the call
+  // that does.
+  @Column({ nullable: true }) yolinkToken: string | null;
   @Column({ type: 'timestamp', nullable: true }) lastReportedAt: Date | null;
   @Column({ type: 'jsonb', nullable: true }) lastState: Record<string, any> | null;
   // Set when the scheduled disconnect check (YolinkService.checkDisconnectedSensors)
