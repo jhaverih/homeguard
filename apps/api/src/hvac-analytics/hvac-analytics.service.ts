@@ -146,15 +146,34 @@ export class HvacAnalyticsService implements OnModuleInit {
 
   async evaluateIndoorTempEvent(device: YolinkDevice, home: YolinkHome, alarm: { lowTemp?: boolean; highTemp?: boolean } | undefined, tempF: number | null): Promise<void> {
     if (device.sensorRole !== SensorRole.AMBIENT_TEMP) return;
-    if (!alarm?.lowTemp && !alarm?.highTemp) return;
+    const active = await this.findingsRepo.findOne({
+      where: { yolinkDeviceId: device.id, ruleId: 'INDOOR-TEMP-001', status: FindingStatus.ACTIVE },
+      order: { detectedAt: 'DESC' },
+    });
+    if (!alarm?.lowTemp && !alarm?.highTemp) {
+      if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
+      return;
+    }
+    if (active) return; // already firing — don't re-alert on every report while the condition persists
+
     const kind = alarm.lowTemp ? 'low' : 'high';
-    await this.findingsRepo.save(this.findingsRepo.create({
+    const message = `${device.name}: ${kind === 'low' ? 'Low' : 'High'} indoor temperature detected${tempF != null ? ` (${tempF}°F)` : ''}`;
+    const finding = await this.findingsRepo.save(this.findingsRepo.create({
       customerId: home.customerId, yolinkHomeId: home.id, equipmentId: device.equipmentId, yolinkDeviceId: device.id,
       ruleId: 'INDOOR-TEMP-001', eventType: `indoor_temp_${kind}`, severity: FindingSeverity.WATCH, confidence: FindingConfidence.HIGH,
-      message: `${device.name}: ${kind === 'low' ? 'Low' : 'High'} indoor temperature detected${tempF != null ? ` (${tempF}°F)` : ''}`,
-      measurements: { temperature: tempF }, reasonCodes: [kind === 'low' ? 'LOW_INDOOR_TEMP' : 'HIGH_INDOOR_TEMP'], recommendedActions: [],
+      message, measurements: { temperature: tempF }, reasonCodes: [kind === 'low' ? 'LOW_INDOOR_TEMP' : 'HIGH_INDOOR_TEMP'], recommendedActions: [],
       detectedAt: new Date(),
     }));
+
+    // Analytics now owns the customer-visible alert for this device/event
+    // too (not just water) — the caller (YolinkService) skips its own
+    // legacy EVENT_CONFIG-driven alert once this returns a handled event.
+    const alert = await this.alertsService.createAlert({
+      customerId: home.customerId, yolinkHomeId: home.id, deviceId: device.deviceId, deviceName: device.name, deviceType: device.deviceType,
+      event: 'INDOOR-TEMP-001', severity: AlertSeverity.MEDIUM, message, rawPayload: { findingId: finding.id },
+    });
+    finding.linkedAlertId = alert.id;
+    await this.findingsRepo.save(finding);
   }
 
   // ── HVAC-SENSOR-002 (low battery) ────────────────────────────────────────
@@ -204,6 +223,19 @@ export class HvacAnalyticsService implements OnModuleInit {
     if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
   }
 
+  // HVAC Analytics' domain — the HVAC unit itself (equipmentId HVAC-01, e.g.
+  // its own condensate drain pan) plus whole-home indoor temperature (tied
+  // to HVAC analytics regardless of which room it's tagged to). A
+  // DRAIN_WATER sensor tagged to different equipment (e.g. a washing
+  // machine's own leak pan, equipmentId WASHER-01) is real, valuable
+  // monitoring — just not HVAC, so it's excluded from this page's coverage/
+  // findings entirely. Mirrors YolinkService's identical check (kept local
+  // rather than shared, matching this codebase's convention for small
+  // cross-module logic — see e.g. calcTieredCost).
+  private isHvacAnalyticsRelevant(device: YolinkDevice): boolean {
+    return device.sensorRole === SensorRole.AMBIENT_TEMP || device.equipmentId === 'HVAC-01';
+  }
+
   // ── Customer-facing summary (tier-gated) ─────────────────────────────────
 
   private async getTaggedDevicesForCustomer(customerId: string): Promise<{ home: YolinkHome; devices: YolinkDevice[] }[]> {
@@ -223,15 +255,16 @@ export class HvacAnalyticsService implements OnModuleInit {
 
     const homeDevices = await this.getTaggedDevicesForCustomer(customerId);
     const allDevices = homeDevices.flatMap((h) => h.devices);
-    const taggedDevices = allDevices.filter((d) => d.sensorRole);
-    const visibleTaggedDevices = isProactivePlus ? taggedDevices : taggedDevices.filter((d) => CAREPLUS_SENSOR_ROLES.has(d.sensorRole!));
+    const hvacDevices = allDevices.filter((d) => d.sensorRole && this.isHvacAnalyticsRelevant(d));
+    const visibleTaggedDevices = isProactivePlus ? hvacDevices : hvacDevices.filter((d) => CAREPLUS_SENSOR_ROLES.has(d.sensorRole!));
     const taggedRoleSet = new Set(visibleTaggedDevices.map((d) => d.sensorRole!));
+    const visibleDeviceIds = new Set(visibleTaggedDevices.map((d) => d.id));
 
     const allFindings = allDevices.length
       ? await this.findingsRepo.find({ where: { customerId, status: FindingStatus.ACTIVE }, order: { detectedAt: 'DESC' } })
       : [];
     const allowedRuleIds = new Set(RULE_CATALOG.filter((r) => isProactivePlus || r.careplusEligible).map((r) => r.id));
-    const visibleFindings = allFindings.filter((f) => allowedRuleIds.has(f.ruleId));
+    const visibleFindings = allFindings.filter((f) => allowedRuleIds.has(f.ruleId) && f.yolinkDeviceId && visibleDeviceIds.has(f.yolinkDeviceId));
 
     const coverageRoles: SensorRole[] = isProactivePlus
       ? [SensorRole.AMBIENT_TEMP, SensorRole.DRAIN_WATER, SensorRole.RETURN_TEMP, SensorRole.SUPPLY_TEMP]
@@ -301,10 +334,12 @@ export class HvacAnalyticsService implements OnModuleInit {
   async getAdminAnalytics(customerId: string) {
     const homeDevices = await this.getTaggedDevicesForCustomer(customerId);
     const allDevices = homeDevices.flatMap((h) => h.devices);
-    const taggedDevices = allDevices.filter((d) => d.sensorRole);
+    const taggedDevices = allDevices.filter((d) => d.sensorRole && this.isHvacAnalyticsRelevant(d));
     const taggedRoleSet = new Set(taggedDevices.map((d) => d.sensorRole!));
+    const taggedDeviceIds = new Set(taggedDevices.map((d) => d.id));
 
-    const findings = await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'DESC' }, take: 50 });
+    const allFindings = await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'DESC' }, take: 50 });
+    const findings = allFindings.filter((f) => f.yolinkDeviceId && taggedDeviceIds.has(f.yolinkDeviceId));
 
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const deviceIds = taggedDevices.map((d) => d.id);

@@ -369,6 +369,11 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
         if (state?.online === true) {
           dev.lastReportedAt = state.reportAt ? new Date(state.reportAt) : new Date();
           dev.disconnectAlertedAt = null;
+          // A water/leak sensor may never send its own MQTT report while
+          // dry (the only other trigger for clearSensorOfflineFinding), so
+          // this REST-confirmed "online" is often the only signal that ever
+          // resolves a stale HVAC-SENSOR-001 finding for that sensor role.
+          if (dev.sensorRole) await this.hvacAnalyticsService.clearSensorOfflineFinding(dev).catch(() => {});
         }
         if (state?.state) dev.lastState = state.state;
         await this.devicesRepo.save(dev);
@@ -452,6 +457,13 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       // was firing a false "disconnected" alert every ~30-90 min for a
       // LeakSensor that Yolink itself still reports as online, just quiet.
       if (dev.isOnline === true) continue;
+      // A water/leak sensor only transmits on a state change or alarm, not
+      // periodically — going hours without a report while dry is normal and
+      // expected, not a sign of trouble. Report age alone is the wrong
+      // signal for this sensor role; only flag it once Yolink's own
+      // getState has explicitly confirmed it's NOT online (isOnline===false).
+      // Confirmed live 2026-08-20 against the HVAC condensate sensor.
+      if (dev.sensorRole === SensorRole.DRAIN_WATER && dev.isOnline !== false) continue;
       const home = await this.homesRepo.findOne({ where: { id: dev.yolinkHomeId, isActive: true } });
       if (!home) continue;
       await this.alertsService.createAlert({
@@ -466,7 +478,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       });
       dev.disconnectAlertedAt = new Date();
       await this.devicesRepo.save(dev);
-      if (dev.sensorRole) {
+      if (dev.sensorRole && this.isHvacAnalyticsRelevant(dev)) {
         await this.hvacAnalyticsService.evaluateSensorOffline(dev, home).catch((e) => this.logger.warn(`HVAC-SENSOR-001 evaluation failed for ${dev.deviceId}: ${e.message}`));
       }
     }
@@ -581,10 +593,30 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Could not update live device state for home ${home.id}: ${e.message}`);
       return null;
     });
-    await this.evaluateHvacAnalytics(device, home, payload).catch((e) =>
-      this.logger.warn(`HVAC analytics evaluation failed for home ${home.id}: ${e.message}`),
-    );
-    await this.dispatchAlert(home, payload, device);
+    const handledByAnalytics = await this.evaluateHvacAnalytics(device, home, payload).catch((e) => {
+      this.logger.warn(`HVAC analytics evaluation failed for home ${home.id}: ${e.message}`);
+      return false;
+    });
+    // Once analytics owns a device's alerting (water leak, indoor temp),
+    // dispatchAlert's EVENT_CONFIG path is skipped entirely for that event —
+    // confirmed live 2026-08-20 both paths were firing independently,
+    // producing two separate customer-facing alerts for the same leak event.
+    if (!handledByAnalytics) {
+      await this.dispatchAlert(home, payload, device);
+    }
+  }
+
+  // HVAC Analytics' domain — the HVAC unit itself (equipmentId HVAC-01, e.g.
+  // its own condensate drain pan) plus whole-home indoor temperature (the
+  // spec ties this to HVAC analytics regardless of which room it's tagged
+  // to). A DRAIN_WATER sensor tagged to different equipment (e.g. a washing
+  // machine's own leak pan, equipmentId WASHER-01) is real, valuable
+  // monitoring — just not an HVAC finding, so it keeps using the existing
+  // generic Yolink alert pipeline unchanged. Confirmed live 2026-08-20: the
+  // washer's leak was being mislabeled as an "HVAC-WATER-001" finding before
+  // this check existed.
+  private isHvacAnalyticsRelevant(device: YolinkDevice): boolean {
+    return device.sensorRole === SensorRole.AMBIENT_TEMP || device.equipmentId === 'HVAC-01';
   }
 
   // Runs the real-time slice of HVAC analytics (water/indoor-temp findings +
@@ -592,24 +624,34 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
   // device — deliberately independent of dispatchAlert's EVENT_CONFIG gate
   // below, so a routine "Report" event (not in EVENT_CONFIG at all) still
   // feeds the analytics pipeline the same way it already feeds
-  // upsertDeviceState's live-status tracking.
-  private async evaluateHvacAnalytics(device: YolinkDevice | null, home: YolinkHome, payload: any): Promise<void> {
-    if (!device?.sensorRole) return;
-    await this.hvacAnalyticsService.clearSensorOfflineFinding(device);
+  // upsertDeviceState's live-status tracking. Returns true once analytics
+  // has fully taken over alerting for this device+event, so the caller can
+  // skip the legacy path instead of double-alerting.
+  private async evaluateHvacAnalytics(device: YolinkDevice | null, home: YolinkHome, payload: any): Promise<boolean> {
+    if (!device?.sensorRole) return false;
+    const relevant = this.isHvacAnalyticsRelevant(device);
+    if (relevant) await this.hvacAnalyticsService.clearSensorOfflineFinding(device);
     const data = payload?.data;
+    let handled = false;
+
     if (device.sensorRole === SensorRole.DRAIN_WATER) {
-      const leakDetected = data?.state === 'alert' || data?.leak === true;
-      await this.hvacAnalyticsService.evaluateWaterEvent(device, home, leakDetected);
       await this.hvacAnalyticsService.recordReading(device, null, data ?? null);
+      if (relevant) {
+        const leakDetected = data?.state === 'alert' || data?.leak === true;
+        await this.hvacAnalyticsService.evaluateWaterEvent(device, home, leakDetected);
+        handled = true;
+      }
     } else if (device.sensorRole === SensorRole.AMBIENT_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
-      await this.hvacAnalyticsService.evaluateIndoorTempEvent(device, home, data?.alarm, tempF);
       await this.hvacAnalyticsService.recordReading(device, tempF, data ?? null);
+      await this.hvacAnalyticsService.evaluateIndoorTempEvent(device, home, data?.alarm, tempF);
+      handled = true;
     } else if (device.sensorRole === SensorRole.RETURN_TEMP || device.sensorRole === SensorRole.SUPPLY_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
       await this.hvacAnalyticsService.recordReading(device, tempF, data ?? null);
     }
-    await this.hvacAnalyticsService.evaluateSensorBattery(device);
+    if (relevant) await this.hvacAnalyticsService.evaluateSensorBattery(device);
+    return handled;
   }
 
   private async dispatchAlert(home: YolinkHome, payload: any, device: YolinkDevice | null): Promise<void> {
