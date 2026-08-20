@@ -34,6 +34,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ### Fixed
 - **mobile**: Monitoring tab's icon was an unrelated "pulse" glyph — swapped for the 2x2-grid icon the dashboard mockup actually uses for that tab.
 
+## 2026-08-19
+
+### Fixed
+- **api**: A real Yolink MQTT payload (confirmed against a live test alert) has no top-level `deviceType` field at all — only `simulateAlert()`'s synthetic test payload did. Every alert from a real device was falling through to a generic "Device: ..." message (e.g. "Device: Water leak detected!" instead of "Laundry Leak Sensor: Water leak detected!") because both the `deviceType` field and the in-memory device-name cache lookup came up empty. `deviceType` is now derived from the event name itself (`"LeakSensor.Alert"` → `"LeakSensor"`, the same trick `simulateAlert()` already relied on), and the alert's device name now reads from the persisted `YolinkDevice` catalog row first — which is always fresh — instead of the in-memory name cache, which only refreshes on MQTT reconnect and can lag well behind a sensor added mid-session. A one-time startup backfill (`backfillAlertDeviceInfo`) corrects the name/type/message on already-created "Device: ..." alerts using the same resolver. Separately confirmed the reported "sensors show red/not connected" wasn't a backend bug — direct DB inspection showed `lastReportedAt` updating correctly on every alert; the screenshot was simply from before the most recent report came in.
+
 ## 2026-08-16
 
 ### Added

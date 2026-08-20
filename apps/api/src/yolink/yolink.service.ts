@@ -134,8 +134,40 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // One-time fix for alerts created before resolveDeviceType()/the
+  // device-lookup fix existed: a real Yolink payload has no top-level
+  // `deviceType`, so every field derived from it (deviceType, and deviceName
+  // whenever the in-memory name cache hadn't caught up yet) fell through to
+  // the literal 'Device' fallback. Re-derives both from the event name and
+  // the now-correct YolinkDevice catalog, and regenerates the message text
+  // (same EVENT_CONFIG resolver, just with the corrected name). Idempotent.
+  private async backfillAlertDeviceInfo(): Promise<void> {
+    const targets = await this.alertsRepo.find({ where: { deviceName: 'Device' } });
+    let updated = 0;
+    for (const alert of targets) {
+      if (!alert.event || !alert.deviceId) continue;
+      const config = EVENT_CONFIG[alert.event];
+      if (!config) continue;
+      const deviceType = alert.event.split('.')[0];
+      const device = alert.yolinkHomeId
+        ? await this.devicesRepo.findOne({ where: { yolinkHomeId: alert.yolinkHomeId, deviceId: alert.deviceId } })
+        : null;
+      const correctName = device?.name;
+      if (!correctName || correctName === 'Device') continue; // catalog hasn't caught up either — leave for next boot
+      alert.deviceName = correctName;
+      alert.deviceType = deviceType;
+      alert.message = config.message(alert.rawPayload?.data, correctName);
+      await this.alertsRepo.save(alert);
+      updated++;
+    }
+    if (updated > 0) {
+      this.logger.log(`Backfilled device name/type for ${updated} existing Yolink alert(s).`);
+    }
+  }
+
   async onModuleInit() {
     await this.backfillAlertSeverity().catch((e) => this.logger.warn(`Alert severity backfill failed: ${e.message}`));
+    await this.backfillAlertDeviceInfo().catch((e) => this.logger.warn(`Alert device-info backfill failed: ${e.message}`));
     const homes = await this.homesRepo.find({ where: { isActive: true } });
     if (homes.length === 0) {
       this.logger.log('No linked Yolink homes yet — nothing to connect at startup.');
@@ -236,29 +268,46 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // Confirmed against a real Yolink payload 2026-08-19: unlike the shape
+  // simulateAlert() constructs for testing, a real MQTT report/alert message
+  // has NO top-level `deviceType` field at all — only `event` (e.g.
+  // "LeakSensor.Alert") and `deviceId`. Deriving it from the event name is
+  // the same trick simulateAlert() already used, and it's reliable: every
+  // event that reaches this point already matched (or was checked against)
+  // an EVENT_CONFIG key of the form "<deviceType>.<verb>".
+  private resolveDeviceType(payload: any): string | undefined {
+    return payload?.deviceType || (typeof payload?.event === 'string' ? payload.event.split('.')[0] : undefined);
+  }
+
   // Called for every MQTT message (report or alert), before the EVENT_CONFIG
   // alert-matching gate — this is the piece that was completely missing:
   // routine reports used to be silently dropped instead of updating a live
-  // "last seen" state.
-  private async upsertDeviceState(home: YolinkHome, payload: any): Promise<void> {
-    const { deviceId, deviceType, data } = payload;
-    if (!deviceId) return;
+  // "last seen" state. Returns the resulting row so dispatchAlert can read
+  // its name back — the persisted catalog name is authoritative (kept fresh
+  // via both this method and refreshDeviceStates), unlike the in-memory
+  // deviceNameCache below, which only refreshes on MQTT reconnect and can
+  // lag well behind a device added mid-session.
+  private async upsertDeviceState(home: YolinkHome, payload: any): Promise<YolinkDevice | null> {
+    const { deviceId, data } = payload;
+    if (!deviceId) return null;
+    const deviceType = this.resolveDeviceType(payload);
     const existing = await this.devicesRepo.findOne({ where: { yolinkHomeId: home.id, deviceId } });
     if (existing) {
       existing.lastReportedAt = new Date();
       existing.lastState = data ?? null;
       existing.disconnectAlertedAt = null;
       if (deviceType) existing.deviceType = deviceType;
-      await this.devicesRepo.save(existing);
+      return this.devicesRepo.save(existing);
     } else if (deviceType) {
       // Seen via MQTT before any Home.getDeviceList catalog refresh ran — a
       // minimal row so the live state isn't lost; name backfills on the next
       // refreshDeviceNames/refreshDeviceStates call.
-      await this.devicesRepo.save(this.devicesRepo.create({
+      return this.devicesRepo.save(this.devicesRepo.create({
         yolinkHomeId: home.id, deviceId, deviceType, name: deviceType,
         lastReportedAt: new Date(), lastState: data ?? null,
       }));
     }
+    return null;
   }
 
   // Best-effort REST reseed, called once per linked home when the customer's
@@ -472,14 +521,16 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     // Runs for every message — report or alert — before the alert-matching
     // gate below, so routine reports keep the Monitoring dashboard's live
     // state fresh instead of being silently dropped.
-    await this.upsertDeviceState(home, payload).catch((e) =>
-      this.logger.warn(`Could not update live device state for home ${home.id}: ${e.message}`),
-    );
-    await this.dispatchAlert(home, payload);
+    const device = await this.upsertDeviceState(home, payload).catch((e) => {
+      this.logger.warn(`Could not update live device state for home ${home.id}: ${e.message}`);
+      return null;
+    });
+    await this.dispatchAlert(home, payload, device);
   }
 
-  private async dispatchAlert(home: YolinkHome, payload: any): Promise<void> {
-    const { event, deviceId, deviceType, data } = payload;
+  private async dispatchAlert(home: YolinkHome, payload: any, device: YolinkDevice | null): Promise<void> {
+    const { event, deviceId, data } = payload;
+    const deviceType = this.resolveDeviceType(payload);
 
     const config = EVENT_CONFIG[event];
     if (!config) {
@@ -488,9 +539,11 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Live report/alert payloads carry no device name — only deviceId — so the
-    // customer's own label (e.g. "2nd Floor") has to come from the cache
-    // populated via Home.getDeviceList, not the event itself.
-    const deviceName = this.deviceNameCache.get(home.id)?.get(deviceId) ?? data?.name ?? deviceType ?? 'Device';
+    // customer's own label (e.g. "2nd Floor") comes from the persisted
+    // catalog row (device, upserted moments ago by upsertDeviceState — always
+    // fresh) first, falling back to the in-memory Home.getDeviceList cache
+    // and finally the event's own derived device type.
+    const deviceName = device?.name ?? this.deviceNameCache.get(home.id)?.get(deviceId) ?? data?.name ?? deviceType ?? 'Device';
     const message = config.message(data, deviceName);
     const severity = typeof config.severity === 'function' ? config.severity(data) : config.severity;
 
