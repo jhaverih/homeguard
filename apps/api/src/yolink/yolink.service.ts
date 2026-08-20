@@ -9,6 +9,8 @@ import { YolinkDevice } from './entities/yolink-device.entity';
 import { AlertsService } from '../alerts/alerts.service';
 import { Alert, AlertSeverity } from '../alerts/entities/alert.entity';
 import { encrypt, decrypt } from '../common/crypto/encryption.util';
+import { HvacAnalyticsService } from '../hvac-analytics/hvac-analytics.service';
+import { SensorRole } from '../common/enums/sensor-role.enum';
 
 const YOLINK_TOKEN_URL = 'https://api.yosmart.com/open/yolink/token';
 const YOLINK_API_URL  = 'https://api.yosmart.com/open/yolink/v2/api';
@@ -106,6 +108,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(YolinkDevice) private devicesRepo: Repository<YolinkDevice>,
     @InjectRepository(Alert) private alertsRepo: Repository<Alert>,
     private alertsService: AlertsService,
+    private hvacAnalyticsService: HvacAnalyticsService,
   ) {}
 
   // One-time reclassification for alerts created before the Alert/Info split
@@ -273,15 +276,17 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
         existing.name = dev.name ?? existing.name;
         existing.deviceType = dev.type ?? existing.deviceType;
         if (dev.token) existing.yolinkToken = dev.token;
-        await this.devicesRepo.save(existing);
+        const saved = await this.devicesRepo.save(existing);
+        await this.hvacAnalyticsService.autoTagDevice(saved).catch((e) => this.logger.warn(`Auto-tag failed for ${saved.deviceId}: ${e.message}`));
       } else {
-        await this.devicesRepo.save(this.devicesRepo.create({
+        const saved = await this.devicesRepo.save(this.devicesRepo.create({
           yolinkHomeId: yolinkHomeDbId,
           deviceId: dev.deviceId,
           deviceType: dev.type ?? 'Unknown',
           name: dev.name ?? dev.deviceId,
           yolinkToken: dev.token ?? null,
         }));
+        await this.hvacAnalyticsService.autoTagDevice(saved).catch((e) => this.logger.warn(`Auto-tag failed for ${saved.deviceId}: ${e.message}`));
       }
     }
   }
@@ -440,6 +445,9 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       });
       dev.disconnectAlertedAt = new Date();
       await this.devicesRepo.save(dev);
+      if (dev.sensorRole) {
+        await this.hvacAnalyticsService.evaluateSensorOffline(dev, home).catch((e) => this.logger.warn(`HVAC-SENSOR-001 evaluation failed for ${dev.deviceId}: ${e.message}`));
+      }
     }
   }
 
@@ -552,7 +560,35 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Could not update live device state for home ${home.id}: ${e.message}`);
       return null;
     });
+    await this.evaluateHvacAnalytics(device, home, payload).catch((e) =>
+      this.logger.warn(`HVAC analytics evaluation failed for home ${home.id}: ${e.message}`),
+    );
     await this.dispatchAlert(home, payload, device);
+  }
+
+  // Runs the real-time slice of HVAC analytics (water/indoor-temp findings +
+  // time-series capture) for every report/alert from an analytics-tagged
+  // device — deliberately independent of dispatchAlert's EVENT_CONFIG gate
+  // below, so a routine "Report" event (not in EVENT_CONFIG at all) still
+  // feeds the analytics pipeline the same way it already feeds
+  // upsertDeviceState's live-status tracking.
+  private async evaluateHvacAnalytics(device: YolinkDevice | null, home: YolinkHome, payload: any): Promise<void> {
+    if (!device?.sensorRole) return;
+    await this.hvacAnalyticsService.clearSensorOfflineFinding(device);
+    const data = payload?.data;
+    if (device.sensorRole === SensorRole.DRAIN_WATER) {
+      const leakDetected = data?.state === 'alert' || data?.leak === true;
+      await this.hvacAnalyticsService.evaluateWaterEvent(device, home, leakDetected);
+      await this.hvacAnalyticsService.recordReading(device, null, data ?? null);
+    } else if (device.sensorRole === SensorRole.AMBIENT_TEMP) {
+      const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
+      await this.hvacAnalyticsService.evaluateIndoorTempEvent(device, home, data?.alarm, tempF);
+      await this.hvacAnalyticsService.recordReading(device, tempF, data ?? null);
+    } else if (device.sensorRole === SensorRole.RETURN_TEMP || device.sensorRole === SensorRole.SUPPLY_TEMP) {
+      const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
+      await this.hvacAnalyticsService.recordReading(device, tempF, data ?? null);
+    }
+    await this.hvacAnalyticsService.evaluateSensorBattery(device);
   }
 
   private async dispatchAlert(home: YolinkHome, payload: any, device: YolinkDevice | null): Promise<void> {

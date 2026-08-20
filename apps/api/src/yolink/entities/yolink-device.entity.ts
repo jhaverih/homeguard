@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { SensorRole } from '../../common/enums/sensor-role.enum';
 
 // One row per physical Yolink device — the catalog (deviceType/name) is
 // seeded from Home.getDeviceList at link time and refreshed on every MQTT
@@ -29,6 +30,20 @@ export class YolinkDevice {
   // silence, so it isn't re-raised every run — cleared as soon as the device
   // reports again (upsertDeviceState / refreshDeviceStates).
   @Column({ type: 'timestamp', nullable: true }) disconnectAlertedAt: Date | null;
+
+  // ── Attenteve Analytics tagging (Room / Equipment / Sensor Role / Analytics
+  // Role) — set once by YolinkNameTaggingRule auto-tagging or manual override,
+  // and NEVER re-derived from `name` above, which the homeowner can freely
+  // rename in the Yolink app. `deviceId` above (Yolink's device EUI) is the
+  // immutable key these columns hang off of.
+  @Column({ nullable: true }) room: string | null;
+  @Column({ nullable: true }) equipmentId: string | null;
+  @Column({ type: 'enum', enum: SensorRole, nullable: true }) sensorRole: SensorRole | null;
+  // Rule-engine key (e.g. "hvac_condensate", "indoor_climate") — plain string,
+  // not an enum, since new roles get added faster than an enum can be safely
+  // migrated and nothing needs to switch on it exhaustively.
+  @Column({ nullable: true }) analyticsRole: string | null;
+
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }

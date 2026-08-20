@@ -120,6 +120,7 @@ export default function CustomerLayout() {
         options={{ title: 'Profile', tabBarIcon: ({ color }) => <Ionicons name="person-circle" size={22} color={color} /> }}
       />
       <Tabs.Screen name="payments" options={{ href: null, title: 'Payments' }} />
+      <Tabs.Screen name="hvac-analytics" options={{ href: null, title: 'HVAC Analytics' }} />
       <Tabs.Screen name="request-detail" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="assistant" options={{ href: null, title: 'eveAi', headerTitle: () => <EveAiTitle /> }} />

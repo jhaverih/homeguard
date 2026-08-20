@@ -248,6 +248,36 @@ export const yolinkApi = {
   getDevices: (): Promise<MonitoringDevice[]> => api.get('/yolink/devices') as any,
 };
 
+export type HvacFinding = {
+  id: string;
+  ruleId: string;
+  eventType: string;
+  severity: 'INFO' | 'WATCH' | 'ATTENTION' | 'HIGH_ATTENTION' | 'CRITICAL';
+  confidence: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+  message: string;
+  measurements: Record<string, any> | null;
+  reasonCodes: string[];
+  recommendedActions: string[];
+  detectedAt: string;
+};
+
+export type HvacSensorCoverage = { role: string; label: string; connected: boolean; deviceNames: string[] };
+
+export type HvacAnalytics = {
+  tier: string;
+  isProactivePlus: boolean;
+  healthState: 'NOT_INCLUDED' | 'AWAITING_SENSORS' | 'LEARNING';
+  findings: HvacFinding[];
+  sensorCoverage: HvacSensorCoverage[];
+};
+
+export const hvacAnalyticsApi = {
+  getMine: (): Promise<HvacAnalytics> => api.get('/hvac-analytics/me') as any,
+  resolveFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/resolve`),
+  dismissFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/dismiss`),
+  requestContractorVisit: () => api.post('/hvac-analytics/request-contractor-visit'),
+};
+
 export const notificationsApi = {
   getAll: () => api.get('/notifications'),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),

@@ -17,6 +17,7 @@ const links = [
   { href: '/payments', label: 'Payments', icon: '💳' },
   { href: '/disputes', label: 'Disputes', icon: '⚖️' },
   { href: '/events', label: 'Monitoring Events', icon: '🔔' },
+  { href: '/hvac-analytics', label: 'HVAC Analytics', icon: '🌡️' },
   { href: '/waitlist', label: 'Waitlist', icon: '📍' },
   { href: '/inspection-config', label: 'Assessment Configurator', icon: '📝' },
 ];

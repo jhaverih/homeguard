@@ -117,6 +117,11 @@ export const disputesApi = {
     api.patch(`/disputes/${id}/resolve`, { resolution, note }).then((r) => r.data),
 };
 
+export const hvacAnalyticsApi = {
+  searchCustomers: (q: string) => api.get(`/admin/hvac-analytics/customers?q=${encodeURIComponent(q)}`).then((r) => r.data),
+  getForCustomer: (customerId: string) => api.get(`/admin/hvac-analytics?customerId=${customerId}`).then((r) => r.data),
+};
+
 export const adminApi = {
   getStats: () => api.get('/admin/stats').then((r) => r.data),
   getCustomers: () => api.get('/admin/customers').then((r) => r.data),

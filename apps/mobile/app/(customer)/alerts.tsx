@@ -215,6 +215,21 @@ export default function MonitoringScreen() {
               )}
             </View>
 
+            <TouchableOpacity
+              style={styles.analyticsCard}
+              activeOpacity={0.85}
+              onPress={() => router.push('/(customer)/hvac-analytics' as any)}
+            >
+              <View style={styles.analyticsIconWrap}>
+                <Ionicons name="pulse-outline" size={20} color={colors.lanternDeep} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.analyticsHeadline}>HVAC Analytics</Text>
+                <Text style={styles.analyticsSub}>Trends, findings, and recommendations from your sensors</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.steel} />
+            </TouchableOpacity>
+
             <View>
               <View style={styles.sectionLabelRow}>
                 <Text style={styles.sectionLabel}>Recent Alerts</Text>
@@ -325,6 +340,15 @@ const styles = StyleSheet.create({
   haSub: { fontSize: 11, color: '#8FA0A5', lineHeight: 15 },
   haChip: { backgroundColor: colors.lantern, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   haChipText: { fontSize: 11, fontWeight: '700', color: colors.ink },
+
+  analyticsCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#fff', borderRadius: 16, padding: 14,
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  analyticsIconWrap: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center' },
+  analyticsHeadline: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 1 },
+  analyticsSub: { fontSize: 11, color: colors.steel, lineHeight: 14 },
 
   empty: { flex: 1 },
   emptyInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 80 },
