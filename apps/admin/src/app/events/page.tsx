@@ -113,26 +113,26 @@ export default function EventsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-lantern-deep mb-1">Monitoring Events</h1>
-      <p className="text-steel mb-6">All sensor and device alerts from Yolink and connected services.</p>
+      <h1 className="text-4xl font-bold text-lantern-deep mb-2">Monitoring Events</h1>
+      <p className="text-steel text-lg mb-8">All sensor and device alerts from Yolink and connected services.</p>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-mist-dim p-4">
-          <p className="text-2xl font-bold text-ink">{total}</p>
-          <p className="text-xs text-steel mt-1">Total Events</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-2xl border border-mist-dim p-7">
+          <p className="text-5xl font-extrabold text-ink tabular-nums">{total}</p>
+          <p className="text-base text-steel mt-2">Total Events</p>
         </div>
-        <div className="bg-white rounded-xl border border-red-100 p-4">
-          <p className="text-2xl font-bold text-red-600">{counts.critical}</p>
-          <p className="text-xs text-steel mt-1">Critical</p>
+        <div className="bg-white rounded-2xl border border-red-100 p-7">
+          <p className="text-5xl font-extrabold text-red-600 tabular-nums">{counts.critical}</p>
+          <p className="text-base text-steel mt-2">Critical</p>
         </div>
-        <div className="bg-white rounded-xl border border-orange-100 p-4">
-          <p className="text-2xl font-bold text-orange-500">{counts.high}</p>
-          <p className="text-xs text-steel mt-1">High</p>
+        <div className="bg-white rounded-2xl border border-orange-100 p-7">
+          <p className="text-5xl font-extrabold text-orange-500 tabular-nums">{counts.high}</p>
+          <p className="text-base text-steel mt-2">High</p>
         </div>
-        <div className="bg-white rounded-xl border border-lantern/20 p-4">
-          <p className="text-2xl font-bold text-lantern-deep">{counts.dispatched}</p>
-          <p className="text-xs text-steel mt-1">Dispatch Requested</p>
+        <div className="bg-white rounded-2xl border border-lantern/20 p-7">
+          <p className="text-5xl font-extrabold text-lantern-deep tabular-nums">{counts.dispatched}</p>
+          <p className="text-base text-steel mt-2">Dispatch Requested</p>
         </div>
       </div>
 

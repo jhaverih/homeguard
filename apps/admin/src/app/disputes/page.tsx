@@ -108,25 +108,25 @@ export default function DisputesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-lantern-deep mb-1">Disputes</h1>
-      <p className="text-steel mb-6">Review and resolve customer payment disputes.</p>
+      <h1 className="text-4xl font-bold text-lantern-deep mb-2">Disputes</h1>
+      <p className="text-steel text-lg mb-8">Review and resolve customer payment disputes.</p>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-mist-dim p-4">
-          <p className="text-2xl font-bold text-ink">{counts.all}</p>
-          <p className="text-xs text-steel mt-1">Total</p>
+      <div className="grid grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-2xl border border-mist-dim p-7">
+          <p className="text-5xl font-extrabold text-ink tabular-nums">{counts.all}</p>
+          <p className="text-base text-steel mt-2">Total</p>
         </div>
-        <div className="bg-white rounded-xl border border-red-100 p-4">
-          <p className="text-2xl font-bold text-red-600">{counts.open}</p>
-          <p className="text-xs text-steel mt-1">Open</p>
+        <div className="bg-white rounded-2xl border border-red-100 p-7">
+          <p className="text-5xl font-extrabold text-red-600 tabular-nums">{counts.open}</p>
+          <p className="text-base text-steel mt-2">Open</p>
         </div>
-        <div className="bg-white rounded-xl border border-yellow-100 p-4">
-          <p className="text-2xl font-bold text-yellow-600">{counts.underReview}</p>
-          <p className="text-xs text-steel mt-1">Under Review</p>
+        <div className="bg-white rounded-2xl border border-yellow-100 p-7">
+          <p className="text-5xl font-extrabold text-yellow-600 tabular-nums">{counts.underReview}</p>
+          <p className="text-base text-steel mt-2">Under Review</p>
         </div>
-        <div className="bg-white rounded-xl border border-green-100 p-4">
-          <p className="text-2xl font-bold text-green-600">{counts.resolved}</p>
-          <p className="text-xs text-steel mt-1">Resolved</p>
+        <div className="bg-white rounded-2xl border border-green-100 p-7">
+          <p className="text-5xl font-extrabold text-green-600 tabular-nums">{counts.resolved}</p>
+          <p className="text-base text-steel mt-2">Resolved</p>
         </div>
       </div>
 

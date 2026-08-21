@@ -102,7 +102,7 @@ export default function CustomerDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-4 mt-6 pt-5 border-t border-mist-dim">
+        <div className="grid grid-cols-4 gap-4 mt-8 pt-7 border-t border-mist-dim">
           {[
             { label: 'Total Jobs', value: serviceRequests.length },
             { label: 'Completed', value: serviceRequests.filter((r: any) => r.status === 'COMPLETED').length },
@@ -110,8 +110,8 @@ export default function CustomerDetailPage() {
             { label: 'Open Disputes', value: disputes.filter((d: any) => d.status === 'OPEN').length },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
-              <p className="text-2xl font-bold text-lantern-deep">{stat.value}</p>
-              <p className="text-xs text-steel mt-0.5">{stat.label}</p>
+              <p className="text-4xl font-extrabold text-lantern-deep tabular-nums">{stat.value}</p>
+              <p className="text-sm text-steel mt-1.5">{stat.label}</p>
             </div>
           ))}
         </div>

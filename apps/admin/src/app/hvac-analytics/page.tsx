@@ -140,22 +140,22 @@ export default function HvacAnalyticsPage() {
       ) : (
         <div className="flex flex-col gap-6">
 
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-white border border-mist-dim rounded-2xl p-5">
-              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Sensors Tagged</div>
-              <div className="text-2xl font-extrabold text-ink">{data.sensorCoverage.filter((s: any) => s.connected).length} of {data.sensorCoverage.length}</div>
+          <div className="grid grid-cols-4 gap-6">
+            <div className="bg-white border border-mist-dim rounded-2xl p-7">
+              <div className="text-sm font-extrabold uppercase tracking-wide text-steel-quiet mb-2.5">Sensors Tagged</div>
+              <div className="text-4xl font-extrabold text-ink tabular-nums">{data.sensorCoverage.filter((s: any) => s.connected).length} of {data.sensorCoverage.length}</div>
             </div>
-            <div className="bg-white border border-mist-dim rounded-2xl p-5">
-              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Rules Available</div>
-              <div className="text-2xl font-extrabold text-ink">{availableRules.length} of {data.ruleAvailability.length}</div>
+            <div className="bg-white border border-mist-dim rounded-2xl p-7">
+              <div className="text-sm font-extrabold uppercase tracking-wide text-steel-quiet mb-2.5">Rules Available</div>
+              <div className="text-4xl font-extrabold text-ink tabular-nums">{availableRules.length} of {data.ruleAvailability.length}</div>
             </div>
-            <div className="bg-white border border-mist-dim rounded-2xl p-5">
-              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Open Findings</div>
-              <div className="text-2xl font-extrabold text-ink">{data.findings.filter((f: any) => f.status !== 'RESOLVED' && f.status !== 'DISMISSED').length}</div>
+            <div className="bg-white border border-mist-dim rounded-2xl p-7">
+              <div className="text-sm font-extrabold uppercase tracking-wide text-steel-quiet mb-2.5">Open Findings</div>
+              <div className="text-4xl font-extrabold text-ink tabular-nums">{data.findings.filter((f: any) => f.status !== 'RESOLVED' && f.status !== 'DISMISSED').length}</div>
             </div>
-            <div className="bg-white border border-mist-dim rounded-2xl p-5">
-              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Findings (30d)</div>
-              <div className="text-2xl font-extrabold text-ink">{data.findings.length}</div>
+            <div className="bg-white border border-mist-dim rounded-2xl p-7">
+              <div className="text-sm font-extrabold uppercase tracking-wide text-steel-quiet mb-2.5">Findings (30d)</div>
+              <div className="text-4xl font-extrabold text-ink tabular-nums">{data.findings.length}</div>
             </div>
           </div>
 

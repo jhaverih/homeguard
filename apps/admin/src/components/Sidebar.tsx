@@ -43,26 +43,26 @@ export function Sidebar() {
 
   return (
     <aside className="w-80 flex-shrink-0 bg-ink text-white flex flex-col min-h-screen">
-      <div className="p-7 border-b border-slate">
-        <div className="mb-1.5">
-          <Logo size={38} onDark />
+      <div className="p-8 border-b border-slate">
+        <div className="mb-2">
+          <Logo size={44} onDark />
         </div>
-        <p className="text-base text-mist mt-1.5 opacity-75">Admin Dashboard</p>
-        {userName && <p className="text-sm text-mist mt-1">{userName}</p>}
+        <p className="text-lg text-mist mt-2 opacity-75">Admin Dashboard</p>
+        {userName && <p className="text-base text-mist mt-1">{userName}</p>}
       </div>
-      <nav className="flex-1 p-5 space-y-1.5 overflow-y-auto">
+      <nav className="flex-1 p-5 space-y-2 overflow-y-auto">
         {visibleLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
             className={clsx(
-              'flex items-center gap-3.5 px-4 py-3.5 rounded-lg text-base font-medium transition-colors',
+              'flex items-center gap-4 px-4 py-4 rounded-lg text-lg font-medium transition-colors',
               pathname === link.href
                 ? 'bg-mist text-ink'
                 : 'text-mist-dim hover:bg-slate',
             )}
           >
-            <span className="text-lg leading-none">{link.icon}</span>
+            <span className="text-xl leading-none">{link.icon}</span>
             {link.label}
           </Link>
         ))}

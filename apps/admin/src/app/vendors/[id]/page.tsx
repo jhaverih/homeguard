@@ -14,10 +14,10 @@ function Stars({ rating }: { rating: number }) {
 
 function KpiCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-mist-dim p-5 flex flex-col gap-1">
-      <p className="text-xs font-semibold text-steel uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-bold text-lantern-deep">{value}</p>
-      {sub && <p className="text-xs text-steel">{sub}</p>}
+    <div className="bg-white rounded-2xl border border-mist-dim p-7 flex flex-col gap-2">
+      <p className="text-sm font-semibold text-steel uppercase tracking-wide">{label}</p>
+      <p className="text-4xl font-extrabold text-lantern-deep tabular-nums">{value}</p>
+      {sub && <p className="text-sm text-steel">{sub}</p>}
     </div>
   );
 }
