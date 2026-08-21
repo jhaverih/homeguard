@@ -30,7 +30,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!ready) {
     return (
       <div className="flex h-screen items-center justify-center bg-canvas">
-        <div className="text-steel text-sm">Loading...</div>
+        <div className="text-steel text-base">Loading...</div>
       </div>
     );
   }
@@ -42,7 +42,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+      {/* max-w caps line/column widths on wide monitors so content reads
+          like a dashboard instead of stretching into mostly-empty rows —
+          gutters grow past ~1700px instead of every page's cards/tables. */}
+      <main className="flex-1 overflow-y-auto p-10">
+        <div className="max-w-[1700px] mx-auto">{children}</div>
+      </main>
     </div>
   );
 }

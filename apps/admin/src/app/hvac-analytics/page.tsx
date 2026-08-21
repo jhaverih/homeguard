@@ -43,38 +43,38 @@ function CustomerPicker({ selected, onSelect }: { selected: Customer | null; onS
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full bg-white border border-mist-dim rounded-lg px-3.5 py-2.5 text-sm flex items-center gap-2 text-left"
+        className="w-full bg-white border border-mist-dim rounded-lg px-4 py-3 text-base flex items-center gap-2.5 text-left"
       >
         <span className="text-steel-quiet">🔍</span>
         <span className="flex-1 font-bold text-ink truncate">{selected ? selected.name : 'Select a customer…'}</span>
       </button>
       {open && (
         <div className="absolute top-[calc(100%+6px)] left-0 right-0 bg-white border border-mist-dim rounded-lg shadow-lg overflow-hidden z-10">
-          <div className="p-2 border-b border-canvas">
+          <div className="p-2.5 border-b border-canvas">
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter by name or email…"
-              className="w-full text-sm px-2.5 py-2 border border-mist-dim rounded-md outline-none focus:border-lantern"
+              className="w-full text-base px-3 py-2.5 border border-mist-dim rounded-md outline-none focus:border-lantern"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {loadError ? (
-              <div className="px-3.5 py-3 text-xs text-steel-quiet">Couldn&apos;t load customers. Close and reopen to retry.</div>
+              <div className="px-4 py-3.5 text-sm text-steel-quiet">Couldn&apos;t load customers. Close and reopen to retry.</div>
             ) : allCustomers === null ? (
-              <div className="px-3.5 py-3 text-xs text-steel-quiet">Loading customers…</div>
+              <div className="px-4 py-3.5 text-sm text-steel-quiet">Loading customers…</div>
             ) : results.length === 0 ? (
-              <div className="px-3.5 py-3 text-xs text-steel-quiet">No customers match &quot;{query}&quot;.</div>
+              <div className="px-4 py-3.5 text-sm text-steel-quiet">No customers match &quot;{query}&quot;.</div>
             ) : (
               results.map((c) => (
                 <div
                   key={c.id}
                   onClick={() => { onSelect(c); setOpen(false); setQuery(''); }}
-                  className={`px-3.5 py-2.5 text-sm flex items-center justify-between border-b border-canvas last:border-0 cursor-pointer hover:bg-canvas ${selected?.id === c.id ? 'bg-canvas font-bold' : ''}`}
+                  className={`px-4 py-3 text-base flex items-center justify-between border-b border-canvas last:border-0 cursor-pointer hover:bg-canvas ${selected?.id === c.id ? 'bg-canvas font-bold' : ''}`}
                 >
                   <span className="text-ink">{c.name}</span>
-                  <span className="text-steel-quiet text-xs">{c.email}</span>
+                  <span className="text-steel-quiet text-sm">{c.email}</span>
                 </div>
               ))
             )}
@@ -111,22 +111,22 @@ export default function HvacAnalyticsPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-5 flex-wrap mb-6">
+      <div className="flex items-start justify-between gap-5 flex-wrap mb-7">
         <div>
-          <h1 className="text-2xl font-bold text-lantern-deep mb-2">HVAC Analytics</h1>
-          <p className="text-steel max-w-xl">Per-customer sensor-backed HVAC trend detection — time series, triggered findings, and which rules can&apos;t run yet due to missing sensors.</p>
+          <h1 className="text-3xl font-bold text-lantern-deep mb-2">HVAC Analytics</h1>
+          <p className="text-steel text-base max-w-xl">Per-customer sensor-backed HVAC trend detection — time series, triggered findings, and which rules can&apos;t run yet due to missing sensors.</p>
         </div>
         <CustomerPicker selected={customer} onSelect={setCustomer} />
       </div>
 
       {!customer ? (
-        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
-          <div className="text-4xl mb-4">🌡️</div>
-          <p className="text-steel text-sm">Search for a customer above to view their HVAC analytics.</p>
+        <div className="bg-white rounded-2xl border border-mist-dim p-14 text-center">
+          <div className="text-5xl mb-4">🌡️</div>
+          <p className="text-steel text-base">Search for a customer above to view their HVAC analytics.</p>
         </div>
       ) : error ? (
-        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
-          <p className="text-steel text-sm">Couldn&apos;t load analytics for {customer.name}. Try selecting them again.</p>
+        <div className="bg-white rounded-2xl border border-mist-dim p-14 text-center">
+          <p className="text-steel text-base">Couldn&apos;t load analytics for {customer.name}. Try selecting them again.</p>
         </div>
       ) : loading || !data ? (
         // `!data` guards the render that lands right after a customer is
@@ -136,48 +136,48 @@ export default function HvacAnalyticsPage() {
         // `loading` is still false and `data` is still null. Checking both
         // (instead of just `loading`) stops that render from reaching into
         // `data.sensorCoverage` etc. on null and crashing.
-        <div className="text-steel text-sm">Loading...</div>
+        <div className="text-steel text-base">Loading...</div>
       ) : (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6">
 
-          <div className="grid grid-cols-4 gap-3">
-            <div className="bg-white border border-mist-dim rounded-2xl p-4">
-              <div className="text-[10px] font-extrabold uppercase tracking-wide text-steel-quiet mb-1.5">Sensors Tagged</div>
-              <div className="text-lg font-extrabold text-ink">{data.sensorCoverage.filter((s: any) => s.connected).length} of {data.sensorCoverage.length}</div>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-white border border-mist-dim rounded-2xl p-5">
+              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Sensors Tagged</div>
+              <div className="text-2xl font-extrabold text-ink">{data.sensorCoverage.filter((s: any) => s.connected).length} of {data.sensorCoverage.length}</div>
             </div>
-            <div className="bg-white border border-mist-dim rounded-2xl p-4">
-              <div className="text-[10px] font-extrabold uppercase tracking-wide text-steel-quiet mb-1.5">Rules Available</div>
-              <div className="text-lg font-extrabold text-ink">{availableRules.length} of {data.ruleAvailability.length}</div>
+            <div className="bg-white border border-mist-dim rounded-2xl p-5">
+              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Rules Available</div>
+              <div className="text-2xl font-extrabold text-ink">{availableRules.length} of {data.ruleAvailability.length}</div>
             </div>
-            <div className="bg-white border border-mist-dim rounded-2xl p-4">
-              <div className="text-[10px] font-extrabold uppercase tracking-wide text-steel-quiet mb-1.5">Open Findings</div>
-              <div className="text-lg font-extrabold text-ink">{data.findings.filter((f: any) => f.status !== 'RESOLVED' && f.status !== 'DISMISSED').length}</div>
+            <div className="bg-white border border-mist-dim rounded-2xl p-5">
+              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Open Findings</div>
+              <div className="text-2xl font-extrabold text-ink">{data.findings.filter((f: any) => f.status !== 'RESOLVED' && f.status !== 'DISMISSED').length}</div>
             </div>
-            <div className="bg-white border border-mist-dim rounded-2xl p-4">
-              <div className="text-[10px] font-extrabold uppercase tracking-wide text-steel-quiet mb-1.5">Findings (30d)</div>
-              <div className="text-lg font-extrabold text-ink">{data.findings.length}</div>
+            <div className="bg-white border border-mist-dim rounded-2xl p-5">
+              <div className="text-xs font-extrabold uppercase tracking-wide text-steel-quiet mb-2">Findings (30d)</div>
+              <div className="text-2xl font-extrabold text-ink">{data.findings.length}</div>
             </div>
           </div>
 
-          <div className="bg-white border border-mist-dim rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-extrabold text-ink">Time Series</h2>
-              <span className="text-[10.5px] text-steel-quiet">Last 30 days of recorded sensor readings</span>
+          <div className="bg-white border border-mist-dim rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-extrabold text-ink">Time Series</h2>
+              <span className="text-sm text-steel-quiet">Last 30 days of recorded sensor readings</span>
             </div>
             {Object.keys(seriesByRole).length === 0 ? (
-              <div className="text-sm text-steel py-10 text-center">No time-series data recorded yet for this customer&apos;s tagged sensors.</div>
+              <div className="text-base text-steel py-10 text-center">No time-series data recorded yet for this customer&apos;s tagged sensors.</div>
             ) : (
-              <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(Object.keys(seriesByRole).length, 2)}, 1fr)` }}>
+              <div className="grid gap-5" style={{ gridTemplateColumns: `repeat(${Math.min(Object.keys(seriesByRole).length, 2)}, 1fr)` }}>
                 {Object.entries(seriesByRole).map(([role, points]) => (
                   <div key={role}>
-                    <div className="text-xs font-bold text-ink mb-2">{points[0]?.deviceName ?? role} <span className="text-steel-quiet font-normal">({role})</span></div>
-                    <ResponsiveContainer width="100%" height={220}>
+                    <div className="text-sm font-bold text-ink mb-2">{points[0]?.deviceName ?? role} <span className="text-steel-quiet font-normal">({role})</span></div>
+                    <ResponsiveContainer width="100%" height={240}>
                       <LineChart data={points}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#EDF1F0" />
-                        <XAxis dataKey="t" tick={{ fontSize: 10, fill: '#8A9599' }} />
-                        <YAxis tick={{ fontSize: 10, fill: '#8A9599' }} width={32} />
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #DEE6E4' }} />
-                        <Line type="monotone" dataKey="value" stroke="#C97F1F" strokeWidth={2} dot={{ r: 2 }} />
+                        <XAxis dataKey="t" tick={{ fontSize: 12, fill: '#8A9599' }} />
+                        <YAxis tick={{ fontSize: 12, fill: '#8A9599' }} width={36} />
+                        <Tooltip contentStyle={{ fontSize: 13, borderRadius: 8, border: '1px solid #DEE6E4' }} />
+                        <Line type="monotone" dataKey="value" stroke="#C97F1F" strokeWidth={2.5} dot={{ r: 2.5 }} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -186,22 +186,22 @@ export default function HvacAnalyticsPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-5">
-            <div className="bg-white border border-mist-dim rounded-2xl p-5">
-              <h2 className="text-sm font-extrabold text-ink mb-3">Findings Timeline</h2>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="bg-white border border-mist-dim rounded-2xl p-6">
+              <h2 className="text-base font-extrabold text-ink mb-4">Findings Timeline</h2>
               {data.findings.length === 0 ? (
-                <div className="text-sm text-steel py-6 text-center">No findings recorded yet.</div>
+                <div className="text-base text-steel py-6 text-center">No findings recorded yet.</div>
               ) : (
                 <div className="flex flex-col">
                   {data.findings.map((f: any) => (
-                    <div key={f.id} className="flex gap-2.5 py-2.5 border-b border-canvas last:border-0">
-                      <span className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: SEVERITY_COLOR[f.severity] ?? '#8A9599' }} />
+                    <div key={f.id} className="flex gap-3 py-3 border-b border-canvas last:border-0">
+                      <span className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: SEVERITY_COLOR[f.severity] ?? '#8A9599' }} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="text-[10px] font-extrabold tracking-wide text-steel-quiet">{f.ruleId}</span>
-                          <span className="text-[10.5px] text-steel-quiet ml-auto">{new Date(f.detectedAt).toLocaleString()}</span>
+                        <div className="flex items-baseline gap-2.5 flex-wrap">
+                          <span className="text-xs font-extrabold tracking-wide text-steel-quiet">{f.ruleId}</span>
+                          <span className="text-xs text-steel-quiet ml-auto">{new Date(f.detectedAt).toLocaleString()}</span>
                         </div>
-                        <div className="text-[12.5px] font-semibold text-ink mt-0.5">{f.message}</div>
+                        <div className="text-sm font-semibold text-ink mt-1">{f.message}</div>
                       </div>
                     </div>
                   ))}
@@ -209,17 +209,17 @@ export default function HvacAnalyticsPage() {
               )}
             </div>
 
-            <div className="bg-white border border-mist-dim rounded-2xl p-5">
-              <h2 className="text-sm font-extrabold text-ink mb-3">Sensor Coverage</h2>
-              <table className="w-full text-xs">
+            <div className="bg-white border border-mist-dim rounded-2xl p-6">
+              <h2 className="text-base font-extrabold text-ink mb-4">Sensor Coverage</h2>
+              <table className="w-full text-sm">
                 <tbody>
                   {data.sensorCoverage.map((s: any) => (
                     <tr key={s.role} className="border-b border-canvas last:border-0">
-                      <td className="py-2 pr-2">
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${s.connected ? 'bg-[#059669]' : 'bg-[#DC2626]'}`} />
+                      <td className="py-3 pr-3 w-1/2">
+                        <span className={`inline-block w-2 h-2 rounded-full mr-2.5 flex-shrink-0 ${s.connected ? 'bg-[#059669]' : 'bg-[#DC2626]'}`} />
                         {s.label}
                       </td>
-                      <td className="py-2 text-right text-steel">{s.connected ? s.deviceNames.join(', ') : 'Not Installed'}</td>
+                      <td className="py-3 text-right text-steel">{s.connected ? s.deviceNames.join(', ') : 'Not Installed'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -227,13 +227,13 @@ export default function HvacAnalyticsPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-mist-dim rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-extrabold text-ink">Rules Not Available for This Customer</h2>
-              <span className="text-[10.5px] text-steel-quiet">{unavailableRules.length} of {data.ruleAvailability.length} spec rules</span>
+          <div className="bg-white border border-mist-dim rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-extrabold text-ink">Rules Not Available for This Customer</h2>
+              <span className="text-sm text-steel-quiet">{unavailableRules.length} of {data.ruleAvailability.length} spec rules</span>
             </div>
             {unavailableRules.length === 0 ? (
-              <div className="text-sm text-steel py-4 text-center">All catalog rules are available for this customer.</div>
+              <div className="text-base text-steel py-4 text-center">All catalog rules are available for this customer.</div>
             ) : (
               unavailableRules.map((r: any) => {
                 const reasons: string[] = [
@@ -243,11 +243,11 @@ export default function HvacAnalyticsPage() {
                   ...(!r.implemented ? ['Rule not yet implemented'] : []),
                 ];
                 return (
-                  <div key={r.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-canvas last:border-0">
+                  <div key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-canvas last:border-0">
                     <div>
-                      <div className="text-[11px] font-extrabold text-ink tabular-nums">{r.id} <span className="font-normal text-steel">— {r.label}</span></div>
+                      <div className="text-sm font-extrabold text-ink tabular-nums">{r.id} <span className="font-normal text-steel">— {r.label}</span></div>
                     </div>
-                    <span className="text-[10px] font-bold text-attention bg-[#FEF2F2] px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0" style={{ color: '#DC2626' }}>
+                    <span className="text-xs font-bold text-attention bg-[#FEF2F2] px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0" style={{ color: '#DC2626' }}>
                       {reasons[0]}{reasons.length > 1 ? ` +${reasons.length - 1}` : ''}
                     </span>
                   </div>

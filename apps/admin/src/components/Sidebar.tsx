@@ -42,39 +42,39 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-ink text-white flex flex-col min-h-screen">
-      <div className="p-6 border-b border-slate">
-        <div className="mb-1">
-          <Logo size={30} onDark />
+    <aside className="w-80 flex-shrink-0 bg-ink text-white flex flex-col min-h-screen">
+      <div className="p-7 border-b border-slate">
+        <div className="mb-1.5">
+          <Logo size={38} onDark />
         </div>
-        <p className="text-sm text-mist mt-1 opacity-75">Admin Dashboard</p>
-        {userName && <p className="text-xs text-mist mt-0.5">{userName}</p>}
+        <p className="text-base text-mist mt-1.5 opacity-75">Admin Dashboard</p>
+        {userName && <p className="text-sm text-mist mt-1">{userName}</p>}
       </div>
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-5 space-y-1.5 overflow-y-auto">
         {visibleLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
             className={clsx(
-              'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center gap-3.5 px-4 py-3.5 rounded-lg text-base font-medium transition-colors',
               pathname === link.href
                 ? 'bg-mist text-ink'
                 : 'text-mist-dim hover:bg-slate',
             )}
           >
-            <span>{link.icon}</span>
+            <span className="text-lg leading-none">{link.icon}</span>
             {link.label}
           </Link>
         ))}
       </nav>
-      <div className="p-4 border-t border-slate space-y-2">
-        <p className="text-xs text-mist opacity-60">Attenteve Platform v1.0</p>
+      <div className="p-5 border-t border-slate space-y-2.5">
+        <p className="text-sm text-mist opacity-60">Attenteve Platform v1.0</p>
         <button
           onClick={() => {
             localStorage.removeItem('admin_token');
             window.location.replace('/login');
           }}
-          className="w-full text-left text-xs text-mist-dim hover:text-white transition-colors"
+          className="w-full text-left text-sm text-mist-dim hover:text-white transition-colors"
         >
           Sign out
         </button>

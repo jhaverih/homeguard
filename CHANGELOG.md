@@ -15,6 +15,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-08-21
 
 ### Changed
+- **admin**: Text across the whole admin portal was hard to read and the layout wasted a lot of horizontal space on wide monitors — the app never set a base font size (relying on the browser's 16px default) while several bespoke arbitrary-pixel text classes went as small as 10px, and the main content area had no max-width so cards/tables stretched edge-to-edge on wide screens with big empty gaps. Set a global 18px root font size (`globals.css`) so every page's rem-based Tailwind text/spacing scales up together in one place, capped the main content area at 1700px so it stops stretching into mostly-empty rows, and widened the sidebar (`w-64`→`w-80`) with larger nav text/icons/logo so it no longer looks cramped relative to the rest of the app. Also replaced the last handful of hardcoded 10-12.5px text classes (mostly on the HVAC Analytics page) with proper relative Tailwind sizes so they scale with everything else.
 - **admin**: The HVAC Analytics customer picker now lists every customer alphabetically the moment it's opened, with the search box above the list filtering that already-loaded roster client-side as you type — previously it required typing 2+ characters before showing anything, with a debounced network request per keystroke. `GET /admin/hvac-analytics/customers` now returns every customer (sorted, capped at 500) when called with no query.
 
 ### Fixed

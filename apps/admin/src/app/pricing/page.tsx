@@ -1271,7 +1271,7 @@ export default function PricingPage() {
                           className="flex items-center gap-2 normal-case text-steel hover:text-ink transition-colors"
                           title={collapsed ? 'Expand category' : 'Collapse category'}
                         >
-                          <span className={`inline-block text-[10px] transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
+                          <span className={`inline-block text-xs transition-transform ${collapsed ? '-rotate-90' : ''}`}>▼</span>
                           {group.label}
                           <span className="normal-case font-normal text-steel/70">({group.items.length})</span>
                         </button>

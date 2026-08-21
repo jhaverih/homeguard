@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Every Tailwind text-* and spacing-* utility (p-*, gap-*, m-*, etc.) is
+   rem-based, so bumping the root size scales the entire admin app's type
+   and spacing together in one place — text-xs (12px) becomes ~13.5px,
+   text-sm (14px) becomes ~15.75px, and so on, with padding/gaps growing
+   proportionally instead of text getting bigger inside now-cramped boxes.
+   Far less error-prone than hand-editing every page's text-size classes. */
+html {
+  font-size: 18px;
+}
+
 /* Keeps table header cells pinned to the top of the scrolling <main> area
    while the body rows scroll underneath. Applied via a class on <table>
    rather than per-<th> classNames so it's a one-line opt-in per page. */
