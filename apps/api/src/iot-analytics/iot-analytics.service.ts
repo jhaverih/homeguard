@@ -144,16 +144,22 @@ export class IotAnalyticsService {
 
   // ── Admin-facing ──────────────────────────────────────────────────────────
 
-  async searchCustomers(query: string) {
-    if (!query || query.trim().length < 2) return [];
-    const q = `%${query.trim()}%`;
-    const users = await this.usersRepo.find({
-      where: [{ firstName: ILike(q) }, { lastName: ILike(q) }, { email: ILike(q) }],
-      take: 15,
-    });
+  // With no query, returns every customer (alphabetical) so the admin
+  // picker can list everyone the moment it's opened; the frontend then
+  // filters that list client-side as the admin types, matching a standard
+  // "browse or search" dropdown rather than requiring 2+ characters before
+  // showing anything. A query still filters server-side too (kept for any
+  // future caller that wants a scoped search instead of the full list).
+  async searchCustomers(query?: string) {
+    const trimmed = query?.trim() ?? '';
+    const where = trimmed.length >= 2
+      ? [{ firstName: ILike(`%${trimmed}%`) }, { lastName: ILike(`%${trimmed}%`) }, { email: ILike(`%${trimmed}%`) }]
+      : undefined;
+    const users = await this.usersRepo.find({ where, take: 500 });
     return users
       .filter((u) => u.roles?.includes(UserRole.CUSTOMER))
-      .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim(), email: u.email }));
+      .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim(), email: u.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async getAdminAnalytics(customerId: string) {

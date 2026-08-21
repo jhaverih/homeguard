@@ -12,7 +12,10 @@ const SEVERITY_COLOR: Record<string, string> = {
 function CustomerPicker({ selected, onSelect }: { selected: Customer | null; onSelect: (c: Customer) => void }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Customer[]>([]);
+  // The full alphabetical roster, fetched once on first open and filtered
+  // client-side as the admin types — no per-keystroke network round trip.
+  const [allCustomers, setAllCustomers] = useState<Customer[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,12 +27,16 @@ function CustomerPicker({ selected, onSelect }: { selected: Customer | null; onS
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    const t = setTimeout(() => {
-      hvacAnalyticsApi.searchCustomers(query).then(setResults).catch(() => setResults([]));
-    }, 200);
-    return () => clearTimeout(t);
-  }, [query, open]);
+    if (!open || allCustomers !== null) return;
+    hvacAnalyticsApi.searchCustomers('')
+      .then(setAllCustomers)
+      .catch(() => setLoadError(true));
+  }, [open, allCustomers]);
+
+  const q = query.trim().toLowerCase();
+  const results = allCustomers === null ? [] : q === ''
+    ? allCustomers
+    : allCustomers.filter((c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
 
   return (
     <div ref={wrapRef} className="relative w-80 flex-shrink-0">
@@ -39,7 +46,7 @@ function CustomerPicker({ selected, onSelect }: { selected: Customer | null; onS
         className="w-full bg-white border border-mist-dim rounded-lg px-3.5 py-2.5 text-sm flex items-center gap-2 text-left"
       >
         <span className="text-steel-quiet">🔍</span>
-        <span className="flex-1 font-bold text-ink truncate">{selected ? selected.name : 'Search customers…'}</span>
+        <span className="flex-1 font-bold text-ink truncate">{selected ? selected.name : 'Select a customer…'}</span>
       </button>
       {open && (
         <div className="absolute top-[calc(100%+6px)] left-0 right-0 bg-white border border-mist-dim rounded-lg shadow-lg overflow-hidden z-10">
@@ -48,13 +55,15 @@ function CustomerPicker({ selected, onSelect }: { selected: Customer | null; onS
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Type a name or email…"
+              placeholder="Filter by name or email…"
               className="w-full text-sm px-2.5 py-2 border border-mist-dim rounded-md outline-none focus:border-lantern"
             />
           </div>
           <div className="max-h-64 overflow-y-auto">
-            {query.trim().length < 2 ? (
-              <div className="px-3.5 py-3 text-xs text-steel-quiet">Type at least 2 characters to search.</div>
+            {loadError ? (
+              <div className="px-3.5 py-3 text-xs text-steel-quiet">Couldn&apos;t load customers. Close and reopen to retry.</div>
+            ) : allCustomers === null ? (
+              <div className="px-3.5 py-3 text-xs text-steel-quiet">Loading customers…</div>
             ) : results.length === 0 ? (
               <div className="px-3.5 py-3 text-xs text-steel-quiet">No customers match &quot;{query}&quot;.</div>
             ) : (
@@ -80,11 +89,16 @@ export default function HvacAnalyticsPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!customer) { setData(null); return; }
+    if (!customer) { setData(null); setError(false); return; }
     setLoading(true);
-    hvacAnalyticsApi.getForCustomer(customer.id).then(setData).finally(() => setLoading(false));
+    setError(false);
+    hvacAnalyticsApi.getForCustomer(customer.id)
+      .then(setData)
+      .catch(() => { setData(null); setError(true); })
+      .finally(() => setLoading(false));
   }, [customer]);
 
   const seriesByRole: Record<string, any[]> = {};
@@ -110,7 +124,18 @@ export default function HvacAnalyticsPage() {
           <div className="text-4xl mb-4">🌡️</div>
           <p className="text-steel text-sm">Search for a customer above to view their HVAC analytics.</p>
         </div>
-      ) : loading ? (
+      ) : error ? (
+        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
+          <p className="text-steel text-sm">Couldn&apos;t load analytics for {customer.name}. Try selecting them again.</p>
+        </div>
+      ) : loading || !data ? (
+        // `!data` guards the render that lands right after a customer is
+        // first selected: setCustomer/setLoading(true) land in the same
+        // click handler, but the effect that actually calls setLoading(true)
+        // only runs after this render commits — so there's one render where
+        // `loading` is still false and `data` is still null. Checking both
+        // (instead of just `loading`) stops that render from reaching into
+        // `data.sensorCoverage` etc. on null and crashing.
         <div className="text-steel text-sm">Loading...</div>
       ) : (
         <div className="flex flex-col gap-5">

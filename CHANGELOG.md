@@ -12,6 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-21
+
+### Changed
+- **admin**: The HVAC Analytics customer picker now lists every customer alphabetically the moment it's opened, with the search box above the list filtering that already-loaded roster client-side as you type — previously it required typing 2+ characters before showing anything, with a debounced network request per keystroke. `GET /admin/hvac-analytics/customers` now returns every customer (sorted, capped at 500) when called with no query.
+
+### Fixed
+- **admin**: Selecting a customer on the HVAC Analytics page for the first time in a session threw a client-side exception (`Cannot read properties of null`). The page's loading-state check only looked at `loading`, but `loading` isn't set to `true` until the effect after the click's render commits — so there was one render where `customer` was set, `loading` was still `false`, and `data` was still `null`, and the page tried to read `data.sensorCoverage` on `null`. Now checks `loading || !data`. Also added a `.catch` on the fetch so a real API failure shows an error message instead of leaving the page stuck.
+
 ## 2026-08-20
 
 ### Changed
