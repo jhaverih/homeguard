@@ -39,6 +39,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
   ],
   providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, IotAnalyticsService, IotAnalyticsMigrationService],
   controllers: [IotAnalyticsController],
-  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, IotAnalyticsService],
+  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, IotAnalyticsService, IotAnalyticsMigrationService],
 })
 export class IotAnalyticsModule {}
