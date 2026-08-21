@@ -1,5 +1,4 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { SensorRole } from '../../common/enums/sensor-role.enum';
 
 // One row per physical Yolink device — the catalog (deviceType/name) is
 // seeded from Home.getDeviceList at link time and refreshed on every MQTT
@@ -9,6 +8,13 @@ import { SensorRole } from '../../common/enums/sensor-role.enum';
 // YolinkService.refreshDeviceStates). Nothing here is Yolink-account-global —
 // scoped to one YolinkHome via yolinkHomeId (that table's own `id`, not
 // Yolink's own home id).
+//
+// This is a Yolink-specific OPERATIONAL extension, not the device identity
+// table — that's DeviceRegistry (apps/api/src/iot-analytics), keyed
+// immutably by (provider, providerDeviceId). Room/equipment/sensorRole/
+// analyticsRole tagging columns that used to live here moved to
+// SensorAssignment, joined via deviceRegistryId, so the analytics engine
+// never has to read anything Yolink-shaped.
 @Entity('yolink_devices')
 export class YolinkDevice {
   @PrimaryGeneratedColumn('uuid') id: string;
@@ -41,18 +47,13 @@ export class YolinkDevice {
   // reports again (upsertDeviceState / refreshDeviceStates).
   @Column({ type: 'timestamp', nullable: true }) disconnectAlertedAt: Date | null;
 
-  // ── Attenteve Analytics tagging (Room / Equipment / Sensor Role / Analytics
-  // Role) — set once by YolinkNameTaggingRule auto-tagging or manual override,
-  // and NEVER re-derived from `name` above, which the homeowner can freely
-  // rename in the Yolink app. `deviceId` above (Yolink's device EUI) is the
-  // immutable key these columns hang off of.
-  @Column({ nullable: true }) room: string | null;
-  @Column({ nullable: true }) equipmentId: string | null;
-  @Column({ type: 'enum', enum: SensorRole, nullable: true }) sensorRole: SensorRole | null;
-  // Rule-engine key (e.g. "hvac_condensate", "indoor_climate") — plain string,
-  // not an enum, since new roles get added faster than an enum can be safely
-  // migrated and nothing needs to switch on it exhaustively.
-  @Column({ nullable: true }) analyticsRole: string | null;
+  // The provider-agnostic identity row this device maps to — set once at
+  // catalog-upsert time (DeviceRegistryService.upsertFromProvider) and never
+  // re-derived from `name`, which the homeowner can freely rename in the
+  // Yolink app. This is the ONLY link between Yolink-specific operational
+  // state (above) and the analytics engine's world (DeviceRegistry →
+  // SensorAssignment → AnalyticsEngineService).
+  @Column({ nullable: true }) deviceRegistryId: string | null;
 
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;

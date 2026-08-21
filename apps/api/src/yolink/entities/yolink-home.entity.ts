@@ -6,6 +6,11 @@ export class YolinkHome {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column() customerId: string;
   @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'customerId' }) customer: User;
+  // The provider-agnostic Home this Yolink connection feeds into — backfilled
+  // once per existing row by IotAnalyticsMigrationService, set going forward
+  // at link time. Nullable only transiently, between a fresh row being
+  // created and the backfill/link-time assignment running.
+  @Column({ nullable: true }) homeId: string | null;
   @Column() yolinkUAID: string;
   // Encrypted at rest (see common/crypto/encryption.util.ts) — this is the
   // customer's own Yolink Personal Access Credential secret, entered by the

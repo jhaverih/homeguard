@@ -4,13 +4,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/role.enum';
-import { HvacAnalyticsService } from './hvac-analytics.service';
+import { IotAnalyticsService } from './iot-analytics.service';
 import { FindingStatus } from './entities/analytics-finding.entity';
 
+// Route paths are UNCHANGED from the old HvacAnalyticsController — the
+// mobile Analytics screen and admin Analytics page call these exact URLs,
+// and this rewrite is backend-architecture-only.
 @ApiTags('HVAC Analytics')
 @Controller()
-export class HvacAnalyticsController {
-  constructor(private readonly service: HvacAnalyticsService) {}
+export class IotAnalyticsController {
+  constructor(private readonly service: IotAnalyticsService) {}
 
   // ── Customer (HO app) ──────────────────────────────────────────────────────
 
