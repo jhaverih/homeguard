@@ -259,6 +259,7 @@ export type HvacFinding = {
   reasonCodes: string[];
   recommendedActions: string[];
   detectedAt: string;
+  snoozedUntil: string | null;
 };
 
 export type HvacSensorCoverage = { role: string; label: string; connected: boolean; deviceNames: string[] };
@@ -275,6 +276,7 @@ export const hvacAnalyticsApi = {
   getMine: (): Promise<HvacAnalytics> => api.get('/hvac-analytics/me') as any,
   resolveFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/resolve`),
   dismissFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/dismiss`),
+  snoozeFinding: (id: string, minutes: 30 | 60 | 240) => api.post(`/hvac-analytics/findings/${id}/snooze`, { minutes }) as Promise<{ snoozedUntil: string }>,
   requestContractorVisit: () => api.post('/hvac-analytics/request-contractor-visit'),
 };
 

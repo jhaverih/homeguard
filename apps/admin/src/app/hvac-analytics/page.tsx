@@ -229,7 +229,28 @@ export default function HvacAnalyticsPage() {
 
           <div className="bg-white border border-mist-dim rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-extrabold text-ink">Rules Not Available for This Customer</h2>
+              <h2 className="text-base font-extrabold text-ink">Rules Enabled for This Customer</h2>
+              <span className="text-sm text-steel-quiet">{availableRules.length} of {data.ruleAvailability.length} spec rules</span>
+            </div>
+            {availableRules.length === 0 ? (
+              <div className="text-base text-steel py-4 text-center">No catalog rules are enabled for this customer yet.</div>
+            ) : (
+              availableRules.map((r: any) => (
+                <div key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-canvas last:border-0">
+                  <div>
+                    <div className="text-sm font-extrabold text-ink tabular-nums">{r.id} <span className="font-normal text-steel">— {r.label}</span></div>
+                  </div>
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0" style={{ color: '#059669', backgroundColor: '#ECFDF5' }}>
+                    Enabled
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="bg-white border border-mist-dim rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-extrabold text-ink">Rules Not Enabled for This Customer</h2>
               <span className="text-sm text-steel-quiet">{unavailableRules.length} of {data.ruleAvailability.length} spec rules</span>
             </div>
             {unavailableRules.length === 0 ? (

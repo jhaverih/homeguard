@@ -1,6 +1,7 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { IsNull, MoreThan, Not, Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { AnalyticsFinding, FindingConfidence, FindingSeverity, FindingStatus } from './entities/analytics-finding.entity';
 import { DeviceRegistry } from './entities/device-registry.entity';
 import { SensorAssignment } from './entities/sensor-assignment.entity';
@@ -9,6 +10,19 @@ import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { RULE_DEFINITIONS } from './rule-definitions';
 import { AlertsService } from '../alerts/alerts.service';
 import { AlertSeverity } from '../alerts/entities/alert.entity';
+
+// The only snooze windows the mobile app offers — validated here too so a
+// crafted request can't set an arbitrary/unbounded snooze.
+const SNOOZE_MINUTES = [30, 60, 240] as const;
+
+const FINDING_TO_ALERT_SEVERITY: Record<FindingSeverity, AlertSeverity> = {
+  [FindingSeverity.CRITICAL]: AlertSeverity.CRITICAL,
+  [FindingSeverity.HIGH]: AlertSeverity.HIGH,
+  [FindingSeverity.ATTENTION]: AlertSeverity.HIGH,
+  [FindingSeverity.WATCH]: AlertSeverity.MEDIUM,
+  [FindingSeverity.INFO]: AlertSeverity.LOW,
+  [FindingSeverity.NORMAL]: AlertSeverity.LOW,
+};
 
 // Every rule condition this MVP actually evaluates, keyed by the SAME
 // reasonCode its RuleDefinition carries — see rule-definitions.ts's header
@@ -83,6 +97,7 @@ export class AnalyticsEngineService {
       rawPayload: { findingId: finding.id },
     });
     finding.linkedAlertId = alert.id;
+    finding.lastAlertedAt = new Date();
     await this.findingsRepo.save(finding);
 
     // HVAC-WATER-003 — 2+ HVAC condensate events in 30 days. Spec only
@@ -141,6 +156,7 @@ export class AnalyticsEngineService {
       event: 'INDOOR-TEMP-001', severity: AlertSeverity.MEDIUM, message, rawPayload: { findingId: finding.id },
     });
     finding.linkedAlertId = alert.id;
+    finding.lastAlertedAt = new Date();
     await this.findingsRepo.save(finding);
   }
 
@@ -187,13 +203,48 @@ export class AnalyticsEngineService {
     if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
   }
 
+  // ── Keep alerting while a fault condition remains active ────────────────
+  // A finding only pushes once at detection (see the `if (active) return`
+  // guards above — never a duplicate finding row while it's still firing).
+  // That's correct for the finding/dashboard state, but a genuinely active
+  // fault (water detected, indoor temp out of range — anything that already
+  // warranted a real Alert, i.e. has a linkedAlertId) shouldn't go silent
+  // after the first push. This resends the same-severity alert on every
+  // tick for any still-ACTIVE, customer-notified finding that isn't
+  // currently snoozed, so the homeowner keeps getting reminded until they
+  // resolve it, dismiss it, or snooze it.
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async reAlertActiveFindings(): Promise<void> {
+    const candidates = await this.findingsRepo.find({
+      where: { status: FindingStatus.ACTIVE, linkedAlertId: Not(IsNull()) },
+    });
+    const now = Date.now();
+    const due = candidates.filter((f) => !f.snoozedUntil || f.snoozedUntil.getTime() <= now);
+    for (const finding of due) {
+      try {
+        const alert = await this.alertsService.createAlert({
+          customerId: finding.customerId, yolinkHomeId: finding.yolinkHomeId,
+          deviceId: finding.deviceRegistryId ?? undefined, deviceName: (finding.measurements as any)?.deviceName ?? 'Sensor',
+          event: finding.ruleId, severity: FINDING_TO_ALERT_SEVERITY[finding.severity],
+          message: `Still active: ${finding.message}`,
+          rawPayload: { findingId: finding.id, reAlert: true },
+        });
+        finding.linkedAlertId = alert.id;
+        finding.lastAlertedAt = new Date();
+        await this.findingsRepo.save(finding);
+      } catch (err) {
+        this.logger.warn(`Failed to re-alert finding ${finding.id}: ${err}`);
+      }
+    }
+  }
+
   // ── Shared read/write helpers used by the facade (IotAnalyticsService) ──
 
   toFindingDto(f: AnalyticsFinding) {
     return {
       id: f.id, ruleId: f.ruleId, eventType: f.eventType, severity: f.severity, confidence: f.confidence, status: f.status,
       message: f.message, measurements: f.measurements, reasonCodes: f.reasonCodes, recommendedActions: f.recommendedActions,
-      detectedAt: f.detectedAt,
+      detectedAt: f.detectedAt, snoozedUntil: f.snoozedUntil,
     };
   }
 
@@ -203,5 +254,14 @@ export class AnalyticsEngineService {
     finding.status = status;
     finding.resolvedAt = new Date();
     await this.findingsRepo.save(finding);
+  }
+
+  async snoozeFinding(customerId: string, findingId: string, minutes: number): Promise<{ snoozedUntil: Date }> {
+    if (!SNOOZE_MINUTES.includes(minutes as any)) throw new BadRequestException('minutes must be one of 30, 60, 240');
+    const finding = await this.findingsRepo.findOne({ where: { id: findingId, customerId, status: FindingStatus.ACTIVE } });
+    if (!finding) throw new NotFoundException('Active finding not found');
+    finding.snoozedUntil = new Date(Date.now() + minutes * 60_000);
+    await this.findingsRepo.save(finding);
+    return { snoozedUntil: finding.snoozedUntil };
   }
 }

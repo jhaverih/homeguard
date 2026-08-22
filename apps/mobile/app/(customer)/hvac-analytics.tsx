@@ -13,35 +13,70 @@ const SEVERITY_STYLE: Record<string, { color: string; bg: string; border?: strin
   INFO: { color: '#2563EB', bg: '#EFF6FF' },
 };
 
-function FindingCard({ item, onResolve, onDismiss }: { item: HvacFinding; onResolve: () => void; onDismiss: () => void }) {
+const SNOOZE_OPTIONS: { label: string; minutes: 30 | 60 | 240 }[] = [
+  { label: '30 min', minutes: 30 },
+  { label: '1 hr', minutes: 60 },
+  { label: '4 hrs', minutes: 240 },
+];
+
+function snoozeLabel(snoozedUntil: string | null): string | null {
+  if (!snoozedUntil) return null;
+  const ms = new Date(snoozedUntil).getTime() - Date.now();
+  if (ms <= 0) return null;
+  return `Snoozed until ${new Date(snoozedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+function FindingCard({ item, onResolve, onDismiss, onSnooze }: { item: HvacFinding; onResolve: () => void; onDismiss: () => void; onSnooze: (minutes: 30 | 60 | 240) => void }) {
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
   const style = SEVERITY_STYLE[item.severity] ?? SEVERITY_STYLE.WATCH;
   const isCritical = item.severity === 'CRITICAL';
+  const activeSnooze = snoozeLabel(item.snoozedUntil);
   return (
     <View style={[styles.findingCard, { backgroundColor: style.bg }, style.border ? { borderWidth: 1, borderColor: style.border } : null]}>
       <View style={styles.findingTop}>
         <View style={[styles.findingBadge, { backgroundColor: isCritical ? '#DC2626' : style.color + '22' }]}>
           <Text style={[styles.findingBadgeText, { color: isCritical ? '#fff' : style.color }]}>{item.severity.replace('_', ' ')}</Text>
         </View>
+        {activeSnooze && (
+          <View style={styles.snoozePill}>
+            <Ionicons name="moon" size={10} color={colors.steel} />
+            <Text style={styles.snoozePillText}>{activeSnooze}</Text>
+          </View>
+        )}
       </View>
       <Text style={[styles.findingMsg, { color: style.color }]}>{item.message}</Text>
-      {item.recommendedActions.length > 0 && (
-        <View style={styles.findingActions}>
-          {item.recommendedActions.includes('I_FIXED_IT') && (
-            <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onResolve}>
-              <Text style={styles.btnPrimaryText}>I Fixed It</Text>
-            </TouchableOpacity>
-          )}
-          {item.recommendedActions.includes('GET_ATTENTEVE_HELP') && (
-            <TouchableOpacity
-              style={[styles.btn, styles.btnGhost]}
-              onPress={() => router.push('/(customer)/hvac-analytics' as any)}
-            >
-              <Text style={[styles.btnGhostText, { color: style.color }]}>Get Attenteve Help</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.btnQuiet} onPress={onDismiss}>
-            <Text style={[styles.btnQuietText, { color: style.color }]}>Dismiss</Text>
+      <View style={styles.findingActions}>
+        {item.recommendedActions.includes('I_FIXED_IT') && (
+          <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onResolve}>
+            <Text style={styles.btnPrimaryText}>I Fixed It</Text>
           </TouchableOpacity>
+        )}
+        {item.recommendedActions.includes('GET_ATTENTEVE_HELP') && (
+          <TouchableOpacity
+            style={[styles.btn, styles.btnGhost]}
+            onPress={() => router.push('/(customer)/hvac-analytics' as any)}
+          >
+            <Text style={[styles.btnGhostText, { color: style.color }]}>Get Attenteve Help</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => setSnoozeOpen((o) => !o)}>
+          <Text style={[styles.btnGhostText, { color: style.color }]}>Snooze</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.btnQuiet} onPress={onDismiss}>
+          <Text style={[styles.btnQuietText, { color: style.color }]}>Dismiss</Text>
+        </TouchableOpacity>
+      </View>
+      {snoozeOpen && (
+        <View style={styles.snoozeRow}>
+          {SNOOZE_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt.minutes}
+              style={styles.snoozeOption}
+              onPress={() => { onSnooze(opt.minutes); setSnoozeOpen(false); }}
+            >
+              <Text style={[styles.snoozeOptionText, { color: style.color }]}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       )}
     </View>
@@ -76,6 +111,15 @@ export default function HvacAnalyticsScreen() {
   const handleDismiss = async (id: string) => {
     await hvacAnalyticsApi.dismissFinding(id).catch(() => {});
     setData((prev) => prev ? { ...prev, findings: prev.findings.filter((f) => f.id !== id) } : prev);
+  };
+
+  const handleSnooze = async (id: string, minutes: 30 | 60 | 240) => {
+    try {
+      const res = await hvacAnalyticsApi.snoozeFinding(id, minutes);
+      setData((prev) => prev ? { ...prev, findings: prev.findings.map((f) => f.id === id ? { ...f, snoozedUntil: res.snoozedUntil } : f) } : prev);
+    } catch {
+      Alert.alert('Something went wrong', 'Please try again in a moment.');
+    }
   };
 
   const handleRequestVisit = async () => {
@@ -130,7 +174,7 @@ export default function HvacAnalyticsScreen() {
           <Text style={styles.sectionLabel}>Active Findings</Text>
           <View style={{ gap: 10, marginTop: 8 }}>
             {data.findings.map((f) => (
-              <FindingCard key={f.id} item={f} onResolve={() => handleResolve(f.id)} onDismiss={() => handleDismiss(f.id)} />
+              <FindingCard key={f.id} item={f} onResolve={() => handleResolve(f.id)} onDismiss={() => handleDismiss(f.id)} onSnooze={(m) => handleSnooze(f.id, m)} />
             ))}
           </View>
         </View>
@@ -195,7 +239,7 @@ const styles = StyleSheet.create({
   scoreFoot: { marginTop: 8, fontSize: 10.5, color: '#8FA0A5', lineHeight: 15 },
 
   findingCard: { borderRadius: 16, padding: 14 },
-  findingTop: { flexDirection: 'row', marginBottom: 6 },
+  findingTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   findingBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   findingBadgeText: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.4 },
   findingMsg: { fontSize: 13.5, fontWeight: '700', lineHeight: 19, marginBottom: 10 },
@@ -207,6 +251,12 @@ const styles = StyleSheet.create({
   btnGhostText: { fontSize: 10.5, fontWeight: '700' },
   btnQuiet: { paddingHorizontal: 4, paddingVertical: 7 },
   btnQuietText: { fontSize: 10.5, fontWeight: '600', textDecorationLine: 'underline' },
+
+  snoozePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.06)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  snoozePillText: { fontSize: 9.5, fontWeight: '700', color: colors.steel },
+  snoozeRow: { flexDirection: 'row', gap: 6, marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.08)' },
+  snoozeOption: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+  snoozeOptionText: { fontSize: 11, fontWeight: '700' },
 
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginTop: 8 },
   sensorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.canvas },

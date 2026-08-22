@@ -66,6 +66,13 @@ export class AnalyticsFinding {
   @Column({ type: 'timestamp' }) detectedAt: Date;
   @Column({ type: 'timestamp', nullable: true }) resolvedAt: Date | null;
   @Column({ nullable: true }) linkedAlertId: string | null;
+  // While set and in the future, the re-alert cron (reAlertActiveFindings)
+  // skips this finding — lets a homeowner silence a still-active fault's
+  // repeat notifications for a fixed window without resolving/dismissing it.
+  @Column({ type: 'timestamp', nullable: true }) snoozedUntil: Date | null;
+  // Last time a push notification actually went out for this finding —
+  // the original alert on creation, or a repeat from reAlertActiveFindings.
+  @Column({ type: 'timestamp', nullable: true }) lastAlertedAt: Date | null;
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }

@@ -43,6 +43,14 @@ export class IotAnalyticsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Post('hvac-analytics/findings/:id/snooze')
+  @ApiOperation({ summary: 'Silence repeat alerts for a still-active finding for 30/60/240 minutes' })
+  snoozeFinding(@Request() req: any, @Param('id') id: string, @Body('minutes') minutes: number) {
+    return this.service.snoozeFinding(req.user.id, id, minutes);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Post('hvac-analytics/request-contractor-visit')
   @ApiOperation({ summary: 'Request an Attenteve HVAC contractor visit' })
   requestContractorVisit(@Request() req: any) {
