@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { hvacAnalyticsApi, HvacAnalytics, HvacFinding } from '../../src/services/api';
+import { hvacAnalyticsApi, HvacAnalytics, HvacFinding, ComponentHealthResult, ComponentHealthStatus } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string; border?: string }> = {
@@ -24,6 +24,36 @@ function snoozeLabel(snoozedUntil: string | null): string | null {
   const ms = new Date(snoozedUntil).getTime() - Date.now();
   if (ms <= 0) return null;
   return `Snoozed until ${new Date(snoozedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+const COMPONENT_STATUS_STYLE: Record<ComponentHealthStatus, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
+  GOOD: { color: '#059669', bg: 'rgba(5,150,105,0.10)', icon: 'checkmark-circle', label: 'Good' },
+  ATTENTION: { color: '#B45309', bg: 'rgba(217,119,6,0.12)', icon: 'alert-circle', label: 'Attention' },
+  CRITICAL: { color: '#DC2626', bg: 'rgba(220,38,38,0.12)', icon: 'warning', label: 'Critical' },
+  NOT_MONITORED: { color: colors.steel, bg: 'rgba(91,107,112,0.08)', icon: 'remove-circle-outline', label: 'Not Monitored' },
+};
+
+const OVERALL_HERO_STYLE: Record<ComponentHealthStatus, { icon: keyof typeof Ionicons.glyphMap; iconColor: string; pillLabel: string; headline: string }> = {
+  GOOD: { icon: 'checkmark-circle', iconColor: '#34D399', pillLabel: 'Good', headline: 'Your HVAC system appears healthy' },
+  ATTENTION: { icon: 'alert-circle', iconColor: '#F2A93C', pillLabel: 'Attention', headline: 'Something needs a look' },
+  CRITICAL: { icon: 'warning', iconColor: '#F87171', pillLabel: 'Critical', headline: 'A monitored component needs attention now' },
+  NOT_MONITORED: { icon: 'remove-circle-outline', iconColor: '#8FA0A5', pillLabel: 'Not Monitored', headline: 'Add sensors to start monitoring your HVAC system' },
+};
+
+function ComponentHealthRow({ item }: { item: ComponentHealthResult }) {
+  const s = COMPONENT_STATUS_STYLE[item.status];
+  return (
+    <View style={styles.compRow}>
+      <View style={[styles.compIcon, { backgroundColor: s.bg }]}>
+        <Ionicons name={s.icon} size={16} color={s.color} />
+      </View>
+      <Text style={styles.compName}>{item.label}</Text>
+      <View style={[styles.compPill, { backgroundColor: s.bg }]}>
+        <Text style={[styles.compPillText, { color: s.color }]}>{s.label}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={14} color={colors.border} />
+    </View>
+  );
 }
 
 function FindingCard({ item, onResolve, onDismiss, onSnooze }: { item: HvacFinding; onResolve: () => void; onDismiss: () => void; onSnooze: (minutes: 30 | 60 | 240) => void }) {
@@ -153,6 +183,51 @@ export default function HvacAnalyticsScreen() {
       contentContainerStyle={{ padding: 16, gap: 14 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
+      {(() => {
+        const ch = data.componentHealth;
+        const hero = OVERALL_HERO_STYLE[ch.overall.status];
+        return (
+          <>
+            <View style={styles.heroCard}>
+              <View style={styles.heroTop}>
+                <Text style={styles.heroEyebrow}>HVAC Health Overview</Text>
+                <View style={[styles.heroPill, { backgroundColor: hero.iconColor + '2E' }]}>
+                  <Text style={[styles.heroPillText, { color: hero.iconColor }]}>{hero.pillLabel}</Text>
+                </View>
+              </View>
+              <View style={styles.heroMain}>
+                <View style={[styles.heroBadge, { backgroundColor: hero.iconColor + '26' }]}>
+                  <Ionicons name={hero.icon} size={26} color={hero.iconColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.heroHeadline}>{hero.headline}</Text>
+                  <Text style={styles.heroSub}>{ch.overall.monitoredCount} of {ch.overall.totalCount} components monitored</Text>
+                </View>
+              </View>
+              <Text style={styles.heroFoot}>Last updated: {new Date(ch.overall.lastUpdated).toLocaleString([], { hour: 'numeric', minute: '2-digit' })}</Text>
+            </View>
+
+            <View>
+              <Text style={styles.sectionLabel}>Component Health</Text>
+              <View style={styles.card}>
+                {ch.components.map((c) => <ComponentHealthRow key={c.id} item={c} />)}
+              </View>
+            </View>
+
+            {ch.overall.monitoredCount < ch.overall.totalCount && (
+              <View style={styles.monitorBanner}>
+                <View style={styles.monitorDot}><Text style={styles.monitorDotText}>{ch.overall.monitoredCount}/{ch.overall.totalCount}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.monitorTxt}>{ch.overall.monitoredCount} of {ch.overall.totalCount} components monitored</Text>
+                  <Text style={styles.monitorSub}>Add more sensors to unlock deeper HVAC insights</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={14} color={colors.lanternDeep} />
+              </View>
+            )}
+          </>
+        );
+      })()}
+
       {!notIncluded && (
         <View style={styles.scoreCard}>
           <View style={styles.scoreTop}>
@@ -227,6 +302,29 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 15, fontWeight: '700', color: colors.steel, textAlign: 'center' },
 
   sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: colors.steel },
+
+  heroCard: { borderRadius: 18, padding: 16, backgroundColor: colors.slate },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroEyebrow: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', color: '#8FA0A5' },
+  heroPill: { paddingHorizontal: 9, paddingVertical: 3.5, borderRadius: 999 },
+  heroPillText: { fontSize: 10.5, fontWeight: '800' },
+  heroMain: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
+  heroBadge: { width: 46, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  heroHeadline: { fontSize: 13.5, fontWeight: '800', color: '#F4F7F6', lineHeight: 18 },
+  heroSub: { fontSize: 11, color: '#9DACB1', marginTop: 2 },
+  heroFoot: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', fontSize: 10, color: '#7C8B90' },
+
+  compRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.canvas },
+  compIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  compName: { flex: 1, fontSize: 12.5, fontWeight: '700', color: colors.ink },
+  compPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  compPillText: { fontSize: 9.5, fontWeight: '800' },
+
+  monitorBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(201,127,31,0.08)', borderWidth: 1, borderColor: 'rgba(201,127,31,0.22)', borderRadius: 14, padding: 12 },
+  monitorDot: { width: 30, height: 30, borderRadius: 999, backgroundColor: 'rgba(201,127,31,0.16)', alignItems: 'center', justifyContent: 'center' },
+  monitorDotText: { fontSize: 10, fontWeight: '800', color: colors.lanternDeep },
+  monitorTxt: { fontSize: 12, fontWeight: '700', color: colors.ink },
+  monitorSub: { fontSize: 10.5, color: colors.steel, marginTop: 1 },
 
   scoreCard: { borderRadius: 16, padding: 16, backgroundColor: colors.slate },
   scoreTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

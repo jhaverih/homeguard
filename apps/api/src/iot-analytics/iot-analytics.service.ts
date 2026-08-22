@@ -12,6 +12,7 @@ import { UserRole, PlanTier } from '../common/enums/role.enum';
 import { SensorRole, SENSOR_ROLE_META } from '../common/enums/sensor-role.enum';
 import { RULE_DEFINITIONS, evaluateRuleAvailability } from './rule-definitions';
 import { AnalyticsEngineService } from './analytics-engine.service';
+import { ComponentHealthService } from './component-health.service';
 import { TelemetryService } from './telemetry.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 
@@ -47,6 +48,7 @@ export class IotAnalyticsService {
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
     private analyticsEngine: AnalyticsEngineService,
+    private componentHealthService: ComponentHealthService,
     private telemetryService: TelemetryService,
     private notificationsService: NotificationsService,
   ) {}
@@ -122,6 +124,7 @@ export class IotAnalyticsService {
       healthState: !isProactivePlus ? 'NOT_INCLUDED' : hasFullHvacTempSensors ? 'LEARNING' : 'AWAITING_SENSORS',
       findings: visibleFindings.map((f) => this.analyticsEngine.toFindingDto(f)),
       sensorCoverage,
+      componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, visibleFindings),
     };
   }
 
@@ -193,11 +196,14 @@ export class IotAnalyticsService {
       return { role, label: SENSOR_ROLE_META[role].label, connected: devs.length > 0, deviceNames: devs.map((s) => s.device.currentProviderName ?? '') };
     });
 
+    const activeFindings = findings.filter((f) => f.status === FindingStatus.ACTIVE);
+
     return {
       findings: findings.map((f) => this.analyticsEngine.toFindingDto(f)),
       series,
       ruleAvailability,
       sensorCoverage,
+      componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, activeFindings),
     };
   }
 }

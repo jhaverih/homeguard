@@ -15,6 +15,7 @@ import { ClassificationService } from './classification.service';
 import { DeviceRegistryService } from './device-registry.service';
 import { TelemetryService } from './telemetry.service';
 import { AnalyticsEngineService } from './analytics-engine.service';
+import { ComponentHealthService } from './component-health.service';
 import { IotAnalyticsService } from './iot-analytics.service';
 import { IotAnalyticsMigrationService } from './iot-analytics-migration.service';
 import { IotAnalyticsController } from './iot-analytics.controller';
@@ -37,8 +38,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AlertsModule,
     NotificationsModule,
   ],
-  providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, IotAnalyticsService, IotAnalyticsMigrationService],
+  providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, IotAnalyticsService, IotAnalyticsMigrationService],
   controllers: [IotAnalyticsController],
-  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, IotAnalyticsService, IotAnalyticsMigrationService],
+  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, IotAnalyticsService, IotAnalyticsMigrationService],
 })
 export class IotAnalyticsModule {}

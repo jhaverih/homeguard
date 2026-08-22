@@ -15,6 +15,12 @@ export enum SensorRole {
   HVAC_POWER = 'HVAC_POWER',
   HVAC_STATE = 'HVAC_STATE',
   HVAC_THERMOSTAT_SETPOINT = 'HVAC_THERMOSTAT_SETPOINT',
+  HVAC_OUTDOOR_TEMP = 'HVAC_OUTDOOR_TEMP',
+  HVAC_COMPRESSOR_POWER = 'HVAC_COMPRESSOR_POWER',
+  HVAC_BLOWER_POWER = 'HVAC_BLOWER_POWER',
+  HVAC_SUCTION_LINE_TEMP = 'HVAC_SUCTION_LINE_TEMP',
+  HVAC_LIQUID_LINE_TEMP = 'HVAC_LIQUID_LINE_TEMP',
+  HVAC_STATIC_PRESSURE = 'HVAC_STATIC_PRESSURE',
   // Indoor climate (whole-home, not equipment-specific)
   INDOOR_AMBIENT_TEMP = 'INDOOR_AMBIENT_TEMP',
   INDOOR_AMBIENT_HUMIDITY = 'INDOOR_AMBIENT_HUMIDITY',
@@ -48,6 +54,12 @@ export const SENSOR_ROLE_META: Record<SensorRole, { label: string }> = {
   [SensorRole.HVAC_POWER]: { label: 'HVAC Power' },
   [SensorRole.HVAC_STATE]: { label: 'HVAC State' },
   [SensorRole.HVAC_THERMOSTAT_SETPOINT]: { label: 'Thermostat Setpoint' },
+  [SensorRole.HVAC_OUTDOOR_TEMP]: { label: 'Outdoor Temperature' },
+  [SensorRole.HVAC_COMPRESSOR_POWER]: { label: 'Compressor Power' },
+  [SensorRole.HVAC_BLOWER_POWER]: { label: 'Blower Power' },
+  [SensorRole.HVAC_SUCTION_LINE_TEMP]: { label: 'Refrigerant Suction Line Temperature' },
+  [SensorRole.HVAC_LIQUID_LINE_TEMP]: { label: 'Refrigerant Liquid Line Temperature' },
+  [SensorRole.HVAC_STATIC_PRESSURE]: { label: 'Duct Static Pressure' },
   [SensorRole.INDOOR_AMBIENT_TEMP]: { label: 'Indoor Temperature' },
   [SensorRole.INDOOR_AMBIENT_HUMIDITY]: { label: 'Indoor Humidity' },
   [SensorRole.WASHER_DRAIN_WATER]: { label: 'Washer Drain Pan' },
@@ -86,7 +98,41 @@ export enum MeasurementType {
   ENERGY = 'ENERGY',
   HVAC_STATE = 'HVAC_STATE',
   THERMOSTAT_SETPOINT = 'THERMOSTAT_SETPOINT',
+  PRESSURE = 'PRESSURE',
 }
+
+// Component-health taxonomy — a SECOND, purely additive classification
+// dimension alongside SensorRole (system/component/metric per the Attenteve
+// naming-convention addendum), used only by the Component Health rollup.
+// Deliberately a Partial map: roles outside HVAC/indoor comfort (plumbing,
+// freezer, washer's own leak sensor, etc.) simply have no entry and opt out
+// of component-health rollup — never a crash, never a required migration.
+export enum ComponentSystem {
+  HVAC = 'HVAC',
+  INDOOR_ENVIRONMENT = 'INDOOR_ENVIRONMENT',
+  WASHER = 'WASHER',
+}
+
+export interface SensorRoleTaxonomyEntry {
+  system: ComponentSystem;
+  component: string;
+  metric: string;
+}
+
+export const SENSOR_ROLE_TAXONOMY: Partial<Record<SensorRole, SensorRoleTaxonomyEntry>> = {
+  [SensorRole.HVAC_DRAIN_WATER]: { system: ComponentSystem.HVAC, component: 'CONDENSATE', metric: 'WATER_DETECTION' },
+  [SensorRole.WASHER_DRAIN_WATER]: { system: ComponentSystem.WASHER, component: 'CONDENSATE', metric: 'WATER_DETECTION' },
+  [SensorRole.INDOOR_AMBIENT_TEMP]: { system: ComponentSystem.INDOOR_ENVIRONMENT, component: 'INDOOR_COMFORT', metric: 'TEMPERATURE' },
+  [SensorRole.HVAC_SUPPLY_TEMP]: { system: ComponentSystem.HVAC, component: 'PERFORMANCE', metric: 'TEMPERATURE' },
+  [SensorRole.HVAC_RETURN_TEMP]: { system: ComponentSystem.HVAC, component: 'PERFORMANCE', metric: 'TEMPERATURE' },
+  [SensorRole.HVAC_OUTDOOR_TEMP]: { system: ComponentSystem.HVAC, component: 'PERFORMANCE', metric: 'TEMPERATURE' },
+  [SensorRole.HVAC_POWER]: { system: ComponentSystem.HVAC, component: 'ELECTRICAL', metric: 'POWER' },
+  [SensorRole.HVAC_COMPRESSOR_POWER]: { system: ComponentSystem.HVAC, component: 'COMPRESSOR', metric: 'POWER' },
+  [SensorRole.HVAC_BLOWER_POWER]: { system: ComponentSystem.HVAC, component: 'BLOWER', metric: 'POWER' },
+  [SensorRole.HVAC_SUCTION_LINE_TEMP]: { system: ComponentSystem.HVAC, component: 'REFRIGERANT', metric: 'TEMPERATURE' },
+  [SensorRole.HVAC_LIQUID_LINE_TEMP]: { system: ComponentSystem.HVAC, component: 'REFRIGERANT', metric: 'TEMPERATURE' },
+  [SensorRole.HVAC_STATIC_PRESSURE]: { system: ComponentSystem.HVAC, component: 'AIRFLOW', metric: 'PRESSURE' },
+};
 
 export enum ClassificationStatus {
   AUTO_CONFIRMED = 'AUTO_CONFIRMED',

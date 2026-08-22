@@ -264,12 +264,20 @@ export type HvacFinding = {
 
 export type HvacSensorCoverage = { role: string; label: string; connected: boolean; deviceNames: string[] };
 
+export type ComponentHealthStatus = 'GOOD' | 'ATTENTION' | 'CRITICAL' | 'NOT_MONITORED';
+export type ComponentHealthResult = { id: string; label: string; status: ComponentHealthStatus };
+export type ComponentHealthOverview = {
+  components: ComponentHealthResult[];
+  overall: { status: ComponentHealthStatus; monitoredCount: number; totalCount: number; lastUpdated: string };
+};
+
 export type HvacAnalytics = {
   tier: string;
   isProactivePlus: boolean;
   healthState: 'NOT_INCLUDED' | 'AWAITING_SENSORS' | 'LEARNING';
   findings: HvacFinding[];
   sensorCoverage: HvacSensorCoverage[];
+  componentHealth: ComponentHealthOverview;
 };
 
 export const hvacAnalyticsApi = {
