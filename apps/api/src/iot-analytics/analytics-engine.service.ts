@@ -10,6 +10,8 @@ import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { RULE_DEFINITIONS } from './rule-definitions';
 import { AlertsService } from '../alerts/alerts.service';
 import { AlertSeverity } from '../alerts/entities/alert.entity';
+import { ThresholdsService } from './thresholds.service';
+import { SENSOR_ROLE_META } from '../common/enums/sensor-role.enum';
 
 // The only snooze windows the mobile app offers — validated here too so a
 // crafted request can't set an arbitrary/unbounded snooze.
@@ -44,6 +46,7 @@ export class AnalyticsEngineService {
     @InjectRepository(AnalyticsFinding) private findingsRepo: Repository<AnalyticsFinding>,
     @InjectRepository(Equipment) private equipmentRepo: Repository<Equipment>,
     private alertsService: AlertsService,
+    private thresholdsService: ThresholdsService,
   ) {}
 
   private async equipmentFor(assignment: SensorAssignment): Promise<Equipment | null> {
@@ -100,12 +103,18 @@ export class AnalyticsEngineService {
     finding.lastAlertedAt = new Date();
     await this.findingsRepo.save(finding);
 
-    // HVAC-WATER-003 — 2+ HVAC condensate events in 30 days. Spec only
-    // defines a "repeated events" escalation for HVAC's own rule group.
+    // HVAC-WATER-003 — N+ HVAC condensate events within a rolling window.
+    // Spec only defines a "repeated events" escalation for HVAC's own rule
+    // group. Count/window come from WATER_REPEATED_EVENT_COUNT/
+    // WATER_REPEATED_EVENT_WINDOW_DAYS (ThresholdsService), not hardcoded.
     if (primary.ruleGroup === 'HVAC_WATER') {
-      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const [repeatCount, windowDays] = await Promise.all([
+        this.thresholdsService.getValue('WATER_REPEATED_EVENT_COUNT', home.customerId),
+        this.thresholdsService.getValue('WATER_REPEATED_EVENT_WINDOW_DAYS', home.customerId),
+      ]);
+      const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
       const recentCount = await this.findingsRepo.count({ where: { deviceRegistryId: device.id, ruleId: primary.ruleId, detectedAt: MoreThan(since) } });
-      if (recentCount >= 2) {
+      if (recentCount >= repeatCount) {
         const alreadyFlagged = await this.findingsRepo.findOne({ where: { deviceRegistryId: device.id, ruleId: 'HVAC-WATER-003', status: FindingStatus.ACTIVE } });
         if (!alreadyFlagged) {
           const repeatedRule = RULE_DEFINITIONS.find((r) => r.ruleId === 'HVAC-WATER-003')!;
@@ -114,7 +123,7 @@ export class AnalyticsEngineService {
             deviceRegistryId: device.id, sensorRole: assignment.sensorRole, ruleId: repeatedRule.ruleId, ruleGroup: repeatedRule.ruleGroup,
             eventType: repeatedRule.reasonCode.toLowerCase(), severity: repeatedRule.severity, confidence: repeatedRule.confidence,
             message: 'Your HVAC drainage area has experienced multiple water events recently. A preventative inspection may help identify an underlying drainage issue.',
-            measurements: { eventsInLast30Days: recentCount }, reasonCode: repeatedRule.reasonCode, reasonCodes: [repeatedRule.reasonCode],
+            measurements: { eventsInWindow: recentCount, windowDays }, reasonCode: repeatedRule.reasonCode, reasonCodes: [repeatedRule.reasonCode],
             recommendedActions: repeatedRule.recommendedActions, detectedAt: new Date(),
           }));
         }
@@ -122,25 +131,40 @@ export class AnalyticsEngineService {
     }
   }
 
-  // ── INDOOR-TEMP-001 (CarePlus-eligible) — reuses THSensor.Alert's own
-  // alarm.lowTemp/highTemp flags, same as before. ──
+  // ── INDOOR-TEMP-001 (CarePlus-eligible) — evaluated entirely by
+  // Attenteve against the raw temperature reading and this customer's
+  // INDOOR_TEMP_LOW_F/HIGH_F thresholds (ThresholdsService), NOT YoLink's
+  // own per-device alarm.lowTemp/highTemp flags — those live in the
+  // YoLink app's own config, invisible to and uncontrolled by Attenteve. ──
 
-  async evaluateIndoorTempEvent(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome, alarm: { lowTemp?: boolean; highTemp?: boolean } | undefined, tempF: number | null): Promise<void> {
+  async evaluateIndoorTempEvent(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome, tempF: number | null): Promise<void> {
     const rule = RULE_DEFINITIONS.find((r) => r.ruleId === 'INDOOR-TEMP-001')!;
     const active = await this.findingsRepo.findOne({
       where: { deviceRegistryId: device.id, ruleId: rule.ruleId, status: FindingStatus.ACTIVE },
       order: { detectedAt: 'DESC' },
     });
-    if (!alarm?.lowTemp && !alarm?.highTemp) {
+    if (tempF == null) return; // no reading this event — neither confirm nor clear off stale data
+
+    const [lowThreshold, highThreshold] = await Promise.all([
+      this.thresholdsService.getValue('INDOOR_TEMP_LOW_F', home.customerId),
+      this.thresholdsService.getValue('INDOOR_TEMP_HIGH_F', home.customerId),
+    ]);
+    const isLow = tempF <= lowThreshold;
+    const isHigh = tempF >= highThreshold;
+    if (!isLow && !isHigh) {
       if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
       return;
     }
     if (active) return; // already firing — don't re-alert on every report while the condition persists
 
     const equipment = await this.equipmentFor(assignment);
-    const kind = alarm.lowTemp ? 'low' : 'high';
+    const kind = isLow ? 'low' : 'high';
     const reasonCode = kind === 'low' ? 'LOW_INDOOR_TEMP' : 'HIGH_INDOOR_TEMP';
-    const message = `${device.currentProviderName ?? 'Indoor sensor'}: ${kind === 'low' ? 'Low' : 'High'} indoor temperature detected${tempF != null ? ` (${tempF}°F)` : ''}`;
+    const thresholdUsed = kind === 'low' ? lowThreshold : highThreshold;
+    // Generic sensor-role label, never the installed device's own name —
+    // this message is shown verbatim to the homeowner.
+    const sensorLabel = SENSOR_ROLE_META[assignment.sensorRole]?.label ?? 'Indoor sensor';
+    const message = `${sensorLabel}: ${kind === 'low' ? 'Low' : 'High'} indoor temperature detected (${tempF}°F, threshold ${thresholdUsed}°F)`;
 
     const finding = await this.findingsRepo.save(this.findingsRepo.create({
       customerId: home.customerId, yolinkHomeId: home.id, equipmentId: equipment?.id ?? null, equipmentCode: equipment?.equipmentCode ?? null,
@@ -161,20 +185,27 @@ export class AnalyticsEngineService {
   }
 
   // ── SENSOR-002 (low battery) — battery is a 0-4 scale on Yolink's
-  // getState response, mapped to a rough 0/25/50/75/100%. ──
+  // getState response, mapped to a rough 0/25/50/75/100%. Watch/Attention
+  // cutoffs come from LOW_BATTERY_WATCH_PERCENT/LOW_BATTERY_ATTENTION_PERCENT
+  // (ThresholdsService), not a hardcoded 20/10. ──
 
   async evaluateSensorBattery(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome, batteryRaw: number): Promise<void> {
     const percent = (batteryRaw / 4) * 100;
-    if (percent > 20) return;
+    const [watchThreshold, attentionThreshold] = await Promise.all([
+      this.thresholdsService.getValue('LOW_BATTERY_WATCH_PERCENT', home.customerId),
+      this.thresholdsService.getValue('LOW_BATTERY_ATTENTION_PERCENT', home.customerId),
+    ]);
+    if (percent > watchThreshold) return;
     const rule = RULE_DEFINITIONS.find((r) => r.ruleId === 'SENSOR-002')!;
     const already = await this.findingsRepo.findOne({ where: { deviceRegistryId: device.id, ruleId: rule.ruleId, status: FindingStatus.ACTIVE } });
     if (already) return;
     const equipment = await this.equipmentFor(assignment);
+    const sensorLabel = SENSOR_ROLE_META[assignment.sensorRole]?.label ?? 'Sensor';
     await this.findingsRepo.save(this.findingsRepo.create({
       customerId: home.customerId, yolinkHomeId: home.id, equipmentId: equipment?.id ?? null, equipmentCode: equipment?.equipmentCode ?? null,
       deviceRegistryId: device.id, sensorRole: assignment.sensorRole, ruleId: rule.ruleId, ruleGroup: rule.ruleGroup, eventType: 'low_battery',
-      severity: percent <= 10 ? FindingSeverity.ATTENTION : FindingSeverity.WATCH, confidence: rule.confidence,
-      message: `${device.currentProviderName ?? 'Sensor'}: Battery is low — check or replace soon.`,
+      severity: percent <= attentionThreshold ? FindingSeverity.ATTENTION : FindingSeverity.WATCH, confidence: rule.confidence,
+      message: `${sensorLabel}: Battery is low — check or replace soon.`,
       measurements: { batteryPercent: percent }, reasonCode: rule.reasonCode, reasonCodes: [rule.reasonCode], recommendedActions: rule.recommendedActions,
       detectedAt: new Date(),
     }));

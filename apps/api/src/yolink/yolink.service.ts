@@ -663,7 +663,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     } else if (assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
       await this.telemetryService.record(registryDevice, assignment, tempF != null ? String(tempF) : '', tempF, '°F', data ?? null, new Date());
-      await this.analyticsEngineService.evaluateIndoorTempEvent(registryDevice, assignment, home, data?.alarm, tempF);
+      await this.analyticsEngineService.evaluateIndoorTempEvent(registryDevice, assignment, home, tempF);
       handled = true;
     } else if (assignment.sensorRole === SensorRole.HVAC_RETURN_TEMP || assignment.sensorRole === SensorRole.HVAC_SUPPLY_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;

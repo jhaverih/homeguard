@@ -122,6 +122,16 @@ export const hvacAnalyticsApi = {
   getForCustomer: (customerId: string) => api.get(`/admin/hvac-analytics?customerId=${customerId}`).then((r) => r.data),
 };
 
+export const analyticsThresholdsApi = {
+  getPlatform: () => api.get('/admin/analytics-thresholds').then((r) => r.data),
+  getForCustomer: (customerId: string) => api.get(`/admin/analytics-thresholds?customerId=${customerId}`).then((r) => r.data),
+  setPlatformValue: (key: string, value: number) => api.post(`/admin/analytics-thresholds/${key}`, { value }).then((r) => r.data),
+  setCustomerValue: (key: string, customerId: string, value: number) =>
+    api.post(`/admin/analytics-thresholds/${key}/customers/${customerId}`, { value }).then((r) => r.data),
+  clearCustomerValue: (key: string, customerId: string) =>
+    api.post(`/admin/analytics-thresholds/${key}/customers/${customerId}/clear`).then((r) => r.data),
+};
+
 export const adminApi = {
   getStats: () => api.get('/admin/stats').then((r) => r.data),
   getCustomers: () => api.get('/admin/customers').then((r) => r.data),

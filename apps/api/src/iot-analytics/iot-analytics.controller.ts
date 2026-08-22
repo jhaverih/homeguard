@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/role.enum';
 import { IotAnalyticsService } from './iot-analytics.service';
 import { FindingStatus } from './entities/analytics-finding.entity';
+import { ThresholdsService } from './thresholds.service';
 
 // Route paths are UNCHANGED from the old HvacAnalyticsController — the
 // mobile Analytics screen and admin Analytics page call these exact URLs,
@@ -13,7 +14,7 @@ import { FindingStatus } from './entities/analytics-finding.entity';
 @ApiTags('HVAC Analytics')
 @Controller()
 export class IotAnalyticsController {
-  constructor(private readonly service: IotAnalyticsService) {}
+  constructor(private readonly service: IotAnalyticsService, private readonly thresholdsService: ThresholdsService) {}
 
   // ── Customer (HO app) ──────────────────────────────────────────────────────
 
@@ -75,5 +76,43 @@ export class IotAnalyticsController {
   @ApiOperation({ summary: "A customer's full HVAC analytics — findings, time series, rule availability" })
   getAdminAnalytics(@Query('customerId') customerId: string) {
     return this.service.getAdminAnalytics(customerId);
+  }
+
+  // ── Admin — Analytics Thresholds ────────────────────────────────────────
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Get('admin/analytics-thresholds')
+  @ApiOperation({ summary: 'Platform-default analytics thresholds catalog, or a customer\'s overrides merged with platform values if customerId is given' })
+  getThresholds(@Query('customerId') customerId?: string) {
+    return this.thresholdsService.getCatalogForAdmin(customerId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post('admin/analytics-thresholds/:key')
+  @ApiOperation({ summary: 'Set the platform-default value for a threshold' })
+  setPlatformThreshold(@Param('key') key: string, @Body('value') value: number) {
+    return this.thresholdsService.setPlatformValue(key, value);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post('admin/analytics-thresholds/:key/customers/:customerId')
+  @ApiOperation({ summary: 'Set a per-customer override for a threshold' })
+  setCustomerThreshold(@Param('key') key: string, @Param('customerId') customerId: string, @Body('value') value: number) {
+    return this.thresholdsService.setCustomerValue(key, customerId, value);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post('admin/analytics-thresholds/:key/customers/:customerId/clear')
+  @ApiOperation({ summary: 'Clear a per-customer override, reverting to the platform default' })
+  clearCustomerThreshold(@Param('key') key: string, @Param('customerId') customerId: string) {
+    return this.thresholdsService.clearCustomerValue(key, customerId);
   }
 }
