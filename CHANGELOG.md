@@ -12,6 +12,12 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-22
+
+### Added
+- **api**, **mobile**: Active HVAC/IoT findings that already pushed a customer alert (water detected, indoor temp out of range) now re-alert every 30 minutes for as long as they stay `ACTIVE`, instead of going silent after the single notification on first detection — a new `reAlertActiveFindings` cron resends the alert at the finding's own severity. Homeowners can snooze a still-active finding on the Monitoring screen for 30 min / 1 hr / 4 hrs (`POST hvac-analytics/findings/:id/snooze`) to silence the repeat alert without resolving or dismissing the underlying fault; the cron skips any finding with a future `snoozedUntil` and resumes once it lapses.
+- **admin**: HVAC Analytics page now shows which catalog rules are enabled for the selected customer, not just which ones aren't — a new "Rules Enabled for This Customer" panel lists every rule currently available (implemented, required sensors tagged, baseline met if needed) alongside the existing "not enabled" panel and its reasons.
+
 ## 2026-08-21
 
 ### Changed
