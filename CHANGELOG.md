@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-23
+
+### Added
+- **api**, **mobile**: Water-detected and indoor-temp-out-of-range alerts (including their 30-minute re-alerts) now carry a `SNOOZABLE_FINDING` notification category, so the OS shows Snooze 30m/1h/4h action buttons directly on the push notification/lock screen — no need to open the app first. Tapping an action calls a new `POST hvac-analytics/alerts/:alertId/snooze` endpoint (resolves the underlying finding via `linkedAlertId`, since the notification only carries the alert id) and shows a confirmation. Registered via `Notifications.setNotificationCategoryAsync`, which is a single cross-platform call — the Android build is tested and shipping in this pass; the iOS side is code-complete but unbuilt/unverified, since iOS builds require either EAS (blocked by the free-plan quota until 2026-09-01) or a local Xcode/macOS build, neither available in this environment today.
+
 ## 2026-08-22
 
 ### Added

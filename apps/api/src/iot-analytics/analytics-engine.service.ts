@@ -17,6 +17,12 @@ import { SENSOR_ROLE_META } from '../common/enums/sensor-role.enum';
 // crafted request can't set an arbitrary/unbounded snooze.
 const SNOOZE_MINUTES = [30, 60, 240] as const;
 
+// Must match the notification category identifier the mobile app registers
+// via Notifications.setNotificationCategoryAsync (apps/mobile/src/services/
+// notifications.ts) — this is what makes the OS show Snooze action buttons
+// directly on the push notification, on both iOS and Android.
+export const SNOOZABLE_FINDING_CATEGORY = 'SNOOZABLE_FINDING';
+
 const FINDING_TO_ALERT_SEVERITY: Record<FindingSeverity, AlertSeverity> = {
   [FindingSeverity.CRITICAL]: AlertSeverity.CRITICAL,
   [FindingSeverity.HIGH]: AlertSeverity.HIGH,
@@ -97,7 +103,7 @@ export class AnalyticsEngineService {
       message: primary.ruleId === 'WASHER-WATER-001'
         ? 'Water has been detected near your washer drain pan.'
         : 'Water has been detected in the drain pan. This may indicate a condensate drainage problem.',
-      rawPayload: { findingId: finding.id },
+      rawPayload: { findingId: finding.id }, categoryId: SNOOZABLE_FINDING_CATEGORY,
     });
     finding.linkedAlertId = alert.id;
     finding.lastAlertedAt = new Date();
@@ -177,7 +183,7 @@ export class AnalyticsEngineService {
     const alert = await this.alertsService.createAlert({
       customerId: home.customerId, yolinkHomeId: home.id, deviceId: device.providerDeviceId,
       deviceName: device.currentProviderName ?? 'Sensor', deviceType: device.providerDeviceType ?? undefined,
-      event: 'INDOOR-TEMP-001', severity: AlertSeverity.MEDIUM, message, rawPayload: { findingId: finding.id },
+      event: 'INDOOR-TEMP-001', severity: AlertSeverity.MEDIUM, message, rawPayload: { findingId: finding.id }, categoryId: SNOOZABLE_FINDING_CATEGORY,
     });
     finding.linkedAlertId = alert.id;
     finding.lastAlertedAt = new Date();
@@ -258,7 +264,7 @@ export class AnalyticsEngineService {
           deviceId: finding.deviceRegistryId ?? undefined, deviceName: (finding.measurements as any)?.deviceName ?? 'Sensor',
           event: finding.ruleId, severity: FINDING_TO_ALERT_SEVERITY[finding.severity],
           message: `Still active: ${finding.message}`,
-          rawPayload: { findingId: finding.id, reAlert: true },
+          rawPayload: { findingId: finding.id, reAlert: true }, categoryId: SNOOZABLE_FINDING_CATEGORY,
         });
         finding.linkedAlertId = alert.id;
         finding.lastAlertedAt = new Date();
@@ -294,5 +300,15 @@ export class AnalyticsEngineService {
     finding.snoozedUntil = new Date(Date.now() + minutes * 60_000);
     await this.findingsRepo.save(finding);
     return { snoozedUntil: finding.snoozedUntil };
+  }
+
+  // Snooze straight from a push notification's action button, which only
+  // knows the Alert's id (the data payload AlertsService already attaches),
+  // not the AnalyticsFinding's id — resolved via the same linkedAlertId
+  // every finding-driven alert sets when it's created/re-alerted above.
+  async snoozeFindingByAlertId(customerId: string, alertId: string, minutes: number): Promise<{ snoozedUntil: Date }> {
+    const finding = await this.findingsRepo.findOne({ where: { linkedAlertId: alertId, customerId, status: FindingStatus.ACTIVE } });
+    if (!finding) throw new NotFoundException('Active finding not found for this alert');
+    return this.snoozeFinding(customerId, finding.id, minutes);
   }
 }

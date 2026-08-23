@@ -285,6 +285,9 @@ export const hvacAnalyticsApi = {
   resolveFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/resolve`),
   dismissFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/dismiss`),
   snoozeFinding: (id: string, minutes: 30 | 60 | 240) => api.post(`/hvac-analytics/findings/${id}/snooze`, { minutes }) as Promise<{ snoozedUntil: string }>,
+  // Same action, resolved from a push notification's alertId instead of a
+  // findingId — used by the notification action-button handler.
+  snoozeAlert: (alertId: string, minutes: 30 | 60 | 240) => api.post(`/hvac-analytics/alerts/${alertId}/snooze`, { minutes }) as Promise<{ snoozedUntil: string }>,
   requestContractorVisit: () => api.post('/hvac-analytics/request-contractor-visit'),
 };
 

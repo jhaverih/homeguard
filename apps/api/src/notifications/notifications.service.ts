@@ -49,6 +49,11 @@ export class NotificationsService {
     title: string,
     body: string,
     data?: Record<string, unknown>,
+    // Maps to the iOS UNNotificationCategory / Android notification category
+    // the mobile app registered via setNotificationCategoryAsync — lets a
+    // push show inline action buttons (e.g. Snooze) instead of a plain tap.
+    // Omit for anything that shouldn't carry action buttons.
+    categoryId?: string,
   ): Promise<void> {
     const notification = this.notificationsRepo.create({ userId, type, title, body, data });
     await this.notificationsRepo.save(notification);
@@ -56,7 +61,7 @@ export class NotificationsService {
     try {
       const user = await this.usersService.findById(userId);
       if (user.expoPushToken && Expo.isExpoPushToken(user.expoPushToken)) {
-        await this.sendPush([user.expoPushToken], title, body, data);
+        await this.sendPush([user.expoPushToken], title, body, data, categoryId);
       }
     } catch (err) {
       this.logger.warn(`Could not send push notification to user ${userId}: ${err.message}`);
@@ -69,8 +74,9 @@ export class NotificationsService {
     title: string,
     body: string,
     data?: Record<string, unknown>,
+    categoryId?: string,
   ): Promise<void> {
-    await this.notifyUser(userId, type, title, body, data);
+    await this.notifyUser(userId, type, title, body, data, categoryId);
 
     try {
       const user = await this.usersService.findById(userId);
@@ -132,6 +138,7 @@ export class NotificationsService {
     title: string,
     body: string,
     data?: Record<string, unknown>,
+    categoryId?: string,
   ): Promise<void> {
     // priority: 'high' so Android still delivers/wakes the device under
     // Doze/App Standby when the app is fully closed, not just backgrounded —
@@ -139,6 +146,7 @@ export class NotificationsService {
     // default, which can be delayed or dropped for a killed app.
     const messages: ExpoPushMessage[] = tokens.map((to) => ({
       to, title, body, data: data || {}, sound: 'default', priority: 'high',
+      ...(categoryId ? { categoryId } : {}),
     }));
 
     const chunks = this.expo.chunkPushNotifications(messages);

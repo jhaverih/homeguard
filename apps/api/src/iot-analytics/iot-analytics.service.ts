@@ -136,6 +136,10 @@ export class IotAnalyticsService {
     return this.analyticsEngine.snoozeFinding(customerId, findingId, minutes);
   }
 
+  async snoozeFindingByAlertId(customerId: string, alertId: string, minutes: number) {
+    return this.analyticsEngine.snoozeFindingByAlertId(customerId, alertId, minutes);
+  }
+
   // "Request HVAC Contractor Visit" — notifies admins now; creating a real
   // assigned work order is separate follow-on backend work (not this pass).
   async requestContractorVisit(customerId: string): Promise<{ ok: boolean }> {

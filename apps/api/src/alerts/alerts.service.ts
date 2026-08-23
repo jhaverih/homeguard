@@ -21,8 +21,12 @@ export class AlertsService {
     severity: AlertSeverity;
     message: string;
     rawPayload?: any;
+    // Notification action category (e.g. 'SNOOZABLE_FINDING') — not a
+    // persisted column, stripped before the repo write below.
+    categoryId?: string;
   }): Promise<Alert> {
-    const alert = this.alertsRepo.create(data);
+    const { categoryId, ...alertData } = data;
+    const alert = this.alertsRepo.create(alertData);
     await this.alertsRepo.save(alert);
 
     const emoji = {
@@ -38,6 +42,7 @@ export class AlertsService {
       `${emoji} Home Alert`,
       data.message,
       { alertId: alert.id, severity: data.severity, screen: 'alerts' },
+      categoryId,
     ).catch(() => {});
 
     return alert;

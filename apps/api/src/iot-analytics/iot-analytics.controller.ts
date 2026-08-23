@@ -52,6 +52,14 @@ export class IotAnalyticsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Post('hvac-analytics/alerts/:alertId/snooze')
+  @ApiOperation({ summary: 'Same as above, but resolved from a push notification action button, which only carries the Alert id' })
+  snoozeFindingByAlert(@Request() req: any, @Param('alertId') alertId: string, @Body('minutes') minutes: number) {
+    return this.service.snoozeFindingByAlertId(req.user.id, alertId, minutes);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Post('hvac-analytics/request-contractor-visit')
   @ApiOperation({ summary: 'Request an Attenteve HVAC contractor visit' })
   requestContractorVisit(@Request() req: any) {

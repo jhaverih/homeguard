@@ -12,6 +12,7 @@ import { useAuthStore } from '../src/store/auth.store';
 import { useAlertsStore } from '../src/store/alerts.store';
 import {
   registerForPushNotificationsAsync,
+  registerNotificationCategoriesAsync,
   setupNotificationListeners,
 } from '../src/services/notifications';
 import { userApi } from '../src/services/api';
@@ -109,6 +110,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (user) {
       registerForPushNotificationsAsync().catch(() => {});
+      registerNotificationCategoriesAsync().catch(() => {});
     } else {
       setUnreadCount(0);
     }

@@ -1,8 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { userApi } from './api';
+import { Platform, Alert as RNAlert } from 'react-native';
+import { userApi, hvacAnalyticsApi } from './api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -11,6 +11,37 @@ Notifications.setNotificationHandler({
     shouldSetBadge: true,
   }),
 });
+
+// Must match apps/api/src/iot-analytics/analytics-engine.service.ts'
+// SNOOZABLE_FINDING_CATEGORY — the backend tags every water/indoor-temp
+// finding alert (and its 30-min re-alerts) with this category so the OS
+// shows these action buttons directly on the notification, on both iOS
+// and Android, without opening the app first.
+const SNOOZABLE_FINDING_CATEGORY = 'SNOOZABLE_FINDING';
+const SNOOZE_ACTIONS: { identifier: string; buttonTitle: string; minutes: 30 | 60 | 240 }[] = [
+  { identifier: 'SNOOZE_30', buttonTitle: 'Snooze 30m', minutes: 30 },
+  { identifier: 'SNOOZE_60', buttonTitle: 'Snooze 1h', minutes: 60 },
+  { identifier: 'SNOOZE_240', buttonTitle: 'Snooze 4h', minutes: 240 },
+];
+
+/**
+ * Registers the notification action category behind the Snooze buttons —
+ * a single cross-platform call (expo-notifications maps it to
+ * UNNotificationCategory on iOS and a notification action set on Android).
+ * Safe to call every app start; re-registering an existing category is a
+ * no-op on both platforms. Call once from the root layout, same as
+ * registerForPushNotificationsAsync.
+ */
+export async function registerNotificationCategoriesAsync(): Promise<void> {
+  await Notifications.setNotificationCategoryAsync(
+    SNOOZABLE_FINDING_CATEGORY,
+    SNOOZE_ACTIONS.map((a) => ({
+      identifier: a.identifier,
+      buttonTitle: a.buttonTitle,
+      options: { opensAppToForeground: true },
+    })),
+  );
+}
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   if (!Device.isDevice) return null;
@@ -99,6 +130,20 @@ export function setupNotificationListeners(
   });
 
   const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+    // A Snooze action button was tapped (not a plain tap-to-open) — handle
+    // it here directly instead of navigating anywhere; the same action is
+    // available in-app on the finding card if the customer wants to see it.
+    const snoozeAction = SNOOZE_ACTIONS.find((a) => a.identifier === response.actionIdentifier);
+    if (snoozeAction) {
+      const alertId = response.notification.request.content.data?.alertId as string | undefined;
+      if (alertId) {
+        hvacAnalyticsApi.snoozeAlert(alertId, snoozeAction.minutes)
+          .then(() => RNAlert.alert('Snoozed', `We'll hold off on repeat alerts for ${snoozeAction.buttonTitle.replace('Snooze ', '')}.`))
+          .catch(() => RNAlert.alert('Something went wrong', 'Could not snooze this alert — open the app and try from the finding card instead.'));
+      }
+      return;
+    }
+
     // 'alerts' is reserved for actual Yolink monitoring alerts (AlertsService sets
     // it explicitly); anything else that didn't specify a screen is a general
     // notification (schedule change, job completed, etc.) and belongs in the
