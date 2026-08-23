@@ -12,6 +12,7 @@ import { encrypt, decrypt } from '../common/crypto/encryption.util';
 import { DeviceRegistryService } from '../iot-analytics/device-registry.service';
 import { TelemetryService } from '../iot-analytics/telemetry.service';
 import { AnalyticsEngineService } from '../iot-analytics/analytics-engine.service';
+import { PerformanceEngineService } from '../iot-analytics/performance-engine.service';
 import { IotAnalyticsMigrationService } from '../iot-analytics/iot-analytics-migration.service';
 import { SensorRole } from '../common/enums/sensor-role.enum';
 
@@ -114,6 +115,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     private deviceRegistryService: DeviceRegistryService,
     private telemetryService: TelemetryService,
     private analyticsEngineService: AnalyticsEngineService,
+    private performanceEngineService: PerformanceEngineService,
     private iotAnalyticsMigrationService: IotAnalyticsMigrationService,
   ) {}
 
@@ -667,10 +669,54 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       handled = true;
     } else if (assignment.sensorRole === SensorRole.HVAC_RETURN_TEMP || assignment.sensorRole === SensorRole.HVAC_SUPPLY_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
+      const observedAt = new Date();
+      if (tempF != null) await this.telemetryService.record(registryDevice, assignment, String(tempF), tempF, '°F', data ?? null, observedAt);
+      await this.performanceEngineService.handleReturnOrSupplyTempReading(registryDevice, assignment, home, tempF, observedAt);
+      handled = true;
+    } else if (assignment.sensorRole === SensorRole.HVAC_OUTDOOR_TEMP) {
+      const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
       if (tempF != null) await this.telemetryService.record(registryDevice, assignment, String(tempF), tempF, '°F', data ?? null, new Date());
-      // Recorded for future baseline/delta-T work — no rule executes on
-      // these roles yet (genuinely blocked on both sensors + a baseline
-      // engine, same scope as before this rewrite).
+    } else if (assignment.sensorRole === SensorRole.HVAC_SUCTION_LINE_TEMP || assignment.sensorRole === SensorRole.HVAC_LIQUID_LINE_TEMP) {
+      // Best-effort field mapping — no real refrigerant line-temp device
+      // exists yet to verify the raw YoLink payload shape against.
+      const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
+      const observedAt = new Date();
+      if (tempF != null) await this.telemetryService.record(registryDevice, assignment, String(tempF), tempF, '°F', data ?? null, observedAt);
+      await this.performanceEngineService.handleLineTempReading(registryDevice, assignment, home, tempF, observedAt);
+      handled = true;
+    } else if (assignment.sensorRole === SensorRole.HVAC_POWER || assignment.sensorRole === SensorRole.HVAC_COMPRESSOR_POWER || assignment.sensorRole === SensorRole.HVAC_BLOWER_POWER) {
+      // Best-effort field mapping (data.power in Watts, data.voltage in
+      // Volts) — matches typical YoLink Outlet/PowerMeter payloads, but
+      // unverified against a real device on any home yet.
+      const watts = typeof data?.power === 'number' ? data.power : null;
+      const voltage = typeof data?.voltage === 'number' ? data.voltage : null;
+      const observedAt = new Date();
+      if (watts != null) await this.telemetryService.record(registryDevice, assignment, String(watts), watts, 'W', data ?? null, observedAt);
+      await this.performanceEngineService.handlePowerReading(registryDevice, assignment, home, watts, voltage, observedAt);
+      handled = true;
+    } else if (assignment.sensorRole === SensorRole.INDOOR_AMBIENT_HUMIDITY || assignment.sensorRole === SensorRole.HVAC_RETURN_HUMIDITY || assignment.sensorRole === SensorRole.HVAC_SUPPLY_HUMIDITY) {
+      const percent = typeof data?.humidity === 'number' ? data.humidity : null;
+      const observedAt = new Date();
+      if (percent != null) await this.telemetryService.record(registryDevice, assignment, String(percent), percent, '%', data ?? null, observedAt);
+      await this.performanceEngineService.handleHumidityReading(registryDevice, assignment, home, percent, observedAt);
+      handled = true;
+    } else if (assignment.sensorRole === SensorRole.HVAC_THERMOSTAT_SETPOINT) {
+      // Best-effort field mapping — no real thermostat device tagged yet.
+      const setpointC = typeof data?.setTemp === 'number' ? data.setTemp : null;
+      const setpointF = setpointC != null ? celsiusToFahrenheit(setpointC) : null;
+      const observedAt = new Date();
+      if (setpointF != null) await this.telemetryService.record(registryDevice, assignment, String(setpointF), setpointF, '°F', data ?? null, observedAt);
+      await this.performanceEngineService.handleSetpointReading(registryDevice, assignment, home, setpointF, observedAt);
+      handled = true;
+    } else if (assignment.sensorRole === SensorRole.HVAC_STATIC_PRESSURE) {
+      // Best-effort field mapping — YoLink has no native pressure-sensor
+      // product today; this assumes a generic numeric `data.pressure` field
+      // from whatever device eventually fills this role.
+      const value = typeof data?.pressure === 'number' ? data.pressure : null;
+      const observedAt = new Date();
+      if (value != null) await this.telemetryService.record(registryDevice, assignment, String(value), value, 'in.wc', data ?? null, observedAt);
+      await this.performanceEngineService.handleStaticPressureReading(registryDevice, assignment, home, value, observedAt);
+      handled = true;
     }
     if (typeof data?.battery === 'number') {
       await this.analyticsEngineService.evaluateSensorBattery(registryDevice, assignment, home, data.battery);
