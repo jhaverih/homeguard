@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import * as TaskManager from 'expo-task-manager';
 import Constants from 'expo-constants';
 import { Platform, Alert as RNAlert } from 'react-native';
 import { userApi, hvacAnalyticsApi } from './api';
@@ -7,6 +8,11 @@ import { userApi, hvacAnalyticsApi } from './api';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    // shouldShowBanner/shouldShowList replaced shouldShowAlert in newer
+    // expo-notifications — both set so foreground presentation is correct
+    // regardless of which field this SDK version actually reads.
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -41,6 +47,48 @@ export async function registerNotificationCategoriesAsync(): Promise<void> {
       options: { opensAppToForeground: true },
     })),
   );
+}
+
+// Shared by both the foreground listener below and the background task —
+// returns true if this response was a Snooze action (handled here) so the
+// caller knows not to also treat it as a plain notification tap.
+async function tryHandleSnoozeAction(response: Notifications.NotificationResponse): Promise<boolean> {
+  const snoozeAction = SNOOZE_ACTIONS.find((a) => a.identifier === response.actionIdentifier);
+  if (!snoozeAction) return false;
+  const alertId = response.notification.request.content.data?.alertId as string | undefined;
+  if (!alertId) return true;
+  try {
+    await hvacAnalyticsApi.snoozeAlert(alertId, snoozeAction.minutes);
+    RNAlert.alert('Snoozed', `We'll hold off on repeat alerts for ${snoozeAction.buttonTitle.replace('Snooze ', '')}.`);
+  } catch {
+    RNAlert.alert('Something went wrong', 'Could not snooze this alert — open the app and try from the finding card instead.');
+  }
+  return true;
+}
+
+// Android-only: on Android, a notification's action buttons are only
+// reliably rendered/handled when the app process is backgrounded or fully
+// terminated if a background task is registered — a plain foreground
+// listener (below) is not invoked while the app isn't running. Must be
+// defined at module scope (not inside a component) so the OS can invoke it
+// without the rest of the app having mounted. See:
+// https://docs.expo.dev/versions/latest/sdk/notifications/#background-notification-tasks
+const BACKGROUND_NOTIFICATION_TASK = 'ATTENTEVE_SNOOZE_BACKGROUND_TASK';
+
+TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }: any) => {
+  if (error || !data) return;
+  if ('actionIdentifier' in data) {
+    await tryHandleSnoozeAction(data as Notifications.NotificationResponse);
+  }
+});
+
+export async function registerBackgroundNotificationTaskAsync(): Promise<void> {
+  if (Platform.OS !== 'android') return; // iOS handles category actions without this
+  try {
+    await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+  } catch (e) {
+    console.warn('Could not register background notification task:', e);
+  }
 }
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
@@ -129,20 +177,13 @@ export function setupNotificationListeners(
     onAlert?.(notification);
   });
 
-  const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+  const responseSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
     // A Snooze action button was tapped (not a plain tap-to-open) — handle
     // it here directly instead of navigating anywhere; the same action is
     // available in-app on the finding card if the customer wants to see it.
-    const snoozeAction = SNOOZE_ACTIONS.find((a) => a.identifier === response.actionIdentifier);
-    if (snoozeAction) {
-      const alertId = response.notification.request.content.data?.alertId as string | undefined;
-      if (alertId) {
-        hvacAnalyticsApi.snoozeAlert(alertId, snoozeAction.minutes)
-          .then(() => RNAlert.alert('Snoozed', `We'll hold off on repeat alerts for ${snoozeAction.buttonTitle.replace('Snooze ', '')}.`))
-          .catch(() => RNAlert.alert('Something went wrong', 'Could not snooze this alert — open the app and try from the finding card instead.'));
-      }
-      return;
-    }
+    // (Also handled by the Android background task above when the app
+    // wasn't running at tap time — this covers the foreground case.)
+    if (await tryHandleSnoozeAction(response)) return;
 
     // 'alerts' is reserved for actual Yolink monitoring alerts (AlertsService sets
     // it explicitly); anything else that didn't specify a screen is a general

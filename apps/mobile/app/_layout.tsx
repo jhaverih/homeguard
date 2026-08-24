@@ -13,6 +13,7 @@ import { useAlertsStore } from '../src/store/alerts.store';
 import {
   registerForPushNotificationsAsync,
   registerNotificationCategoriesAsync,
+  registerBackgroundNotificationTaskAsync,
   setupNotificationListeners,
 } from '../src/services/notifications';
 import { userApi } from '../src/services/api';
@@ -111,6 +112,7 @@ export default function RootLayout() {
     if (user) {
       registerForPushNotificationsAsync().catch(() => {});
       registerNotificationCategoriesAsync().catch(() => {});
+      registerBackgroundNotificationTaskAsync().catch(() => {});
     } else {
       setUnreadCount(0);
     }

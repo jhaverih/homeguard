@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-24
+
+### Fixed
+- **mobile**: Notification action buttons (Snooze 30m/1h/4h on HVAC alerts) never appeared on Android — confirmed on a real device, not a simulator artifact. Root cause: `expo-notifications`' Android category actions only render/fire reliably while the app process is running in the foreground; a plain `addNotificationResponseReceivedListener` (the only handler previously registered) is never invoked while the app is backgrounded or fully terminated, which is the normal state for a push notification the user hasn't opened yet. Added `expo-task-manager` and a background notification task (`TaskManager.defineTask` + `Notifications.registerTaskAsync`, Android-only, defined at module scope per Expo's documented pattern) that reliably fires the same snooze API call regardless of app state. Also fixed a real (previously just noted, not yet fixed) type error in `setNotificationHandler` — the installed SDK expects `shouldShowBanner`/`shouldShowList`, not just the deprecated `shouldShowAlert`.
+
 ## 2026-08-23
 
 ### Added
