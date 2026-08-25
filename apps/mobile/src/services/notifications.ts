@@ -37,16 +37,40 @@ const SNOOZE_ACTIONS: { identifier: string; buttonTitle: string; minutes: 30 | 6
  * Safe to call every app start; re-registering an existing category is a
  * no-op on both platforms. Call once from the root layout, same as
  * registerForPushNotificationsAsync.
+ *
+ * On Android, expo-notifications looks up the category by this exact
+ * identifier from a device-local store (SharedPreferencesNotificationCategoriesStore)
+ * when it builds a *received* push notification — if that store doesn't
+ * have this category yet (registration never ran, or silently failed), the
+ * notification still displays fine with zero buttons and no visible error
+ * anywhere. So this reads the category back immediately after registering
+ * and retries once + logs loudly on failure, instead of trusting a
+ * fire-and-forget call that could fail invisibly.
  */
 export async function registerNotificationCategoriesAsync(): Promise<void> {
-  await Notifications.setNotificationCategoryAsync(
-    SNOOZABLE_FINDING_CATEGORY,
-    SNOOZE_ACTIONS.map((a) => ({
-      identifier: a.identifier,
-      buttonTitle: a.buttonTitle,
-      options: { opensAppToForeground: true },
-    })),
-  );
+  const actions = SNOOZE_ACTIONS.map((a) => ({
+    identifier: a.identifier,
+    buttonTitle: a.buttonTitle,
+    options: { opensAppToForeground: true },
+  }));
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await Notifications.setNotificationCategoryAsync(SNOOZABLE_FINDING_CATEGORY, actions);
+      const stored = await Notifications.getNotificationCategoriesAsync().catch(() => []);
+      const found = stored.find((c) => c.identifier === SNOOZABLE_FINDING_CATEGORY);
+      if (found && found.actions.length === SNOOZE_ACTIONS.length) return;
+      console.warn(`[notifications] ${SNOOZABLE_FINDING_CATEGORY} category not confirmed after registration (attempt ${attempt})`, found);
+    } catch (e) {
+      console.warn(`[notifications] setNotificationCategoryAsync threw on attempt ${attempt}:`, e);
+    }
+  }
+  console.warn(`[notifications] Giving up registering ${SNOOZABLE_FINDING_CATEGORY} after 2 attempts — Snooze buttons will not appear on push notifications.`);
+  // Console logs are invisible to a non-technical tester on a real device —
+  // this is the one case worth a visible signal, since it means Snooze
+  // buttons are guaranteed not to work and there's otherwise no way to
+  // know that without dev tools attached.
+  RNAlert.alert('Notification setup incomplete', 'Snooze buttons on alert notifications may not appear on this device (diagnostic: category registration failed).');
 }
 
 // Shared by both the foreground listener below and the background task —

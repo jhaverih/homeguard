@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-26
+
+### Fixed
+- **mobile**: The Aug 24 background-task fix for Android Snooze buttons didn't resolve the issue on real-device retest — buttons still don't appear. Traced the actual native code path (`expo-notifications`' Android `ExpoNotificationBuilder`/`RemoteNotificationContent`): action buttons are looked up from a **device-local category store** by identifier when a push notification is built, and if that category was never successfully registered on-device (`setNotificationCategoryAsync`), the notification still displays fine with zero buttons and no visible error anywhere — the previous implementation had this call wrapped in a silent `.catch(() => {})`, so a real failure would have been completely invisible. `registerNotificationCategoriesAsync` now reads the category back immediately after registering to confirm it actually landed, retries once, and — since console logs are useless for a non-technical tester on a real device — shows a one-time visible alert if registration genuinely fails, giving a clear yes/no diagnostic signal instead of another silent dead end. Server-side `categoryId` wiring was re-verified correct by direct code review (not the cause). If the diagnostic alert does *not* appear on next test but buttons still don't show, the remaining suspect is Expo's push-relay service not forwarding `categoryId` through to FCM as documented — not something fixable from this codebase.
+
 ## 2026-08-24
 
 ### Fixed
