@@ -29,6 +29,7 @@ const SNOOZE_ACTIONS: { identifier: string; buttonTitle: string; minutes: 30 | 6
   { identifier: 'SNOOZE_60', buttonTitle: 'Snooze 1h', minutes: 60 },
   { identifier: 'SNOOZE_240', buttonTitle: 'Snooze 4h', minutes: 240 },
 ];
+let diagnosticShown = false;
 
 /**
  * Registers the notification action category behind the Snooze buttons —
@@ -191,6 +192,13 @@ export function setupNotificationListeners(
   onAlert?: (notification: Notifications.Notification) => void,
 ): () => void {
   const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+    // TEMP DIAGNOSTIC — see matching comment in responseSub below.
+    if (!diagnosticShown && notification.request.content.data?.alertId) {
+      diagnosticShown = true;
+      const cat = notification.request.content.categoryIdentifier;
+      RNAlert.alert('Diagnostic', `This alert's categoryIdentifier: ${cat ?? 'MISSING'}`);
+    }
+
     // Only real Yolink monitoring alerts should bump the Alerts tab badge —
     // this used to fire for every push (job updates, payments, schedule
     // changes, etc.), so the badge count and the Alerts screen's actual
@@ -202,6 +210,19 @@ export function setupNotificationListeners(
   });
 
   const responseSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+    // TEMP DIAGNOSTIC (remove once Snooze buttons are confirmed working):
+    // shows, once per app session, whether the notification that was just
+    // tapped actually arrived carrying a categoryIdentifier at all. If this
+    // reads "MISSING" for a real Home Alert notification, the push payload
+    // itself never had categoryId set — the bug is server-side / in Expo's
+    // push relay, not in on-device category registration (already ruled
+    // out — no "setup incomplete" alert appeared).
+    if (!diagnosticShown && response.notification.request.content.data?.alertId) {
+      diagnosticShown = true;
+      const cat = response.notification.request.content.categoryIdentifier;
+      RNAlert.alert('Diagnostic', `This alert's categoryIdentifier: ${cat ?? 'MISSING'}`);
+    }
+
     // A Snooze action button was tapped (not a plain tap-to-open) — handle
     // it here directly instead of navigating anywhere; the same action is
     // available in-app on the finding card if the customer wants to see it.
