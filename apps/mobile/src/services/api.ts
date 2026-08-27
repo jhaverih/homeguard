@@ -60,7 +60,7 @@ export const authApi = {
 export const userApi = {
   getMe: () => api.get('/users/me'),
   switchRole: (role: string) => api.patch('/users/me/role', { role }),
-  updatePushToken: (token: string) => api.patch('/users/me/push-token', { token }),
+  updatePushToken: (token: string, fcmDeviceToken?: string) => api.patch('/users/me/push-token', { token, fcmDeviceToken }),
   clearPushToken: () => api.delete('/users/me/push-token'),
   acceptTerms: (termsType: 'CUSTOMER' | 'VENDOR') => api.patch('/users/me/accept-terms', { termsType }),
 };

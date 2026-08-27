@@ -277,22 +277,26 @@ export class UsersService implements OnModuleInit {
     return this.usersRepo.save(user);
   }
 
-  async updatePushToken(userId: string, token: string): Promise<void> {
+  async updatePushToken(userId: string, token: string, fcmDeviceToken?: string): Promise<void> {
     // A physical device's Expo push token is stable per app-install — if a
     // second account ever logs in on the same phone (common during testing,
     // but also just a shared family device), the OLD account's row kept
     // this exact token forever with nothing to clear it, so both accounts
     // received each other's notifications indefinitely. Clearing it from any
     // other owner before assigning it here guarantees at most one user ever
-    // holds a given token at a time.
+    // holds a given token at a time. Same dedupe applies to fcmDeviceToken.
     await this.dataSource.transaction(async (manager) => {
       await manager.update(User, { expoPushToken: token, id: Not(userId) }, { expoPushToken: null });
       await manager.update(User, userId, { expoPushToken: token });
+      if (fcmDeviceToken) {
+        await manager.update(User, { fcmDeviceToken, id: Not(userId) }, { fcmDeviceToken: null });
+        await manager.update(User, userId, { fcmDeviceToken });
+      }
     });
   }
 
   async clearPushToken(userId: string): Promise<void> {
-    await this.usersRepo.update(userId, { expoPushToken: null });
+    await this.usersRepo.update(userId, { expoPushToken: null, fcmDeviceToken: null });
   }
 
   async updateStripeCustomerId(userId: string, stripeCustomerId: string | null): Promise<void> {

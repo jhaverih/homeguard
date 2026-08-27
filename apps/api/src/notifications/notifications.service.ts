@@ -8,6 +8,7 @@ import { AppNotification } from './entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { NotificationType } from './notification-type.enum';
+import { FcmService } from './fcm.service';
 
 export { NotificationType };
 
@@ -21,6 +22,7 @@ export class NotificationsService {
     @InjectRepository(AppNotification)
     private notificationsRepo: Repository<AppNotification>,
     private usersService: UsersService,
+    private fcmService: FcmService,
     private configService: ConfigService,
   ) {
     this.initMailer();
@@ -60,6 +62,25 @@ export class NotificationsService {
 
     try {
       const user = await this.usersService.findById(userId);
+
+      // Category-tagged (Snoozable) alerts go through direct FCM when the
+      // device has registered a native token — Expo's push relay silently
+      // drops categoryId before it reaches FCM (confirmed via on-device
+      // diagnostic), so action buttons never work through that path. Falls
+      // through to Expo below if there's no FCM token yet (iOS, or an
+      // Android device that hasn't re-registered since this shipped) or the
+      // direct send fails for any reason — never silently drops the alert.
+      if (categoryId && user.fcmDeviceToken) {
+        const sent = await this.fcmService.sendDataMessage(user.fcmDeviceToken, {
+          title,
+          message: body,
+          categoryId,
+          body: JSON.stringify(data ?? {}),
+        });
+        if (sent) return;
+        this.logger.warn(`Direct FCM send failed for user ${userId}, falling back to Expo push.`);
+      }
+
       if (user.expoPushToken && Expo.isExpoPushToken(user.expoPushToken)) {
         await this.sendPush([user.expoPushToken], title, body, data, categoryId);
       }

@@ -29,8 +29,8 @@ export class UsersController {
   }
 
   @Patch('me/push-token')
-  updatePushToken(@Request() req, @Body() body: { token: string }) {
-    return this.usersService.updatePushToken(req.user.id, body.token);
+  updatePushToken(@Request() req, @Body() body: { token: string; fcmDeviceToken?: string }) {
+    return this.usersService.updatePushToken(req.user.id, body.token, body.fcmDeviceToken);
   }
 
   @Delete('me/push-token')

@@ -46,6 +46,14 @@ export class User {
   @Column({ nullable: true })
   expoPushToken: string;
 
+  // Raw native FCM registration token (Android only, today) — separate from
+  // expoPushToken since a direct admin.messaging().send() call needs the
+  // real device token, not an ExponentPushToken[...] string. Used to route
+  // category-tagged (Snoozable) alerts around Expo's push relay, which
+  // silently drops the categoryId field before it reaches FCM.
+  @Column({ nullable: true })
+  fcmDeviceToken: string;
+
   @Column({ nullable: true })
   parentUserId: string;
 
