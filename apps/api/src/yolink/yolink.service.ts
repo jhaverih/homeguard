@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, IsNull, In } from 'typeorm';
+import { Repository, LessThan, IsNull, In, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import axios from 'axios';
 import * as mqtt from 'mqtt';
@@ -506,6 +506,36 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
           await this.analyticsEngineService.evaluateSensorOffline(found.device, found.assignment, home)
             .catch((e) => this.logger.warn(`SENSOR-001 evaluation failed for ${dev.deviceId}: ${e.message}`));
         }
+      }
+    }
+  }
+
+  // Runs independently of the live MQTT stream — the only source
+  // evaluateWaterEvent is otherwise ever invoked from. If a "back to normal"
+  // MQTT report is ever dropped (e.g. during scheduleTokenRefresh's ~2h
+  // reconnect cycle, or any transient network blip), an ACTIVE water finding
+  // can never self-heal on its own. Same reconciliation pattern SENSOR-001
+  // already has via refreshDeviceStates/clearSensorOfflineFinding, scoped
+  // narrowly to just LeakSensor.getState (not a full Home.getDeviceList
+  // catalog refresh) and reusing evaluateWaterEvent's own create-or-resolve
+  // logic rather than duplicating it.
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async reconcileLeakSensorStates(): Promise<void> {
+    const leakSensors = await this.devicesRepo.find({
+      where: { deviceType: 'LeakSensor', deviceRegistryId: Not(IsNull()) },
+    });
+    for (const dev of leakSensors) {
+      if (!dev.yolinkToken) continue;
+      try {
+        const home = await this.homesRepo.findOne({ where: { id: dev.yolinkHomeId, isActive: true } });
+        if (!home) continue;
+        const found = await this.deviceRegistryService.getDeviceAndAssignment(dev.deviceRegistryId!);
+        if (!found) continue;
+        const state = await this.yolinkDeviceRequest(home, 'LeakSensor.getState', dev.deviceId, dev.yolinkToken);
+        const leakDetected = state?.state === 'alert' || state?.leak === true;
+        await this.analyticsEngineService.evaluateWaterEvent(found.device, found.assignment, home, leakDetected);
+      } catch (err: any) {
+        this.logger.warn(`Could not reconcile leak state for Yolink device ${dev.deviceId}: ${err.message}`);
       }
     }
   }

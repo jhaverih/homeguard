@@ -23,6 +23,26 @@ const SNOOZE_MINUTES = [30, 60, 240] as const;
 // directly on the push notification, on both iOS and Android.
 export const SNOOZABLE_FINDING_CATEGORY = 'SNOOZABLE_FINDING';
 
+// Re-alert cadence for a still-ACTIVE, customer-notified finding — frequent
+// early (matches CRITICAL urgency), tapering off so a long-lived fault
+// doesn't spam forever. Never fully stops (see the 7-day+ tier) — a
+// genuinely still-active fault should keep reminding the homeowner, just
+// infrequently. A finding that resolves and later genuinely recurs always
+// does so as a brand-new AnalyticsFinding row (fresh detectedAt) — see the
+// `active` status-scoped lookups in evaluateWaterEvent/evaluateIndoorTempEvent
+// — so this always restarts at the 30-minute tier for a real recurrence.
+const REALERT_TIERS: { maxAgeMs: number; intervalMs: number }[] = [
+  { maxAgeMs: 4 * 60 * 60 * 1000, intervalMs: 30 * 60 * 1000 },          // 0-4h: every 30 min
+  { maxAgeMs: 24 * 60 * 60 * 1000, intervalMs: 2 * 60 * 60 * 1000 },     // 4h-24h: every 2h
+  { maxAgeMs: 7 * 24 * 60 * 60 * 1000, intervalMs: 6 * 60 * 60 * 1000 }, // 1-7 days: every 6h
+];
+const REALERT_INTERVAL_BEYOND_7_DAYS_MS = 24 * 60 * 60 * 1000; // 7+ days: once daily
+
+function nextReAlertIntervalMs(ageMs: number): number {
+  for (const tier of REALERT_TIERS) if (ageMs <= tier.maxAgeMs) return tier.intervalMs;
+  return REALERT_INTERVAL_BEYOND_7_DAYS_MS;
+}
+
 const FINDING_TO_ALERT_SEVERITY: Record<FindingSeverity, AlertSeverity> = {
   [FindingSeverity.CRITICAL]: AlertSeverity.CRITICAL,
   [FindingSeverity.HIGH]: AlertSeverity.HIGH,
@@ -83,9 +103,12 @@ export class AnalyticsEngineService {
     if (active) return; // already firing — escalation below is duration-based display, not a duplicate row
 
     const equipment = await this.equipmentFor(assignment);
-    const message = primary.ruleId === 'WASHER-WATER-001'
-      ? primary.description
-      : '🚨 Water detected near your HVAC system';
+    // Derived from assignment.sensorRole — the same field that determined
+    // which rule matched above — so the message can never disagree with
+    // which rule actually fired (unlike the old ruleId-string-equality
+    // ternary this replaced).
+    const sensorLabel = SENSOR_ROLE_META[assignment.sensorRole]?.label ?? 'Sensor';
+    const message = `🚨 Water detected near your ${sensorLabel}.`;
 
     const finding = await this.findingsRepo.save(this.findingsRepo.create({
       customerId: home.customerId, yolinkHomeId: home.id, equipmentId: equipment?.id ?? null, equipmentCode: equipment?.equipmentCode ?? null,
@@ -100,9 +123,7 @@ export class AnalyticsEngineService {
       customerId: home.customerId, yolinkHomeId: home.id, deviceId: device.providerDeviceId,
       deviceName: device.currentProviderName ?? 'Sensor', deviceType: device.providerDeviceType ?? undefined,
       event: primary.ruleId, severity: AlertSeverity.CRITICAL,
-      message: primary.ruleId === 'WASHER-WATER-001'
-        ? 'Water has been detected near your washer drain pan.'
-        : 'Water has been detected in the drain pan. This may indicate a condensate drainage problem.',
+      message,
       rawPayload: { findingId: finding.id }, categoryId: SNOOZABLE_FINDING_CATEGORY,
     });
     finding.linkedAlertId = alert.id;
@@ -256,7 +277,12 @@ export class AnalyticsEngineService {
       where: { status: FindingStatus.ACTIVE, linkedAlertId: Not(IsNull()) },
     });
     const now = Date.now();
-    const due = candidates.filter((f) => !f.snoozedUntil || f.snoozedUntil.getTime() <= now);
+    const due = candidates.filter((f) => {
+      if (f.snoozedUntil && f.snoozedUntil.getTime() > now) return false;
+      const ageMs = now - f.detectedAt.getTime();
+      const sinceLastAlertMs = now - (f.lastAlertedAt ?? f.detectedAt).getTime();
+      return sinceLastAlertMs >= nextReAlertIntervalMs(ageMs);
+    });
     for (const finding of due) {
       try {
         const alert = await this.alertsService.createAlert({
