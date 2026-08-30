@@ -91,16 +91,38 @@ export class AnalyticsEngineService {
     const primary = RULE_DEFINITIONS.find((r) => r.applicableSensorRoles.includes(assignment.sensorRole) && CONDITION_PREDICATES[r.reasonCode]);
     if (!primary) return;
 
-    const active = await this.findingsRepo.findOne({
-      where: { deviceRegistryId: device.id, ruleId: primary.ruleId, status: FindingStatus.ACTIVE },
+    // Looked up regardless of status (not just ACTIVE) so a very recent
+    // RESOLVED finding is visible below for debouncing — a leak sensor's
+    // contact can chatter (alert/clear/alert/clear within seconds) during a
+    // real physical test or a brief water recession, and each clear normally
+    // resolves the finding immediately (correct — see WATER_CLEAR_DEBOUNCE_MS
+    // below for why that's still fine), so the very next alert a couple
+    // seconds later would otherwise look like a brand-new event and push a
+    // duplicate customer-facing alert.
+    const mostRecent = await this.findingsRepo.findOne({
+      where: { deviceRegistryId: device.id, ruleId: primary.ruleId },
       order: { detectedAt: 'DESC' },
     });
+    const active = mostRecent?.status === FindingStatus.ACTIVE ? mostRecent : null;
     const conditionMet = CONDITION_PREDICATES[primary.reasonCode]({ leakDetected });
     if (!conditionMet) {
       if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
       return;
     }
     if (active) return; // already firing — escalation below is duration-based display, not a duplicate row
+
+    // Debounce: if the last finding for this exact device+rule (even though
+    // already resolved) fired within this window, treat a fresh alert as the
+    // SAME episode flapping rather than a new one — reopen it instead of
+    // creating a duplicate finding + duplicate push. A genuinely new leak
+    // hours/days later is unaffected; this only suppresses rapid re-triggers.
+    const WATER_CLEAR_DEBOUNCE_MS = 5 * 60 * 1000;
+    if (mostRecent && Date.now() - mostRecent.detectedAt.getTime() < WATER_CLEAR_DEBOUNCE_MS) {
+      mostRecent.status = FindingStatus.ACTIVE;
+      mostRecent.resolvedAt = null;
+      await this.findingsRepo.save(mostRecent);
+      return;
+    }
 
     const equipment = await this.equipmentFor(assignment);
     // Derived from assignment.sensorRole — the same field that determined

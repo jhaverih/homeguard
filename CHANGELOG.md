@@ -12,6 +12,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-08-30
+
+### Fixed
+- **api**: A physical test of the washer leak sensor produced 4 separate "water detected" push notifications within 6 seconds instead of one. Root cause: the sensor's contact chattered (alert/clear/alert/clear rapidly), and each "clear" resolved the finding immediately — so each subsequent "alert" a couple seconds later looked like a brand-new event to `AnalyticsEngineService.evaluateWaterEvent` and pushed its own duplicate alert. Added a 5-minute debounce: if the most recent finding for the same device+rule (even if already resolved) fired within the last 5 minutes, a fresh trigger now reopens that same finding instead of creating a new one, so a flapping/chattering episode produces exactly one push. A genuinely new leak hours or days later is unaffected — this only suppresses rapid re-triggers of the same episode.
+
 ## 2026-08-29
 
 ### Fixed
