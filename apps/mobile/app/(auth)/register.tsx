@@ -290,7 +290,7 @@ export default function RegisterScreen() {
   const handleRoleSelect = async (role: 'CUSTOMER' | 'VENDOR') => {
     setSelectedRole(role);
     if (role === 'CUSTOMER') {
-      try { setPlans((await subscriptionsApi.getPlans()) || []); } catch { setPlans([]); }
+      try { setPlans(((await subscriptionsApi.getPlans()) as any) || []); } catch { setPlans([]); }
     }
     setStep('account');
   };

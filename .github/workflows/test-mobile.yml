@@ -33,3 +33,29 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm test --workspace=apps/mobile
+
+  # iOS "sanity check", not a build verification: confirms the app.json/
+  # config-plugin setup can still generate a valid iOS native project
+  # structure, and that nothing in apps/mobile has an iOS-relevant type
+  # error — without needing a macOS runner, Xcode, CocoaPods, or a
+  # simulator (none of which exist on Linux). No code signing, no
+  # TestFlight, no release build. The real iOS build/submit process stays
+  # exactly as-is: manual `eas build --platform ios` / TestFlight, untouched
+  # by this job. A real Xcode/simulator CI pipeline is a future addition
+  # once there's a Mac available to develop and test that approach against
+  # locally first.
+  ios-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Generate iOS native project (no CocoaPods/Xcode needed on Linux)
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --no-install
+      - name: Typecheck (surfaces iOS-relevant type errors too)
+        working-directory: apps/mobile
+        run: npx tsc --noEmit -p tsconfig.json
