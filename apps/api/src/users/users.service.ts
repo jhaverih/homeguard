@@ -9,7 +9,7 @@ import { CustomerProfile } from './entities/customer-profile.entity';
 import { UserRole, UserStatus } from '../common/enums/role.enum';
 import { AdminLevel } from '../common/enums/admin-level.enum';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
-import { CURRENT_CUSTOMER_TOS_VERSION, CURRENT_VENDOR_TOS_VERSION } from '../common/constants/tos';
+import { CURRENT_CUSTOMER_TOS_VERSION, CURRENT_VENDOR_TOS_VERSION, CURRENT_FACILITATOR_DISCLOSURE_VERSION } from '../common/constants/tos';
 import { geocodeAddress } from '../common/utils/geocode.utils';
 
 export interface CreateUserDto {
@@ -311,9 +311,15 @@ export class UsersService implements OnModuleInit {
     await this.usersRepo.update(userId, { vendorTermsAcceptedAt: new Date(), vendorTosVersion: tosVersion });
   }
 
-  async acceptTerms(userId: string, termsType: 'CUSTOMER' | 'VENDOR'): Promise<User> {
+  async acceptFacilitatorDisclosure(userId: string, version: string): Promise<void> {
+    await this.usersRepo.update(userId, { facilitatorDisclosureAcceptedAt: new Date(), facilitatorDisclosureVersion: version });
+  }
+
+  async acceptTerms(userId: string, termsType: 'CUSTOMER' | 'VENDOR' | 'FACILITATOR_DISCLOSURE'): Promise<User> {
     if (termsType === 'VENDOR') {
       await this.acceptVendorTerms(userId, CURRENT_VENDOR_TOS_VERSION);
+    } else if (termsType === 'FACILITATOR_DISCLOSURE') {
+      await this.acceptFacilitatorDisclosure(userId, CURRENT_FACILITATOR_DISCLOSURE_VERSION);
     } else {
       await this.acceptCustomerTerms(userId, CURRENT_CUSTOMER_TOS_VERSION);
     }

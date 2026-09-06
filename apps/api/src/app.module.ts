@@ -18,6 +18,7 @@ import { PricingModule } from './pricing/pricing.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { HealthModule } from './health/health.module';
+import { LegalModule } from './legal/legal.module';
 import { AdminModule } from './admin/admin.module';
 import { MaintenanceBotModule } from './maintenance-bot/maintenance-bot.module';
 import { AlertsModule } from './alerts/alerts.module';
@@ -69,6 +70,7 @@ import { MarketplaceModule } from './marketplace/marketplace.module';
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
 
     HealthModule,
+    LegalModule,
     AdminModule,
     AuthModule,
     UsersModule,

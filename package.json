@@ -1,6 +1,6 @@
 {
   "name": "homeguard",
-  "version": "0.43.5",
+  "version": "0.44.0",
   "private": true,
   "packageManager": "npm@11.13.0",
   "workspaces": [

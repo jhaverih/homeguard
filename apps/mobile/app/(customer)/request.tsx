@@ -14,6 +14,9 @@ import { scheduleLocalReminder } from '../../src/services/notifications';
 import { fmtUSD } from '../../src/utils/currency';
 import { colors } from '../../src/theme';
 import HomeCharacteristicsModal from '../../src/components/HomeCharacteristicsModal';
+import FacilitatorDisclosureModal from '../../src/components/FacilitatorDisclosureModal';
+import { useAuthStore } from '../../src/store/auth.store';
+import { needsReacceptance } from '../../src/utils/legal';
 
 function DateTimeField({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
   const [showDate, setShowDate] = useState(false);
@@ -110,6 +113,41 @@ export default function RequestScreen() {
   const [loading, setLoading] = useState(false);
   const [subscription, setSubscription] = useState<any>(null);
   const [addonConfirmModal, setAddonConfirmModal] = useState(false);
+
+  // Facilitator/agent disclosure — shown once, the first time a customer
+  // submits either kind of request, before the existing addon/service
+  // confirm modals. pendingSubmitRef remembers which flow's normal logic
+  // to resume once the disclosure is confirmed, since either entry point
+  // can trigger it.
+  const { user, setUser, legalVersions } = useAuthStore();
+  const needsFacilitatorDisclosure = !!user && needsReacceptance(user.facilitatorDisclosureVersion, legalVersions?.facilitatorDisclosureVersion);
+  const [facilitatorModalVisible, setFacilitatorModalVisible] = useState(false);
+  const [acceptingFacilitator, setAcceptingFacilitator] = useState(false);
+  const pendingSubmitRef = useRef<(() => void) | null>(null);
+
+  const gateOnFacilitatorDisclosure = (proceed: () => void) => {
+    if (needsFacilitatorDisclosure) {
+      pendingSubmitRef.current = proceed;
+      setFacilitatorModalVisible(true);
+    } else {
+      proceed();
+    }
+  };
+
+  const handleAcceptFacilitatorDisclosure = async () => {
+    setAcceptingFacilitator(true);
+    try {
+      const updated: any = await userApi.acceptTerms('FACILITATOR_DISCLOSURE');
+      setUser(updated);
+      setFacilitatorModalVisible(false);
+      pendingSubmitRef.current?.();
+      pendingSubmitRef.current = null;
+    } catch {
+      Alert.alert('Error', 'Could not save your acceptance. Please try again.');
+    } finally {
+      setAcceptingFacilitator(false);
+    }
+  };
 
   // Catalog for service tab
   const [catalog, setCatalog] = useState<any[]>([]);
@@ -681,11 +719,13 @@ export default function RequestScreen() {
 
   // --- Inspection tab ---
   const handleInspectionSubmit = () => {
-    if (limitReached) {
-      setAddonConfirmModal(true);
-    } else {
-      doSubmitInspection(false);
-    }
+    gateOnFacilitatorDisclosure(() => {
+      if (limitReached) {
+        setAddonConfirmModal(true);
+      } else {
+        doSubmitInspection(false);
+      }
+    });
   };
 
   const doSubmitInspection = async (isPaidAddon: boolean) => {
@@ -724,15 +764,17 @@ export default function RequestScreen() {
       Alert.alert('Select a Service', 'Please choose at least one service from the list.');
       return;
     }
-    // A Preventative Home Assessment (isQuotaCovered aside) needs home
-    // characteristics on file to price correctly — collect them first if
-    // missing, same gate the backend itself enforces at booking time.
-    const needsCharacteristics = selectedServices.some((s) => s.useCharacteristicPricing) && !characteristics;
-    if (needsCharacteristics) {
-      setShowCharModal(true);
-      return;
-    }
-    setServiceConfirmModal(true);
+    gateOnFacilitatorDisclosure(() => {
+      // A Preventative Home Assessment (isQuotaCovered aside) needs home
+      // characteristics on file to price correctly — collect them first if
+      // missing, same gate the backend itself enforces at booking time.
+      const needsCharacteristics = selectedServices.some((s) => s.useCharacteristicPricing) && !characteristics;
+      if (needsCharacteristics) {
+        setShowCharModal(true);
+        return;
+      }
+      setServiceConfirmModal(true);
+    });
   };
 
   const doSubmitServices = async () => {
@@ -1025,6 +1067,12 @@ export default function RequestScreen() {
         >
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
+
+        <FacilitatorDisclosureModal
+          visible={facilitatorModalVisible}
+          onAccept={handleAcceptFacilitatorDisclosure}
+          loading={acceptingFacilitator}
+        />
 
         {/* Addon inspection confirmation modal */}
         <Modal visible={addonConfirmModal} transparent animationType="fade">

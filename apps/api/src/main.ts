@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, RequestMethod } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -23,7 +23,19 @@ async function bootstrap() {
   // which keys on req.ip.
   app.set('trust proxy', 1);
 
-  app.setGlobalPrefix('api');
+  // The two rendered legal documents are deliberately excluded from the
+  // 'api' prefix — apps/mobile/src/services/api.ts's TERMS_URL/VENDOR_TERMS_URL
+  // build these as plain links (opened in a browser via Linking.openURL,
+  // not called through the authenticated axios instance) and strip '/api'
+  // off the base URL before appending them. GET /legal/versions is NOT
+  // excluded — it's called through that same axios instance as every other
+  // endpoint, so it belongs under the normal prefix.
+  app.setGlobalPrefix('api', {
+    exclude: [
+      { path: 'legal/customer-terms.html', method: RequestMethod.GET },
+      { path: 'legal/vendor-terms.html', method: RequestMethod.GET },
+    ],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

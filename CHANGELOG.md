@@ -12,6 +12,17 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-09-06
+
+### Added
+- **mobile, api**: New facilitator/agent disclosure — the first time a customer submits either an inspection or a standalone-service request, they now confirm a one-time screen stating their service agreement is with the vendor, not Attenteve (modeled on how Uber discloses its own driver relationship at booking time). Recorded server-side (`facilitatorDisclosureAcceptedAt`/`facilitatorDisclosureVersion` on `User`) so it's a real, versioned, provable acknowledgment, not just a client-side flag.
+- **api**: `GET /legal/versions`, `GET /legal/customer-terms.html`, `GET /legal/vendor-terms.html` — the latter two fix a pre-existing dead link (`TERMS_URL`/`VENDOR_TERMS_URL` in the mobile app pointed at these paths, but nothing served them; `apps/api/legal/*.md` also wasn't even copied into the deployed Docker image).
+
+### Fixed
+- **mobile**: The general Terms & Conditions re-acceptance gate (`apps/mobile/app/_layout.tsx`) checked only whether a user had *ever* accepted, never whether their accepted version matched the currently-published one — so bumping `CURRENT_CUSTOMER_TOS_VERSION`/`CURRENT_VENDOR_TOS_VERSION` silently did nothing. Now genuinely version-aware (`needsReacceptance()`, `apps/mobile/src/utils/legal.ts`), so a future version bump actually re-gates affected users as intended.
+
+See `C:\Users\hares\.claude\plans\jazzy-napping-sutherland.md` for the full design/reasoning.
+
 ## 2026-08-30
 
 ### Fixed

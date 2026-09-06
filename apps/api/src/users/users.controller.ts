@@ -50,7 +50,7 @@ export class UsersController {
   }
 
   @Patch('me/accept-terms')
-  acceptTerms(@Request() req, @Body() body: { termsType: 'CUSTOMER' | 'VENDOR' }) {
+  acceptTerms(@Request() req, @Body() body: { termsType: 'CUSTOMER' | 'VENDOR' | 'FACILITATOR_DISCLOSURE' }) {
     return this.usersService.acceptTerms(req.user.id, body.termsType);
   }
 

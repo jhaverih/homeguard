@@ -3,7 +3,10 @@ import * as SecureStore from 'expo-secure-store';
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.86.29/api';
 
-// The admin app serves static legal docs at its root domain (same host, no /api prefix).
+// The API serves these two rendered legal docs at its root domain, no /api
+// prefix (see apps/api/src/main.ts's setGlobalPrefix exclude list) — opened
+// directly in the device browser via Linking.openURL, not called through
+// the authenticated `api` instance below.
 export const TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/customer-terms.html`;
 export const VENDOR_TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/vendor-terms.html`;
 
@@ -62,7 +65,12 @@ export const userApi = {
   switchRole: (role: string) => api.patch('/users/me/role', { role }),
   updatePushToken: (token: string, fcmDeviceToken?: string) => api.patch('/users/me/push-token', { token, fcmDeviceToken }),
   clearPushToken: () => api.delete('/users/me/push-token'),
-  acceptTerms: (termsType: 'CUSTOMER' | 'VENDOR') => api.patch('/users/me/accept-terms', { termsType }),
+  acceptTerms: (termsType: 'CUSTOMER' | 'VENDOR' | 'FACILITATOR_DISCLOSURE') => api.patch('/users/me/accept-terms', { termsType }),
+};
+
+export const legalApi = {
+  getVersions: (): Promise<{ customerTosVersion: string; vendorTosVersion: string; facilitatorDisclosureVersion: string }> =>
+    api.get('/legal/versions') as any,
 };
 
 export const teamApi = {

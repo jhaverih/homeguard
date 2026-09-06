@@ -19,6 +19,7 @@ import {
 import { userApi } from '../src/services/api';
 import TermsGateModal from '../src/components/TermsGateModal';
 import { colors } from '../src/theme';
+import { needsReacceptance } from '../src/utils/legal';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PK || '';
 
@@ -86,14 +87,25 @@ export default function RootLayout() {
     Karla_400Regular,
     Karla_700Bold,
   });
-  const { user, setUser } = useAuthStore();
+  const { user, setUser, legalVersions, fetchLegalVersions } = useAuthStore();
   const { increment, setUnreadCount } = useAlertsStore();
   const router = useRouter();
   const [alertPopup, setAlertPopup] = useState<{ title: string; body: string; severity: string } | null>(null);
   const [acceptingTerms, setAcceptingTerms] = useState(false);
 
+  useEffect(() => {
+    fetchLegalVersions();
+  }, []);
+
   const isVendorActive = user?.activeRole === 'VENDOR';
-  const needsTerms = !!user && (isVendorActive ? !user.vendorTermsAcceptedAt : !user.termsAcceptedAt);
+  // Version-aware, not presence-only: a user who accepted an older version
+  // must be re-gated once CURRENT_CUSTOMER_TOS_VERSION/CURRENT_VENDOR_TOS_VERSION
+  // (apps/api/src/common/constants/tos.ts) is deliberately bumped — see
+  // needsReacceptance()'s own comment for why it doesn't gate on an
+  // unresolved (undefined) legalVersions fetch.
+  const needsTerms = !!user && (isVendorActive
+    ? needsReacceptance(user.vendorTosVersion, legalVersions?.vendorTosVersion)
+    : needsReacceptance(user.tosVersion, legalVersions?.customerTosVersion));
 
   const handleAcceptTerms = async () => {
     setAcceptingTerms(true);

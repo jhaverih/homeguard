@@ -19,6 +19,11 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps --omit=dev && npm cache clean --force
 
 COPY --from=builder --chown=node:node /app/dist ./dist
+# Read at runtime by LegalController (src/legal/legal.controller.ts) via
+# process.cwd() — never compiled, so it isn't in dist/ and has to be copied
+# separately. Was never copied here before, which meant /legal/*.html
+# returned nothing in every deployed environment.
+COPY --chown=node:node legal ./legal
 
 USER node
 EXPOSE 3000

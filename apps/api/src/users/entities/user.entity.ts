@@ -93,6 +93,16 @@ export class User {
   @Column({ nullable: true })
   vendorTosVersion: string | null;
 
+  // Separate from termsAcceptedAt/tosVersion above: this is the customer-app-only
+  // "Attenteve is a facilitator, not the vendor" disclosure shown at first
+  // service-request submission (not at login), not a change to the general
+  // Terms & Conditions — see apps/api/src/common/constants/tos.ts.
+  @Column({ type: 'timestamptz', nullable: true })
+  facilitatorDisclosureAcceptedAt: Date | null;
+
+  @Column({ nullable: true })
+  facilitatorDisclosureVersion: string | null;
+
   @OneToOne(() => VendorProfile, (profile) => profile.user, { cascade: true, eager: false })
   vendorProfile: VendorProfile;
 
