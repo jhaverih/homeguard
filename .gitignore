@@ -10,10 +10,13 @@ build/
 out/
 *.tsbuildinfo
 
-# Environment
-.env
-.env.local
-.env.*.local
+# Environment — .env* catches every variant (.env, .env.local, .env.production,
+# .env.staging, etc.) so a new env file is never accidentally trackable by
+# default; the two lines below un-ignore the example files that ARE meant to
+# be committed (placeholders only, no real values).
+.env*
+!.env.example
+!apps/*/.env.example
 
 # Logs
 *.log
