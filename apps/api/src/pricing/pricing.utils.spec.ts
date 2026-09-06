@@ -2,14 +2,6 @@ import {
   calcTieredCost, formatPriceDisplay, applyStripeFee, isDynamicGmCategory,
   calcGraduatedPrice, formatCustomerPriceDisplay, STRIPE_RATE, STRIPE_FIXED,
 } from './pricing.utils';
-
-// TEMPORARY — Phase 5 gate verification, reverted immediately after
-// confirming this blocks the staging deploy. Not a real test.
-describe('DELIBERATE FAILURE for CI gate verification', () => {
-  it('should fail on purpose', () => {
-    expect(1).toBe(2);
-  });
-});
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { ServiceCategory } from '../common/enums/service-category.enum';
 import { ServicePrice } from './entities/service-price.entity';
