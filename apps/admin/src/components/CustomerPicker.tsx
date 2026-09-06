@@ -4,6 +4,16 @@ import { hvacAnalyticsApi } from '@/lib/api';
 
 export type Customer = { id: string; name: string; email: string };
 
+// Extracted so it's directly unit-testable without rendering the component —
+// matches by name OR email, case-insensitively, against the full
+// already-loaded roster (see the effect below: no per-keystroke network call).
+export function filterCustomers(allCustomers: Customer[] | null, query: string): Customer[] {
+  if (allCustomers === null) return [];
+  const q = query.trim().toLowerCase();
+  if (q === '') return allCustomers;
+  return allCustomers.filter((c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
+}
+
 // Shared admin customer search/select dropdown — originally built for the
 // HVAC Analytics page, reused wherever an admin needs to scope a view to
 // one customer (e.g. Analytics Thresholds' per-customer overrides).
@@ -31,10 +41,7 @@ export function CustomerPicker({ selected, onSelect, placeholder = 'Select a cus
       .catch(() => setLoadError(true));
   }, [open, allCustomers]);
 
-  const q = query.trim().toLowerCase();
-  const results = allCustomers === null ? [] : q === ''
-    ? allCustomers
-    : allCustomers.filter((c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
+  const results = filterCustomers(allCustomers, query);
 
   return (
     <div ref={wrapRef} className="relative w-80 flex-shrink-0">
