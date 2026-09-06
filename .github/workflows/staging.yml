@@ -3,6 +3,22 @@ name: Deploy to QNAP Staging
 on:
   push:
     branches: [staging]
+    # Only redeploy when something that actually affects the deployed
+    # services changed — this workflow rebuilds and restarts api/admin/
+    # vendor/nginx on QNAP, which takes 20-30+ minutes, so a docs/gitignore-
+    # only commit shouldn't trigger it. apps/mobile is deliberately excluded:
+    # it isn't part of this deploy at all (built/distributed separately via
+    # Expo/EAS).
+    paths:
+      - 'apps/api/**'
+      - 'apps/admin/**'
+      - 'apps/vendor/**'
+      - 'packages/shared/**'
+      - 'infrastructure/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'turbo.json'
+      - '.github/workflows/staging.yml'
   workflow_dispatch:
 
 concurrency:
