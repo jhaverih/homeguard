@@ -38,16 +38,23 @@ jobs:
       - name: Setup EAS CLI
         run: npm install -g eas-cli
 
+      # The repo's real Expo access token is stored as QNAP_EXPO_TOKEN (the
+      # QNAP_ prefix is just this repo's convention for secrets also pushed
+      # to the QNAP's .env by update-env.yml — it's a real Expo token, not
+      # QNAP-specific). This workflow referenced a plain EXPO_TOKEN secret
+      # that never existed for two months, so every run failed instantly
+      # with "An Expo user account is required to proceed" before it ever
+      # reached EAS. If this ever breaks again, check secret naming first.
       - name: Build Android APK
         if: ${{ github.event.inputs.platform == 'android' || github.event.inputs.platform == 'all' }}
         working-directory: apps/mobile
         run: eas build --platform android --non-interactive --profile preview
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_TOKEN: ${{ secrets.QNAP_EXPO_TOKEN }}
 
       - name: Build iOS IPA
         if: ${{ github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'all' }}
         working-directory: apps/mobile
         run: eas build --platform ios --non-interactive --profile preview
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_TOKEN: ${{ secrets.QNAP_EXPO_TOKEN }}
