@@ -10,7 +10,7 @@ npm run dev     # next dev -p 3002
 
 Requires `NEXT_PUBLIC_API_URL` pointing at a running `apps/api` instance (set in `.env`, baked into the client bundle at build time — see the root `.env.example`).
 
-`npm run build` / `npm start` (Next.js standalone production build/serve), `npm run lint`.
+`npm run build` / `npm start` (Next.js standalone production build/serve), `npm run lint`, `npm test` (Vitest — pure-logic tests only, extracted into `src/lib/`/`src/components/` since Next.js's App Router forbids a `page.tsx` from exporting anything besides its own special names).
 
 ## Deploying
 

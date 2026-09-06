@@ -2,22 +2,27 @@
 
 ## Staging pipeline
 
-Staging deploys automatically — there's no separate "release" step:
+Staging deploys automatically — there's no separate "release" step — but as of 2026-09-06 it no longer deploys unconditionally: tests gate the deploy.
 
 ```
 git push origin staging
-  → GitHub Actions, self-hosted runner (running on the QNAP)
   → .github/workflows/staging.yml
-  → deployed
+  → test-api / test-admin / test-vendor (GitHub-hosted, parallel)
+  → deploy (needs: the three test jobs above — never starts if any of them fails)
+  → self-hosted runner (on the QNAP) builds and redeploys
 ```
 
-The workflow, in order:
+`deploy` declares `needs: [test-api, test-admin, test-vendor]` — if a test fails, GitHub Actions never starts the `deploy` job at all (it shows as **skipped**, not failed), so a broken commit cannot reach the QNAP. This only covers `apps/api`/`apps/admin`/`apps/vendor` — `apps/mobile` isn't part of this deploy at all (see "Mobile" below), so its own test suite (`test-mobile.yml`) runs independently and has nothing to gate here.
+
+The `deploy` job itself, in order:
 
 1. Backs up the database (`/share/Container/homeguard/backup.sh`) — best-effort, never blocks the deploy even if Postgres isn't up yet.
 2. Copies `/share/Container/homeguard/.env` → `infrastructure/.env` in the checkout, so the ephemeral CI workspace picks up real secrets.
-3. Builds `admin` and `vendor` as two **separate, sequential** `--no-cache` Docker builds, then `api` and `nginx` with layer caching. Admin and vendor are both Next.js `output: 'standalone'` builds — see [troubleshooting.md](troubleshooting.md) for why `--no-cache` alone isn't sufficient and why they're built one at a time rather than together.
+3. Builds `admin` and `vendor` as two **separate, sequential** `--no-cache` Docker builds, then `api` and `nginx` with layer caching. Admin and vendor are both Next.js `output: 'standalone'` builds — see [troubleshooting.md](troubleshooting.md) for why `--no-cache` alone isn't sufficient and why they're built one at a time rather than together. This is also where the known flaky `ENOENT` "Collecting build traces" failure shows up (different specific file path each time) — see troubleshooting.md's last entry; the fix there is to rerun, not to treat it as a code bug.
 4. Stops the app containers (`stop`, not `down` — `down` removes the Docker network, which causes QNAP dnsmasq NAT errors), brings `postgres`/`redis`/`minio` up without `--force-recreate` (their volumes are never touched), reconciles the Postgres password against `.env`.
 5. Force-recreates `api`, `admin`, `nginx`, and `vendor` (never the data services) and waits for the API's health check to pass.
+
+A manual `workflow_dispatch` run goes through the exact same `needs:` gate — there's no bypass, by design.
 
 ## QNAP operational notes
 

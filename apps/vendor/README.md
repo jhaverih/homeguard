@@ -10,7 +10,7 @@ npm run dev     # next dev -p 3003
 
 Requires `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_STRIPE_PK` (Stripe *publishable* key — safe to expose client-side) in `.env` — see the root `.env.example`. Both are baked into the client bundle at build time.
 
-`npm run build` / `npm start` (Next.js standalone production build/serve), `npm run lint`.
+`npm run build` / `npm start` (Next.js standalone production build/serve), `npm run lint`, `npm test` (Vitest — pure-logic tests only, extracted into `src/lib/` since Next.js's App Router forbids a `page.tsx` from exporting anything besides its own special names).
 
 ## Deploying
 

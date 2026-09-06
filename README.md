@@ -33,6 +33,15 @@ Each app can also be run individually — see its own README for the exact comma
 
 Other root scripts: `npm run build`, `npm run lint`, `npm test`, `npm run clean` — all Turbo-orchestrated across every workspace.
 
+## Testing
+
+```bash
+npm test                        # every workspace (api, admin, vendor, mobile), in parallel via Turbo
+npm test --workspace=apps/api   # just one — same pattern for admin/vendor/mobile
+```
+
+Every workspace has real tests now (98 total as of this writing) and its own GitHub Actions workflow that runs them on every push/PR — see `.github/workflows/`. **Pushing to `staging` no longer deploys unconditionally**: the deploy job formally depends on the api/admin/vendor test jobs passing first, so a failing test blocks the redeploy entirely rather than just showing a red X next to a build that ships anyway. See [CLAUDE.md](CLAUDE.md) for exactly how that's wired and a couple of non-obvious gotchas (a stale local Expo types cache, a shared-lockfile path-filter trap) worth knowing before touching the workflow files.
+
 ## API docs
 
 The API exposes live Swagger/OpenAPI docs, generated from the NestJS controller decorators (never hand-maintained, so they can't drift). Reachable on the internal network only, not from the public internet:
@@ -43,7 +52,7 @@ http://192.168.86.29/api/docs
 
 ## Deploying
 
-Staging deploys automatically on every push to the `staging` branch. See [docs/deployment.md](docs/deployment.md) for the full pipeline, and [docs/mobile-build.md](docs/mobile-build.md) for the mobile app specifically — it is **not** part of that automatic pipeline and requires a separate manual build.
+Staging deploys automatically on every push to the `staging` branch, gated on tests passing first (see "Testing" above). See [docs/deployment.md](docs/deployment.md) for the full pipeline, and [docs/mobile-build.md](docs/mobile-build.md) for the mobile app specifically — it is **not** part of that automatic pipeline and requires a separate manual build.
 
 ## Change history
 
