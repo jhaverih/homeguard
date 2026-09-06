@@ -1,6 +1,6 @@
 # Building a production Android APK
 
-This is a **manual, local, two-step process** — it is not part of the staging CI pipeline, and is currently the *only* way to produce a build: EAS cloud builds are unavailable until 2026-08-01 (plan/service restarts then). Don't reach for `eas build` or `.github/workflows/mobile-build.yml` before that date even though they exist in the repo.
+This is a **manual, local, two-step process** for Android specifically — it is not part of the staging CI pipeline. Android is always built this way; it isn't a temporary fallback. iOS is built via EAS instead (`.github/workflows/mobile-build.yml`, manual `workflow_dispatch` only — see that file's own comment for why it isn't automatic), since there's no Mac available to build iOS locally. EAS's free tier is a **monthly-resetting build-credit quota, not a one-time allowance** — if a build fails with something like "insufficient credits" or the EAS dashboard shows the month's quota used up, that's expected some months, not a bug; the credits reset at the start of the next billing cycle.
 
 ## Why two steps
 

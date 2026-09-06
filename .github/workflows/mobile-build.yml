@@ -1,16 +1,20 @@
 name: Build Mobile App (EAS)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/mobile/**'
+  # Manual only, deliberately — do not add a push trigger. EAS free-tier
+  # build credits reset monthly and are a scarce, rationed resource (this
+  # project currently only builds iOS through EAS; Android is built locally,
+  # see docs/mobile-build.md). Auto-triggering on every push would burn
+  # through a month's iOS credits on routine commits and leave none
+  # available when a real TestFlight build is actually needed — which is
+  # exactly the situation that prompted this note. Trigger a build here
+  # (Actions tab -> Run workflow) only when you actually want to spend one.
   workflow_dispatch:
     inputs:
       platform:
         description: 'Platform to build'
         required: true
-        default: 'all'
+        default: 'ios'
         type: choice
         options: [all, android, ios]
 
@@ -20,12 +24,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         working-directory: apps/mobile
@@ -35,7 +39,7 @@ jobs:
         run: npm install -g eas-cli
 
       - name: Build Android APK
-        if: ${{ github.event.inputs.platform == 'android' || github.event.inputs.platform == 'all' || github.event_name == 'push' }}
+        if: ${{ github.event.inputs.platform == 'android' || github.event.inputs.platform == 'all' }}
         working-directory: apps/mobile
         run: eas build --platform android --non-interactive --profile preview
         env:

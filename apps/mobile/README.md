@@ -12,9 +12,11 @@ Requires `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_STRIPE_PK` in `apps/mobile/.env`
 
 `npm test` (Jest + `jest-expo`, pinned to the `sdk-54` tag to match this app's Expo SDK — bump it in lockstep with any future Expo SDK upgrade). CI also runs a Linux-only `expo prebuild --platform ios` + `tsc --noEmit` sanity check on every change (no macOS runner, no Xcode, no simulator) — see `.github/workflows/test-mobile.yml`.
 
-## Building a production APK
+## Building a production release
 
-**This is a manual, two-step local process — it is not part of any CI pipeline.** EAS cloud builds are unavailable until 2026-08-01; don't reach for `eas build` or `.github/workflows/mobile-build.yml` before then even though they exist in the repo. Full procedure, including two easy-to-hit gotchas around stale env values and stale Gradle caches: [docs/mobile-build.md](../../docs/mobile-build.md).
+**Android**: manual, two-step, local — not part of any CI pipeline. Full procedure, including two easy-to-hit gotchas around stale env values and stale Gradle caches: [docs/mobile-build.md](../../docs/mobile-build.md).
+
+**iOS**: manual EAS cloud build (`.github/workflows/mobile-build.yml`, triggered by hand via the Actions tab — deliberately not automatic, since EAS free-tier credits reset monthly and are limited; see that file's own comment). There's no local iOS build path since there's no Mac available to run Xcode.
 
 ## Theming
 
