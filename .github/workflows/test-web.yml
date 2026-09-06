@@ -1,22 +1,14 @@
 name: Test Web (api, admin, vendor)
 
 on:
-  push:
-    branches: [staging]
-    # package-lock.json is deliberately NOT listed here: it's one shared
-    # lockfile for the whole npm-workspaces monorepo, so installing a
-    # dependency in apps/mobile alone still rewrites it — including it would
-    # make every workspace's test workflow fire on every other workspace's
-    # dependency change, defeating the point of path filtering. Root
-    # package.json (the workspaces/scripts list itself) changes far less
-    # often and is a real cross-cutting change worth testing everywhere.
-    paths:
-      - 'apps/api/**'
-      - 'apps/admin/**'
-      - 'apps/vendor/**'
-      - 'packages/shared/**'
-      - 'package.json'
-      - '.github/workflows/test-web.yml'
+  # PR-only: this file used to also run on push to staging, but that made
+  # tests run in a workflow completely disconnected from the deploy workflow
+  # — a failing test never stopped a deploy, it just ran in parallel and
+  # showed a red X *next to* a deploy that shipped anyway. staging.yml now
+  # has its own copies of these same three jobs, and its deploy job formally
+  # depends on them (`needs:`) — so on every push to staging, tests really do
+  # gate the deploy. This file's only remaining purpose is PR feedback, since
+  # a PR never deploys anything and so has nothing to gate.
   pull_request:
     paths:
       - 'apps/api/**'

@@ -30,13 +30,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # These three run on GitHub-hosted runners (fast, parallel) and gate the
+  # deploy job below via `needs:` — if any of them fails, `deploy` never
+  # starts, so a broken commit can no longer redeploy staging. They mirror
+  # test-web.yml's jobs exactly; that file now only runs on pull_request
+  # (there's nothing to gate on a PR, since a PR never deploys) while these
+  # copies run on the actual push-to-staging path that used to skip straight
+  # to deploy regardless of test results.
+  test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test --workspace=apps/api
+
+  test-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test --workspace=apps/admin
+
+  test-vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test --workspace=apps/vendor
+
   deploy:
+    needs: [test-api, test-admin, test-vendor]
     runs-on: [self-hosted, qnap]
     timeout-minutes: 60
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Backup database before deploy
         run: |
