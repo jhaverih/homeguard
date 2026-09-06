@@ -8,7 +8,12 @@ on:
     # vendor/nginx on QNAP, which takes 20-30+ minutes, so a docs/gitignore-
     # only commit shouldn't trigger it. apps/mobile is deliberately excluded:
     # it isn't part of this deploy at all (built/distributed separately via
-    # Expo/EAS).
+    # Expo/EAS). package-lock.json is also deliberately excluded: it's one
+    # shared lockfile for the whole npm-workspaces monorepo, so installing a
+    # dependency in apps/mobile alone still rewrites it — including it here
+    # would trigger a full 20-30 minute redeploy for a mobile-only dependency
+    # change. Root package.json (the workspaces/scripts list itself) changes
+    # far less often and is a real cross-cutting change worth redeploying for.
     paths:
       - 'apps/api/**'
       - 'apps/admin/**'
@@ -16,7 +21,6 @@ on:
       - 'packages/shared/**'
       - 'infrastructure/**'
       - 'package.json'
-      - 'package-lock.json'
       - 'turbo.json'
       - '.github/workflows/staging.yml'
   workflow_dispatch:

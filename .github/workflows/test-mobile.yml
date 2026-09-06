@@ -3,18 +3,23 @@ name: Test Mobile (Android + iOS shared code)
 on:
   push:
     branches: [staging]
+    # package-lock.json is deliberately NOT listed here: it's one shared
+    # lockfile for the whole npm-workspaces monorepo, so a web-side
+    # dependency install still rewrites it — including it would make this
+    # fire on every other workspace's dependency change too, defeating the
+    # point of path filtering. Root package.json (the workspaces/scripts
+    # list itself) changes far less often and is a real cross-cutting
+    # change worth testing everywhere.
     paths:
       - 'apps/mobile/**'
       - 'packages/shared/**'
       - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/test-mobile.yml'
   pull_request:
     paths:
       - 'apps/mobile/**'
       - 'packages/shared/**'
       - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/test-mobile.yml'
 
 jobs:

@@ -3,13 +3,19 @@ name: Test Web (api, admin, vendor)
 on:
   push:
     branches: [staging]
+    # package-lock.json is deliberately NOT listed here: it's one shared
+    # lockfile for the whole npm-workspaces monorepo, so installing a
+    # dependency in apps/mobile alone still rewrites it — including it would
+    # make every workspace's test workflow fire on every other workspace's
+    # dependency change, defeating the point of path filtering. Root
+    # package.json (the workspaces/scripts list itself) changes far less
+    # often and is a real cross-cutting change worth testing everywhere.
     paths:
       - 'apps/api/**'
       - 'apps/admin/**'
       - 'apps/vendor/**'
       - 'packages/shared/**'
       - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/test-web.yml'
   pull_request:
     paths:
@@ -18,7 +24,6 @@ on:
       - 'apps/vendor/**'
       - 'packages/shared/**'
       - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/test-web.yml'
 
 jobs:
