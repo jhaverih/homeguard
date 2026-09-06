@@ -52,9 +52,28 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.QNAP_EXPO_TOKEN }}
 
+      # `production` is the only profile with credentials actually set up
+      # on Expo's servers (a one-time interactive terminal session on
+      # 2026-08-01 confirmed the Distribution Certificate/Provisioning
+      # Profile for this exact profile — see project memory
+      # project_ios_testflight). `preview` (a different, ad-hoc/internal-
+      # distribution profile) has never had that done and fails outright
+      # in --non-interactive mode with "couldn't find any credentials
+      # suitable for internal distribution" — don't switch this back.
       - name: Build iOS IPA
         if: ${{ github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'all' }}
         working-directory: apps/mobile
-        run: eas build --platform ios --non-interactive --profile preview
+        run: eas build --platform ios --non-interactive --profile production
+        env:
+          EXPO_TOKEN: ${{ secrets.QNAP_EXPO_TOKEN }}
+
+      # ascAppId is already set in eas.json's submit.production.ios, so this
+      # runs with zero prompts (no interactive Apple ID/2FA login needed) —
+      # confirmed working 2026-08-02. Completes the actual TestFlight
+      # delivery; a build with no submit just sits on Expo's servers.
+      - name: Submit iOS build to TestFlight
+        if: ${{ github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'all' }}
+        working-directory: apps/mobile
+        run: eas submit --platform ios --latest --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.QNAP_EXPO_TOKEN }}
