@@ -3,10 +3,11 @@ import * as SecureStore from 'expo-secure-store';
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.86.29/api';
 
-// The API serves these two rendered legal docs at its root domain, no /api
-// prefix (see apps/api/src/main.ts's setGlobalPrefix exclude list) — opened
-// directly in the device browser via Linking.openURL, not called through
-// the authenticated `api` instance below.
+// The admin app serves these two as static files (apps/admin/public/legal/)
+// at its root domain — nginx's LAN catch-all routes anything not matching
+// /api/, /socket.io/, etc. straight to admin, so these never go through
+// this file's `api` instance below. Opened directly in the device browser
+// via Linking.openURL, no auth needed.
 export const TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/customer-terms.html`;
 export const VENDOR_TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/vendor-terms.html`;
 
