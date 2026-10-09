@@ -6,7 +6,7 @@ import { SensorAssignment } from './entities/sensor-assignment.entity';
 import { Equipment } from './entities/equipment.entity';
 import { DeviceRegistry } from './entities/device-registry.entity';
 import { ClassificationStatus, EquipmentType } from '../common/enums/sensor-role.enum';
-import { CLASSIFICATION_SEED, equipmentCodeFor } from './classification-seed';
+import { CLASSIFICATION_SEED, RENAMED_CANONICAL_NAMES, equipmentCodeFor } from './classification-seed';
 
 type MatchType = 'EXACT' | 'NORMALIZED' | 'ALIAS' | 'FUZZY';
 interface ClassificationMatch { rule: SensorClassificationRule; confidence: number; matchType: MatchType }
@@ -31,6 +31,14 @@ export class ClassificationService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    for (const [oldName, newName] of Object.entries(RENAMED_CANONICAL_NAMES)) {
+      const old = await this.rulesRepo.findOne({ where: { canonicalName: oldName } });
+      if (!old || await this.rulesRepo.findOne({ where: { canonicalName: newName } })) continue;
+      old.canonicalName = newName;
+      if (!old.aliases.includes(oldName)) old.aliases = [oldName, ...old.aliases.filter(Boolean)];
+      await this.rulesRepo.save(old);
+      this.logger.log(`Renamed classification rule "${oldName}" → "${newName}"`);
+    }
     for (const row of CLASSIFICATION_SEED) {
       const existing = await this.rulesRepo.findOne({ where: { canonicalName: row.canonicalName } });
       if (!existing) await this.rulesRepo.save(this.rulesRepo.create(row));

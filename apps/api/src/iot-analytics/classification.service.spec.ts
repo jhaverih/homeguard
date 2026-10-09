@@ -171,3 +171,51 @@ describe('ClassificationService.classifyAndAssign', () => {
     expect(equipment.homeId).toBe('home-42');
   });
 });
+
+describe('ClassificationService.onModuleInit seeding', () => {
+  function seededService(existing: SensorClassificationRule[]) {
+    const rulesRepo = fakeRepo<SensorClassificationRule>(existing);
+    // Upsert-by-reference save — the shared fakeRepo always appends, which
+    // would count a renamed row twice.
+    rulesRepo.save.mockImplementation(async (data: any) => {
+      if (!rulesRepo.rows.includes(data)) rulesRepo.rows.push({ id: `generated-${rulesRepo.rows.length + 1}`, ...data });
+      return data;
+    });
+    const service = new ClassificationService(rulesRepo as any, fakeRepo<SensorAssignment>() as any, fakeRepo<Equipment>() as any);
+    return { service, rulesRepo };
+  }
+  const named = (rows: SensorClassificationRule[], name: string) => rows.filter((r) => r.canonicalName === name);
+
+  it('renames an already-seeded rule in place instead of adding a duplicate', async () => {
+    const old = makeRule({
+      id: 'suction', canonicalName: 'ATV HVAC Suction Line Temperature', aliases: ['HVAC Suction Line Temperature'],
+      sensorRole: SensorRole.HVAC_SUCTION_LINE_TEMP,
+    });
+    const { service, rulesRepo } = seededService([old]);
+    await service.onModuleInit();
+
+    expect(named(rulesRepo.rows, 'ATV HVAC Suction Line Temperature')).toHaveLength(0);
+    const renamed = named(rulesRepo.rows, 'ATV HVAC Suction Line Temp');
+    expect(renamed).toHaveLength(1);
+    expect(renamed[0].id).toBe('suction');
+    expect(renamed[0].aliases).toEqual(['ATV HVAC Suction Line Temperature', 'HVAC Suction Line Temperature']);
+    expect(rulesRepo.rows.filter((r) => r.sensorRole === SensorRole.HVAC_SUCTION_LINE_TEMP)).toHaveLength(1);
+  });
+
+  it('seeds the new names on a fresh database', async () => {
+    const { service, rulesRepo } = seededService([]);
+    await service.onModuleInit();
+
+    expect(named(rulesRepo.rows, 'ATV HVAC Liquid Line Temp')).toHaveLength(1);
+    expect(named(rulesRepo.rows, 'ATV HVAC Suction Line Temp')).toHaveLength(1);
+    expect(named(rulesRepo.rows, 'ATV HVAC Liquid Line Temperature')).toHaveLength(0);
+  });
+
+  it('still classifies a sensor named the old way, via the alias', async () => {
+    const { service, rulesRepo } = seededService([]);
+    await service.onModuleInit();
+    const match = (service as any).findBestMatch('ATV HVAC Liquid Line Temperature', rulesRepo.rows);
+    expect(match.rule.canonicalName).toBe('ATV HVAC Liquid Line Temp');
+    expect(match.matchType).toBe('ALIAS');
+  });
+});

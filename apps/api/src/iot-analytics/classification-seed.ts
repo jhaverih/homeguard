@@ -19,6 +19,16 @@ export interface ClassificationSeedRow {
 // code change. Today's live MVP set is the first 3 rows; the Return/Supply
 // Air rows are the near-term next installs (not live yet, but the naming
 // convention already accounts for them).
+// Canonical names renamed after their rules were already seeded. The seed
+// only inserts rows missing by canonicalName, so without this a rename would
+// leave the old row in place alongside a new duplicate for the same sensor
+// role — ClassificationService.onModuleInit renames the existing row instead.
+// The old name stays matchable via each row's aliases above.
+export const RENAMED_CANONICAL_NAMES: Record<string, string> = {
+  'ATV HVAC Suction Line Temperature': 'ATV HVAC Suction Line Temp',
+  'ATV HVAC Liquid Line Temperature': 'ATV HVAC Liquid Line Temp',
+};
+
 export const CLASSIFICATION_SEED: ClassificationSeedRow[] = [
   {
     canonicalName: 'ATV HVAC Drain Pan', aliases: ['ATV HVAC Condensate Pan', 'HVAC Drain Pan', 'ATV HVAC Basin Pan'],
@@ -78,13 +88,13 @@ export const CLASSIFICATION_SEED: ClassificationSeedRow[] = [
     analyticsRuleGroups: ['HVAC_BLOWER'],
   },
   {
-    canonicalName: 'ATV HVAC Suction Line Temperature', aliases: ['HVAC Suction Line Temperature'],
+    canonicalName: 'ATV HVAC Suction Line Temp', aliases: ['ATV HVAC Suction Line Temperature', 'HVAC Suction Line Temperature'],
     expectedProviderDeviceTypes: ['THSensor'], equipmentType: EquipmentType.HVAC, equipmentNumber: '01',
     sensorRole: SensorRole.HVAC_SUCTION_LINE_TEMP, analyticsRole: 'HVAC_SUCTION_LINE_TEMPERATURE', measurementType: MeasurementType.TEMPERATURE,
     analyticsRuleGroups: ['HVAC_REFRIGERANT'],
   },
   {
-    canonicalName: 'ATV HVAC Liquid Line Temperature', aliases: ['HVAC Liquid Line Temperature'],
+    canonicalName: 'ATV HVAC Liquid Line Temp', aliases: ['ATV HVAC Liquid Line Temperature', 'HVAC Liquid Line Temperature'],
     expectedProviderDeviceTypes: ['THSensor'], equipmentType: EquipmentType.HVAC, equipmentNumber: '01',
     sensorRole: SensorRole.HVAC_LIQUID_LINE_TEMP, analyticsRole: 'HVAC_LIQUID_LINE_TEMPERATURE', measurementType: MeasurementType.TEMPERATURE,
     analyticsRuleGroups: ['HVAC_REFRIGERANT'],
