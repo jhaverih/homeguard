@@ -131,6 +131,31 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
     expect(findings.rows).toHaveLength(0);
   });
 
+  it('resolves findings left by the previous version of a rewritten rule, marked superseded', async () => {
+    findings.rows.push(
+      { id: 'old-1', ruleId: 'HVAC-REFRIGERANT-001', ruleVersion: 1, status: FindingStatus.ACTIVE, sensorRole: SensorRole.HVAC_SUCTION_LINE_TEMP, measurements: {} },
+      { id: 'pwr-1', ruleId: 'HVAC-RUNTIME-001', ruleVersion: 1, status: FindingStatus.ACTIVE, sensorRole: SensorRole.HVAC_POWER, measurements: {} },
+    );
+    expect(await service.supersedeOldFindings()).toBe(1);
+    expect(findings.rows.find((f) => f.id === 'old-1')).toMatchObject({ status: FindingStatus.RESOLVED, measurements: { supersededBy: 'v2' } });
+    expect(findings.rows.find((f) => f.id === 'pwr-1').status).toBe(FindingStatus.ACTIVE);
+  });
+
+  it('a stale "mapping not confirmed" reason is refreshed once the rule simply has nothing to assess', async () => {
+    equipment.rows[0].metadata = null;
+    reading('k-hvac', 0, 'COOLING', 1); every5('k-temp', 0, 30, () => 72);
+    await service.evaluateEquipment('hvac-01', home, at(30));
+    expect(evaluationOf('HVAC-RUNTIME-003')!.reason).toBe(UNVERIFIED_MAPPING_REASON);
+    reading('k-hvac', 35, 'OFF', 0); every5('b-temp', 0, 60, () => 72); every5('k-temp', 35, 60, () => 72);
+    registry.rows.push({ id: 'liquid', homeId: 'home-1', provider: 'yolink', providerDeviceId: 'eui-liquid' });
+    assignments.rows.push({ deviceRegistryId: 'liquid', equipmentId: 'hvac-01', sensorRole: SensorRole.HVAC_LIQUID_LINE_TEMP });
+    await service.evaluateEquipment('hvac-01', home, at(31));
+    expect(evaluationOf('HVAC-REFRIGERANT-002')!.reason).toBe(UNVERIFIED_MAPPING_REASON);
+    equipment.rows[0].metadata = { verified: true }; // mapping confirmed; the system has since stopped cooling
+    await service.evaluateEquipment('hvac-01', home, at(60));
+    expect(evaluationOf('HVAC-REFRIGERANT-002')).toMatchObject({ outcome: RuleEvaluationOutcome.INSUFFICIENT_DATA, reason: 'Not cooling' });
+  });
+
   it('14. one zone thermostat offline: its rules are Insufficient data while the other zone is still evaluated', async () => {
     registry.rows.filter((d) => d.id.startsWith('k-')).forEach((d) => { d.connectivity = 'OFFLINE'; });
     reading('k-hvac', 0, 'COOLING', 1); every5('k-temp', 0, 90, () => 76.5);

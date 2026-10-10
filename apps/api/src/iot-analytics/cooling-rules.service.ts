@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { In, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
@@ -65,7 +65,7 @@ export interface SystemContext {
 // Pure logic lives in cooling-analytics.ts; this service only loads
 // telemetry, applies outcomes, and records every evaluation.
 @Injectable()
-export class CoolingRulesService {
+export class CoolingRulesService implements OnModuleInit {
   private readonly logger = new Logger(CoolingRulesService.name);
 
   constructor(
@@ -81,6 +81,30 @@ export class CoolingRulesService {
     private performanceEngine: PerformanceEngineService,
     private weather: WeatherService,
   ) {}
+
+  onModuleInit() {
+    this.supersedeOldFindings().catch((e) => this.logger.warn(`Could not supersede old-version findings: ${e.message}`));
+  }
+
+  // Findings raised by the previous logic of a rewritten rule (e.g.
+  // REFRIGERANT-001 v1 compared idle line temperatures against an all-hours
+  // baseline) are resolved once, marked superseded rather than deleted, so
+  // only the new evidence-based logic drives current status. Power-meter
+  // findings are left alone — that path's logic didn't change.
+  async supersedeOldFindings(): Promise<number> {
+    const rewritten = RULE_DEFINITIONS.filter((r) => r.recordsEvaluations && (r.version ?? 1) > 1);
+    const powerRoles = new Set([SensorRole.HVAC_POWER, SensorRole.HVAC_COMPRESSOR_POWER, SensorRole.HVAC_BLOWER_POWER]);
+    const stale = (await this.findingsRepo.find({ where: { ruleId: In(rewritten.map((r) => r.ruleId)), status: FindingStatus.ACTIVE } }))
+      .filter((f) => (f.ruleVersion ?? 1) < (rewritten.find((r) => r.ruleId === f.ruleId)!.version ?? 1) && !(f.sensorRole && powerRoles.has(f.sensorRole)));
+    for (const f of stale) {
+      f.status = FindingStatus.RESOLVED;
+      f.resolvedAt = new Date();
+      f.measurements = { ...(f.measurements ?? {}), supersededBy: `v${rewritten.find((r) => r.ruleId === f.ruleId)!.version}` };
+      await this.findingsRepo.save(f);
+    }
+    if (stale.length) this.logger.log(`Superseded ${stale.length} finding(s) raised by the previous version of rewritten rules`);
+    return stale.length;
+  }
 
   // ── entry points ──────────────────────────────────────────────────────────
 
@@ -207,6 +231,7 @@ export class CoolingRulesService {
     const scopeKey = p.scopeDevice ? `device:${p.scopeDevice.id}` : `equipment:${ctx.equipment.id}`;
     const { outcome } = p.evaluation;
     if (outcome !== 'NOT_APPLICABLE') await this.recordEvaluation(ctx, scopeKey, rule.ruleId, rule.version ?? 1, p.evaluation);
+    else await this.refreshStaleInsufficient(scopeKey, rule.ruleId, p.evaluation.reason ?? 'Not applicable right now', ctx.now);
 
     const decided = outcome === 'TRIGGERED' || outcome === 'CLEAR' || (outcome === 'NOT_APPLICABLE' && p.resolveWhenNotApplicable);
     if (!decided) return;
@@ -221,6 +246,17 @@ export class CoolingRulesService {
       notify: rule.notificationPolicy === 'IMMEDIATE',
       dataQuality: { evaluatedAt: ctx.now.toISOString(), outcome, zonesCombined: ctx.zones.length > 1 && ctx.canCombineZones },
     });
+  }
+
+  // A NOT_APPLICABLE pass never overwrites real evidence (CLEAR/TRIGGERED),
+  // but an earlier "can't assess because…" must not keep showing an
+  // outdated reason (e.g. "mapping not confirmed" after it was confirmed).
+  private async refreshStaleInsufficient(scopeKey: string, ruleId: string, reason: string, now: Date): Promise<void> {
+    const row = await this.evaluationsRepo.findOne({ where: { scopeKey, ruleId } });
+    if (!row || row.outcome !== RuleEvaluationOutcome.INSUFFICIENT_DATA || row.reason === reason) return;
+    row.reason = reason;
+    row.evaluatedAt = now;
+    await this.evaluationsRepo.save(row);
   }
 
   private async recordEvaluation(ctx: SystemContext, scopeKey: string, ruleId: string, ruleVersion: number, e: Evaluation): Promise<void> {
