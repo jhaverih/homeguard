@@ -91,6 +91,8 @@ export default function HvacAnalyticsPage() {
             </div>
           </div>
 
+          {data.componentHealth && <HealthAndDataQuality data={data} />}
+
           <div className="bg-white border border-mist-dim rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-extrabold text-ink">Time Series</h2>
@@ -209,6 +211,83 @@ export default function HvacAnalyticsPage() {
             )}
           </div>
 
+        </div>
+      )}
+    </div>
+  );
+}
+
+const HEALTH_STYLE: Record<string, { label: string; cls: string }> = {
+  HEALTHY: { label: 'Healthy', cls: 'text-green-700 bg-green-50' },
+  BASELINE_COLLECTING: { label: 'Baseline collecting', cls: 'text-sky-700 bg-sky-50' },
+  INSUFFICIENT_DATA: { label: 'Insufficient data', cls: 'text-steel bg-mist-dim/60' },
+  MONITOR: { label: 'Monitor', cls: 'text-amber-700 bg-amber-50' },
+  MAINTENANCE_RECOMMENDED: { label: 'Maintenance recommended', cls: 'text-orange-700 bg-orange-50' },
+  CRITICAL: { label: 'Critical', cls: 'text-red-700 bg-red-50' },
+  NOT_MONITORED: { label: 'Not monitored', cls: 'text-steel-quiet bg-canvas' },
+};
+const INPUT_STYLE: Record<string, string> = { OK: 'text-green-700', STALE: 'text-amber-700', INVALID: 'text-red-700', UNAVAILABLE: 'text-red-700', AUTH_FAILURE: 'text-red-700', NO_DATA: 'text-steel' };
+
+// Evidence behind each component's status (spec §7) — so support can see
+// WHY a tile is Insufficient data / Baseline collecting, not just that it is.
+function HealthAndDataQuality({ data }: { data: any }) {
+  const pill = (status: string) => {
+    const s = HEALTH_STYLE[status] ?? HEALTH_STYLE.NOT_MONITORED;
+    return <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${s.cls}`}>{s.label}</span>;
+  };
+  const ago = (iso: string | null) => (iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
+  return (
+    <div className="bg-white border border-mist-dim rounded-2xl p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-extrabold text-ink">Health &amp; Data Quality</h2>
+        {pill(data.componentHealth.overall.healthStatus ?? 'NOT_MONITORED')}
+      </div>
+      <div className="divide-y divide-canvas">
+        {data.componentHealth.components.map((c: any) => (
+          <div key={c.id} className="py-2 flex items-start gap-3 text-sm">
+            <span className="w-56 shrink-0 font-medium text-ink">{c.label}</span>
+            <div className="flex-1 space-y-0.5">
+              {pill(c.healthStatus ?? 'NOT_MONITORED')}
+              {c.reason && c.healthStatus !== 'NOT_MONITORED' && <p className="text-xs text-steel">{c.reason}</p>}
+              {(c.limitations ?? []).map((l: string) => <p key={l} className="text-xs text-amber-700">{l}</p>)}
+            </div>
+          </div>
+        ))}
+      </div>
+      {(data.dataQuality ?? []).length > 0 && (
+        <div>
+          <h3 className="text-sm font-bold text-ink mb-2">Inputs</h3>
+          <table className="w-full text-xs">
+            <thead className="text-steel"><tr><th className="text-left py-1">Sensor</th><th className="text-left">Role</th><th className="text-left">State</th><th className="text-left">Last valid reading</th></tr></thead>
+            <tbody className="divide-y divide-canvas">
+              {data.dataQuality.map((i: any) => (
+                <tr key={`${i.deviceRegistryId}-${i.sensorRole}`}>
+                  <td className="py-1 text-ink">{i.label}</td>
+                  <td className="text-steel">{i.sensorRole}</td>
+                  <td className={INPUT_STYLE[i.state] ?? ''}>{i.state}{i.detail ? ` — ${i.detail}` : ''}</td>
+                  <td className="text-steel">{ago(i.lastValidAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {(data.ruleEvaluations ?? []).length > 0 && (
+        <div>
+          <h3 className="text-sm font-bold text-ink mb-2">Latest rule evaluations</h3>
+          <table className="w-full text-xs">
+            <thead className="text-steel"><tr><th className="text-left py-1">Rule</th><th className="text-left">Scope</th><th className="text-left">Outcome</th><th className="text-left">Evaluated</th></tr></thead>
+            <tbody className="divide-y divide-canvas">
+              {data.ruleEvaluations.map((e: any) => (
+                <tr key={`${e.ruleId}-${e.scopeKey}`}>
+                  <td className="py-1 text-ink">{e.ruleId} <span className="text-steel-quiet">v{e.ruleVersion}</span></td>
+                  <td className="text-steel">{e.scopeKey.split(':')[0]}</td>
+                  <td className="text-ink">{e.outcome}{e.reason ? <span className="text-steel"> — {e.reason}</span> : null}</td>
+                  <td className="text-steel">{ago(e.evaluatedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

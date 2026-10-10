@@ -182,6 +182,8 @@ export const adminApi = {
   startNestAuthorization: (customerId: string) => api.post('/nest/oauth/start', { customerId }).then((r) => r.data),
   syncNestAccount: (accountId: string) => api.post(`/nest/accounts/${accountId}/sync`).then((r) => r.data),
   disconnectNestAccount: (accountId: string) => api.delete(`/nest/accounts/${accountId}`).then((r) => r.data),
+  setNestSystemMapping: (accountId: string, body: { thermostats: { id: string; equipmentNumber: string }[]; verified: boolean }) =>
+    api.post(`/nest/accounts/${accountId}/system-mapping`, body).then((r) => r.data),
   getWaitlist: () => api.get('/admin/waitlist').then((r) => r.data),
 };
 

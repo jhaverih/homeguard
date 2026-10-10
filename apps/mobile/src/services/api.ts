@@ -274,11 +274,18 @@ export type HvacFinding = {
 export type HvacSensorCoverage = { role: string; label: string; connected: boolean; deviceNames: string[] };
 
 export type ComponentHealthStatus = 'GOOD' | 'ATTENTION' | 'CRITICAL' | 'NOT_MONITORED';
-export type ComponentHealthResult = { id: string; label: string; status: ComponentHealthStatus };
+// Evidence-based status — older API versions omit it, so screens fall back
+// to `status` when it's absent.
+export type HealthStatus = 'HEALTHY' | 'BASELINE_COLLECTING' | 'INSUFFICIENT_DATA' | 'MONITOR' | 'MAINTENANCE_RECOMMENDED' | 'CRITICAL' | 'NOT_MONITORED';
+export type ComponentHealthResult = {
+  id: string; label: string; status: ComponentHealthStatus;
+  healthStatus?: HealthStatus; reason?: string | null; limitations?: string[];
+};
 export type ComponentHealthOverview = {
   components: ComponentHealthResult[];
-  overall: { status: ComponentHealthStatus; monitoredCount: number; totalCount: number; lastUpdated: string };
+  overall: { status: ComponentHealthStatus; healthStatus?: HealthStatus; monitoredCount: number; totalCount: number; lastUpdated: string };
 };
+export type HvacInputQuality = { label: string; sensorRole: string; state: 'OK' | 'STALE' | 'INVALID' | 'UNAVAILABLE' | 'AUTH_FAILURE' | 'NO_DATA'; detail: string | null; lastValidAt: string | null };
 
 export type HvacAnalytics = {
   tier: string;
@@ -287,6 +294,7 @@ export type HvacAnalytics = {
   findings: HvacFinding[];
   sensorCoverage: HvacSensorCoverage[];
   componentHealth: ComponentHealthOverview;
+  dataQuality?: HvacInputQuality[];
 };
 
 export const hvacAnalyticsApi = {

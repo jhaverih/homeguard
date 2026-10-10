@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { hvacAnalyticsApi, HvacAnalytics, HvacFinding, ComponentHealthResult, ComponentHealthStatus } from '../../src/services/api';
+import { hvacAnalyticsApi, HvacAnalytics, HvacFinding, ComponentHealthResult, ComponentHealthStatus, HealthStatus } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string; border?: string }> = {
@@ -26,32 +26,50 @@ function snoozeLabel(snoozedUntil: string | null): string | null {
   return `Snoozed until ${new Date(snoozedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 }
 
-const COMPONENT_STATUS_STYLE: Record<ComponentHealthStatus, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
-  GOOD: { color: '#059669', bg: 'rgba(5,150,105,0.10)', icon: 'checkmark-circle', label: 'Good' },
-  ATTENTION: { color: '#B45309', bg: 'rgba(217,119,6,0.12)', icon: 'alert-circle', label: 'Attention' },
+// Evidence-based statuses. "Healthy" is only ever shown when the API has
+// positive evidence — missing or stale data shows "Insufficient data".
+const COMPONENT_STATUS_STYLE: Record<HealthStatus, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
+  HEALTHY: { color: '#059669', bg: 'rgba(5,150,105,0.10)', icon: 'checkmark-circle', label: 'Healthy' },
+  BASELINE_COLLECTING: { color: '#0369A1', bg: 'rgba(3,105,161,0.10)', icon: 'time-outline', label: 'Baseline collecting' },
+  INSUFFICIENT_DATA: { color: colors.steel, bg: 'rgba(91,107,112,0.10)', icon: 'help-circle-outline', label: 'Insufficient data' },
+  MONITOR: { color: '#B45309', bg: 'rgba(217,119,6,0.12)', icon: 'eye-outline', label: 'Monitor' },
+  MAINTENANCE_RECOMMENDED: { color: '#C2410C', bg: 'rgba(234,88,12,0.12)', icon: 'construct-outline', label: 'Maintenance recommended' },
   CRITICAL: { color: '#DC2626', bg: 'rgba(220,38,38,0.12)', icon: 'warning', label: 'Critical' },
   NOT_MONITORED: { color: colors.steel, bg: 'rgba(91,107,112,0.08)', icon: 'remove-circle-outline', label: 'Not Monitored' },
 };
 
-const OVERALL_HERO_STYLE: Record<ComponentHealthStatus, { icon: keyof typeof Ionicons.glyphMap; iconColor: string; pillLabel: string; headline: string }> = {
-  GOOD: { icon: 'checkmark-circle', iconColor: '#34D399', pillLabel: 'Good', headline: 'Your HVAC system appears healthy' },
-  ATTENTION: { icon: 'alert-circle', iconColor: '#F2A93C', pillLabel: 'Attention', headline: 'Something needs a look' },
+const OVERALL_HERO_STYLE: Record<HealthStatus, { icon: keyof typeof Ionicons.glyphMap; iconColor: string; pillLabel: string; headline: string }> = {
+  HEALTHY: { icon: 'checkmark-circle', iconColor: '#34D399', pillLabel: 'Healthy', headline: 'Your HVAC system appears healthy' },
+  BASELINE_COLLECTING: { icon: 'time-outline', iconColor: '#7DD3FC', pillLabel: 'Learning', headline: "Learning your home's normal HVAC pattern" },
+  INSUFFICIENT_DATA: { icon: 'help-circle-outline', iconColor: '#8FA0A5', pillLabel: 'Insufficient data', headline: 'Not enough data to assess your system right now' },
+  MONITOR: { icon: 'eye-outline', iconColor: '#F2A93C', pillLabel: 'Monitor', headline: 'Something worth keeping an eye on' },
+  MAINTENANCE_RECOMMENDED: { icon: 'construct-outline', iconColor: '#FB923C', pillLabel: 'Maintenance', headline: 'An HVAC inspection may be appropriate' },
   CRITICAL: { icon: 'warning', iconColor: '#F87171', pillLabel: 'Critical', headline: 'A monitored component needs attention now' },
   NOT_MONITORED: { icon: 'remove-circle-outline', iconColor: '#8FA0A5', pillLabel: 'Not Monitored', headline: 'Add sensors to start monitoring your HVAC system' },
 };
 
+// Older API versions only send the 4-state `status`.
+const LEGACY_TO_HEALTH: Record<ComponentHealthStatus, HealthStatus> = {
+  GOOD: 'HEALTHY', ATTENTION: 'MONITOR', CRITICAL: 'CRITICAL', NOT_MONITORED: 'NOT_MONITORED',
+};
+const healthOf = (x: { status: ComponentHealthStatus; healthStatus?: HealthStatus }): HealthStatus => x.healthStatus ?? LEGACY_TO_HEALTH[x.status];
+
 function ComponentHealthRow({ item }: { item: ComponentHealthResult }) {
-  const s = COMPONENT_STATUS_STYLE[item.status];
+  const status = healthOf(item);
+  const s = COMPONENT_STATUS_STYLE[status];
+  const notes = [status !== 'HEALTHY' && status !== 'NOT_MONITORED' ? item.reason : null, ...(item.limitations ?? [])].filter((n): n is string => !!n);
   return (
-    <View style={styles.compRow}>
-      <View style={[styles.compIcon, { backgroundColor: s.bg }]}>
-        <Ionicons name={s.icon} size={16} color={s.color} />
+    <View style={styles.compRowWrap}>
+      <View style={styles.compRow}>
+        <View style={[styles.compIcon, { backgroundColor: s.bg }]}>
+          <Ionicons name={s.icon} size={16} color={s.color} />
+        </View>
+        <Text style={styles.compName}>{item.label}</Text>
+        <View style={[styles.compPill, { backgroundColor: s.bg }]}>
+          <Text style={[styles.compPillText, { color: s.color }]}>{s.label}</Text>
+        </View>
       </View>
-      <Text style={styles.compName}>{item.label}</Text>
-      <View style={[styles.compPill, { backgroundColor: s.bg }]}>
-        <Text style={[styles.compPillText, { color: s.color }]}>{s.label}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={14} color={colors.border} />
+      {notes.map((n) => <Text key={n} style={styles.compNote}>{n}</Text>)}
     </View>
   );
 }
@@ -185,7 +203,7 @@ export default function HvacAnalyticsScreen() {
     >
       {(() => {
         const ch = data.componentHealth;
-        const hero = OVERALL_HERO_STYLE[ch.overall.status];
+        const hero = OVERALL_HERO_STYLE[healthOf(ch.overall)];
         return (
           <>
             <View style={styles.heroCard}>
@@ -228,21 +246,37 @@ export default function HvacAnalyticsScreen() {
         );
       })()}
 
-      {!notIncluded && (
-        <View style={styles.scoreCard}>
-          <View style={styles.scoreTop}>
-            <Text style={styles.scoreLabel}>HVAC Health</Text>
-            <View style={styles.scorePill}><Text style={styles.scorePillText}>Learning</Text></View>
+      {!notIncluded && (() => {
+        // What the analytics can and can't do right now — from the API's
+        // own evidence, never a fixed "day N of 14" countdown.
+        const collecting = data.componentHealth.components.some((c) => healthOf(c) === 'BASELINE_COLLECTING' || (c.limitations ?? []).some((l) => l.startsWith('Baseline collecting')));
+        const limited = (data.dataQuality ?? []).filter((i) => i.state !== 'OK');
+        const awaiting = data.healthState === 'AWAITING_SENSORS';
+        const headline = awaiting ? 'Connect a thermostat to start performance analytics'
+          : collecting ? "Learning your home's normal HVAC pattern"
+          : 'Monitoring your cooling performance';
+        const foot = awaiting
+          ? 'Cooling performance, runtime and humidity analytics use your thermostat — no extra air sensors are required.'
+          : collecting
+            ? "Screening checks are already running. Comparisons against your own system's normal pattern start once enough cooling cycles are recorded."
+            : 'Assessed from your thermostats and sensors, compared against your own system\'s normal pattern.';
+        return (
+          <View style={styles.scoreCard}>
+            <View style={styles.scoreTop}>
+              <Text style={styles.scoreLabel}>HVAC Health</Text>
+              <View style={styles.scorePill}><Text style={styles.scorePillText}>{awaiting ? 'Setup' : collecting ? 'Learning' : 'Active'}</Text></View>
+            </View>
+            <Text style={styles.scoreBig}>{headline}</Text>
+            <View style={styles.scoreBarTrack}><View style={[styles.scoreBarFill, { width: awaiting ? '6%' : collecting ? '40%' : '100%' }]} /></View>
+            <Text style={styles.scoreFoot}>{foot}</Text>
+            {limited.length > 0 && (
+              <Text style={styles.scoreFoot}>
+                Some analytics are temporarily limited: {limited.map((i) => `${i.label} (${i.detail ?? i.state.toLowerCase().replace('_', ' ')})`).join('; ')}.
+              </Text>
+            )}
           </View>
-          <Text style={styles.scoreBig}>Learning your home's normal HVAC behavior</Text>
-          <View style={styles.scoreBarTrack}><View style={[styles.scoreBarFill, { width: data.healthState === 'AWAITING_SENSORS' ? '6%' : '22%' }]} /></View>
-          <Text style={styles.scoreFoot}>
-            {data.healthState === 'AWAITING_SENSORS'
-              ? 'Return and Supply Air sensors are needed before cooling/heating trend detection can start learning.'
-              : "Day 3 of 14 · once enough cooling cycles are recorded, you'll get a 0–100 health score compared against your own system's normal pattern."}
-          </Text>
-        </View>
-      )}
+        );
+      })()}
 
       {data.findings.length > 0 && (
         <View>
@@ -266,7 +300,9 @@ export default function HvacAnalyticsScreen() {
             </View>
           ))}
           {!notIncluded && (
-            <Text style={styles.coverageNote}>Cooling &amp; heating performance analytics are paused until your Return and Supply air sensors are installed — we won't guess at a reading we don't have.</Text>
+            <Text style={styles.coverageNote}>
+              Return and Supply air sensors are optional — cooling performance is assessed from your thermostats. We never estimate a reading we don't have.
+            </Text>
           )}
         </View>
       </View>
@@ -314,6 +350,8 @@ const styles = StyleSheet.create({
   heroSub: { fontSize: 11, color: '#9DACB1', marginTop: 2 },
   heroFoot: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', fontSize: 10, color: '#7C8B90' },
 
+  compRowWrap: { paddingVertical: 2 },
+  compNote: { fontSize: 11, color: colors.steel, marginLeft: 40, marginTop: -4, marginBottom: 6 },
   compRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.canvas },
   compIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   compName: { flex: 1, fontSize: 12.5, fontWeight: '700', color: colors.ink },

@@ -266,6 +266,7 @@ function NestCell({ customer, status, account, onChanged }: {
           {t.setpoint && <span className="text-steel"> · {t.setpoint}</span>}
         </div>
       ))}
+      {account.thermostats.length > 0 && <SystemMapping account={account} onChanged={onChanged} />}
       {account.lastError && <p className="text-red-600 text-xs">{account.lastError}</p>}
       <div className="flex items-center gap-3">
         {account.lastError ? (
@@ -292,6 +293,61 @@ function NestCell({ customer, status, account, onChanged }: {
       </div>
       {!status.realtimeEvents && <p className="text-xs text-steel">Updates every 5 min (real-time events not configured)</p>}
       {awaitingGoogle && <p className="text-xs text-steel">Finish in the Google tab, then <button onClick={() => { setAwaitingGoogle(false); onChanged(); }} className={linkButton}>refresh</button>.</p>}
+      {error && <p className="text-red-600 text-xs">{error}</p>}
+    </div>
+  );
+}
+
+// Which HVAC system each thermostat zone belongs to (spec §5). Two
+// thermostats on the same system = one air handler with zone dampers; the
+// analytics only combine zones once the mapping is confirmed here.
+function SystemMapping({ account, onChanged }: { account: any; onChanged: () => Promise<unknown> }) {
+  const initial = Object.fromEntries(account.thermostats.map((t: any) => [t.id, t.equipmentNumber ?? '01']));
+  const allVerified = (account.systems ?? []).length > 0 && account.systems.every((s: any) => s.verified);
+  const [mapping, setMapping] = useState<Record<string, string>>(initial);
+  const [verified, setVerified] = useState<boolean>(allVerified);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const dirty = verified !== allVerified || account.thermostats.some((t: any) => mapping[t.id] !== (t.equipmentNumber ?? '01'));
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await adminApi.setNestSystemMapping(account.id, { thermostats: Object.entries(mapping).map(([id, equipmentNumber]) => ({ id, equipmentNumber })), verified });
+      await onChanged();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Could not save the system mapping.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-1 rounded-lg border border-mist-dim p-2 space-y-1.5">
+      <p className="text-[11px] font-semibold text-steel uppercase tracking-wide">HVAC systems</p>
+      {account.thermostats.map((t: any) => (
+        <label key={t.id} className="flex items-center justify-between gap-2 text-xs text-ink">
+          <span>{t.roomName || t.displayName}</span>
+          <select
+            value={mapping[t.id]}
+            onChange={(e) => setMapping((m) => ({ ...m, [t.id]: e.target.value }))}
+            className="border border-border rounded px-1.5 py-0.5 text-xs"
+          >
+            {['01', '02', '03'].map((n) => <option key={n} value={n}>HVAC-{n}</option>)}
+          </select>
+        </label>
+      ))}
+      <label className="flex items-center gap-2 text-xs text-ink">
+        <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} />
+        Mapping confirmed with the homeowner
+      </label>
+      {!allVerified && <p className="text-[11px] text-amber-700">Zone-combining analytics (runtime, cycling, line temperatures, humidity) are paused until confirmed.</p>}
+      {dirty && (
+        <button onClick={save} disabled={saving} className="text-lantern-deep text-xs font-semibold hover:underline disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save systems'}
+        </button>
+      )}
       {error && <p className="text-red-600 text-xs">{error}</p>}
     </div>
   );
