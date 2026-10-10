@@ -17,6 +17,17 @@ export interface ComponentDefinition {
   ruleGroups: string[];
 }
 
+// Sensors drawn on a component's drill-down chart, in addition to its
+// requiredSensorRoles — the context a homeowner needs to read the fault
+// (e.g. outdoor temperature next to refrigerant-line temperatures).
+// HVAC_STATE is never a line; it's drawn as shaded "Cooling" bands.
+export const COMPONENT_CHART_ROLES: Record<string, SensorRole[]> = {
+  PERFORMANCE: [SensorRole.INDOOR_AMBIENT_TEMP, SensorRole.HVAC_THERMOSTAT_SETPOINT, SensorRole.HVAC_OUTDOOR_TEMP, SensorRole.HVAC_RETURN_TEMP, SensorRole.HVAC_SUPPLY_TEMP],
+  REFRIGERANT: [SensorRole.HVAC_SUCTION_LINE_TEMP, SensorRole.HVAC_LIQUID_LINE_TEMP, SensorRole.HVAC_OUTDOOR_TEMP],
+  HUMIDITY: [SensorRole.INDOOR_AMBIENT_HUMIDITY],
+  CONTROLS: [SensorRole.HVAC_THERMOSTAT_SETPOINT, SensorRole.INDOOR_AMBIENT_TEMP],
+};
+
 export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     id: 'AIRFLOW', label: 'Airflow',

@@ -285,6 +285,24 @@ export type ComponentHealthOverview = {
   components: ComponentHealthResult[];
   overall: { status: ComponentHealthStatus; healthStatus?: HealthStatus; monitoredCount: number; totalCount: number; lastUpdated: string };
 };
+export type ChartRange = 'day' | 'week' | 'month';
+export type ChartPoint = { t: string; v: number };
+export type ChartSeries = { key: string; sensorRole: string; label: string; stepped: boolean; points: ChartPoint[] };
+export type ChartBand = { from: string; to: string; state: string; label: string };
+export type RecommendedActionInfo = { actionCode: string; title: string; description: string; actionType: 'HOMEOWNER_ACTION' | 'SERVICE_REQUEST' };
+export type FaultMarker = {
+  id: string; ruleId: string; label: string; severity: string; status: string; message: string;
+  detectedAt: string; resolvedAt: string | null; evidence: Record<string, any>; recommendedActions: RecommendedActionInfo[];
+};
+export type HvacComponentDetail = {
+  component: ComponentHealthResult;
+  range: ChartRange; from: string; to: string;
+  charts: { unit: string; series: ChartSeries[] }[];
+  bands: ChartBand[];
+  markers: FaultMarker[];
+  conditions: { ruleId: string; label: string; outcome: string; reason: string | null; evaluatedAt: string }[];
+  recommendedActions: RecommendedActionInfo[];
+};
 export type HvacInputQuality = { label: string; sensorRole: string; state: 'OK' | 'STALE' | 'INVALID' | 'UNAVAILABLE' | 'AUTH_FAILURE' | 'NO_DATA'; detail: string | null; lastValidAt: string | null };
 
 export type HvacAnalytics = {
@@ -299,6 +317,7 @@ export type HvacAnalytics = {
 
 export const hvacAnalyticsApi = {
   getMine: (): Promise<HvacAnalytics> => api.get('/hvac-analytics/me') as any,
+  getComponent: (id: string, range: ChartRange): Promise<HvacComponentDetail> => api.get(`/hvac-analytics/me/components/${id}`, { params: { range } }) as any,
   resolveFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/resolve`),
   dismissFinding: (id: string) => api.post(`/hvac-analytics/findings/${id}/dismiss`),
   snoozeFinding: (id: string, minutes: 30 | 60 | 240) => api.post(`/hvac-analytics/findings/${id}/snooze`, { minutes }) as Promise<{ snoozedUntil: string }>,

@@ -20,6 +20,12 @@ import { ThresholdsService } from './thresholds.service';
 import { HealthEvidence } from './component-health.service';
 import { InputAssessment, assessInput } from './data-quality';
 import { indoorSensorLabel } from './indoor-temp-grouping';
+import { COMPONENT_CHART_ROLES, COMPONENT_DEFINITIONS } from './component-health-definitions';
+import { resolveRecommendedActions } from './recommended-action-catalog';
+import { ChartRange, RANGE_HOURS, bucketPoints, stateBands } from './series';
+import { NotFoundException } from '@nestjs/common';
+import { MoreThan, LessThanOrEqual } from 'typeorm';
+import { TelemetryDataQuality, TelemetryEvent } from './entities/telemetry-event.entity';
 
 // Roles shown in the customer's Sensor Coverage list — thermostat-based
 // analytics need no supply/return air probes, so those are listed only as
@@ -62,6 +68,7 @@ export class IotAnalyticsService {
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
     @InjectRepository(RuleEvaluation) private evaluationsRepo: Repository<RuleEvaluation>,
+    @InjectRepository(TelemetryEvent) private telemetryRepo: Repository<TelemetryEvent>,
     private thresholdsService: ThresholdsService,
     private analyticsEngine: AnalyticsEngineService,
     private componentHealthService: ComponentHealthService,
@@ -151,6 +158,93 @@ export class IotAnalyticsService {
       sensorCoverage,
       componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, visibleFindings, evidence),
       dataQuality: evidence.inputs.map((i) => ({ label: i.label, sensorRole: i.sensorRole, state: i.state, detail: i.detail, lastValidAt: i.lastValidAt })),
+    };
+  }
+
+  // ── Component drill-down (mobile) ────────────────────────────────────────
+  // Everything the component detail screen draws: one chart per unit with
+  // every related sensor overlaid, cooling-call bands, fault markers (each
+  // finding's detection time, shaded until it resolved), the latest
+  // condition of each rule behind the component, and recommended actions.
+  async getMyComponentDetail(customerId: string, componentId: string, range: ChartRange) {
+    const def = COMPONENT_DEFINITIONS.find((d) => d.id === componentId);
+    if (!def) throw new NotFoundException('Unknown component');
+    const summary = await this.getMyAnalytics(customerId);
+    const tile = summary.componentHealth.components.find((c: any) => c.id === componentId)!;
+    const to = new Date();
+    const from = new Date(to.getTime() - RANGE_HOURS[range] * 3600_000);
+
+    const sub = await this.getActiveSubscription(customerId);
+    const tier = sub?.plan?.tier ?? null;
+    const isProactivePlus = tier === PlanTier.STANDARD || tier === PlanTier.PREMIUM;
+    const sensors = (await this.getAssignedSensorsForCustomer(customerId)).filter((s) => this.isHvacAnalyticsRelevant(s.assignment, s.equipment) || s.assignment.sensorRole === SensorRole.HVAC_OUTDOOR_TEMP);
+    const visible = isProactivePlus ? sensors : sensors.filter((s) => CAREPLUS_SENSOR_ROLES.has(s.assignment.sensorRole));
+    const lineRoles = new Set<SensorRole>([...def.requiredSensorRoles, ...(COMPONENT_CHART_ROLES[componentId] ?? [])].filter((r) => r !== SensorRole.HVAC_STATE && r !== SensorRole.HVAC_DRAIN_WATER));
+
+    // Lines, grouped into one chart per unit.
+    const charts = new Map<string, { unit: string; series: any[] }>();
+    for (const s of visible.filter((x) => lineRoles.has(x.assignment.sensorRole))) {
+      const rows = await this.telemetryRepo.find({
+        where: { deviceRegistryId: s.device.id, observedAt: MoreThan(from), dataQuality: TelemetryDataQuality.VALID },
+        order: { observedAt: 'ASC' },
+      });
+      const points = bucketPoints(rows.filter((r) => r.numericValue != null).map((r) => ({ t: r.observedAt, v: Number(r.numericValue) })), range);
+      if (points.length === 0) continue;
+      const unit = rows.find((r) => r.unit)?.unit ?? '';
+      const zone = s.device.provider === 'nest' ? indoorSensorLabel(s.device).replace(/ thermostat$/i, '') : null;
+      const roleLabel = SENSOR_ROLE_META[s.assignment.sensorRole]?.label ?? s.assignment.sensorRole;
+      const chart = charts.get(unit) ?? { unit, series: [] };
+      chart.series.push({
+        key: s.device.id, sensorRole: s.assignment.sensorRole,
+        label: zone ? `${zone} · ${s.assignment.sensorRole === SensorRole.HVAC_THERMOSTAT_SETPOINT ? 'Setpoint' : roleLabel}` : roleLabel,
+        // Setpoints change in steps — the screen draws them as a step line.
+        stepped: s.assignment.sensorRole === SensorRole.HVAC_THERMOSTAT_SETPOINT,
+        points,
+      });
+      charts.set(unit, chart);
+    }
+
+    // Shaded bands: whole-system cooling calls, and drain-pan water.
+    const bandsFor = async (role: SensorRole, keep: string[], label: string) => {
+      const out: any[] = [];
+      for (const s of visible.filter((x) => x.assignment.sensorRole === role)) {
+        const before = await this.telemetryRepo.findOne({ where: { deviceRegistryId: s.device.id, observedAt: LessThanOrEqual(from) }, order: { observedAt: 'DESC' } });
+        const rows = await this.telemetryRepo.find({ where: { deviceRegistryId: s.device.id, observedAt: MoreThan(from) }, order: { observedAt: 'ASC' } });
+        const samples = [...(before ? [before] : []), ...rows].map((r) => ({ t: r.observedAt, state: r.value }));
+        out.push(...stateBands(samples, from, to, keep).map((b) => ({ ...b, label })));
+      }
+      return out;
+    };
+    const bands = componentId === 'CONDENSATE'
+      ? await bandsFor(SensorRole.HVAC_DRAIN_WATER, ['DETECTED'], 'Water detected')
+      : await bandsFor(SensorRole.HVAC_STATE, ['COOLING', 'HEATING'], 'System running');
+
+    // Fault markers: findings behind this component detected in range, or
+    // still active from before it.
+    const groupFindings = (await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'ASC' } }))
+      .filter((f) => f.ruleGroup && def.ruleGroups.includes(f.ruleGroup))
+      .filter((f) => f.status === FindingStatus.ACTIVE || f.detectedAt >= from)
+      .filter((f) => !(f.measurements as any)?.supersededBy);
+    const markers = groupFindings.map((f) => ({
+      id: f.id, ruleId: f.ruleId, label: RULE_DEFINITIONS.find((r) => r.ruleId === f.ruleId)?.label ?? f.ruleId,
+      severity: f.severity, status: f.status, message: f.message,
+      detectedAt: f.detectedAt.toISOString(), resolvedAt: f.resolvedAt?.toISOString() ?? null,
+      evidence: f.measurements ?? {},
+      recommendedActions: resolveRecommendedActions(f.recommendedActions ?? []).filter((a) => a.actionCode !== 'I_FIXED_IT'),
+    }));
+
+    // Conditions: the latest evaluation of each rule behind the component.
+    const ruleIds = new Set(RULE_DEFINITIONS.filter((r) => def.ruleGroups.includes(r.ruleGroup)).map((r) => r.ruleId));
+    const conditions = (await this.evaluationsRepo.find({ where: { customerId } }))
+      .filter((e) => ruleIds.has(e.ruleId))
+      .map((e) => ({ ruleId: e.ruleId, label: RULE_DEFINITIONS.find((r) => r.ruleId === e.ruleId)?.label ?? e.ruleId, outcome: e.outcome, reason: e.reason, evaluatedAt: e.evaluatedAt.toISOString() }));
+
+    const active = markers.filter((m) => m.status === FindingStatus.ACTIVE);
+    const actions = [...new Map(active.flatMap((m) => m.recommendedActions).map((a) => [a.actionCode, a])).values()];
+    return {
+      component: { id: tile.id, label: tile.label, healthStatus: tile.healthStatus, status: tile.status, reason: tile.reason, limitations: tile.limitations },
+      range, from: from.toISOString(), to: to.toISOString(),
+      charts: [...charts.values()], bands, markers, conditions, recommendedActions: actions,
     };
   }
 

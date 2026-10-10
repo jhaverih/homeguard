@@ -58,8 +58,16 @@ function ComponentHealthRow({ item }: { item: ComponentHealthResult }) {
   const status = healthOf(item);
   const s = COMPONENT_STATUS_STYLE[status];
   const notes = [status !== 'HEALTHY' && status !== 'NOT_MONITORED' ? item.reason : null, ...(item.limitations ?? [])].filter((n): n is string => !!n);
+  // Only monitored components open the drill-down — a Not Monitored one has
+  // no sensors to chart, so it isn't tappable and shows no chevron.
+  const monitored = status !== 'NOT_MONITORED';
   return (
-    <View style={styles.compRowWrap}>
+    <TouchableOpacity
+      style={styles.compRowWrap}
+      disabled={!monitored}
+      activeOpacity={0.6}
+      onPress={() => router.push({ pathname: '/(customer)/hvac-component', params: { id: item.id } } as any)}
+    >
       <View style={styles.compRow}>
         <View style={[styles.compIcon, { backgroundColor: s.bg }]}>
           <Ionicons name={s.icon} size={16} color={s.color} />
@@ -68,9 +76,10 @@ function ComponentHealthRow({ item }: { item: ComponentHealthResult }) {
         <View style={[styles.compPill, { backgroundColor: s.bg }]}>
           <Text style={[styles.compPillText, { color: s.color }]}>{s.label}</Text>
         </View>
+        {monitored ? <Ionicons name="chevron-forward" size={14} color={colors.steel} /> : <View style={{ width: 14 }} />}
       </View>
       {notes.map((n) => <Text key={n} style={styles.compNote}>{n}</Text>)}
-    </View>
+    </TouchableOpacity>
   );
 }
 

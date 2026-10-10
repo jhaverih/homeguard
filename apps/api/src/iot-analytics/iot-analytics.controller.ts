@@ -20,6 +20,15 @@ export class IotAnalyticsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Get('hvac-analytics/me/components/:componentId')
+  @ApiOperation({ summary: "One component's drill-down: related sensor time series, cooling bands, fault markers, conditions, recommended actions" })
+  getMyComponent(@Request() req: any, @Param('componentId') componentId: string, @Query('range') range?: string) {
+    const r = range === 'week' || range === 'month' ? range : 'day';
+    return this.service.getMyComponentDetail(req.user.id, componentId, r);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get('hvac-analytics/me')
   @ApiOperation({ summary: "My home's HVAC analytics — findings, sensor coverage, tier-gated" })
   getMine(@Request() req: any) {
