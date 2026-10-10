@@ -1,4 +1,4 @@
-import { TRAIT, describeSetpoint, mergeTraits, readingsFor, sdmDeviceId, thermostatIdentity } from './nest-traits';
+import { TRAIT, describeSetpoint, flattenTraits, mergeTraits, readingsFor, sdmDeviceId, thermostatIdentity } from './nest-traits';
 
 const fullTraits = {
   [TRAIT.INFO]: { customName: '' },
@@ -44,6 +44,15 @@ describe('nest-traits', () => {
     const merged = mergeTraits(fullTraits, { [TRAIT.ECO]: { mode: 'MANUAL_ECO' } });
     expect(merged[TRAIT.ECO]).toEqual({ mode: 'MANUAL_ECO', heatCelsius: 15, coolCelsius: 28 });
     expect(merged[TRAIT.TEMPERATURE]).toEqual(fullTraits[TRAIT.TEMPERATURE]);
+  });
+
+  it('flattens every reported trait field for the admin portal, with °F for Celsius values', () => {
+    const params = flattenTraits({ ...fullTraits, [TRAIT.CONNECTIVITY]: { status: 'ONLINE' }, 'sdm.devices.traits.Fan': { timerMode: 'OFF' } });
+    expect(params).toContainEqual({ trait: 'Temperature', field: 'ambientTemperatureCelsius', value: '22.5 °C (72.5 °F)' });
+    expect(params).toContainEqual({ trait: 'Fan', field: 'timerMode', value: 'OFF' });
+    expect(params).toContainEqual({ trait: 'ThermostatMode', field: 'availableModes', value: 'HEAT, COOL, HEATCOOL, OFF' });
+    expect(params).toContainEqual({ trait: 'Info', field: 'customName', value: '(empty)' });
+    expect(params.map((p) => p.trait)).toEqual([...params.map((p) => p.trait)].sort());
   });
 
   it('describes eco, heat/cool range and off setpoints', () => {

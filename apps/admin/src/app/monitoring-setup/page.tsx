@@ -257,15 +257,7 @@ function NestCell({ customer, status, account, onChanged }: {
   return (
     <div className="space-y-1.5">
       {account.thermostats.length === 0 && <p className="text-xs text-steel">Connected — no thermostats shared yet.</p>}
-      {account.thermostats.map((t: any) => (
-        <div key={t.id} className="text-xs text-ink">
-          <span className="font-semibold">{t.roomName || t.displayName}</span>
-          {' · '}{t.temperatureF != null ? `${t.temperatureF}°F` : '—'}
-          {t.humidity != null && ` · ${t.humidity}%`}
-          {' · '}{t.online ? (HVAC_LABEL[t.hvacStatus] ?? '—') : <span className="text-red-600">Offline</span>}
-          {t.setpoint && <span className="text-steel"> · {t.setpoint}</span>}
-        </div>
-      ))}
+      {account.thermostats.map((t: any) => <ThermostatRow key={t.id} t={t} />)}
       {account.thermostats.length > 0 && <SystemMapping account={account} onChanged={onChanged} />}
       {account.lastError && <p className="text-red-600 text-xs">{account.lastError}</p>}
       <div className="flex items-center gap-3">
@@ -349,6 +341,50 @@ function SystemMapping({ account, onChanged }: { account: any; onChanged: () => 
         </button>
       )}
       {error && <p className="text-red-600 text-xs">{error}</p>}
+    </div>
+  );
+}
+
+// One connected Nest thermostat: a summary line, and on demand every
+// parameter Google reports for it (all traits, all fields) — however many
+// thermostats the customer has connected, each gets its own row.
+function ThermostatRow({ t }: { t: any }) {
+  const [open, setOpen] = useState(false);
+  const params: { trait: string; field: string; value: string }[] = t.parameters ?? [];
+  const traits = [...new Set(params.map((p) => p.trait))];
+  return (
+    <div className="text-xs text-ink">
+      <div>
+        <span className="font-semibold">{t.roomName || t.displayName}</span>
+        {' · '}{t.temperatureF != null ? `${t.temperatureF}°F` : '—'}
+        {t.humidity != null && ` · ${t.humidity}%`}
+        {' · '}{t.online ? (HVAC_LABEL[t.hvacStatus] ?? '—') : <span className="text-red-600">Offline</span>}
+        {t.setpoint && <span className="text-steel"> · {t.setpoint}</span>}
+        {params.length > 0 && (
+          <button onClick={() => setOpen((o) => !o)} className="ml-2 text-lantern-deep font-semibold hover:underline">
+            {open ? 'Hide parameters' : `All parameters (${params.length})`}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="mt-1 mb-2 rounded-lg border border-mist-dim bg-canvas/60 p-2 max-w-xl">
+          <p className="text-[11px] text-steel mb-1">
+            {t.displayName} · HVAC-{t.equipmentNumber ?? '01'} · last update {t.lastEventAt ? new Date(t.lastEventAt).toLocaleString() : '—'}
+          </p>
+          <table className="w-full text-[11px]">
+            <tbody>
+              {traits.map((trait) => params.filter((p) => p.trait === trait).map((p, i) => (
+                <tr key={`${trait}.${p.field}`} className={i === 0 ? 'border-t border-mist-dim' : ''}>
+                  <td className="py-0.5 pr-2 font-semibold text-steel align-top w-36">{i === 0 ? trait : ''}</td>
+                  <td className="py-0.5 pr-2 text-steel align-top">{p.field}</td>
+                  <td className="py-0.5 text-ink align-top break-all">{p.value}</td>
+                </tr>
+              )))}
+            </tbody>
+          </table>
+          {t.sdmDeviceId && <p className="mt-1 text-[10px] text-steel-quiet break-all">Device ID: {t.sdmDeviceId}</p>}
+        </div>
+      )}
     </div>
   );
 }

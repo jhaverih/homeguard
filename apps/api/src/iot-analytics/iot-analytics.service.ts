@@ -204,6 +204,20 @@ export class IotAnalyticsService {
       charts.set(unit, chart);
     }
 
+    // Drain-pan sensors report water/dry, not a number — drawn as a step
+    // line (0 = dry, 1 = water detected) so the condensate view has a chart.
+    if (componentId === 'CONDENSATE') {
+      for (const s of visible.filter((x) => x.assignment.sensorRole === SensorRole.HVAC_DRAIN_WATER)) {
+        const before = await this.telemetryRepo.findOne({ where: { deviceRegistryId: s.device.id, observedAt: LessThanOrEqual(from) }, order: { observedAt: 'DESC' } });
+        const rows = await this.telemetryRepo.find({ where: { deviceRegistryId: s.device.id, observedAt: MoreThan(from) }, order: { observedAt: 'ASC' } });
+        const points = [...(before ? [{ ...before, observedAt: from }] : []), ...rows].map((r) => ({ t: r.observedAt.toISOString(), v: r.value === 'DETECTED' ? 1 : 0 }));
+        if (points.length === 0) continue;
+        const chart = charts.get('water') ?? { unit: 'water', series: [] };
+        chart.series.push({ key: s.device.id, sensorRole: s.assignment.sensorRole, label: s.device.currentProviderName ?? 'Drain pan', stepped: true, points });
+        charts.set('water', chart);
+      }
+    }
+
     // Shaded bands: whole-system cooling calls, and drain-pan water.
     const bandsFor = async (role: SensorRole, keep: string[], label: string) => {
       const out: any[] = [];
@@ -224,7 +238,10 @@ export class IotAnalyticsService {
     const groupFindings = (await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'ASC' } }))
       .filter((f) => f.ruleGroup && def.ruleGroups.includes(f.ruleGroup))
       .filter((f) => f.status === FindingStatus.ACTIVE || f.detectedAt >= from)
-      .filter((f) => !(f.measurements as any)?.supersededBy);
+      .filter((f) => !(f.measurements as any)?.supersededBy)
+      // Findings from a rule's previous logic (e.g. REFRIGERANT-001 v1's
+      // idle-vs-all-hours comparison) aren't drawn as faults.
+      .filter((f) => (f.ruleVersion ?? 1) >= (RULE_DEFINITIONS.find((r) => r.ruleId === f.ruleId)?.version ?? 1));
     const markers = groupFindings.map((f) => ({
       id: f.id, ruleId: f.ruleId, label: RULE_DEFINITIONS.find((r) => r.ruleId === f.ruleId)?.label ?? f.ruleId,
       severity: f.severity, status: f.status, message: f.message,
@@ -271,7 +288,11 @@ export class IotAnalyticsService {
       const [latestValid, latestAny] = await Promise.all([this.telemetryService.latestValid(s.device.id), this.telemetryService.latestAny(s.device.id)]);
       // Hourly-cadence and polled sources go stale; report-on-change probes
       // and leak sensors are judged by connectivity/SENSOR-001 instead.
-      const staleMinutes = s.device.provider === 'nest' ? nestStale
+      // A thermostat's call state and setpoint are recorded only when they
+      // change — quiet isn't stale; their availability is the Connectivity
+      // trait. Its temperature/humidity arrive on every 5-minute poll.
+      const nestPolled = s.assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP || s.assignment.sensorRole === SensorRole.INDOOR_AMBIENT_HUMIDITY;
+      const staleMinutes = s.device.provider === 'nest' ? (nestPolled ? nestStale : null)
         : s.device.provider === 'weather' ? 180
         : s.assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP ? yolinkTempStale
         : null;

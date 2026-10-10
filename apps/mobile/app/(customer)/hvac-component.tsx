@@ -34,7 +34,7 @@ const OUTCOME: Record<string, { label: string; color: string }> = {
   INSUFFICIENT_DATA: { label: 'Insufficient data', color: colors.steel },
 };
 
-const UNIT_TITLE: Record<string, string> = { '°F': 'Temperature (°F)', '%': 'Relative humidity (%)' };
+const UNIT_TITLE: Record<string, string> = { '°F': 'Temperature (°F)', '%': 'Relative humidity (%)', water: 'Drain-pan water' };
 
 // A finding's evidence, in plain words — only the fields a homeowner can
 // read meaningfully; anything else stays in the admin view.

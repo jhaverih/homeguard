@@ -128,3 +128,26 @@ export function readingsFor(prev: NestTraits, update: NestTraits): NestReading[]
   }
   return readings;
 }
+
+export interface TraitParameter { trait: string; field: string; value: string }
+
+// Every field of every SDM trait a thermostat reports, flattened for the
+// admin portal — whatever Google exposes for that device (Fan, Settings,
+// Eco, Connectivity, …), not just the ones the analytics use. Celsius
+// fields are shown with their °F equivalent; nested objects are dotted.
+export function flattenTraits(traits: NestTraits): TraitParameter[] {
+  const out: TraitParameter[] = [];
+  const walk = (trait: string, prefix: string, value: any) => {
+    if (value != null && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [k, v] of Object.entries(value)) walk(trait, prefix ? `${prefix}.${k}` : k, v);
+      return;
+    }
+    let display = Array.isArray(value) ? value.join(', ') : value === '' ? '(empty)' : String(value);
+    if (typeof value === 'number' && /celsius/i.test(prefix)) display = `${Math.round(value * 10) / 10} °C (${celsiusToFahrenheit(value)} °F)`;
+    out.push({ trait, field: prefix, value: display });
+  };
+  for (const [trait, fields] of Object.entries(traits ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
+    walk(trait.replace('sdm.devices.traits.', ''), '', fields);
+  }
+  return out;
+}

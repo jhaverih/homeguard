@@ -66,12 +66,15 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
     pts: s.points.map((p) => ({ t: ms(p.t), v: p.v })),
   })), [series]);
 
+  // Drain-pan water is a 0/1 state (dry / water detected), not a quantity.
+  const isWater = unit === 'water';
+  const fmt = (v: number) => (isWater ? (v >= 0.5 ? 'Water' : 'Dry') : `${Math.round(v * 10) / 10}${unit === '%' ? '%' : '°'}`);
   const all = parsed.flatMap((s) => s.pts.map((p) => p.v));
   const rawMin = Math.min(...all);
   const rawMax = Math.max(...all);
   const pad = Math.max(1, (rawMax - rawMin) * 0.12);
-  const yMin = Math.floor(rawMin - pad);
-  const yMax = Math.ceil(rawMax + pad);
+  const yMin = isWater ? -0.15 : Math.floor(rawMin - pad);
+  const yMax = isWater ? 1.15 : Math.ceil(rawMax + pad);
   const plotW = Math.max(1, width - PAD.left - PAD.right);
   const plotH = height - PAD.top - PAD.bottom;
   const x = (t: number) => PAD.left + ((t - t0) / (t1 - t0 || 1)) * plotW;
@@ -112,7 +115,7 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
     onPanResponderTerminate: () => setScrubX(null),
   }), []);
 
-  const yTicks = niceTicks(yMin, yMax);
+  const yTicks = isWater ? [0, 1] : niceTicks(yMin, yMax);
   const xTicks = Array.from({ length: 5 }, (_, i) => t0 + ((t1 - t0) * i) / 4);
   const scrubT = scrubX != null ? t0 + ((Math.min(Math.max(scrubX, PAD.left), PAD.left + plotW) - PAD.left) / plotW) * (t1 - t0) : null;
   const visibleMarkers = markers.filter((m) => ms(m.detectedAt) <= t1);
@@ -126,7 +129,7 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
             {yTicks.map((v) => (
               <G key={`y${v}`}>
                 <Line x1={PAD.left} x2={PAD.left + plotW} y1={y(v)} y2={y(v)} stroke={colors.border} strokeWidth={1} />
-                <SvgText x={PAD.left - 6} y={y(v) + 4} fontSize={10} fill={colors.steel} textAnchor="end">{v}</SvgText>
+                <SvgText x={PAD.left - 6} y={y(v) + 4} fontSize={10} fill={colors.steel} textAnchor="end">{isWater ? (v ? 'Water' : 'Dry') : v}</SvgText>
               </G>
             ))}
             {xTicks.map((t, i) => (
@@ -162,7 +165,7 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
                 <G key={`c${s.key}`}>
                   <Circle cx={x(last.t)} cy={y(last.v)} r={3.5} fill={s.color} />
                   <SvgText x={Math.min(x(last.t) + 6, width - 2)} y={y(last.v) + 4} fontSize={10} fontWeight="bold" fill={s.color} textAnchor={x(last.t) + 40 > width ? 'end' : 'start'}>
-                    {`${Math.round(last.v * 10) / 10}${unit === '%' ? '%' : '°'}`}
+                    {fmt(last.v)}
                   </SvgText>
                 </G>
               );
@@ -205,7 +208,7 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
               return v == null ? null : (
                 <View key={`t${s.key}`} style={styles.tooltipRow}>
                   <View style={[styles.swatch, { backgroundColor: s.color }]} />
-                  <Text style={styles.tooltipText} numberOfLines={1}>{s.label}: {Math.round(v * 10) / 10}{unit}</Text>
+                  <Text style={styles.tooltipText} numberOfLines={1}>{s.label}: {isWater ? fmt(v) : `${Math.round(v * 10) / 10}${unit}`}</Text>
                 </View>
               );
             })}
@@ -217,7 +220,7 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
         {parsed.map((s) => (
           <View key={`l${s.key}`} style={styles.legendItem}>
             <View style={[styles.legendLine, { backgroundColor: s.color, opacity: s.stepped ? 0.7 : 1 }]} />
-            <Text style={styles.legendText}>{s.label} ({unit})</Text>
+            <Text style={styles.legendText}>{s.label}{isWater ? '' : ` (${unit})`}</Text>
           </View>
         ))}
         {bands.length > 0 && (

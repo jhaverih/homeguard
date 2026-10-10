@@ -21,7 +21,7 @@ import { NestAuthorizationRevokedError, NestConfig, PubsubClient, SdmClient, nes
 import { signOAuthState, verifyOAuthState } from './nest-oauth-state';
 import {
   NestReadingKind, NestTraits, SdmDevice, TRAIT, hvacStatus, describeSetpoint, isThermostat,
-  mergeTraits, readingsFor, sdmDeviceId, thermostatIdentity,
+  mergeTraits, readingsFor, sdmDeviceId, thermostatIdentity, flattenTraits,
 } from './nest-traits';
 
 export const NEST_PROVIDER = 'nest';
@@ -181,6 +181,8 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
     return {
       id: t.id, displayName: t.displayName, roomName: t.roomName, lastEventAt: t.lastEventAt, equipmentNumber: t.equipmentNumber,
       fanTimer: t.traits?.['sdm.devices.traits.Fan']?.timerMode ?? null,
+      sdmDeviceId: t.sdmDeviceId,
+      parameters: flattenTraits(t.traits),
       online: t.traits?.[TRAIT.CONNECTIVITY]?.status !== 'OFFLINE',
       temperatureF: typeof tempC === 'number' ? Math.round((tempC * 9 / 5 + 32) * 10) / 10 : null,
       humidity: t.traits?.[TRAIT.HUMIDITY]?.ambientHumidityPercent ?? null,
