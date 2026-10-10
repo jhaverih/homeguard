@@ -173,6 +173,19 @@ export const THRESHOLD_DEFINITIONS: ThresholdDefinition[] = [
     description: 'A temperature reading above this is treated as an implausible/faulty sensor reading rather than a real condition.',
     unit: '°F', defaultValue: 140, min: 100, max: 200, ruleIds: ['SENSOR-003'],
   },
+  // Referenced by PerformanceEngineService.handleHumidityReading since it was
+  // written, but never defined — it only surfaced (as "Unknown analytics
+  // threshold key") once the first humidity sensor, a Nest thermostat, went live.
+  {
+    key: 'PLAUSIBLE_HUMIDITY_MIN_PERCENT', label: 'Plausible Humidity — Minimum',
+    description: 'A relative-humidity reading below this is treated as an implausible/faulty sensor reading rather than a real condition.',
+    unit: '%', defaultValue: 0, min: 0, max: 10, ruleIds: ['SENSOR-003'],
+  },
+  {
+    key: 'PLAUSIBLE_HUMIDITY_MAX_PERCENT', label: 'Plausible Humidity — Maximum',
+    description: 'A relative-humidity reading above this is treated as an implausible/faulty sensor reading rather than a real condition.',
+    unit: '%', defaultValue: 100, min: 90, max: 100, ruleIds: ['SENSOR-003'],
+  },
   {
     key: 'PLAUSIBLE_POWER_MAX_WATTS', label: 'Plausible Power — Maximum',
     description: 'A power reading above this is treated as an implausible/faulty sensor reading rather than a real condition (residential HVAC components don\'t draw this much).',

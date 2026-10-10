@@ -80,3 +80,22 @@ describe('evaluateRuleAvailability', () => {
     expect(result.available).toBe(true);
   });
 });
+
+describe('threshold keys referenced by the analytics engines', () => {
+  it('are all defined in THRESHOLD_DEFINITIONS', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const { THRESHOLD_DEFINITIONS } = require('./threshold-definitions');
+    const defined = new Set(THRESHOLD_DEFINITIONS.map((d: { key: string }) => d.key));
+    const files = ['analytics-engine.service.ts', 'performance-engine.service.ts'];
+    // Keys passed to getValue directly, plus the PLAUSIBLE_* keys handed to
+    // evaluatePlausibility indirectly as min/max arguments.
+    const referenced = new Set<string>();
+    for (const f of files) {
+      const src: string = fs.readFileSync(path.join(__dirname, f), 'utf8');
+      for (const m of src.matchAll(/getValue\('([A-Z0-9_]+)'/g)) referenced.add(m[1]);
+      for (const m of src.matchAll(/'(PLAUSIBLE_[A-Z0-9_]+)'/g)) referenced.add(m[1]);
+    }
+    expect([...referenced].filter((k) => !defined.has(k))).toEqual([]);
+  });
+});
