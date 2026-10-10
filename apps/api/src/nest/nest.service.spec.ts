@@ -22,6 +22,7 @@ describe('NestService event ingestion', () => {
   let telemetry: any;
   let analytics: any;
   let performance: any;
+  let cooling: any;
 
   beforeEach(() => {
     thermostat = {
@@ -36,6 +37,12 @@ describe('NestService event ingestion', () => {
         devices.set(providerDeviceId, d);
         return d;
       }),
+      findByProviderDeviceId: jest.fn(async (_provider: string, id: string) => devices.get(id) ?? null),
+      getAssignment: jest.fn(async (id: string) => {
+        const d = [...devices.values()].find((x) => x.id === id);
+        return d ? { sensorRole: d.spec.sensorRole, equipmentId: 'eq' } : null;
+      }),
+      setConnectivity: jest.fn(async () => {}),
       getDeviceAndAssignment: jest.fn(async (id: string) => {
         const d = [...devices.values()].find((x) => x.id === id);
         return d ? { device: d, assignment: { sensorRole: d.spec.sensorRole, equipmentId: 'eq' } } : null;
@@ -43,10 +50,11 @@ describe('NestService event ingestion', () => {
     };
     telemetry = { record: jest.fn(async () => ({})) };
     analytics = { evaluateIndoorTempEvent: jest.fn(async () => {}) };
-    performance = { handleHumidityReading: jest.fn(async () => {}), handleHvacStateReading: jest.fn(async () => {}), handleSetpointReading: jest.fn(async () => {}) };
+    performance = { handleHumidityReading: jest.fn(async () => {}), handleSetpointReading: jest.fn(async () => {}) };
+    cooling = { onThermostatReading: jest.fn(async () => {}) };
     service = new NestService(
       repo([account]) as any, repo([thermostat]) as any, repo([yolinkHome]) as any,
-      { get: () => 'secret' } as any, registry, telemetry, analytics, performance, {} as any,
+      { get: () => 'secret' } as any, registry, telemetry, analytics, performance, {} as any, cooling, { getValue: async () => 15 } as any,
     );
   });
 
@@ -67,7 +75,9 @@ describe('NestService event ingestion', () => {
     expect(registry.upsertFromProvider.mock.calls[0][3]).toEqual({ deviceType: 'NestThermostat', name: '2nd Floor Thermostat', room: '2nd Floor' });
     expect(analytics.evaluateIndoorTempEvent).toHaveBeenCalledWith(expect.objectContaining({ providerDeviceId: 'dev1:temperature' }), expect.anything(), yolinkHome, 96.1);
     expect(performance.handleHumidityReading).toHaveBeenCalledWith(expect.anything(), expect.anything(), yolinkHome, 61, new Date('2026-10-10T12:00:00Z'));
-    expect(performance.handleHvacStateReading).toHaveBeenCalledTimes(1);
+    // Cooling rules run once per update, after all its channels are recorded.
+    expect(cooling.onThermostatReading).toHaveBeenCalledTimes(1);
+    expect(registry.setConnectivity).toHaveBeenCalled();
     expect(telemetry.record.mock.calls.find((c: any[]) => c[0].providerDeviceId === 'dev1:hvac').slice(2, 4)).toEqual(['COOLING', 1]);
     expect(thermostat.traits[TRAIT.HVAC].status).toBe('COOLING');
   });

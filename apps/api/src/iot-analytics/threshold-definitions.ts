@@ -162,6 +162,140 @@ export const THRESHOLD_DEFINITIONS: ThresholdDefinition[] = [
     unit: 'W', defaultValue: 200, min: 50, max: 1000, ruleIds: ['HVAC-ELECTRICAL-004'],
   },
 
+  // ── Thermostat-driven cooling analytics (no supply/return air required) ──
+  // Initial screening settings from the Attenteve HVAC analytics spec — not
+  // universal equipment specifications; tune per home as history accrues.
+  {
+    key: 'COOLING_PERF_MIN_ACTIVE_MINUTES', label: 'Cooling Performance — Minimum Active Cooling',
+    description: 'Cooling must have been continuously active (since the last setpoint change) at least this long before slow progress toward setpoint is flagged.',
+    unit: 'minutes', defaultValue: 60, min: 30, max: 180, ruleIds: ['HVAC-COMFORT-001'],
+  },
+  {
+    key: 'COOLING_PERF_ERROR_F', label: 'Cooling Performance — Temperature Above Setpoint',
+    description: 'Indoor temperature must stay more than this many °F above the cooling setpoint for the whole minimum-active period.',
+    unit: '°F', defaultValue: 3, min: 1, max: 10, ruleIds: ['HVAC-COMFORT-001'],
+  },
+  {
+    key: 'COOLING_PERF_MIN_PROGRESS_F', label: 'Cooling Performance — Expected Progress',
+    description: 'If the indoor temperature has dropped by at least this much over the minimum-active period, cooling counts as making progress and is not flagged.',
+    unit: '°F', defaultValue: 1, min: 0.5, max: 5, ruleIds: ['HVAC-COMFORT-001'],
+  },
+  {
+    key: 'PROGRESS_CHECK_MINUTES', label: 'Setpoint Progress — Check After',
+    description: 'How long into a continuous cooling call to check whether the indoor temperature has started moving toward the setpoint.',
+    unit: 'minutes', defaultValue: 30, min: 15, max: 120, ruleIds: ['HVAC-COMFORT-003'],
+  },
+  {
+    key: 'PROGRESS_MIN_INITIAL_ERROR_F', label: 'Setpoint Progress — Minimum Starting Gap',
+    description: 'The progress check only applies when the indoor temperature started at least this many °F above the cooling setpoint (smaller gaps are within measurement resolution).',
+    unit: '°F', defaultValue: 2, min: 1, max: 10, ruleIds: ['HVAC-COMFORT-003'],
+  },
+  {
+    key: 'PROGRESS_MIN_DECREASE_F', label: 'Setpoint Progress — Minimum Decrease',
+    description: 'The indoor temperature gap to setpoint must have shrunk by at least this much by the check time, or a warning is raised.',
+    unit: '°F', defaultValue: 0.5, min: 0.2, max: 3, ruleIds: ['HVAC-COMFORT-003'],
+  },
+  {
+    key: 'RUNTIME_EXCESS_PERCENT', label: 'Cooling Cycle Runtime — Excess Over Baseline',
+    description: 'A cooling cycle counts as extended when it runs at least this much longer than the home\'s typical cycle under comparable outdoor conditions.',
+    unit: '%', defaultValue: 30, min: 10, max: 200, ruleIds: ['HVAC-RUNTIME-001'],
+  },
+  {
+    key: 'RUNTIME_MIN_COMPARABLE_CYCLES', label: 'Cooling Cycle Runtime — Consecutive Extended Cycles',
+    description: 'This many consecutive comparable cooling cycles must all be extended before the runtime finding is raised.',
+    unit: 'cycles', defaultValue: 3, min: 2, max: 10, ruleIds: ['HVAC-RUNTIME-001'],
+  },
+  {
+    key: 'RUNTIME_BASELINE_MIN_CYCLES', label: 'Cooling Cycle Runtime — Baseline Size',
+    description: 'Completed comparable cooling cycles needed before a runtime baseline is used (until then: "Baseline collecting").',
+    unit: 'cycles', defaultValue: 10, min: 5, max: 100, ruleIds: ['HVAC-RUNTIME-001'],
+  },
+  {
+    key: 'COOLING_STARTS_MAX', label: 'Frequent Cycling — Maximum Starts',
+    description: 'More than this many cooling starts within the window is flagged for investigation (not a confirmed compressor fault).',
+    unit: 'starts', defaultValue: 3, min: 2, max: 12, ruleIds: ['HVAC-RUNTIME-003'],
+  },
+  {
+    key: 'COOLING_STARTS_WINDOW_MINUTES', label: 'Frequent Cycling — Window',
+    description: 'Rolling window over which cooling starts are counted.',
+    unit: 'minutes', defaultValue: 60, min: 30, max: 240, ruleIds: ['HVAC-RUNTIME-003'],
+  },
+  {
+    key: 'SETPOINT_CHANGE_EXCLUSION_MINUTES', label: 'Setpoint/Mode Change — Exclusion Period',
+    description: 'Cooling starts, cycles and expected-state checks within this many minutes after a setpoint or mode change are excluded — a change legitimately starts or stops cooling.',
+    unit: 'minutes', defaultValue: 10, min: 0, max: 60, ruleIds: ['HVAC-RUNTIME-001', 'HVAC-RUNTIME-003', 'HVAC-STATE-001'],
+  },
+  {
+    key: 'LINE_TEMP_STABILIZATION_MINUTES', label: 'Refrigerant Line — Stabilization Period',
+    description: 'Line-temperature readings from the first this-many minutes of a cooling run are startup transients and are ignored.',
+    unit: 'minutes', defaultValue: 10, min: 0, max: 30, ruleIds: ['HVAC-REFRIGERANT-001', 'HVAC-REFRIGERANT-002'],
+  },
+  {
+    key: 'LINE_TEMP_DEVIATION_F', label: 'Refrigerant Line — Deviation From Baseline',
+    description: 'A suction- or liquid-line temperature this many °F away from the home\'s learned stable-cooling baseline is abnormal. Not a universal refrigerant operating limit.',
+    unit: '°F', defaultValue: 10, min: 3, max: 30, ruleIds: ['HVAC-REFRIGERANT-001', 'HVAC-REFRIGERANT-002'],
+  },
+  {
+    key: 'LINE_TEMP_SUSTAINED_MINUTES', label: 'Refrigerant Line — Sustained Duration',
+    description: 'The deviation must persist continuously for this long during stable cooling.',
+    unit: 'minutes', defaultValue: 10, min: 5, max: 60, ruleIds: ['HVAC-REFRIGERANT-001', 'HVAC-REFRIGERANT-002'],
+  },
+  {
+    key: 'LINE_TEMP_MAX_HOLD_MINUTES', label: 'Refrigerant Line — Report Hold Time',
+    description: 'Line probes report when their temperature changes; a reading is treated as still current for up to this long. Longer gaps leave the window unassessed.',
+    unit: 'minutes', defaultValue: 30, min: 5, max: 120, ruleIds: ['HVAC-REFRIGERANT-001', 'HVAC-REFRIGERANT-002'],
+  },
+  {
+    key: 'LINE_TEMP_BASELINE_MIN_SAMPLES', label: 'Refrigerant Line — Baseline Size',
+    description: 'Stable-cooling readings (from at least 3 separate cooling runs) needed before a line-temperature baseline is used.',
+    unit: 'readings', defaultValue: 20, min: 5, max: 500, ruleIds: ['HVAC-REFRIGERANT-001', 'HVAC-REFRIGERANT-002'],
+  },
+  {
+    key: 'HUMIDITY_SUSTAINED_PERCENT', label: 'Sustained Humidity — Level',
+    description: 'Indoor relative humidity above this level, sustained during cooling, is flagged.',
+    unit: '%', defaultValue: 60, min: 45, max: 80, ruleIds: ['HVAC-HUMIDITY-001'],
+  },
+  {
+    key: 'HUMIDITY_SUSTAINED_MINUTES', label: 'Sustained Humidity — Duration',
+    description: 'Humidity must stay above the level for this long.',
+    unit: 'minutes', defaultValue: 60, min: 15, max: 480, ruleIds: ['HVAC-HUMIDITY-001'],
+  },
+  {
+    key: 'HUMIDITY_MIN_COOLING_FRACTION_PERCENT', label: 'Sustained Humidity — Cooling Share',
+    description: 'The system must have been cooling for at least this share of the duration for the humidity to count as "during cooling".',
+    unit: '%', defaultValue: 50, min: 10, max: 100, ruleIds: ['HVAC-HUMIDITY-001'],
+  },
+  {
+    key: 'EXPECTED_STATE_ERROR_F', label: 'Expected Operating State — Temperature Above Setpoint',
+    description: 'In Cool mode, a zone this many °F above its cooling setpoint is expected to be calling for cooling.',
+    unit: '°F', defaultValue: 2, min: 1, max: 10, ruleIds: ['HVAC-STATE-001'],
+  },
+  {
+    key: 'EXPECTED_STATE_GRACE_MINUTES', label: 'Expected Operating State — Grace Period',
+    description: 'How long the zone may stay above setpoint without any observed cooling call before "Expected operating state not observed" is raised (allows for thermostat and equipment protection delays).',
+    unit: 'minutes', defaultValue: 20, min: 5, max: 120, ruleIds: ['HVAC-STATE-001'],
+  },
+  {
+    key: 'COMBINED_ALIGNMENT_HOURS', label: 'Combined Performance — Alignment Window',
+    description: 'Symptoms count as corroborating each other only if each was observed within this many hours.',
+    unit: 'hours', defaultValue: 24, min: 1, max: 168, ruleIds: ['HVAC-COMBINED-004'],
+  },
+  {
+    key: 'NEST_STALE_MINUTES', label: 'Nest Telemetry — Stale After',
+    description: 'A Nest thermostat with no successful update (event or 5-minute poll) for this long is treated as unavailable.',
+    unit: 'minutes', defaultValue: 15, min: 10, max: 120, ruleIds: ['SENSOR-001'],
+  },
+  {
+    key: 'YOLINK_TEMP_STALE_MINUTES', label: 'YoLink Indoor Temperature — Stale After',
+    description: 'YoLink temperature sensors report about hourly; no valid reading for this long is treated as stale.',
+    unit: 'minutes', defaultValue: 90, min: 60, max: 360, ruleIds: ['SENSOR-001'],
+  },
+  {
+    key: 'HEALTH_EVIDENCE_MAX_AGE_HOURS', label: 'Health — Evidence Freshness',
+    description: 'A component is only shown Healthy if its rules were successfully evaluated within this many hours; otherwise it shows Insufficient data.',
+    unit: 'hours', defaultValue: 48, min: 6, max: 336, ruleIds: [],
+  },
+
   // ── Sensor plausibility / configuration checks ──
   {
     key: 'PLAUSIBLE_TEMP_MIN_F', label: 'Plausible Temperature — Minimum',

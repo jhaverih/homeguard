@@ -79,6 +79,15 @@ export class NestController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @Post('accounts/:id/system-mapping')
+  @ApiOperation({ summary: 'Assign each thermostat zone to an HVAC system and confirm the mapping (admin)' })
+  setSystemMapping(@Param('id') id: string, @Body() body: { thermostats: { id: string; equipmentNumber: string }[]; verified: boolean }) {
+    return this.service.setSystemMapping(id, body);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Delete('accounts/:id')
   @ApiOperation({ summary: "Disconnect a customer's Nest account and revoke Attenteve's Google access (admin)" })
   disconnect(@Param('id') id: string) {

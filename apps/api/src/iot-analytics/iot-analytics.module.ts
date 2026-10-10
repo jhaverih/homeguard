@@ -9,6 +9,7 @@ import { TelemetryEvent } from './entities/telemetry-event.entity';
 import { AnalyticsFinding } from './entities/analytics-finding.entity';
 import { AnalyticsThreshold } from './entities/analytics-threshold.entity';
 import { AnalyticsMetricSample } from './entities/analytics-metric-sample.entity';
+import { RuleEvaluation } from './entities/rule-evaluation.entity';
 import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { YolinkDevice } from '../yolink/entities/yolink-device.entity';
 import { User } from '../users/entities/user.entity';
@@ -24,6 +25,8 @@ import { PerformanceEngineService } from './performance-engine.service';
 import { IotAnalyticsService } from './iot-analytics.service';
 import { IotAnalyticsMigrationService } from './iot-analytics-migration.service';
 import { IotAnalyticsController } from './iot-analytics.controller';
+import { CoolingRulesService } from './cooling-rules.service';
+import { WeatherService } from './weather.service';
 import { AlertsModule } from '../alerts/alerts.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -37,14 +40,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
     // close a cycle. Same duplication convention this codebase already used
     // for HvacAnalyticsModule's CustomerSubscription registration.
     TypeOrmModule.forFeature([
-      Home, Equipment, DeviceRegistry, SensorAssignment, SensorClassificationRule, TelemetryEvent, AnalyticsFinding, AnalyticsThreshold, AnalyticsMetricSample,
+      Home, Equipment, DeviceRegistry, SensorAssignment, SensorClassificationRule, TelemetryEvent, AnalyticsFinding, AnalyticsThreshold, AnalyticsMetricSample, RuleEvaluation,
       YolinkHome, YolinkDevice, User, CustomerSubscription,
     ]),
     AlertsModule,
     NotificationsModule,
   ],
-  providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService],
+  providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService],
   controllers: [IotAnalyticsController],
-  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService],
+  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService],
 })
 export class IotAnalyticsModule {}

@@ -10,8 +10,11 @@ import { DeviceRegistryService } from '../iot-analytics/device-registry.service'
 import { TelemetryService } from '../iot-analytics/telemetry.service';
 import { AnalyticsEngineService } from '../iot-analytics/analytics-engine.service';
 import { PerformanceEngineService } from '../iot-analytics/performance-engine.service';
+import { CoolingRulesService } from '../iot-analytics/cooling-rules.service';
+import { ThresholdsService } from '../iot-analytics/thresholds.service';
 import { IotAnalyticsMigrationService } from '../iot-analytics/iot-analytics-migration.service';
 import { FixedAssignmentSpec } from '../iot-analytics/classification.service';
+import { SensorAssignment } from '../iot-analytics/entities/sensor-assignment.entity';
 import { EquipmentType, MeasurementType, SensorRole } from '../common/enums/sensor-role.enum';
 import { encrypt, decrypt } from '../common/crypto/encryption.util';
 import { NestAuthorizationRevokedError, NestConfig, PubsubClient, SdmClient, nestConfigFromEnv } from './nest-google.clients';
@@ -37,6 +40,15 @@ export const CHANNEL_SPECS: Record<NestReadingKind, FixedAssignmentSpec> = {
   hvac: { sensorRole: SensorRole.HVAC_STATE, analyticsRole: 'HVAC_CALL_STATE', measurementType: MeasurementType.HVAC_STATE, equipmentType: EquipmentType.HVAC, equipmentNumber: '01' },
   setpoint: { sensorRole: SensorRole.HVAC_THERMOSTAT_SETPOINT, analyticsRole: 'HVAC_SETPOINT', measurementType: MeasurementType.THERMOSTAT_SETPOINT, equipmentType: EquipmentType.HVAC, equipmentNumber: '01' },
 };
+
+// The thermostat's own zone assignment overrides the default HVAC-01 (see
+// NestThermostat.equipmentNumber). Indoor temperature always joins HOME-01.
+export function channelSpec(kind: NestReadingKind, equipmentNumber: string): FixedAssignmentSpec {
+  const spec = CHANNEL_SPECS[kind];
+  return spec.equipmentType === EquipmentType.HVAC ? { ...spec, equipmentNumber } : spec;
+}
+
+const CHANNEL_KINDS: NestReadingKind[] = ['temperature', 'humidity', 'hvac', 'setpoint'];
 
 const PULL_IDLE_DELAY_MS = 5000;
 const MAX_BACKOFF_MS = 5 * 60 * 1000;
@@ -68,6 +80,8 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
     private analyticsEngineService: AnalyticsEngineService,
     private performanceEngineService: PerformanceEngineService,
     private iotAnalyticsMigrationService: IotAnalyticsMigrationService,
+    private coolingRulesService: CoolingRulesService,
+    private thresholdsService: ThresholdsService,
   ) {}
 
   onModuleInit() {
@@ -149,14 +163,24 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
       return {
         id: a.id, customerId: a.customerId, isActive: a.isActive, lastSyncAt: a.lastSyncAt, lastEventAt: a.lastEventAt, lastError: a.lastError,
         thermostats: thermostats.map((t) => this.thermostatSummary(t)),
+        systems: await this.systemsFor(a.homeId, thermostats),
       };
+    }));
+  }
+
+  private async systemsFor(homeId: string, thermostats: NestThermostat[]) {
+    const numbers = [...new Set(thermostats.map((t) => t.equipmentNumber))].sort();
+    return Promise.all(numbers.map(async (n) => {
+      const metadata = await this.deviceRegistryService.equipmentMetadata(homeId, `HVAC-${n}`);
+      return { equipmentCode: `HVAC-${n}`, zones: thermostats.filter((t) => t.equipmentNumber === n).length, verified: metadata?.verified === true, hvacConfiguration: metadata?.hvacConfiguration ?? null };
     }));
   }
 
   private thermostatSummary(t: NestThermostat) {
     const tempC = t.traits?.[TRAIT.TEMPERATURE]?.ambientTemperatureCelsius;
     return {
-      id: t.id, displayName: t.displayName, roomName: t.roomName, lastEventAt: t.lastEventAt,
+      id: t.id, displayName: t.displayName, roomName: t.roomName, lastEventAt: t.lastEventAt, equipmentNumber: t.equipmentNumber,
+      fanTimer: t.traits?.['sdm.devices.traits.Fan']?.timerMode ?? null,
       online: t.traits?.[TRAIT.CONNECTIVITY]?.status !== 'OFFLINE',
       temperatureF: typeof tempC === 'number' ? Math.round((tempC * 9 / 5 + 32) * 10) / 10 : null,
       humidity: t.traits?.[TRAIT.HUMIDITY]?.ambientHumidityPercent ?? null,
@@ -186,16 +210,19 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
       const devices = (await this.sdm!.listDevices(await this.accessToken(account))).filter(isThermostat);
       for (const device of devices) {
         const thermostat = await this.upsertThermostat(account, device);
-        await this.ingest(account, thermostat, device.traits ?? {}, new Date());
+        const retrievedAt = new Date();
+        await this.ingest(account, thermostat, device.traits ?? {}, retrievedAt, retrievedAt);
       }
       account.lastSyncAt = new Date();
       account.lastError = null;
       await this.accountsRepo.save(account);
+      await this.reportIntegrationHealth(account, null);
       this.recordRecovery(key, `Nest sync for account ${account.id} recovered`);
       return devices.length;
     } catch (err: any) {
       const message = err instanceof NestAuthorizationRevokedError ? err.message : `Nest sync failed: ${err.response?.data?.error?.message ?? err.message}`;
       if (account.lastError !== message) { account.lastError = message; await this.accountsRepo.save(account).catch(() => {}); }
+      await this.reportIntegrationHealth(account, message).catch(() => {});
       this.recordFailure(key, `${message} (account ${account.id})`);
       throw err;
     }
@@ -265,24 +292,34 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
 
   // ── Ingest: SDM traits → registry → telemetry → analytics ─────────────────
 
-  private ingest(account: NestAccount, thermostat: NestThermostat, update: NestTraits, observedAt: Date): Promise<void> {
+  private ingest(account: NestAccount, thermostat: NestThermostat, update: NestTraits, observedAt: Date, retrievedAt: Date | null = null): Promise<void> {
     const run = (this.thermostatLocks.get(thermostat.id) ?? Promise.resolve())
-      .then(() => this.ingestLocked(account, thermostat.id, update, observedAt));
+      .then(() => this.ingestLocked(account, thermostat.id, update, observedAt, retrievedAt));
     const settled = run.catch(() => {});
     this.thermostatLocks.set(thermostat.id, settled);
     settled.then(() => { if (this.thermostatLocks.get(thermostat.id) === settled) this.thermostatLocks.delete(thermostat.id); });
     return run;
   }
 
-  private async ingestLocked(account: NestAccount, thermostatId: string, update: NestTraits, observedAt: Date): Promise<void> {
+  private async ingestLocked(account: NestAccount, thermostatId: string, update: NestTraits, observedAt: Date, retrievedAt: Date | null): Promise<void> {
     // Re-read inside the lock — the caller's copy may predate a concurrent update.
     const thermostat = await this.thermostatsRepo.findOne({ where: { id: thermostatId } });
     if (!thermostat) return;
-    const readings = readingsFor(thermostat.traits ?? {}, update);
-    thermostat.traits = mergeTraits(thermostat.traits ?? {}, update);
-    thermostat.lastEventAt = observedAt;
-    await this.thermostatsRepo.save(thermostat);
-    if (readings.length === 0) return;
+    // An update older than the state already applied (a delayed Pub/Sub
+    // event arriving after a newer poll) must not roll the thermostat's
+    // state back — its temperature/humidity are still kept as history.
+    const outOfOrder = !!thermostat.lastEventAt && observedAt < thermostat.lastEventAt;
+    const readings = readingsFor(thermostat.traits ?? {}, update).filter((r) => !outOfOrder || r.kind === 'temperature' || r.kind === 'humidity');
+    if (!outOfOrder) {
+      thermostat.traits = mergeTraits(thermostat.traits ?? {}, update);
+      thermostat.lastEventAt = observedAt;
+      await this.thermostatsRepo.save(thermostat);
+    }
+    const connectivity = thermostat.traits?.[TRAIT.CONNECTIVITY]?.status === 'OFFLINE' ? 'OFFLINE' : 'ONLINE';
+    if (readings.length === 0) {
+      await this.setChannelConnectivity(thermostat, connectivity);
+      return;
+    }
 
     // Analytics findings/alerts are keyed to the customer's YolinkHome (the
     // engines predate multi-provider) — Nest can only be connected for a
@@ -290,14 +327,17 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
     // guard for a home unlinked later.
     const yolinkHome = await this.yolinkHomesRepo.findOne({ where: { customerId: account.customerId, isActive: true } });
 
+    await this.setChannelConnectivity(thermostat, connectivity);
+    let zoneAssignment: SensorAssignment | null = null;
     for (const reading of readings) {
       const registry = await this.deviceRegistryService.upsertFromProvider(account.homeId, NEST_PROVIDER, `${thermostat.sdmDeviceId}:${reading.kind}`, {
         deviceType: NEST_DEVICE_TYPE, name: thermostat.displayName, room: thermostat.roomName,
-      }, CHANNEL_SPECS[reading.kind]);
+      }, channelSpec(reading.kind, thermostat.equipmentNumber));
       const found = await this.deviceRegistryService.getDeviceAndAssignment(registry.id);
       if (!found) continue;
       const { device, assignment } = found;
-      await this.telemetryService.record(device, assignment, reading.value, reading.numericValue, reading.unit, update, observedAt);
+      await this.telemetryService.record(device, assignment, reading.value, reading.numericValue, reading.unit, update, observedAt, { retrievedAt });
+      if (assignment.equipmentId && reading.kind !== 'temperature') zoneAssignment = assignment;
       if (!yolinkHome) continue;
       try {
         switch (reading.kind) {
@@ -307,9 +347,6 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
           case 'humidity':
             await this.performanceEngineService.handleHumidityReading(device, assignment, yolinkHome, reading.numericValue, observedAt);
             break;
-          case 'hvac':
-            await this.performanceEngineService.handleHvacStateReading(device, assignment, yolinkHome);
-            break;
           case 'setpoint':
             await this.performanceEngineService.handleSetpointReading(device, assignment, yolinkHome, reading.numericValue, observedAt);
             break;
@@ -317,6 +354,93 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
       } catch (err: any) {
         this.logger.warn(`Nest ${reading.kind} analytics failed for "${thermostat.displayName}": ${err.message}`);
       }
+    }
+    // Zone + system cooling rules (spec A–I) once per update, after every
+    // channel of it is recorded — so a combined update (temperature and call
+    // state together) is evaluated as one consistent picture.
+    if (yolinkHome) {
+      const hvacChannel = zoneAssignment ?? await this.channelAssignment(thermostat, 'hvac');
+      if (hvacChannel) await this.coolingRulesService.onThermostatReading(hvacChannel, yolinkHome)
+        .catch((err) => this.logger.warn(`Cooling analytics failed for "${thermostat.displayName}": ${err.message}`));
+    }
+  }
+
+  private async channelAssignment(thermostat: NestThermostat, kind: NestReadingKind): Promise<SensorAssignment | null> {
+    const device = await this.deviceRegistryService.findByProviderDeviceId(NEST_PROVIDER, `${thermostat.sdmDeviceId}:${kind}`);
+    return device ? this.deviceRegistryService.getAssignment(device.id) : null;
+  }
+
+  private async channelDevices(thermostat: NestThermostat) {
+    const devices = await Promise.all(CHANNEL_KINDS.map((k) => this.deviceRegistryService.findByProviderDeviceId(NEST_PROVIDER, `${thermostat.sdmDeviceId}:${k}`)));
+    return devices.filter((d): d is NonNullable<typeof d> => !!d);
+  }
+
+  private async setChannelConnectivity(thermostat: NestThermostat, connectivity: 'ONLINE' | 'OFFLINE'): Promise<void> {
+    const devices = await this.channelDevices(thermostat);
+    const changed = devices.filter((d) => d.connectivity !== connectivity).map((d) => d.id);
+    await this.deviceRegistryService.setConnectivity(changed, connectivity);
+  }
+
+  // ── Data quality (spec Rule J) ────────────────────────────────────────────
+
+  // SENSOR-005 — the Google connection itself is failing. Raised/cleared on
+  // every sync so it tracks reality; water alerts and YoLink analytics are
+  // unaffected either way.
+  private async reportIntegrationHealth(account: NestAccount, error: string | null): Promise<void> {
+    const yolinkHome = await this.yolinkHomesRepo.findOne({ where: { customerId: account.customerId, isActive: true } });
+    if (!yolinkHome) return;
+    await this.analyticsEngineService.evaluateIntegrationFailure(yolinkHome, 'nest', error);
+  }
+
+  // SENSOR-001 for Nest — a thermostat reporting OFFLINE, or with no
+  // successful update (event or poll) within NEST_STALE_MINUTES.
+  @Cron('15 */5 * * * *')
+  async checkThermostatAvailability(): Promise<void> {
+    if (!this.config) return;
+    const accounts = await this.accountsRepo.find({ where: { isActive: true } });
+    for (const account of accounts) {
+      const yolinkHome = await this.yolinkHomesRepo.findOne({ where: { customerId: account.customerId, isActive: true } });
+      if (!yolinkHome) continue;
+      const staleMinutes = await this.thresholdsService.getValue('NEST_STALE_MINUTES', account.customerId);
+      const thermostats = await this.thermostatsRepo.find({ where: { nestAccountId: account.id } });
+      for (const thermostat of thermostats) {
+        const device = await this.deviceRegistryService.findByProviderDeviceId(NEST_PROVIDER, `${thermostat.sdmDeviceId}:hvac`);
+        const assignment = device ? await this.deviceRegistryService.getAssignment(device.id) : null;
+        if (!device || !assignment) continue;
+        const offline = thermostat.traits?.[TRAIT.CONNECTIVITY]?.status === 'OFFLINE';
+        const lastUpdate = [thermostat.lastEventAt, account.lastSyncAt].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0];
+        const stale = !lastUpdate || Date.now() - lastUpdate.getTime() > staleMinutes * 60_000;
+        if (offline || stale) await this.analyticsEngineService.evaluateSensorOffline(device, assignment, yolinkHome);
+        else await this.analyticsEngineService.clearSensorOfflineFinding(device.id);
+      }
+    }
+  }
+
+  // ── System mapping (spec §5) ──────────────────────────────────────────────
+
+  // Assigns each of the account's thermostats to an HVAC system and records
+  // whether that mapping is confirmed. Thermostats sharing a number form one
+  // multizone system; only a verified multi-zone system has its zones merged.
+  async setSystemMapping(accountId: string, body: { thermostats: { id: string; equipmentNumber: string }[]; verified: boolean }): Promise<void> {
+    const account = await this.accountsRepo.findOne({ where: { id: accountId, isActive: true } });
+    if (!account) throw new NotFoundException('Active Nest account not found');
+    const thermostats = await this.thermostatsRepo.find({ where: { nestAccountId: account.id } });
+    for (const entry of body.thermostats) {
+      if (!/^\d{2}$/.test(entry.equipmentNumber)) throw new BadRequestException('System must be a two-digit number, e.g. 01');
+      const thermostat = thermostats.find((t) => t.id === entry.id);
+      if (!thermostat) throw new BadRequestException(`Unknown thermostat ${entry.id}`);
+      thermostat.equipmentNumber = entry.equipmentNumber;
+      await this.thermostatsRepo.save(thermostat);
+      for (const device of await this.channelDevices(thermostat)) {
+        if (!device.providerDeviceId.endsWith(':temperature')) await this.deviceRegistryService.reassignEquipment(device.id, entry.equipmentNumber);
+      }
+    }
+    const numbers = [...new Set(thermostats.map((t) => t.equipmentNumber))];
+    for (const n of numbers) {
+      const zones = thermostats.filter((t) => t.equipmentNumber === n).length;
+      await this.deviceRegistryService.configureEquipment(account.homeId, `HVAC-${n}`, {
+        hvacConfiguration: zones > 1 ? 'MULTIZONE' : 'SINGLE_ZONE', verified: body.verified, verifiedAt: body.verified ? new Date().toISOString() : null,
+      });
     }
   }
 

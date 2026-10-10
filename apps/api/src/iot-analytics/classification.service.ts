@@ -103,6 +103,21 @@ export class ClassificationService implements OnModuleInit {
     return saved.id;
   }
 
+  getEquipment(id: string): Promise<Equipment | null> {
+    return this.equipmentRepo.findOne({ where: { id } });
+  }
+
+  async equipmentMetadata(homeId: string, equipmentCode: string): Promise<Record<string, any> | null> {
+    return (await this.equipmentRepo.findOne({ where: { homeId, equipmentCode } }))?.metadata ?? null;
+  }
+
+  async mergeEquipmentMetadata(homeId: string, equipmentCode: string, metadata: Record<string, any>): Promise<void> {
+    const equipment = await this.equipmentRepo.findOne({ where: { homeId, equipmentCode } });
+    if (!equipment) return;
+    equipment.metadata = { ...(equipment.metadata ?? {}), ...metadata };
+    await this.equipmentRepo.save(equipment);
+  }
+
   // Called by DeviceRegistryService right after a device row is
   // created/upserted. A no-op if the device already carries a
   // SensorAssignment — classification never runs twice for the same

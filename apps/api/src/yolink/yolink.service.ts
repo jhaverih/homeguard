@@ -14,6 +14,7 @@ import { TelemetryService } from '../iot-analytics/telemetry.service';
 import { AnalyticsEngineService } from '../iot-analytics/analytics-engine.service';
 import { PerformanceEngineService } from '../iot-analytics/performance-engine.service';
 import { IotAnalyticsMigrationService } from '../iot-analytics/iot-analytics-migration.service';
+import { CoolingRulesService } from '../iot-analytics/cooling-rules.service';
 import { SensorRole } from '../common/enums/sensor-role.enum';
 
 const YOLINK_TOKEN_URL = 'https://api.yosmart.com/open/yolink/token';
@@ -24,6 +25,17 @@ const MQTT_BROKER     = 'mqtt://mqtt.api.yosmart.com:8003';
 // display mode — convert to Fahrenheit here so alert text matches what the
 // customer sees in the Yolink app itself.
 const celsiusToFahrenheit = (c: number): number => Math.round((c * 9 / 5 + 32) * 10) / 10;
+
+// YoLink's MQTT envelope carries the device report time as `time` (epoch
+// ms). Used as the source observation time when plausible — never more than
+// 5 min in the future or a day old — otherwise receipt time.
+export function yolinkSourceTime(payload: any, now = new Date()): Date {
+  const t = typeof payload?.time === 'number' ? payload.time : Number(payload?.time);
+  if (!Number.isFinite(t)) return now;
+  const at = new Date(t);
+  const skew = at.getTime() - now.getTime();
+  return skew > 5 * 60_000 || skew < -24 * 3600_000 ? now : at;
+}
 
 // The only device types the customer Monitoring dashboard shows today (see
 // YolinkService.getDeviceStates) — any other Yolink device type is excluded
@@ -127,6 +139,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     private analyticsEngineService: AnalyticsEngineService,
     private performanceEngineService: PerformanceEngineService,
     private iotAnalyticsMigrationService: IotAnalyticsMigrationService,
+    private coolingRulesService: CoolingRulesService,
   ) {}
 
   // One-time reclassification for alerts created before the Alert/Info split
@@ -737,34 +750,37 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
 
     await this.analyticsEngineService.clearSensorOfflineFinding(registryDevice.id);
     const data = payload?.data;
+    const sourceAt = yolinkSourceTime(payload);
     let handled = false;
 
     if (assignment.sensorRole === SensorRole.HVAC_DRAIN_WATER || assignment.sensorRole === SensorRole.WASHER_DRAIN_WATER) {
       const leakDetected = data?.state === 'alert' || data?.leak === true;
-      await this.telemetryService.record(registryDevice, assignment, leakDetected ? 'DETECTED' : 'NORMAL', null, null, data ?? null, new Date());
+      await this.telemetryService.record(registryDevice, assignment, leakDetected ? 'DETECTED' : 'NORMAL', null, null, data ?? null, sourceAt);
       await this.analyticsEngineService.evaluateWaterEvent(registryDevice, assignment, home, leakDetected);
       handled = true;
     } else if (assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
-      await this.telemetryService.record(registryDevice, assignment, tempF != null ? String(tempF) : '', tempF, '°F', data ?? null, new Date());
+      await this.telemetryService.record(registryDevice, assignment, tempF != null ? String(tempF) : '', tempF, '°F', data ?? null, sourceAt);
       await this.analyticsEngineService.evaluateIndoorTempEvent(registryDevice, assignment, home, tempF);
       handled = true;
     } else if (assignment.sensorRole === SensorRole.HVAC_RETURN_TEMP || assignment.sensorRole === SensorRole.HVAC_SUPPLY_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
-      const observedAt = new Date();
+      const observedAt = sourceAt;
       if (tempF != null) await this.telemetryService.record(registryDevice, assignment, String(tempF), tempF, '°F', data ?? null, observedAt);
       await this.performanceEngineService.handleReturnOrSupplyTempReading(registryDevice, assignment, home, tempF, observedAt);
       handled = true;
     } else if (assignment.sensorRole === SensorRole.HVAC_OUTDOOR_TEMP) {
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
-      if (tempF != null) await this.telemetryService.record(registryDevice, assignment, String(tempF), tempF, '°F', data ?? null, new Date());
+      if (tempF != null) await this.telemetryService.record(registryDevice, assignment, String(tempF), tempF, '°F', data ?? null, sourceAt);
     } else if (assignment.sensorRole === SensorRole.HVAC_SUCTION_LINE_TEMP || assignment.sensorRole === SensorRole.HVAC_LIQUID_LINE_TEMP) {
       // Best-effort field mapping — no real refrigerant line-temp device
       // exists yet to verify the raw YoLink payload shape against.
       const tempF = typeof data?.temperature === 'number' ? celsiusToFahrenheit(data.temperature) : null;
-      const observedAt = new Date();
+      const observedAt = sourceAt;
       if (tempF != null) await this.telemetryService.record(registryDevice, assignment, String(tempF), tempF, '°F', data ?? null, observedAt);
       await this.performanceEngineService.handleLineTempReading(registryDevice, assignment, home, tempF, observedAt);
+      await this.coolingRulesService.onLineTempReading(assignment, home)
+        .catch((e) => this.logger.warn(`Cooling analytics failed for line probe ${registryDevice.id}: ${e.message}`));
       handled = true;
     } else if (assignment.sensorRole === SensorRole.HVAC_POWER || assignment.sensorRole === SensorRole.HVAC_COMPRESSOR_POWER || assignment.sensorRole === SensorRole.HVAC_BLOWER_POWER) {
       // Best-effort field mapping (data.power in Watts, data.voltage in
@@ -772,13 +788,13 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       // unverified against a real device on any home yet.
       const watts = typeof data?.power === 'number' ? data.power : null;
       const voltage = typeof data?.voltage === 'number' ? data.voltage : null;
-      const observedAt = new Date();
+      const observedAt = sourceAt;
       if (watts != null) await this.telemetryService.record(registryDevice, assignment, String(watts), watts, 'W', data ?? null, observedAt);
       await this.performanceEngineService.handlePowerReading(registryDevice, assignment, home, watts, voltage, observedAt);
       handled = true;
     } else if (assignment.sensorRole === SensorRole.INDOOR_AMBIENT_HUMIDITY || assignment.sensorRole === SensorRole.HVAC_RETURN_HUMIDITY || assignment.sensorRole === SensorRole.HVAC_SUPPLY_HUMIDITY) {
       const percent = typeof data?.humidity === 'number' ? data.humidity : null;
-      const observedAt = new Date();
+      const observedAt = sourceAt;
       if (percent != null) await this.telemetryService.record(registryDevice, assignment, String(percent), percent, '%', data ?? null, observedAt);
       await this.performanceEngineService.handleHumidityReading(registryDevice, assignment, home, percent, observedAt);
       handled = true;
@@ -786,7 +802,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       // Best-effort field mapping — no real thermostat device tagged yet.
       const setpointC = typeof data?.setTemp === 'number' ? data.setTemp : null;
       const setpointF = setpointC != null ? celsiusToFahrenheit(setpointC) : null;
-      const observedAt = new Date();
+      const observedAt = sourceAt;
       if (setpointF != null) await this.telemetryService.record(registryDevice, assignment, String(setpointF), setpointF, '°F', data ?? null, observedAt);
       await this.performanceEngineService.handleSetpointReading(registryDevice, assignment, home, setpointF, observedAt);
       handled = true;
@@ -795,7 +811,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       // product today; this assumes a generic numeric `data.pressure` field
       // from whatever device eventually fills this role.
       const value = typeof data?.pressure === 'number' ? data.pressure : null;
-      const observedAt = new Date();
+      const observedAt = sourceAt;
       if (value != null) await this.telemetryService.record(registryDevice, assignment, String(value), value, 'in.wc', data ?? null, observedAt);
       await this.performanceEngineService.handleStaticPressureReading(registryDevice, assignment, home, value, observedAt);
       handled = true;

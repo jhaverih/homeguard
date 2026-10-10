@@ -49,6 +49,10 @@ export class AnalyticsFinding {
   // (not an enum) for the same reason analyticsRole is: new rules will be
   // added faster than an enum migration is worth doing.
   @Column() ruleId: string;
+  // RuleDefinition.version at the time the finding was raised — a rewritten
+  // rule (e.g. HVAC-REFRIGERANT-001 v2, stable-cooling-only) is
+  // distinguishable from findings its earlier logic produced.
+  @Column({ type: 'int', default: 1 }) ruleVersion: number;
   // Rule group (e.g. "HVAC_WATER", "WASHER_WATER", "SENSOR_HEALTH") — lets
   // the mobile/admin pages filter without parsing ruleId strings.
   @Column({ nullable: true }) ruleGroup: string | null;
@@ -58,6 +62,9 @@ export class AnalyticsFinding {
   @Column({ type: 'enum', enum: FindingStatus, default: FindingStatus.ACTIVE }) status: FindingStatus;
   @Column() message: string;
   @Column({ type: 'jsonb', nullable: true }) measurements: Record<string, any> | null;
+  // Which inputs the evaluation used, how fresh each was, and whether any
+  // were limited (see data-quality.ts) — the evidence behind the finding.
+  @Column({ type: 'jsonb', nullable: true }) dataQuality: Record<string, any> | null;
   // Singular reasonCode (spec's own schema field) alongside the plural array
   // kept for the mobile/admin consumers already reading reasonCodes[].
   @Column({ nullable: true }) reasonCode: string | null;

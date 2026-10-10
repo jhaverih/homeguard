@@ -15,6 +15,20 @@ import { AnalyticsEngineService } from './analytics-engine.service';
 import { ComponentHealthService } from './component-health.service';
 import { TelemetryService } from './telemetry.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
+import { RuleEvaluation } from './entities/rule-evaluation.entity';
+import { ThresholdsService } from './thresholds.service';
+import { HealthEvidence } from './component-health.service';
+import { InputAssessment, assessInput } from './data-quality';
+import { indoorSensorLabel } from './indoor-temp-grouping';
+
+// Roles shown in the customer's Sensor Coverage list — thermostat-based
+// analytics need no supply/return air probes, so those are listed only as
+// optional extras.
+const COVERAGE_ROLES_PROACTIVE: SensorRole[] = [
+  SensorRole.HVAC_STATE, SensorRole.INDOOR_AMBIENT_TEMP, SensorRole.INDOOR_AMBIENT_HUMIDITY, SensorRole.HVAC_DRAIN_WATER,
+  SensorRole.HVAC_SUCTION_LINE_TEMP, SensorRole.HVAC_LIQUID_LINE_TEMP, SensorRole.HVAC_OUTDOOR_TEMP,
+  SensorRole.HVAC_RETURN_TEMP, SensorRole.HVAC_SUPPLY_TEMP,
+];
 
 // Sensor roles a CarePlus customer can see findings/coverage for — CarePlus
 // gets low/high indoor temp + the HVAC condensate sensor only (never the
@@ -47,6 +61,8 @@ export class IotAnalyticsService {
     @InjectRepository(YolinkHome) private yolinkHomesRepo: Repository<YolinkHome>,
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
+    @InjectRepository(RuleEvaluation) private evaluationsRepo: Repository<RuleEvaluation>,
+    private thresholdsService: ThresholdsService,
     private analyticsEngine: AnalyticsEngineService,
     private componentHealthService: ComponentHealthService,
     private telemetryService: TelemetryService,
@@ -65,7 +81,9 @@ export class IotAnalyticsService {
   }
 
   isHvacAnalyticsRelevant(assignment: SensorAssignment, equipment: Equipment | null): boolean {
-    return assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP || equipment?.equipmentCode === 'HVAC-01';
+    // Any HVAC system (HVAC-01, HVAC-02, …) — a home with separate systems
+    // has sensors on more than the first.
+    return assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP || !!equipment?.equipmentCode?.startsWith('HVAC-');
   }
 
   private async getAssignedSensorsForCustomer(customerId: string): Promise<AssignedSensor[]> {
@@ -106,26 +124,76 @@ export class IotAnalyticsService {
       ? await this.findingsRepo.find({ where: { customerId, status: FindingStatus.ACTIVE }, order: { detectedAt: 'DESC' } })
       : [];
     const allowedRuleIds = new Set(RULE_DEFINITIONS.filter((r) => isProactivePlus || r.careplusEligible).map((r) => r.ruleId));
-    const visibleFindings = allFindings.filter((f) => allowedRuleIds.has(f.ruleId) && f.deviceRegistryId && visibleDeviceIds.has(f.deviceRegistryId));
+    const visibleEquipmentIds = new Set(visible.map((s) => s.equipment?.id).filter((id): id is string => !!id));
+    // System-level findings (runtime, cycling, combined) have no single
+    // device — they were previously filtered out of the customer feed.
+    const visibleFindings = allFindings.filter((f) => allowedRuleIds.has(f.ruleId) && this.isFindingVisible(f, visibleDeviceIds, visibleEquipmentIds, isProactivePlus));
 
     const coverageRoles: SensorRole[] = isProactivePlus
-      ? [SensorRole.INDOOR_AMBIENT_TEMP, SensorRole.HVAC_DRAIN_WATER, SensorRole.HVAC_RETURN_TEMP, SensorRole.HVAC_SUPPLY_TEMP]
+      ? COVERAGE_ROLES_PROACTIVE
       : [SensorRole.INDOOR_AMBIENT_TEMP, SensorRole.HVAC_DRAIN_WATER];
     const sensorCoverage = coverageRoles.map((role) => {
       const devs = visible.filter((s) => s.assignment.sensorRole === role);
       return { role, label: SENSOR_ROLE_META[role].label, connected: devs.length > 0, deviceNames: devs.map((s) => s.device.currentProviderName ?? '') };
     });
 
-    const hasFullHvacTempSensors = taggedRoleSet.has(SensorRole.HVAC_RETURN_TEMP) && taggedRoleSet.has(SensorRole.HVAC_SUPPLY_TEMP);
+    // Performance analytics run from thermostat data alone, or from
+    // supply/return air probes when installed.
+    const canAnalyzePerformance = taggedRoleSet.has(SensorRole.HVAC_STATE)
+      || (taggedRoleSet.has(SensorRole.HVAC_RETURN_TEMP) && taggedRoleSet.has(SensorRole.HVAC_SUPPLY_TEMP));
+    const evidence = await this.buildHealthEvidence(customerId, visible, allFindings);
 
     return {
       tier: tier ?? 'FREE',
       isProactivePlus,
-      healthState: !isProactivePlus ? 'NOT_INCLUDED' : hasFullHvacTempSensors ? 'LEARNING' : 'AWAITING_SENSORS',
+      healthState: !isProactivePlus ? 'NOT_INCLUDED' : canAnalyzePerformance ? 'LEARNING' : 'AWAITING_SENSORS',
       findings: visibleFindings.map((f) => this.analyticsEngine.toFindingDto(f)),
       sensorCoverage,
-      componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, visibleFindings),
+      componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, visibleFindings, evidence),
+      dataQuality: evidence.inputs.map((i) => ({ label: i.label, sensorRole: i.sensorRole, state: i.state, detail: i.detail, lastValidAt: i.lastValidAt })),
     };
+  }
+
+  private isFindingVisible(f: AnalyticsFinding, deviceIds: Set<string>, equipmentIds: Set<string>, isProactivePlus: boolean): boolean {
+    if (f.deviceRegistryId) return deviceIds.has(f.deviceRegistryId);
+    if (f.equipmentId) return equipmentIds.has(f.equipmentId);
+    return isProactivePlus && f.ruleGroup === 'SENSOR_HEALTH'; // e.g. SENSOR-005, account-level
+  }
+
+  // Per-input data quality (spec Rule J) + the latest rule evaluations —
+  // what lets health say Healthy only with positive evidence.
+  async buildHealthEvidence(customerId: string, sensors: AssignedSensor[], findings: AnalyticsFinding[]): Promise<HealthEvidence> {
+    const now = new Date();
+    const active = findings.filter((f) => f.status === FindingStatus.ACTIVE);
+    const offline = new Set(active.filter((f) => f.ruleId === 'SENSOR-001' && f.deviceRegistryId).map((f) => f.deviceRegistryId!));
+    const nestFailure = active.find((f) => f.ruleId === 'SENSOR-005' && (f.measurements as any)?.provider === 'nest');
+    const [nestStale, yolinkTempStale, evidenceMaxAgeHours] = await Promise.all([
+      this.thresholdsService.getValue('NEST_STALE_MINUTES', customerId),
+      this.thresholdsService.getValue('YOLINK_TEMP_STALE_MINUTES', customerId),
+      this.thresholdsService.getValue('HEALTH_EVIDENCE_MAX_AGE_HOURS', customerId),
+    ]);
+    const inputs: InputAssessment[] = [];
+    for (const s of sensors) {
+      const [latestValid, latestAny] = await Promise.all([this.telemetryService.latestValid(s.device.id), this.telemetryService.latestAny(s.device.id)]);
+      // Hourly-cadence and polled sources go stale; report-on-change probes
+      // and leak sensors are judged by connectivity/SENSOR-001 instead.
+      const staleMinutes = s.device.provider === 'nest' ? nestStale
+        : s.device.provider === 'weather' ? 180
+        : s.assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP ? yolinkTempStale
+        : null;
+      const online = offline.has(s.device.id) || s.device.connectivity === 'OFFLINE' ? false : s.device.connectivity === 'ONLINE' ? true : null;
+      const { state, detail } = assessInput({
+        lastValidAt: latestValid?.observedAt ?? null, latestIsInvalid: latestAny != null && latestAny.dataQuality === 'INVALID',
+        online, authFailure: s.device.provider === 'nest' && nestFailure ? 'Thermostat connection unavailable' : null, staleMinutes, now,
+      });
+      inputs.push({
+        sensorRole: s.assignment.sensorRole, deviceRegistryId: s.device.id, state, detail, lastValidAt: latestValid?.observedAt ?? null,
+        label: s.device.provider === 'nest' ? indoorSensorLabel(s.device) : s.device.currentProviderName ?? SENSOR_ROLE_META[s.assignment.sensorRole]?.label ?? 'Sensor',
+      });
+    }
+    const evaluations = (await this.evaluationsRepo.find({ where: { customerId } }))
+      .map((e) => ({ ruleId: e.ruleId, outcome: e.outcome, reason: e.reason, evaluatedAt: e.evaluatedAt }));
+    return { inputs, evaluations, now, evidenceMaxAgeHours };
   }
 
   async resolveFinding(customerId: string, findingId: string, status: FindingStatus.RESOLVED | FindingStatus.DISMISSED): Promise<void> {
@@ -180,7 +248,8 @@ export class IotAnalyticsService {
     const taggedDeviceIds = new Set(hvacSensors.map((s) => s.device.id));
 
     const allFindings = await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'DESC' }, take: 50 });
-    const findings = allFindings.filter((f) => f.deviceRegistryId && taggedDeviceIds.has(f.deviceRegistryId));
+    const taggedEquipmentIds = new Set(hvacSensors.map((s) => s.equipment?.id).filter((id): id is string => !!id));
+    const findings = allFindings.filter((f) => this.isFindingVisible(f, taggedDeviceIds, taggedEquipmentIds, true));
 
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const deviceById = new Map(hvacSensors.map((s) => [s.device.id, s]));
@@ -202,12 +271,18 @@ export class IotAnalyticsService {
 
     const activeFindings = findings.filter((f) => f.status === FindingStatus.ACTIVE);
 
+    const evidence = await this.buildHealthEvidence(customerId, hvacSensors, allFindings);
+    const ruleEvaluations = (await this.evaluationsRepo.find({ where: { customerId }, order: { ruleId: 'ASC' } }))
+      .map((e) => ({ ruleId: e.ruleId, ruleVersion: e.ruleVersion, scopeKey: e.scopeKey, outcome: e.outcome, reason: e.reason, evaluatedAt: e.evaluatedAt, inputs: e.inputs }));
+
     return {
       findings: findings.map((f) => this.analyticsEngine.toFindingDto(f)),
       series,
       ruleAvailability,
       sensorCoverage,
-      componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, activeFindings),
+      componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, activeFindings, evidence),
+      dataQuality: evidence.inputs,
+      ruleEvaluations,
     };
   }
 }

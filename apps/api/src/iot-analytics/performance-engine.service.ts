@@ -17,6 +17,7 @@ import { ThresholdsService } from './thresholds.service';
 import { BaselineService } from './baseline.service';
 import { SNOOZABLE_FINDING_CATEGORY } from './analytics-engine.service';
 import { RunCycle, mergeStateRunCycles } from './run-cycles';
+import { isSystemMappingVerified } from './hvac-configuration';
 
 // Everything in this file is genuinely new logic, built ahead of any of
 // these sensors actually being installed anywhere (per explicit product
@@ -212,54 +213,14 @@ export class PerformanceEngineService {
   }
 
   // HVAC_RETURN_HUMIDITY / HVAC_SUPPLY_HUMIDITY / INDOOR_AMBIENT_HUMIDITY —
-  // records a sample and evaluates HVAC-HUMIDITY-001 against whether the
-  // system is actively cooling right now (proxied from the most recent
-  // compressor/system power reading for the same equipment).
+  // plausibility check + baseline sample.
   async handleHumidityReading(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome, percent: number | null, observedAt: Date): Promise<void> {
     if (percent == null || !assignment.equipmentId) return;
     await this.evaluatePlausibility(device, assignment, home, percent, 'PLAUSIBLE_HUMIDITY_MIN_PERCENT', 'PLAUSIBLE_HUMIDITY_MAX_PERCENT', '%');
     await this.baselineService.recordSample(home.customerId, assignment.equipmentId, 'HUMIDITY_SAMPLE', percent, observedAt);
-    if (assignment.sensorRole !== SensorRole.INDOOR_AMBIENT_HUMIDITY) return;
-
-    const equipment = await this.equipmentRepo.findOne({ where: { id: assignment.equipmentId } });
-    const [threshold, onWatts] = await Promise.all([
-      this.thresholdsService.getValue('HUMIDITY_HIGH_DURING_COOLING_PERCENT', home.customerId),
-      this.thresholdsService.getValue('COMPRESSOR_ON_WATTS_THRESHOLD', home.customerId),
-    ]);
-    const isCoolingNow = await this.isEquipmentCoolingNow(assignment.equipmentId, onWatts);
-    const rule = this.rule('HVAC-HUMIDITY-001');
-    await this.upsertFinding({
-      scope: { equipmentId: assignment.equipmentId }, customerId: home.customerId, yolinkHomeId: home.id,
-      equipmentCode: equipment?.equipmentCode ?? null, sensorRole: assignment.sensorRole, ruleId: rule.ruleId, ruleGroup: rule.ruleGroup,
-      conditionMet: isCoolingNow === true && percent > threshold,
-      severity: rule.severity, confidence: rule.confidence,
-      message: `Indoor humidity is ${percent}% while the system is actively cooling — above the ${threshold}% comfort/mold-risk threshold.`,
-      measurements: { humidity: percent, threshold }, reasonCode: rule.reasonCode, recommendedActions: rule.recommendedActions,
-      notify: rule.notificationPolicy === 'IMMEDIATE',
-    });
-  }
-
-  private async isEquipmentCoolingNow(equipmentId: string, onWatts: number): Promise<boolean | null> {
-    const compressorAssignment = await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.HVAC_COMPRESSOR_POWER } });
-    const role = compressorAssignment ? SensorRole.HVAC_COMPRESSOR_POWER : SensorRole.HVAC_POWER;
-    const assignment = compressorAssignment ?? await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.HVAC_POWER } });
-    if (!assignment) {
-      // No power meter — fall back to the thermostats' own call state: cooling
-      // if ANY zone on this equipment currently reports COOLING.
-      const thermostats = await this.assignmentsRepo.find({ where: { equipmentId, sensorRole: SensorRole.HVAC_STATE } });
-      if (thermostats.length === 0) return null;
-      let known = false;
-      for (const t of thermostats) {
-        const latest = await this.telemetryRepo.findOne({ where: { deviceRegistryId: t.deviceRegistryId }, order: { observedAt: 'DESC' } });
-        if (!latest) continue;
-        known = true;
-        if (latest.value === 'COOLING') return true;
-      }
-      return known ? false : null;
-    }
-    const latest = await this.telemetryRepo.findOne({ where: { deviceRegistryId: assignment.deviceRegistryId }, order: { observedAt: 'DESC' } });
-    if (latest?.numericValue == null) return null;
-    return Number(latest.numericValue) >= onWatts;
+    // HVAC-HUMIDITY-001 (sustained humidity during cooling, spec Rule G) is
+    // evaluated by CoolingRulesService, which has the cooling-run context a
+    // single reading doesn't.
   }
 
   // HVAC_SUCTION_LINE_TEMP / HVAC_LIQUID_LINE_TEMP / HVAC_STATIC_PRESSURE —
@@ -353,8 +314,13 @@ export class PerformanceEngineService {
       const longestCycle = completed.reduce((max, c) => Math.max(max, c.durationMinutes ?? 0), 0);
       await this.baselineService.recordSample(ctx.customerId, equipmentId, 'DAILY_RUNTIME_MINUTES', dailyRuntime, new Date());
       if (longestCycle > 0) await this.baselineService.recordSample(ctx.customerId, equipmentId, 'LONGEST_CYCLE_MINUTES', longestCycle, new Date());
-      await this.evaluateBaselineDeviation(ctx, 'DAILY_RUNTIME_MINUTES', 'HVAC-RUNTIME-001', 'high', (v, b) =>
-        `HVAC ran ${Math.round(v)} minutes today — well above this home's baseline of ${Math.round(b.mean)} minutes for comparable conditions.`);
+      // Thermostat-sourced runtime is judged per cooling cycle against
+      // comparable outdoor conditions (CoolingRulesService, spec Rule B);
+      // the daily-total comparison remains for power-meter installs.
+      if (sourceRole === SensorRole.HVAC_POWER) {
+        await this.evaluateBaselineDeviation(ctx, 'DAILY_RUNTIME_MINUTES', 'HVAC-RUNTIME-001', 'high', (v, b) =>
+          `HVAC ran ${Math.round(v)} minutes today — well above this home's baseline of ${Math.round(b.mean)} minutes for comparable conditions.`);
+      }
       await this.evaluateBaselineDeviation(ctx, 'LONGEST_CYCLE_MINUTES', 'HVAC-RUNTIME-002', 'high', (v, b) =>
         `A single HVAC run lasted ${Math.round(v)} minutes today — far longer than this home's typical ${Math.round(b.mean)}-minute cycle.`);
 
@@ -455,42 +421,17 @@ export class PerformanceEngineService {
           `Indoor temperature has been swinging more than usual — today's variance (±${v.toFixed(1)}°F) is above this home's baseline (±${b.mean.toFixed(1)}°F).`);
       }
 
-      const setpointAssignment = await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.HVAC_THERMOSTAT_SETPOINT } });
-      if (setpointAssignment && values.length) {
-        const setpointReadings = await this.telemetryRepo.find({ where: { deviceRegistryId: setpointAssignment.deviceRegistryId, observedAt: MoreThan(since) }, order: { observedAt: 'DESC' } });
-        const setpoint = setpointReadings[0]?.numericValue != null ? Number(setpointReadings[0].numericValue) : null;
-        if (setpoint != null) {
-          const [deviationF, sustainedMin] = await Promise.all([
-            this.thresholdsService.getValue('COMFORT_SETPOINT_DEVIATION_F', ctx.customerId),
-            this.thresholdsService.getValue('COMFORT_SETPOINT_SUSTAINED_MINUTES', ctx.customerId),
-          ]);
-          // "Sustained" = the fraction of today's readings off-setpoint implies at
-          // least sustainedMin minutes, given the sampling cadence of today's data.
-          const offSetpointCount = values.filter((v) => Math.abs(v - setpoint) >= deviationF).length;
-          const avgIntervalMin = values.length > 1 ? 24 * 60 / values.length : 60;
-          const offSetpointMinutes = offSetpointCount * avgIntervalMin;
-          const comfortRule = this.rule('HVAC-COMFORT-001');
-          await this.upsertFinding({
-            scope: { equipmentId }, customerId: ctx.customerId, yolinkHomeId: ctx.yolinkHomeId,
-            equipmentCode: equipment.equipmentCode, sensorRole: SensorRole.INDOOR_AMBIENT_TEMP, ruleId: comfortRule.ruleId, ruleGroup: comfortRule.ruleGroup,
-            conditionMet: offSetpointMinutes >= sustainedMin, severity: comfortRule.severity, confidence: comfortRule.confidence,
-            message: `Indoor temperature has stayed ${deviationF}°F+ away from the ${setpoint}°F setpoint for an estimated ${Math.round(offSetpointMinutes)} minutes today.`,
-            measurements: { setpoint, offSetpointMinutes }, reasonCode: comfortRule.reasonCode, recommendedActions: comfortRule.recommendedActions,
-            notify: comfortRule.notificationPolicy === 'IMMEDIATE',
-          });
-        }
-      }
+      // HVAC-COMFORT-001 (cooling not reaching setpoint, spec Rule A) is
+      // evaluated per zone in real time by CoolingRulesService.
     }
 
     // ── Humidity response during cooling (HUMIDITY-002) ──
     await this.evaluateBaselineDeviation(ctx, 'HUMIDITY_SAMPLE', 'HVAC-HUMIDITY-002', 'high', (v, b) =>
       `Indoor humidity isn't dropping during cooling the way it used to — current reading ${v.toFixed(0)}% vs. this home's ${b.mean.toFixed(0)}% baseline during cooling.`);
 
-    // ── Refrigerant circuit (REFRIGERANT-001/002) — both pure baseline. ──
-    await this.evaluateBaselineDeviation(ctx, 'SUCTION_LINE_TEMP', 'HVAC-REFRIGERANT-001', 'either', (v, b) =>
-      `Refrigerant suction line temperature (${v.toFixed(1)}°F) is outside this home's normal range (baseline ${b.mean.toFixed(1)}°F).`);
-    await this.evaluateBaselineDeviation(ctx, 'LIQUID_LINE_TEMP', 'HVAC-REFRIGERANT-002', 'either', (v, b) =>
-      `Refrigerant liquid line temperature (${v.toFixed(1)}°F) is outside this home's normal range (baseline ${b.mean.toFixed(1)}°F).`);
+    // ── Refrigerant circuit (REFRIGERANT-001/002) — evaluated only during
+    // stable cooling against a stable-cooling baseline, by CoolingRulesService
+    // (an all-hours daily baseline mixes idle and running temperatures). ──
 
     // ── Airflow / static pressure (AIRFLOW-001) — pure baseline. ──
     await this.evaluateBaselineDeviation(ctx, 'STATIC_PRESSURE', 'HVAC-AIRFLOW-001', 'either', (v, b) =>
@@ -680,6 +621,10 @@ export class PerformanceEngineService {
   // Shared helpers
   // ══════════════════════════════════════════════════════════════════════
 
+  private ruleDefinition(ruleId: string): RuleDefinition | undefined {
+    return RULE_DEFINITIONS.find((r) => r.ruleId === ruleId);
+  }
+
   private rule(ruleId: string): RuleDefinition {
     return RULE_DEFINITIONS.find((r) => r.ruleId === ruleId)!;
   }
@@ -707,13 +652,19 @@ export class PerformanceEngineService {
   // already uses for water/indoor-temp findings, generalized to also support
   // equipment-scoped findings (delta-T, runtime, etc. belong to "HVAC-01",
   // not one physical device) via scope.deviceRegistryId XOR scope.equipmentId.
-  private async upsertFinding(params: {
+  // Create-or-resolve for one rule in one scope — shared by every
+  // non-water rule, including CoolingRulesService's. `equipmentId` links a
+  // device-scoped finding (e.g. one zone's thermostat) to its equipment so
+  // health and the combined rule see it; `dataQuality` is the evidence.
+  async upsertFinding(params: {
     scope: { deviceRegistryId?: string; equipmentId?: string };
     customerId: string; yolinkHomeId: string; equipmentCode: string | null; sensorRole: SensorRole | null;
     ruleId: string; ruleGroup: string;
     conditionMet: boolean; severity: FindingSeverity; confidence: FindingConfidence;
     message: string; measurements: Record<string, any>; reasonCode: string; recommendedActions: string[];
     notify: boolean;
+    equipmentId?: string | null;
+    dataQuality?: Record<string, any> | null;
   }): Promise<void> {
     const scopeWhere = params.scope.deviceRegistryId
       ? { deviceRegistryId: params.scope.deviceRegistryId }
@@ -731,9 +682,10 @@ export class PerformanceEngineService {
 
     const finding = await this.findingsRepo.save(this.findingsRepo.create({
       customerId: params.customerId, yolinkHomeId: params.yolinkHomeId,
-      equipmentId: params.scope.equipmentId ?? null, equipmentCode: params.equipmentCode,
+      equipmentId: params.scope.equipmentId ?? params.equipmentId ?? null, equipmentCode: params.equipmentCode,
       deviceRegistryId: params.scope.deviceRegistryId ?? null, sensorRole: params.sensorRole,
-      ruleId: params.ruleId, ruleGroup: params.ruleGroup, eventType: params.reasonCode.toLowerCase(),
+      ruleId: params.ruleId, ruleVersion: this.ruleDefinition(params.ruleId)?.version ?? 1, dataQuality: params.dataQuality ?? null,
+      ruleGroup: params.ruleGroup, eventType: params.reasonCode.toLowerCase(),
       severity: params.severity, confidence: params.confidence, message: params.message,
       measurements: params.measurements, reasonCode: params.reasonCode, reasonCodes: [params.reasonCode],
       recommendedActions: params.recommendedActions, detectedAt: new Date(),
@@ -801,40 +753,19 @@ export class PerformanceEngineService {
     }
     const thermostats = await this.assignmentsRepo.find({ where: { equipmentId, sensorRole: SensorRole.HVAC_STATE } });
     if (thermostats.length === 0) return null;
+    // Several thermostats are only merged into one system's cycles once an
+    // admin has confirmed they really drive the same equipment (see
+    // hvac-configuration.ts) — never combine possibly-separate systems.
+    if (thermostats.length > 1) {
+      const equipment = await this.equipmentRepo.findOne({ where: { id: equipmentId } });
+      if (!isSystemMappingVerified(equipment)) return null;
+    }
     const since = new Date(Date.now() - sinceHoursAgo * 60 * 60 * 1000);
     const samples = await this.telemetryRepo.find({
       where: { deviceRegistryId: In(thermostats.map((t) => t.deviceRegistryId)), observedAt: MoreThan(since) },
       order: { observedAt: 'ASC' },
     });
     return { cycles: mergeStateRunCycles(samples), sourceRole: SensorRole.HVAC_STATE };
-  }
-
-  // HVAC_STATE (thermostat call: HEATING/COOLING = 1, OFF = 0) — the
-  // real-time short-cycling check, the thermostat-driven counterpart of the
-  // HVAC_POWER branch in handlePowerReading. Runs on the merged whole-system
-  // cycles, so two zones alternating calls on one air handler don't look
-  // like short cycling. Skipped when a power meter is the system's source.
-  async handleHvacStateReading(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome): Promise<void> {
-    if (!assignment.equipmentId) return;
-    const [maxDurationMin, count, windowMin] = await Promise.all([
-      this.thresholdsService.getValue('SHORT_CYCLE_MAX_DURATION_MINUTES', home.customerId),
-      this.thresholdsService.getValue('SHORT_CYCLE_COUNT', home.customerId),
-      this.thresholdsService.getValue('SHORT_CYCLE_WINDOW_MINUTES', home.customerId),
-    ]);
-    const system = await this.systemRunCycles(assignment.equipmentId, home.customerId, Math.max(6, windowMin / 60));
-    if (!system || system.sourceRole !== SensorRole.HVAC_STATE) return;
-    const windowStart = new Date(Date.now() - windowMin * 60000);
-    const shortCycles = system.cycles.filter((c) => c.end && c.start >= windowStart && c.durationMinutes! <= maxDurationMin);
-    const equipment = await this.equipmentRepo.findOne({ where: { id: assignment.equipmentId } });
-    const rule = this.rule('HVAC-RUNTIME-003');
-    await this.upsertFinding({
-      scope: { equipmentId: assignment.equipmentId }, customerId: home.customerId, yolinkHomeId: home.id,
-      equipmentCode: equipment?.equipmentCode ?? null, sensorRole: assignment.sensorRole, ruleId: rule.ruleId, ruleGroup: rule.ruleGroup,
-      conditionMet: shortCycles.length >= count, severity: rule.severity, confidence: rule.confidence,
-      message: `HVAC system has short-cycled ${shortCycles.length} times in the last ${windowMin} minutes — each run under ${maxDurationMin} minutes.`,
-      measurements: { shortCycleCount: shortCycles.length, windowMin, maxDurationMin }, reasonCode: rule.reasonCode, recommendedActions: rule.recommendedActions,
-      notify: rule.notificationPolicy === 'IMMEDIATE',
-    });
   }
 
   private async equipmentByCode(homeId: string, equipmentCode: string): Promise<Equipment | null> {

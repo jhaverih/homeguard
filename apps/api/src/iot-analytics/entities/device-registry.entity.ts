@@ -32,6 +32,12 @@ export class DeviceRegistry {
   @Column({ type: 'timestamp', nullable: true }) firstSeenAt: Date | null;
   @Column({ type: 'timestamp', nullable: true }) lastSeenAt: Date | null;
   @Column({ type: 'enum', enum: DeviceRegistryStatus, default: DeviceRegistryStatus.ACTIVE }) status: DeviceRegistryStatus;
+  // Vendor-reported connectivity (Nest Connectivity trait; YoLink online
+  // flag) — separate from `status`, which is the registry row's lifecycle.
+  // Null when the vendor doesn't report it; data-quality then judges the
+  // device by reading freshness alone.
+  @Column({ type: 'varchar', nullable: true }) connectivity: 'ONLINE' | 'OFFLINE' | null;
+  @Column({ type: 'timestamp', nullable: true }) connectivityAt: Date | null;
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }

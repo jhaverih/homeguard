@@ -27,6 +27,13 @@ export const RECOMMENDED_ACTION_CATALOG: RecommendedAction[] = [
   { actionCode: 'REPLACE_BATTERY', title: 'Replace the sensor battery', description: 'Swap in a fresh battery so this sensor keeps reporting reliably.', actionType: 'HOMEOWNER_ACTION', serviceCategory: null, priority: 2 },
   { actionCode: 'CHECK_SENSOR_CONNECTIVITY', title: 'Check sensor connectivity', description: 'Confirm the sensor has power and is within range of your Yolink hub.', actionType: 'HOMEOWNER_ACTION', serviceCategory: null, priority: 2 },
   { actionCode: 'SCHEDULE_HVAC_INSPECTION', title: 'Schedule an HVAC inspection', description: 'Repeated water events suggest an underlying drainage issue worth a professional look.', actionType: 'SERVICE_REQUEST', serviceCategory: 'hvac', priority: 2 },
+  // Homeowner-safe checks for the thermostat-driven cooling rules — nothing
+  // here ever asks a homeowner to touch refrigerant, wiring or safety devices.
+  { actionCode: 'CHECK_AIR_FILTER', title: 'Check the air filter', description: 'A dirty or clogged filter restricts airflow. Replace it if it looks dirty.', actionType: 'HOMEOWNER_ACTION', serviceCategory: 'hvac', priority: 1 },
+  { actionCode: 'CHECK_VENTS_AIRFLOW', title: 'Check vents and return grilles', description: 'Make sure supply vents and return grilles are open and not blocked by furniture or rugs.', actionType: 'HOMEOWNER_ACTION', serviceCategory: 'hvac', priority: 2 },
+  { actionCode: 'CHECK_CONDENSATE_DRAIN', title: 'Look at the condensate drain', description: 'Check for standing water or a wet drain pan near the indoor unit. Do not open the unit.', actionType: 'HOMEOWNER_ACTION', serviceCategory: 'hvac', priority: 2 },
+  { actionCode: 'CHECK_THERMOSTAT_SETTINGS', title: 'Check thermostat settings', description: 'Confirm the thermostat is in Cool mode with the setpoint you expect, and not in Eco mode.', actionType: 'HOMEOWNER_ACTION', serviceCategory: null, priority: 1 },
+  { actionCode: 'CHECK_THERMOSTAT_ONLINE', title: 'Check the thermostat is online', description: 'Open the Google Home app and confirm the thermostat is connected to Wi-Fi.', actionType: 'HOMEOWNER_ACTION', serviceCategory: null, priority: 1 },
   { actionCode: 'SCHEDULE_CONTRACTOR_VISIT', title: 'Schedule a contractor visit', description: 'Request an Attenteve-vetted contractor to inspect and service the equipment.', actionType: 'SERVICE_REQUEST', serviceCategory: 'hvac', priority: 3 },
 ];
 

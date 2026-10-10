@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { DeviceRegistry } from './entities/device-registry.entity';
 import { SensorAssignment } from './entities/sensor-assignment.entity';
 import { ClassificationService, FixedAssignmentSpec } from './classification.service';
@@ -57,6 +57,31 @@ export class DeviceRegistryService {
       this.logger.warn(`Classification failed for device ${device.id} (${device.currentProviderName}): ${e.message}`),
     );
     return device;
+  }
+
+  async setConnectivity(deviceRegistryIds: string[], connectivity: 'ONLINE' | 'OFFLINE' | null): Promise<void> {
+    if (deviceRegistryIds.length === 0) return;
+    await this.registryRepo.update({ id: In(deviceRegistryIds) }, { connectivity, connectivityAt: new Date() });
+  }
+
+  // Moves an already-assigned device to another equipment of its type (e.g.
+  // a Nest zone thermostat from HVAC-01 to HVAC-02 when the homeowner has
+  // separate systems) — the assignment's role is untouched.
+  async reassignEquipment(deviceRegistryId: string, equipmentNumber: string): Promise<void> {
+    const [device, assignment] = await Promise.all([this.findById(deviceRegistryId), this.getAssignment(deviceRegistryId)]);
+    if (!device || !assignment?.equipmentId) return;
+    const current = await this.classificationService.getEquipment(assignment.equipmentId);
+    if (!current || current.equipmentNumber === equipmentNumber) return;
+    assignment.equipmentId = await this.classificationService.ensureEquipment(device.homeId, current.equipmentType, equipmentNumber);
+    await this.assignmentsRepo.save(assignment);
+  }
+
+  equipmentMetadata(homeId: string, equipmentCode: string): Promise<Record<string, any> | null> {
+    return this.classificationService.equipmentMetadata(homeId, equipmentCode);
+  }
+
+  configureEquipment(homeId: string, equipmentCode: string, metadata: Record<string, any>): Promise<void> {
+    return this.classificationService.mergeEquipmentMetadata(homeId, equipmentCode, metadata);
   }
 
   findByProviderDeviceId(provider: string, providerDeviceId: string): Promise<DeviceRegistry | null> {

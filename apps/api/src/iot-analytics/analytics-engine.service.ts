@@ -341,6 +341,29 @@ export class AnalyticsEngineService {
     }));
   }
 
+  // SENSOR-005 — a vendor integration (Nest) failing as a whole: one
+  // finding per customer+provider, raised with the failure and resolved as
+  // soon as a sync succeeds. Dashboard-only; never touches water alerts.
+  async evaluateIntegrationFailure(home: YolinkHome, provider: string, error: string | null): Promise<void> {
+    const rule = RULE_DEFINITIONS.find((r) => r.ruleId === 'SENSOR-005')!;
+    const active = (await this.findingsRepo.find({ where: { customerId: home.customerId, ruleId: rule.ruleId, status: FindingStatus.ACTIVE } }))
+      .find((f) => (f.measurements as any)?.provider === provider);
+    if (!error) {
+      if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
+      return;
+    }
+    if (active) return;
+    await this.findingsRepo.save(this.findingsRepo.create({
+      customerId: home.customerId, yolinkHomeId: home.id, equipmentId: null, equipmentCode: null, deviceRegistryId: null, sensorRole: null,
+      ruleId: rule.ruleId, ruleVersion: rule.version ?? 1, ruleGroup: rule.ruleGroup, eventType: 'integration_unavailable',
+      severity: rule.severity, confidence: rule.confidence,
+      message: 'Thermostat data is unavailable, so some performance analytics are temporarily limited.',
+      measurements: { provider, error }, dataQuality: { inputState: 'AUTH_FAILURE' },
+      reasonCode: rule.reasonCode, reasonCodes: [rule.reasonCode], recommendedActions: rule.recommendedActions,
+      detectedAt: new Date(),
+    }));
+  }
+
   async clearSensorOfflineFinding(deviceRegistryId: string): Promise<void> {
     const active = await this.findingsRepo.findOne({ where: { deviceRegistryId, ruleId: 'SENSOR-001', status: FindingStatus.ACTIVE } });
     if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }

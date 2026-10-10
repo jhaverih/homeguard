@@ -38,7 +38,7 @@ describe('YolinkService MQTT connection lifecycle', () => {
       return { data: { code: '000000', data: { id: 'yl-home-1', devices: [] } } };
     });
     const repo: any = { update: jest.fn(), find: jest.fn().mockResolvedValue([]), findOne: jest.fn() };
-    service = new YolinkService(repo, repo, repo, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    service = new YolinkService(repo, repo, repo, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     jest.spyOn(service as any, 'refreshDeviceNames').mockResolvedValue(undefined);
   });
 

@@ -1,6 +1,11 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 import { SensorRole, MeasurementType } from '../../common/enums/sensor-role.enum';
 
+export enum TelemetryDataQuality {
+  VALID = 'VALID',
+  INVALID = 'INVALID',
+}
+
 // Normalized telemetry — one row per analytics-relevant sensor report,
 // translated into this common shape by the provider adapter (YolinkService,
 // via TelemetryService.record) before the analytics engine ever sees it.
@@ -24,7 +29,18 @@ export class TelemetryEvent {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true }) numericValue: number | null;
   @Column({ nullable: true }) unit: string | null;
   @Column({ type: 'jsonb', nullable: true }) rawState: Record<string, any> | null;
+  // Three distinct clocks: observedAt = when the SOURCE says the reading was
+  // taken (vendor event timestamp when one is provided, else receipt time);
+  // retrievedAt = when Attenteve fetched it from a vendor API by polling
+  // (null for pushed events — MQTT, Pub/Sub); receivedAt = Attenteve
+  // ingestion time.
   @Column({ type: 'timestamp' }) observedAt: Date;
+  @Column({ type: 'timestamp', nullable: true }) retrievedAt: Date | null;
   @Column({ type: 'timestamp' }) receivedAt: Date;
+  // INVALID = outside the physically plausible range for its measurement
+  // type (see TelemetryService.qualityOf). Kept for audit, but every
+  // analytics query reads VALID rows only — a bad reading is never treated
+  // as a real temperature change.
+  @Column({ type: 'enum', enum: TelemetryDataQuality, default: TelemetryDataQuality.VALID }) dataQuality: TelemetryDataQuality;
   @CreateDateColumn() createdAt: Date;
 }

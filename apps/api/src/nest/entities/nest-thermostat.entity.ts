@@ -19,6 +19,12 @@ export class NestThermostat {
   // what alerts use to say which zone tripped.
   @Column({ type: 'text', nullable: true }) roomName: string | null;
   @Column({ type: 'jsonb', default: () => "'{}'" }) traits: Record<string, any>;
+  // Which HVAC system this thermostat's zone belongs to (HVAC-<n>). Two
+  // thermostats sharing a number = one multizone system (one air handler,
+  // zone dampers); different numbers = separate systems. Set from the admin
+  // Monitoring Setup page; the equipment's own metadata.verified flag gates
+  // any analytics that combine zones (see hvac-configuration.ts).
+  @Column({ default: '01' }) equipmentNumber: string;
   @Column({ type: 'timestamp', nullable: true }) lastEventAt: Date | null;
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;

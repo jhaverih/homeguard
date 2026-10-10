@@ -29,9 +29,12 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     // a downstream symptom of the HVAC system underperforming or failing —
     // too hot is dangerous, too cold risks frozen water lines. It activates
     // this tile on its own, ahead of Return/Supply Air being installed.
+    // Satisfiable by thermostats alone (indoor temperature + call state +
+    // setpoint) — supply/return air probes add delta-T rules when present
+    // but are never required.
     id: 'PERFORMANCE', label: 'Cooling / Heating Performance',
-    requiredSensorRoles: [SensorRole.HVAC_RETURN_TEMP, SensorRole.HVAC_SUPPLY_TEMP, SensorRole.INDOOR_AMBIENT_TEMP],
-    ruleGroups: ['HVAC_PERFORMANCE', 'INDOOR_CLIMATE'],
+    requiredSensorRoles: [SensorRole.HVAC_RETURN_TEMP, SensorRole.HVAC_SUPPLY_TEMP, SensorRole.INDOOR_AMBIENT_TEMP, SensorRole.HVAC_STATE],
+    ruleGroups: ['HVAC_PERFORMANCE', 'INDOOR_CLIMATE', 'HVAC_COMFORT', 'HVAC_RUNTIME', 'HVAC_COMBINED'],
   },
   {
     id: 'CONDENSATE', label: 'Condensate / Drain',
@@ -45,8 +48,13 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   },
   {
     id: 'CONTROLS', label: 'Controls / Thermostat',
-    requiredSensorRoles: [SensorRole.HVAC_THERMOSTAT_SETPOINT],
-    ruleGroups: ['HVAC_COMFORT'],
+    requiredSensorRoles: [SensorRole.HVAC_THERMOSTAT_SETPOINT, SensorRole.HVAC_STATE],
+    ruleGroups: ['HVAC_STATE'],
+  },
+  {
+    id: 'HUMIDITY', label: 'Indoor Humidity',
+    requiredSensorRoles: [SensorRole.INDOOR_AMBIENT_HUMIDITY],
+    ruleGroups: ['HVAC_HUMIDITY'],
   },
   {
     id: 'REFRIGERANT', label: 'Refrigerant Circuit',
