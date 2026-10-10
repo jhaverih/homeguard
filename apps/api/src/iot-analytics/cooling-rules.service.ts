@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
-import { In, MoreThan, Repository } from 'typeorm';
+import { In, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import { DeviceRegistry } from './entities/device-registry.entity';
 import { SensorAssignment } from './entities/sensor-assignment.entity';
 import { Equipment } from './entities/equipment.entity';
@@ -153,6 +153,16 @@ export class CoolingRulesService {
       order: { observedAt: 'ASC' },
     });
     const series = new Map<string, TelemetryEvent[]>();
+    // Setpoints and call state are recorded only on change, so the value in
+    // effect at the window start is usually an older row — carry each
+    // device's last reading before the window in as its starting point.
+    for (const id of deviceIds) {
+      const before = await this.telemetryRepo.findOne({
+        where: { deviceRegistryId: id, observedAt: LessThanOrEqual(since), dataQuality: TelemetryDataQuality.VALID },
+        order: { observedAt: 'DESC' },
+      });
+      if (before) series.set(id, [before]);
+    }
     for (const r of rows) {
       if (r.observedAt > now) continue;
       const list = series.get(r.deviceRegistryId) ?? [];

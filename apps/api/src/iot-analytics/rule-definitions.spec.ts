@@ -99,3 +99,18 @@ describe('threshold keys referenced by the analytics engines', () => {
     expect([...referenced].filter((k) => !defined.has(k))).toEqual([]);
   });
 });
+
+describe('thermostat-driven rules', () => {
+  it('never require supply/return air probes', () => {
+    const { RULE_DEFINITIONS } = require('./rule-definitions');
+    const { SensorRole } = require('../common/enums/sensor-role.enum');
+    const ids = ['HVAC-COMFORT-001', 'HVAC-COMFORT-003', 'HVAC-RUNTIME-003', 'HVAC-REFRIGERANT-001', 'HVAC-REFRIGERANT-002',
+      'HVAC-HUMIDITY-001', 'HVAC-COMBINED-004', 'HVAC-STATE-001', 'SENSOR-005'];
+    for (const id of ids) {
+      const rule = RULE_DEFINITIONS.find((r: any) => r.ruleId === id);
+      expect(rule).toBeDefined();
+      expect(rule.applicableSensorRoles).not.toContain(SensorRole.HVAC_RETURN_TEMP);
+      expect(rule.applicableSensorRoles).not.toContain(SensorRole.HVAC_SUPPLY_TEMP);
+    }
+  });
+});

@@ -109,3 +109,18 @@ describe('AnalyticsEngineService INDOOR-TEMP-001 grouping', () => {
     expect(findingsRepo.rows.every((f) => f.linkedAlertId === 'alert-2')).toBe(true);
   });
 });
+
+describe('AnalyticsEngineService SENSOR-005 (Nest integration failure)', () => {
+  it('11. raises one dashboard finding on failure, never duplicates it, and resolves on recovery', async () => {
+    const findingsRepo = fakeFindingsRepo();
+    const alertsService = { createAlert: jest.fn(), updateMessage: jest.fn() };
+    const engine = new AnalyticsEngineService(findingsRepo as any, { findOne: jest.fn() } as any, alertsService as any, { getValue: jest.fn() } as any);
+    await engine.evaluateIntegrationFailure(home, 'nest', 'Google access was revoked or expired — reconnect Nest');
+    await engine.evaluateIntegrationFailure(home, 'nest', 'Google access was revoked or expired — reconnect Nest');
+    expect(findingsRepo.rows).toHaveLength(1);
+    expect(findingsRepo.rows[0]).toMatchObject({ ruleId: 'SENSOR-005', status: FindingStatus.ACTIVE, message: 'Thermostat data is unavailable, so some performance analytics are temporarily limited.' });
+    expect(alertsService.createAlert).not.toHaveBeenCalled();
+    await engine.evaluateIntegrationFailure(home, 'nest', null);
+    expect(findingsRepo.rows[0].status).toBe(FindingStatus.RESOLVED);
+  });
+});
