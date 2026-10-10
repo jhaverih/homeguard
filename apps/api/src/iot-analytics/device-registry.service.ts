@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DeviceRegistry } from './entities/device-registry.entity';
 import { SensorAssignment } from './entities/sensor-assignment.entity';
-import { ClassificationService } from './classification.service';
+import { ClassificationService, FixedAssignmentSpec } from './classification.service';
 
 export interface ProviderDeviceMeta {
   deviceType?: string | null;
@@ -28,7 +28,11 @@ export class DeviceRegistryService {
     private classificationService: ClassificationService,
   ) {}
 
-  async upsertFromProvider(homeId: string, provider: string, providerDeviceId: string, meta: ProviderDeviceMeta): Promise<DeviceRegistry> {
+  // `fixedAssignment` skips name-based classification for devices whose role
+  // is known from the provider's own data model (see ClassificationService
+  // .assignFixed) — without it a Nest "Upstairs Thermostat" would be fuzzy-
+  // matched against the ATV installer naming convention it never follows.
+  async upsertFromProvider(homeId: string, provider: string, providerDeviceId: string, meta: ProviderDeviceMeta, fixedAssignment?: FixedAssignmentSpec): Promise<DeviceRegistry> {
     const now = new Date();
     let device = await this.registryRepo.findOne({ where: { provider, providerDeviceId } });
     if (device) {
@@ -46,7 +50,10 @@ export class DeviceRegistryService {
         firstSeenAt: now, lastSeenAt: now,
       }));
     }
-    await this.classificationService.classifyAndAssign(device).catch((e) =>
+    const classified = fixedAssignment
+      ? this.classificationService.assignFixed(device, fixedAssignment)
+      : this.classificationService.classifyAndAssign(device);
+    await classified.catch((e) =>
       this.logger.warn(`Classification failed for device ${device.id} (${device.currentProviderName}): ${e.message}`),
     );
     return device;

@@ -48,6 +48,13 @@ export class AlertsService {
     return alert;
   }
 
+  // Rewrites an existing alert's text in place WITHOUT re-notifying — for
+  // grouped alerts (e.g. INDOOR-TEMP-001) where a second sensor joining an
+  // already-sent alarm should update what the alert lists, not push again.
+  async updateMessage(alertId: string, message: string): Promise<void> {
+    await this.alertsRepo.update(alertId, { message });
+  }
+
   async getMyAlerts(customerId: string, page = 1, limit = 20): Promise<{ alerts: Alert[]; total: number; unread: number }> {
     const [alerts, total] = await this.alertsRepo.findAndCount({
       where: { customerId },

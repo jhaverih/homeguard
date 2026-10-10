@@ -23,6 +23,7 @@ import { AdminModule } from './admin/admin.module';
 import { MaintenanceBotModule } from './maintenance-bot/maintenance-bot.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { YolinkModule } from './yolink/yolink.module';
+import { GoogleNestModule } from './nest/nest.module';
 import { VendorModule } from './vendor/vendor.module';
 import { CancellationFeedbackModule } from './cancellation-feedback/cancellation-feedback.module';
 import { ServiceAreaModule } from './service-area/service-area.module';
@@ -86,6 +87,7 @@ import { MarketplaceModule } from './marketplace/marketplace.module';
     MaintenanceBotModule,
     AlertsModule,
     YolinkModule,
+    GoogleNestModule,
     VendorModule,
     CancellationFeedbackModule,
     ServiceAreaModule,

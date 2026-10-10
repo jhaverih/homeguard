@@ -16,6 +16,7 @@ import { AlertSeverity } from '../alerts/entities/alert.entity';
 import { ThresholdsService } from './thresholds.service';
 import { BaselineService } from './baseline.service';
 import { SNOOZABLE_FINDING_CATEGORY } from './analytics-engine.service';
+import { RunCycle, mergeStateRunCycles } from './run-cycles';
 
 // Everything in this file is genuinely new logic, built ahead of any of
 // these sensors actually being installed anywhere (per explicit product
@@ -242,7 +243,20 @@ export class PerformanceEngineService {
     const compressorAssignment = await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.HVAC_COMPRESSOR_POWER } });
     const role = compressorAssignment ? SensorRole.HVAC_COMPRESSOR_POWER : SensorRole.HVAC_POWER;
     const assignment = compressorAssignment ?? await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.HVAC_POWER } });
-    if (!assignment) return null;
+    if (!assignment) {
+      // No power meter — fall back to the thermostats' own call state: cooling
+      // if ANY zone on this equipment currently reports COOLING.
+      const thermostats = await this.assignmentsRepo.find({ where: { equipmentId, sensorRole: SensorRole.HVAC_STATE } });
+      if (thermostats.length === 0) return null;
+      let known = false;
+      for (const t of thermostats) {
+        const latest = await this.telemetryRepo.findOne({ where: { deviceRegistryId: t.deviceRegistryId }, order: { observedAt: 'DESC' } });
+        if (!latest) continue;
+        known = true;
+        if (latest.value === 'COOLING') return true;
+      }
+      return known ? false : null;
+    }
     const latest = await this.telemetryRepo.findOne({ where: { deviceRegistryId: assignment.deviceRegistryId }, order: { observedAt: 'DESC' } });
     if (latest?.numericValue == null) return null;
     return Number(latest.numericValue) >= onWatts;
@@ -298,7 +312,7 @@ export class PerformanceEngineService {
     const relevantRoles = [
       SensorRole.HVAC_RETURN_TEMP, SensorRole.HVAC_SUPPLY_TEMP, SensorRole.HVAC_POWER,
       SensorRole.HVAC_COMPRESSOR_POWER, SensorRole.HVAC_BLOWER_POWER, SensorRole.INDOOR_AMBIENT_TEMP,
-      SensorRole.HVAC_THERMOSTAT_SETPOINT, SensorRole.INDOOR_AMBIENT_HUMIDITY,
+      SensorRole.HVAC_THERMOSTAT_SETPOINT, SensorRole.INDOOR_AMBIENT_HUMIDITY, SensorRole.HVAC_STATE,
       SensorRole.HVAC_SUCTION_LINE_TEMP, SensorRole.HVAC_LIQUID_LINE_TEMP, SensorRole.HVAC_STATIC_PRESSURE,
     ];
     const assignments = await this.assignmentsRepo.find({ where: { sensorRole: In(relevantRoles) } });
@@ -331,10 +345,9 @@ export class PerformanceEngineService {
       `Cooling delta-T has trended down over the last 30 days — recent 15-day average ${recentAvg.toFixed(1)}°F vs. the prior 15 days' ${priorAvg.toFixed(1)}°F.`);
 
     // ── Runtime / cycling (RUNTIME-001/002, COMPRESSOR-001, BLOWER-001) ──
-    const systemAssignment = await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.HVAC_POWER } });
-    if (systemAssignment) {
-      const onWatts = await this.thresholdsService.getValue('RUNTIME_ON_WATTS_THRESHOLD', ctx.customerId);
-      const cycles = await this.computeRunCycles(systemAssignment.deviceRegistryId, onWatts, 24);
+    const system = await this.systemRunCycles(equipmentId, ctx.customerId, 24);
+    if (system) {
+      const { cycles, sourceRole } = system;
       const completed = cycles.filter((c) => c.durationMinutes != null);
       const dailyRuntime = completed.reduce((sum, c) => sum + (c.durationMinutes ?? 0), 0);
       const longestCycle = completed.reduce((max, c) => Math.max(max, c.durationMinutes ?? 0), 0);
@@ -347,9 +360,12 @@ export class PerformanceEngineService {
 
       // HVAC-ELECTRICAL-002 — whole-unit power draw deviating from its own
       // baseline (either direction: a failing component can draw either
-      // more or less than normal).
-      await this.evaluateBaselineDeviation(ctx, 'HVAC_POWER_SAMPLE', 'HVAC-ELECTRICAL-002', 'either', (v, b) =>
-        `Whole-unit power draw (${Math.round(v)}W) is well outside this home's normal range (baseline ${Math.round(b.mean)}W).`);
+      // more or less than normal). Power-meter only — thermostat state says
+      // nothing about draw.
+      if (sourceRole === SensorRole.HVAC_POWER) {
+        await this.evaluateBaselineDeviation(ctx, 'HVAC_POWER_SAMPLE', 'HVAC-ELECTRICAL-002', 'either', (v, b) =>
+          `Whole-unit power draw (${Math.round(v)}W) is well outside this home's normal range (baseline ${Math.round(b.mean)}W).`);
+      }
 
       // HVAC-ELECTRICAL-003 — irregular cycling: distinct from RUNTIME-003
       // (which counts too-frequent SHORT cycles). This looks at how erratic
@@ -366,7 +382,7 @@ export class PerformanceEngineService {
         const rule = this.rule('HVAC-ELECTRICAL-003');
         await this.upsertFinding({
           scope: { equipmentId }, customerId: ctx.customerId, yolinkHomeId: ctx.yolinkHomeId,
-          equipmentCode: equipment.equipmentCode, sensorRole: SensorRole.HVAC_POWER, ruleId: rule.ruleId, ruleGroup: rule.ruleGroup,
+          equipmentCode: equipment.equipmentCode, sensorRole: sourceRole, ruleId: rule.ruleId, ruleGroup: rule.ruleGroup,
           conditionMet: coefficientOfVariation >= 0.8, severity: rule.severity, confidence: rule.confidence,
           message: `HVAC run-cycle lengths today were highly inconsistent with each other (${completed.length} cycles, coefficient of variation ${coefficientOfVariation.toFixed(2)}) — an irregular on/off pattern not explained by normal thermostat cycling.`,
           measurements: { cycleCount: completed.length, coefficientOfVariation }, reasonCode: rule.reasonCode, recommendedActions: rule.recommendedActions,
@@ -771,6 +787,54 @@ export class PerformanceEngineService {
     }
     if (currentStart) cycles.push({ start: currentStart, end: null, durationMinutes: null }); // still running
     return cycles;
+  }
+
+  // Whole-system run cycles for one equipment, from whichever source it has:
+  // a whole-unit power meter (HVAC_POWER, wattage threshold) when installed,
+  // otherwise its thermostats' call state (HVAC_STATE) merged across every
+  // zone that drives it. Null when the equipment has neither.
+  private async systemRunCycles(equipmentId: string, customerId: string, sinceHoursAgo: number): Promise<{ cycles: RunCycle[]; sourceRole: SensorRole } | null> {
+    const power = await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.HVAC_POWER } });
+    if (power) {
+      const onWatts = await this.thresholdsService.getValue('RUNTIME_ON_WATTS_THRESHOLD', customerId);
+      return { cycles: await this.computeRunCycles(power.deviceRegistryId, onWatts, sinceHoursAgo), sourceRole: SensorRole.HVAC_POWER };
+    }
+    const thermostats = await this.assignmentsRepo.find({ where: { equipmentId, sensorRole: SensorRole.HVAC_STATE } });
+    if (thermostats.length === 0) return null;
+    const since = new Date(Date.now() - sinceHoursAgo * 60 * 60 * 1000);
+    const samples = await this.telemetryRepo.find({
+      where: { deviceRegistryId: In(thermostats.map((t) => t.deviceRegistryId)), observedAt: MoreThan(since) },
+      order: { observedAt: 'ASC' },
+    });
+    return { cycles: mergeStateRunCycles(samples), sourceRole: SensorRole.HVAC_STATE };
+  }
+
+  // HVAC_STATE (thermostat call: HEATING/COOLING = 1, OFF = 0) — the
+  // real-time short-cycling check, the thermostat-driven counterpart of the
+  // HVAC_POWER branch in handlePowerReading. Runs on the merged whole-system
+  // cycles, so two zones alternating calls on one air handler don't look
+  // like short cycling. Skipped when a power meter is the system's source.
+  async handleHvacStateReading(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome): Promise<void> {
+    if (!assignment.equipmentId) return;
+    const [maxDurationMin, count, windowMin] = await Promise.all([
+      this.thresholdsService.getValue('SHORT_CYCLE_MAX_DURATION_MINUTES', home.customerId),
+      this.thresholdsService.getValue('SHORT_CYCLE_COUNT', home.customerId),
+      this.thresholdsService.getValue('SHORT_CYCLE_WINDOW_MINUTES', home.customerId),
+    ]);
+    const system = await this.systemRunCycles(assignment.equipmentId, home.customerId, Math.max(6, windowMin / 60));
+    if (!system || system.sourceRole !== SensorRole.HVAC_STATE) return;
+    const windowStart = new Date(Date.now() - windowMin * 60000);
+    const shortCycles = system.cycles.filter((c) => c.end && c.start >= windowStart && c.durationMinutes! <= maxDurationMin);
+    const equipment = await this.equipmentRepo.findOne({ where: { id: assignment.equipmentId } });
+    const rule = this.rule('HVAC-RUNTIME-003');
+    await this.upsertFinding({
+      scope: { equipmentId: assignment.equipmentId }, customerId: home.customerId, yolinkHomeId: home.id,
+      equipmentCode: equipment?.equipmentCode ?? null, sensorRole: assignment.sensorRole, ruleId: rule.ruleId, ruleGroup: rule.ruleGroup,
+      conditionMet: shortCycles.length >= count, severity: rule.severity, confidence: rule.confidence,
+      message: `HVAC system has short-cycled ${shortCycles.length} times in the last ${windowMin} minutes — each run under ${maxDurationMin} minutes.`,
+      measurements: { shortCycleCount: shortCycles.length, windowMin, maxDurationMin }, reasonCode: rule.reasonCode, recommendedActions: rule.recommendedActions,
+      notify: rule.notificationPolicy === 'IMMEDIATE',
+    });
   }
 
   private async equipmentByCode(homeId: string, equipmentCode: string): Promise<Equipment | null> {

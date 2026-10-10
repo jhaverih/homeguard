@@ -5,7 +5,7 @@ import { SensorClassificationRule } from './entities/sensor-classification-rule.
 import { SensorAssignment } from './entities/sensor-assignment.entity';
 import { Equipment } from './entities/equipment.entity';
 import { DeviceRegistry } from './entities/device-registry.entity';
-import { ClassificationStatus, EquipmentType } from '../common/enums/sensor-role.enum';
+import { ClassificationStatus, EquipmentType, MeasurementType, SensorRole } from '../common/enums/sensor-role.enum';
 import { CLASSIFICATION_SEED, RENAMED_CANONICAL_NAMES, equipmentCodeFor } from './classification-seed';
 
 type MatchType = 'EXACT' | 'NORMALIZED' | 'ALIAS' | 'FUZZY';
@@ -145,4 +145,27 @@ export class ClassificationService implements OnModuleInit {
     }));
     this.logger.log(`Classified "${device.currentProviderName}" (${device.id}) as ${match.rule.sensorRole} [${status}, confidence ${confidence.toFixed(2)}, match ${match.matchType}]`);
   }
+
+  // For providers whose devices self-describe what they measure (a Nest
+  // thermostat's Temperature/Humidity/ThermostatHvac traits) — the role is
+  // known from the data itself, so there's no installer name to classify.
+  // Same once-per-device guarantee as classifyAndAssign.
+  async assignFixed(device: DeviceRegistry, spec: FixedAssignmentSpec): Promise<void> {
+    const existing = await this.assignmentsRepo.findOne({ where: { deviceRegistryId: device.id } });
+    if (existing) return;
+    const equipmentId = await this.ensureEquipment(device.homeId, spec.equipmentType, spec.equipmentNumber);
+    await this.assignmentsRepo.save(this.assignmentsRepo.create({
+      deviceRegistryId: device.id, equipmentId, sensorRole: spec.sensorRole, analyticsRole: spec.analyticsRole,
+      measurementType: spec.measurementType, classificationConfidence: 1, classificationStatus: ClassificationStatus.AUTO_CONFIRMED,
+    }));
+    this.logger.log(`Assigned "${device.currentProviderName}" (${device.id}) as ${spec.sensorRole} [fixed, from ${device.provider} device type]`);
+  }
+}
+
+export interface FixedAssignmentSpec {
+  sensorRole: SensorRole;
+  analyticsRole: string;
+  measurementType: MeasurementType;
+  equipmentType: EquipmentType;
+  equipmentNumber: string;
 }

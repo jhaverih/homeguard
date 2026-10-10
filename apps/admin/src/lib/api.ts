@@ -177,6 +177,11 @@ export const adminApi = {
     api.post(`/admin/monitoring-setup-requests/${customerId}/request`).then((r) => r.data),
   linkYolinkHome: (data: { customerId: string; yolinkUAID: string; yolinkSecretKey: string; homeName: string; address?: string }) =>
     api.post('/yolink/link', data).then((r) => r.data),
+  getNestStatus: () => api.get('/nest/status').then((r) => r.data),
+  getNestAccounts: () => api.get('/nest/accounts').then((r) => r.data),
+  startNestAuthorization: (customerId: string) => api.post('/nest/oauth/start', { customerId }).then((r) => r.data),
+  syncNestAccount: (accountId: string) => api.post(`/nest/accounts/${accountId}/sync`).then((r) => r.data),
+  disconnectNestAccount: (accountId: string) => api.delete(`/nest/accounts/${accountId}`).then((r) => r.data),
   getWaitlist: () => api.get('/admin/waitlist').then((r) => r.data),
 };
 

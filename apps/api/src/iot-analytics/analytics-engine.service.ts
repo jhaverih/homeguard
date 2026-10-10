@@ -12,6 +12,19 @@ import { AlertsService } from '../alerts/alerts.service';
 import { AlertSeverity } from '../alerts/entities/alert.entity';
 import { ThresholdsService } from './thresholds.service';
 import { SENSOR_ROLE_META } from '../common/enums/sensor-role.enum';
+import { IndoorTempKind, IndoorTempReading, indoorSensorLabel, indoorTempAlertMessage } from './indoor-temp-grouping';
+
+// Pre-grouping INDOOR-TEMP-001 findings stored only { temperature } — fall
+// back to a generic label/threshold-less reading for those.
+function indoorTempReadingOf(f: AnalyticsFinding): IndoorTempReading {
+  const m = (f.measurements ?? {}) as Partial<IndoorTempReading>;
+  return {
+    sensorLabel: m.sensorLabel ?? 'Indoor sensor',
+    temperature: Number(m.temperature),
+    kind: m.kind ?? (f.eventType === 'indoor_temp_low' ? 'low' : 'high'),
+    threshold: Number(m.threshold ?? NaN),
+  };
+}
 
 // The only snooze windows the mobile app offers — validated here too so a
 // crafted request can't set an arbitrary/unbounded snooze.
@@ -186,13 +199,32 @@ export class AnalyticsEngineService {
   // own per-device alarm.lowTemp/highTemp flags — those live in the
   // YoLink app's own config, invisible to and uncontrolled by Attenteve. ──
 
+  // Grouped across every indoor temperature sensor in the home (YoLink
+  // indoor sensor + one Nest thermostat per zone) — see indoor-temp-grouping.ts.
+  // The first sensor into alarm sends the one alert; any other sensor that
+  // trips while it's still open joins it (its own finding, same
+  // linkedAlertId) and the alert text is rewritten to list every sensor in
+  // alarm, without a second push. Serialized per home so two sensors
+  // reporting the same hot/cold event in the same instant can't both
+  // decide they're "first" and double-alert.
   async evaluateIndoorTempEvent(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome, tempF: number | null): Promise<void> {
+    if (tempF == null) return; // no reading this event — neither confirm nor clear off stale data
+    const run = (this.indoorTempLocks.get(home.id) ?? Promise.resolve())
+      .then(() => this.evaluateIndoorTempEventLocked(device, assignment, home, tempF));
+    const settled = run.catch(() => {});
+    this.indoorTempLocks.set(home.id, settled);
+    settled.then(() => { if (this.indoorTempLocks.get(home.id) === settled) this.indoorTempLocks.delete(home.id); });
+    return run;
+  }
+
+  private indoorTempLocks = new Map<string, Promise<void>>();
+
+  private async evaluateIndoorTempEventLocked(device: DeviceRegistry, assignment: SensorAssignment, home: YolinkHome, tempF: number): Promise<void> {
     const rule = RULE_DEFINITIONS.find((r) => r.ruleId === 'INDOOR-TEMP-001')!;
     const active = await this.findingsRepo.findOne({
       where: { deviceRegistryId: device.id, ruleId: rule.ruleId, status: FindingStatus.ACTIVE },
       order: { detectedAt: 'DESC' },
     });
-    if (tempF == null) return; // no reading this event — neither confirm nor clear off stale data
 
     const [lowThreshold, highThreshold] = await Promise.all([
       this.thresholdsService.getValue('INDOOR_TEMP_LOW_F', home.customerId),
@@ -201,27 +233,46 @@ export class AnalyticsEngineService {
     const isLow = tempF <= lowThreshold;
     const isHigh = tempF >= highThreshold;
     if (!isLow && !isHigh) {
-      if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
+      if (active) {
+        active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date();
+        await this.findingsRepo.save(active);
+        await this.refreshGroupedIndoorTempAlert(active.linkedAlertId);
+      }
       return;
     }
     if (active) return; // already firing — don't re-alert on every report while the condition persists
 
     const equipment = await this.equipmentFor(assignment);
-    const kind = isLow ? 'low' : 'high';
+    const kind: IndoorTempKind = isLow ? 'low' : 'high';
     const reasonCode = kind === 'low' ? 'LOW_INDOOR_TEMP' : 'HIGH_INDOOR_TEMP';
     const thresholdUsed = kind === 'low' ? lowThreshold : highThreshold;
-    // Generic sensor-role label, never the installed device's own name —
-    // this message is shown verbatim to the homeowner.
-    const sensorLabel = SENSOR_ROLE_META[assignment.sensorRole]?.label ?? 'Indoor sensor';
-    const message = `${sensorLabel}: ${kind === 'low' ? 'Low' : 'High'} indoor temperature detected (${tempF}°F, threshold ${thresholdUsed}°F)`;
+    // Location label ("2nd Floor thermostat", "Indoor sensor"), never the
+    // installer's ATV-convention name — shown verbatim to the homeowner.
+    const sensorLabel = indoorSensorLabel(device);
+    const reading: IndoorTempReading = { sensorLabel, temperature: tempF, kind, threshold: thresholdUsed };
+    const message = indoorTempAlertMessage([reading]);
 
     const finding = await this.findingsRepo.save(this.findingsRepo.create({
       customerId: home.customerId, yolinkHomeId: home.id, equipmentId: equipment?.id ?? null, equipmentCode: equipment?.equipmentCode ?? null,
       deviceRegistryId: device.id, sensorRole: assignment.sensorRole, ruleId: rule.ruleId, ruleGroup: rule.ruleGroup,
       eventType: `indoor_temp_${kind}`, severity: rule.severity, confidence: rule.confidence,
-      message, measurements: { temperature: tempF }, reasonCode, reasonCodes: [reasonCode], recommendedActions: rule.recommendedActions,
+      message, measurements: { ...reading, deviceName: device.currentProviderName ?? sensorLabel },
+      reasonCode, reasonCodes: [reasonCode], recommendedActions: rule.recommendedActions,
       detectedAt: new Date(),
     }));
+
+    // Another indoor sensor in this home already alerting → join its alert.
+    const openGroup = await this.findingsRepo.findOne({
+      where: { yolinkHomeId: home.id, ruleId: rule.ruleId, status: FindingStatus.ACTIVE, linkedAlertId: Not(IsNull()) },
+      order: { detectedAt: 'ASC' },
+    });
+    if (openGroup?.linkedAlertId) {
+      finding.linkedAlertId = openGroup.linkedAlertId;
+      finding.lastAlertedAt = openGroup.lastAlertedAt;
+      await this.findingsRepo.save(finding);
+      await this.refreshGroupedIndoorTempAlert(openGroup.linkedAlertId);
+      return;
+    }
 
     const alert = await this.alertsService.createAlert({
       customerId: home.customerId, yolinkHomeId: home.id, deviceId: device.providerDeviceId,
@@ -231,6 +282,18 @@ export class AnalyticsEngineService {
     finding.linkedAlertId = alert.id;
     finding.lastAlertedAt = new Date();
     await this.findingsRepo.save(finding);
+  }
+
+  // Rewrites a grouped indoor-temp alert to list the sensors still in alarm.
+  // Once none are left the text is left as-is — it's the record of what fired.
+  private async refreshGroupedIndoorTempAlert(alertId: string | null): Promise<void> {
+    if (!alertId) return;
+    const stillActive = await this.findingsRepo.find({
+      where: { linkedAlertId: alertId, ruleId: 'INDOOR-TEMP-001', status: FindingStatus.ACTIVE },
+      order: { detectedAt: 'ASC' },
+    });
+    if (stillActive.length === 0) return;
+    await this.alertsService.updateMessage(alertId, indoorTempAlertMessage(stillActive.map(indoorTempReadingOf)));
   }
 
   // ── SENSOR-002 (low battery) — battery is a 0-4 scale on Yolink's
@@ -299,26 +362,41 @@ export class AnalyticsEngineService {
       where: { status: FindingStatus.ACTIVE, linkedAlertId: Not(IsNull()) },
     });
     const now = Date.now();
-    const due = candidates.filter((f) => {
-      if (f.snoozedUntil && f.snoozedUntil.getTime() > now) return false;
-      const ageMs = now - f.detectedAt.getTime();
-      const sinceLastAlertMs = now - (f.lastAlertedAt ?? f.detectedAt).getTime();
-      return sinceLastAlertMs >= nextReAlertIntervalMs(ageMs);
-    });
-    for (const finding of due) {
+    // Findings sharing one alert (grouped INDOOR-TEMP-001 — see
+    // evaluateIndoorTempEvent) re-alert as ONE reminder listing every sensor
+    // still in alarm, keyed off the group's earliest finding. Every other
+    // rule has exactly one finding per alert, so its group is just itself.
+    const groups = new Map<string, AnalyticsFinding[]>();
+    for (const f of candidates) {
+      const group = groups.get(f.linkedAlertId!) ?? [];
+      group.push(f);
+      groups.set(f.linkedAlertId!, group);
+    }
+    for (const group of groups.values()) {
+      group.sort((a, b) => a.detectedAt.getTime() - b.detectedAt.getTime());
+      const lead = group[0];
+      if (group.some((f) => f.snoozedUntil && f.snoozedUntil.getTime() > now)) continue;
+      const ageMs = now - lead.detectedAt.getTime();
+      const sinceLastAlertMs = now - (lead.lastAlertedAt ?? lead.detectedAt).getTime();
+      if (sinceLastAlertMs < nextReAlertIntervalMs(ageMs)) continue;
+      const message = lead.ruleId === 'INDOOR-TEMP-001' && group.length > 1
+        ? indoorTempAlertMessage(group.map(indoorTempReadingOf))
+        : lead.message;
       try {
         const alert = await this.alertsService.createAlert({
-          customerId: finding.customerId, yolinkHomeId: finding.yolinkHomeId,
-          deviceId: finding.deviceRegistryId ?? undefined, deviceName: (finding.measurements as any)?.deviceName ?? 'Sensor',
-          event: finding.ruleId, severity: FINDING_TO_ALERT_SEVERITY[finding.severity],
-          message: `Still active: ${finding.message}`,
-          rawPayload: { findingId: finding.id, reAlert: true }, categoryId: SNOOZABLE_FINDING_CATEGORY,
+          customerId: lead.customerId, yolinkHomeId: lead.yolinkHomeId,
+          deviceId: lead.deviceRegistryId ?? undefined, deviceName: (lead.measurements as any)?.deviceName ?? 'Sensor',
+          event: lead.ruleId, severity: FINDING_TO_ALERT_SEVERITY[lead.severity],
+          message: `Still active: ${message}`,
+          rawPayload: { findingId: lead.id, reAlert: true }, categoryId: SNOOZABLE_FINDING_CATEGORY,
         });
-        finding.linkedAlertId = alert.id;
-        finding.lastAlertedAt = new Date();
-        await this.findingsRepo.save(finding);
+        for (const finding of group) {
+          finding.linkedAlertId = alert.id;
+          finding.lastAlertedAt = new Date();
+          await this.findingsRepo.save(finding);
+        }
       } catch (err) {
-        this.logger.warn(`Failed to re-alert finding ${finding.id}: ${err}`);
+        this.logger.warn(`Failed to re-alert finding ${lead.id}: ${err}`);
       }
     }
   }

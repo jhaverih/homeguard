@@ -15,7 +15,16 @@ export default function MonitoringSetupPage() {
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState('');
 
-  const load = () => adminApi.getMonitoringSetupRequests().then(setCustomers);
+  const [nestStatus, setNestStatus] = useState<{ configured: boolean; realtimeEvents: boolean } | null>(null);
+  const [nestAccounts, setNestAccounts] = useState<any[]>([]);
+
+  // Nest is best-effort here — the page still works for YoLink if the Nest
+  // endpoints fail (e.g. an older API without them).
+  const loadNest = () => Promise.all([
+    adminApi.getNestStatus().then(setNestStatus).catch(() => setNestStatus(null)),
+    adminApi.getNestAccounts().then(setNestAccounts).catch(() => setNestAccounts([])),
+  ]);
+  const load = () => Promise.all([adminApi.getMonitoringSetupRequests().then(setCustomers), loadNest()]);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
 
@@ -67,6 +76,7 @@ export default function MonitoringSetupPage() {
       <p className="text-steel mb-8">
         Customers on Standard or Premium. Request Connection dispatches a job any Yolink-trained vendor can accept.
         Already-connected customers can be re-linked via Edit if their credentials ever need to change.
+        Nest thermostats can be added to any connected home — Connect Nest opens Google&apos;s consent screen in a new tab.
       </p>
 
       {error && (
@@ -85,6 +95,7 @@ export default function MonitoringSetupPage() {
                 <th className="text-left px-6 py-4 font-semibold text-steel">Name</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel">Email</th>
                 <th className="text-left px-6 py-4 font-semibold text-steel">Action</th>
+                <th className="text-left px-6 py-4 font-semibold text-steel">Nest</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-canvas">
@@ -120,10 +131,18 @@ export default function MonitoringSetupPage() {
                         </button>
                       )}
                     </td>
+                    <td className="px-6 py-4">
+                      <NestCell
+                        customer={c}
+                        status={nestStatus}
+                        account={nestAccounts.find((a) => a.customerId === c.id && a.isActive) ?? null}
+                        onChanged={loadNest}
+                      />
+                    </td>
                   </tr>
                   {editingFor === c.id && (
                     <tr>
-                      <td colSpan={3} className="px-6 py-4 bg-mist-dim/40">
+                      <td colSpan={4} className="px-6 py-4 bg-mist-dim/40">
                         <form onSubmit={(e) => submitEdit(e, c.id)} className="space-y-3 max-w-md">
                           <p className="text-xs text-steel">
                             Enter this customer&apos;s Yolink credentials — found in their Yolink app under
@@ -174,6 +193,106 @@ export default function MonitoringSetupPage() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+const HVAC_LABEL: Record<string, string> = { HEATING: 'Heating', COOLING: 'Cooling', OFF: 'Idle' };
+
+function NestCell({ customer, status, account, onChanged }: {
+  customer: any;
+  status: { configured: boolean; realtimeEvents: boolean } | null;
+  account: any | null;
+  onChanged: () => Promise<unknown>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [awaitingGoogle, setAwaitingGoogle] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+
+  if (!customer.isConnected) return <span className="text-xs text-steel" title="Connect home monitoring first">—</span>;
+  if (!status?.configured) return <span className="text-xs text-steel" title="NEST_* settings are not set on the server">Not configured</span>;
+
+  const run = async (fn: () => Promise<unknown>, failure: string) => {
+    setBusy(true);
+    setError('');
+    try {
+      await fn();
+    } catch (err: any) {
+      setError(err.response?.data?.message || failure);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connect = () => run(async () => {
+    const { url } = await adminApi.startNestAuthorization(customer.id);
+    window.open(url, '_blank', 'noopener');
+    setAwaitingGoogle(true);
+  }, 'Could not start the Google connection.');
+
+  const linkButton = 'text-lantern-deep text-xs font-semibold hover:underline disabled:opacity-50';
+
+  if (!account) {
+    return (
+      <div className="space-y-1">
+        <button
+          onClick={connect}
+          disabled={busy}
+          className="bg-lantern text-ink px-4 py-2 rounded-lg text-xs font-semibold hover:bg-lantern-deep hover:text-white disabled:opacity-50 transition-colors"
+        >
+          {busy ? 'Opening Google…' : 'Connect Nest'}
+        </button>
+        {awaitingGoogle && (
+          <p className="text-xs text-steel">
+            Finish in the Google tab, then{' '}
+            <button onClick={() => { setAwaitingGoogle(false); onChanged(); }} className={linkButton}>refresh</button>.
+          </p>
+        )}
+        {error && <p className="text-red-600 text-xs">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {account.thermostats.length === 0 && <p className="text-xs text-steel">Connected — no thermostats shared yet.</p>}
+      {account.thermostats.map((t: any) => (
+        <div key={t.id} className="text-xs text-ink">
+          <span className="font-semibold">{t.roomName || t.displayName}</span>
+          {' · '}{t.temperatureF != null ? `${t.temperatureF}°F` : '—'}
+          {t.humidity != null && ` · ${t.humidity}%`}
+          {' · '}{t.online ? (HVAC_LABEL[t.hvacStatus] ?? '—') : <span className="text-red-600">Offline</span>}
+          {t.setpoint && <span className="text-steel"> · {t.setpoint}</span>}
+        </div>
+      ))}
+      {account.lastError && <p className="text-red-600 text-xs">{account.lastError}</p>}
+      <div className="flex items-center gap-3">
+        {account.lastError ? (
+          <button onClick={connect} disabled={busy} className={linkButton}>Reconnect</button>
+        ) : (
+          <button onClick={() => run(async () => { await adminApi.syncNestAccount(account.id); await onChanged(); }, 'Sync failed.')} disabled={busy} className={linkButton}>
+            {busy ? 'Syncing…' : 'Sync'}
+          </button>
+        )}
+        {confirmDisconnect ? (
+          <>
+            <button
+              onClick={() => run(async () => { await adminApi.disconnectNestAccount(account.id); setConfirmDisconnect(false); await onChanged(); }, 'Could not disconnect.')}
+              disabled={busy}
+              className="text-red-700 text-xs font-semibold hover:underline disabled:opacity-50"
+            >
+              Confirm disconnect
+            </button>
+            <button onClick={() => setConfirmDisconnect(false)} className="text-steel text-xs hover:underline">Cancel</button>
+          </>
+        ) : (
+          <button onClick={() => setConfirmDisconnect(true)} className="text-steel text-xs font-semibold hover:underline">Disconnect</button>
+        )}
+      </div>
+      {!status.realtimeEvents && <p className="text-xs text-steel">Updates every 5 min (real-time events not configured)</p>}
+      {awaitingGoogle && <p className="text-xs text-steel">Finish in the Google tab, then <button onClick={() => { setAwaitingGoogle(false); onChanged(); }} className={linkButton}>refresh</button>.</p>}
+      {error && <p className="text-red-600 text-xs">{error}</p>}
     </div>
   );
 }
