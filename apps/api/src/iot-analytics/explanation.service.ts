@@ -57,9 +57,10 @@ export class ExplanationService {
   private get maxRetries(): number { return Number(this.config.get('HVAC_LLM_MAX_RETRIES', 2)); }
 
   // Never awaits the LLM: drops a deduplicated job (one per event+evidence).
-  async enqueue(eventId: string, evidenceHash: string): Promise<void> {
+  async enqueue(eventId: string, evidenceHash: string, force = false): Promise<void> {
     if (!this.enabled) return;
-    await this.queue.add({ eventId, evidenceHash }, { jobId: `${eventId}:${evidenceHash}`, removeOnComplete: true, removeOnFail: true })
+    const jobId = force ? `${eventId}:${evidenceHash}:refresh:${Date.now()}` : `${eventId}:${evidenceHash}`;
+    await this.queue.add(force ? { eventId, evidenceHash, force } : { eventId, evidenceHash }, { jobId, removeOnComplete: true, removeOnFail: true })
       .catch((e) => this.logger.warn(`Could not queue explanation for event ${eventId}: ${e.message}`));
   }
 

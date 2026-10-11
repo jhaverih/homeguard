@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, ILike } from 'typeorm';
 import { AnalyticsFinding, FindingStatus } from './entities/analytics-finding.entity';
@@ -24,8 +25,11 @@ import { COMPONENT_CHART_ROLES, COMPONENT_DEFINITIONS } from './component-health
 import { resolveRecommendedActions } from './recommended-action-catalog';
 import { ChartRange, RANGE_HOURS, bucketPoints, stateBands } from './series';
 import { NotFoundException } from '@nestjs/common';
-import { MoreThan, LessThanOrEqual } from 'typeorm';
+import { Between, MoreThan, LessThanOrEqual } from 'typeorm';
 import { TelemetryDataQuality, TelemetryEvent } from './entities/telemetry-event.entity';
+import { AnalyticsEvent } from './entities/analytics-event.entity';
+import { AnalyticsAnomaly } from './entities/analytics-anomaly.entity';
+import { ExplanationService } from './explanation.service';
 
 // Roles shown in the customer's Sensor Coverage list — thermostat-based
 // analytics need no supply/return air probes, so those are listed only as
@@ -69,7 +73,11 @@ export class IotAnalyticsService {
     @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
     @InjectRepository(RuleEvaluation) private evaluationsRepo: Repository<RuleEvaluation>,
     @InjectRepository(TelemetryEvent) private telemetryRepo: Repository<TelemetryEvent>,
+    @InjectRepository(AnalyticsEvent) private eventsRepo: Repository<AnalyticsEvent>,
+    @InjectRepository(AnalyticsAnomaly) private anomaliesRepo: Repository<AnalyticsAnomaly>,
+    private explanationService: ExplanationService,
     private thresholdsService: ThresholdsService,
+    private config: ConfigService,
     private analyticsEngine: AnalyticsEngineService,
     private componentHealthService: ComponentHealthService,
     private telemetryService: TelemetryService,
@@ -263,6 +271,58 @@ export class IotAnalyticsService {
       range, from: from.toISOString(), to: to.toISOString(),
       charts: [...charts.values()], bands, markers, conditions, recommendedActions: actions,
     };
+  }
+
+  // ── Technician view (admin): correlated events + AI explanations, and the
+  // shadow anomalies behind them. Rule findings stay the authoritative
+  // source for status; everything here is labelled as statistical or AI.
+  async getAdminAiAnalysis(customerId: string) {
+    const since = new Date(Date.now() - 7 * 86_400_000);
+    const events = (await this.eventsRepo.find({ where: { customerId }, order: { startedAt: 'DESC' } }))
+      .filter((e) => e.status === 'ACTIVE' || e.lastOccurrenceAt >= since);
+    const anomalies = await this.anomaliesRepo.find({ where: { customerId, lastObservedAt: MoreThan(since) }, order: { startedAt: 'DESC' } });
+    const findings = await this.findingsRepo.find({ where: { customerId } });
+    const withDetail = await Promise.all(events.map(async (e) => {
+      const explanation = await this.explanationService.latestFor(e.id);
+      // Actual readings around the event for the annotated chart: each
+      // contributing anomaly's sensor, 6 h before the start to 2 h after.
+      const from = new Date(e.startedAt.getTime() - 6 * 3600_000);
+      const to = new Date(Math.min(Date.now(), (e.resolvedAt ?? e.lastOccurrenceAt).getTime() + 2 * 3600_000));
+      const deviceIds = [...new Set(anomalies.filter((a) => e.anomalyIds.includes(a.id) && a.deviceRegistryId).map((a) => a.deviceRegistryId!))];
+      const series = await Promise.all(deviceIds.map(async (deviceRegistryId) => {
+        const rows = await this.telemetryRepo.find({ where: { deviceRegistryId, observedAt: Between(from, to) }, order: { observedAt: 'ASC' } });
+        const a = anomalies.find((x) => x.deviceRegistryId === deviceRegistryId)!;
+        return {
+          deviceRegistryId, sensorRole: a.sensorRole, label: SENSOR_ROLE_META[a.sensorRole as SensorRole]?.label ?? a.sensorRole, unit: a.unit.replace('/min', ''),
+          baseline: a.baseline, zThreshold: await this.thresholdsService.getValue('ANOMALY_Z_THRESHOLD', customerId),
+          points: rows.filter((r) => r.numericValue != null).map((r) => ({ t: r.observedAt.getTime(), v: Number(r.numericValue), quality: r.dataQuality })),
+        };
+      }));
+      return {
+        ...e,
+        series,
+        findings: findings.filter((f) => e.findingIds.includes(f.id)).map((f) => ({ id: f.id, ruleId: f.ruleId, ruleVersion: f.ruleVersion, severity: f.severity, status: f.status, message: f.message, detectedAt: f.detectedAt, resolvedAt: f.resolvedAt })),
+        anomalies: anomalies.filter((a) => e.anomalyIds.includes(a.id)),
+        explanation: explanation && {
+          status: explanation.status, output: explanation.output, rejectionReasons: explanation.rejectionReasons, model: explanation.model,
+          promptVersion: explanation.promptVersion, detectorVersion: explanation.detectorVersion, configVersion: explanation.configVersion,
+          latencyMs: explanation.latencyMs, createdAt: explanation.createdAt, stale: explanation.evidenceHash !== e.evidenceHash,
+          confidence: (explanation.evidence as any)?.confidence ?? null, dataAvailability: (explanation.evidence as any)?.dataAvailability ?? [],
+        },
+      };
+    }));
+    return {
+      flags: { anomalyDetection: this.config.get('HVAC_ANOMALY_ENABLED', 'true') !== 'false', aiExplanations: this.explanationService.enabled, shadow: true },
+      events: withDetail,
+      anomalies: anomalies.map((a) => ({ ...a, inEvent: events.some((e) => e.anomalyIds.includes(a.id)) })),
+    };
+  }
+
+  async requestExplanation(eventId: string): Promise<{ queued: boolean }> {
+    const event = await this.eventsRepo.findOne({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
+    await this.explanationService.enqueue(event.id, event.evidenceHash, true);
+    return { queued: this.explanationService.enabled };
   }
 
   private isFindingVisible(f: AnalyticsFinding, deviceIds: Set<string>, equipmentIds: Set<string>, isProactivePlus: boolean): boolean {

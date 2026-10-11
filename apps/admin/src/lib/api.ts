@@ -120,6 +120,8 @@ export const disputesApi = {
 export const hvacAnalyticsApi = {
   searchCustomers: (q: string) => api.get(`/admin/hvac-analytics/customers?q=${encodeURIComponent(q)}`).then((r) => r.data),
   getForCustomer: (customerId: string) => api.get(`/admin/hvac-analytics?customerId=${customerId}`).then((r) => r.data),
+  getAi: (customerId: string) => api.get(`/admin/hvac-analytics/ai?customerId=${customerId}`).then((r) => r.data),
+  requestExplanation: (eventId: string) => api.post(`/admin/hvac-analytics/events/${eventId}/explain`).then((r) => r.data),
 };
 
 export const analyticsThresholdsApi = {

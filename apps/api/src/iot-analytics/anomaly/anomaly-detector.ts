@@ -1,4 +1,4 @@
-import { Baseline, baselineOf, madFloor, median, robustZ, mad } from './statistics';
+import { Baseline, MIN_RAPID_DELTA, baselineOf, madFloor, median, robustZ, mad } from './statistics';
 import { Preprocessed, segmentRates } from './preprocess';
 
 // Statistical anomaly candidates for one sensor (spec §4.3–4.5). Pure: the
@@ -45,6 +45,9 @@ export interface SeriesInput {
   baselineValues: number[];     // same-context history, excluding the evaluation window
   baselineRates: number[];
   transitions: Date[];          // mode / setpoint changes
+  // False when the system's operating state at the latest reading is
+  // unknown (no thermostat call data) — only sensor-quality checks run.
+  operatingStateKnown?: boolean;
 }
 
 const nearTransition = (t: Date, transitions: Date[], minutes: number) =>
@@ -63,6 +66,7 @@ export function detectSeries(input: SeriesInput, cfg: DetectorConfig): { candida
     });
   }
 
+  if (input.operatingStateKnown === false) return { candidates, skipped: 'Operating state unknown (no thermostat call-state data) — equipment checks not run' };
   const baseline = baselineOf(input.baselineValues);
   if (!baseline || baseline.n < cfg.minSamples) return { candidates, skipped: `Baseline has ${baseline?.n ?? 0} readings (needs ${cfg.minSamples})` };
   const floor = madFloor(unit);
@@ -107,12 +111,13 @@ export function detectSeries(input: SeriesInput, cfg: DetectorConfig): { candida
   const rateBase = baselineOf(input.baselineRates);
   if (rateBase && rateBase.n >= cfg.minSamples) {
     for (const r of segmentRates(pre.segments).filter((x) => x.t.getTime() >= windowStart)) {
-      const rz = robustZ(r.v, rateBase.median, rateBase.mad, madFloor('perMin'));
-      if (Math.abs(rz) > cfg.rateZThreshold && !pre.implausibleRates.some((x) => x.t.getTime() === r.t.getTime())) {
+      const rz = robustZ(r.v, rateBase.median, rateBase.mad, madFloor(`${unit}/min`));
+      const bigEnough = Math.abs(r.delta) >= (MIN_RAPID_DELTA[unit] ?? MIN_RAPID_DELTA.default);
+      if (Math.abs(rz) > cfg.rateZThreshold && bigEnough && !pre.implausibleRates.some((x) => x.t.getTime() === r.t.getTime())) {
+        const transition = nearTransition(r.t, input.transitions, cfg.transitionExclusionMinutes);
         candidates.push({
-          type: 'RAPID_CHANGE', state: 'ACTIVE', startedAt: r.t, lastObservedAt: r.t, observed: round(r.v), baseline: rateBase,
-          deviation: round(r.v - rateBase.median), unit: `${unit}/min`, robustZ: round(rz), consecutive: 1, method: 'rate-of-change-mad',
-          transition: nearTransition(r.t, input.transitions, cfg.transitionExclusionMinutes),
+          type: 'RAPID_CHANGE', state: transition ? 'UNCONFIRMED' : 'ACTIVE', startedAt: r.t, lastObservedAt: r.t, observed: round(r.v), baseline: rateBase,
+          deviation: round(r.v - rateBase.median), unit: `${unit}/min`, robustZ: round(rz), consecutive: 1, method: 'rate-of-change-mad', transition,
         });
       }
     }

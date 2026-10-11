@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { hvacAnalyticsApi } from '@/lib/api';
 import { CustomerPicker, Customer } from '@/components/CustomerPicker';
+import { AiAnalysis } from './AiAnalysis';
 
 const SEVERITY_COLOR: Record<string, string> = {
   CRITICAL: '#991B1B', HIGH_ATTENTION: '#991B1B', ATTENTION: '#DC2626', WATCH: '#D97706', INFO: '#2563EB',
@@ -14,11 +15,14 @@ export default function HvacAnalyticsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [ai, setAi] = useState<any>(null);
+  const loadAi = (id: string) => hvacAnalyticsApi.getAi(id).then(setAi).catch(() => setAi(null));
 
   useEffect(() => {
     if (!customer) { setData(null); setError(false); return; }
     setLoading(true);
     setError(false);
+    loadAi(customer.id);
     hvacAnalyticsApi.getForCustomer(customer.id)
       .then(setData)
       .catch(() => { setData(null); setError(true); })
@@ -92,6 +96,8 @@ export default function HvacAnalyticsPage() {
           </div>
 
           {data.componentHealth && <HealthAndDataQuality data={data} />}
+
+          {ai && <AiAnalysis data={ai} onRefresh={() => customer && loadAi(customer.id)} />}
 
           <div className="bg-white border border-mist-dim rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">

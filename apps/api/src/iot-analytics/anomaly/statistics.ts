@@ -18,7 +18,14 @@ export function mad(values: number[], center = median(values)): number {
 // infinitely unusual. The floor is roughly the sensor's resolution: Nest and
 // YoLink report temperature to ~0.1–0.5°F and humidity to 1%. Used in place
 // of MAD whenever MAD is smaller — documented fallback, never ÷0 or ∞.
-export const MAD_FLOOR: Record<string, number> = { '°F': 0.3, '%': 1.0, 'min': 1.0, 'perMin': 0.05, default: 0.5 };
+// Rate floors (per minute) follow from resolution ÷ typical report interval:
+// 0.3°F over ~2 min, 1% humidity (whole percents) over ~3–5 min.
+export const MAD_FLOOR: Record<string, number> = { '°F': 0.3, '%': 1.0, 'min': 1.0, '°F/min': 0.15, '%/min': 0.3, default: 0.5 };
+
+// Smallest step between two readings that can count as a rapid change —
+// a few times the sensor's resolution, so a single resolution-level step
+// (e.g. humidity 64%→63%) is never "rapid", however quiet the baseline.
+export const MIN_RAPID_DELTA: Record<string, number> = { '°F': 2, '%': 5, default: 2 };
 
 export function madFloor(unit: string): number {
   return MAD_FLOOR[unit] ?? MAD_FLOOR.default;

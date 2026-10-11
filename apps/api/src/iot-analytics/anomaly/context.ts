@@ -4,7 +4,9 @@ import { outdoorBand } from '../weather.service';
 
 // Operating context for context-aware baselines (spec §4.4). Pure.
 
-export type Mode = 'COOLING' | 'HEATING' | 'IDLE';
+// UNKNOWN = no thermostat call-state data covers that moment. Never treated
+// as idle: an unknown-mode reading is neither scored nor used as baseline.
+export type Mode = 'COOLING' | 'HEATING' | 'IDLE' | 'UNKNOWN';
 
 export interface Ctx { mode: Mode; band: string; cycleBucket: string }
 
@@ -24,6 +26,7 @@ export function buildContextTimeline(callsByZone: CallSample[][], outdoor: { t: 
     .sort((a, b) => a.observedAt.getTime() - b.observedAt.getTime()));
   const within = (cycles: RunCycle[], t: Date) => cycles.find((c) => c.start <= t && (c.end == null || c.end > t)) ?? null;
   const sortedOutdoor = [...outdoor].sort((a, b) => a.t.getTime() - b.t.getTime());
+  const firstCall = Math.min(...callsByZone.flatMap((z) => z.map((c) => c.t.getTime())), Infinity);
 
   return {
     cooling, heating,
@@ -32,7 +35,7 @@ export function buildContextTimeline(callsByZone: CallSample[][], outdoor: { t: 
     at(t: Date): Ctx {
       const cool = within(cooling, t);
       const heat = cool ? null : within(heating, t);
-      const mode: Mode = cool ? 'COOLING' : heat ? 'HEATING' : 'IDLE';
+      const mode: Mode = t.getTime() < firstCall ? 'UNKNOWN' : cool ? 'COOLING' : heat ? 'HEATING' : 'IDLE';
       const run = cool ?? heat;
       const minutesIn = run ? (t.getTime() - run.start.getTime()) / 60_000 : null;
       const cycleBucket = minutesIn == null ? 'off' : minutesIn < 5 ? '0-5' : minutesIn < 15 ? '5-15' : '15+';

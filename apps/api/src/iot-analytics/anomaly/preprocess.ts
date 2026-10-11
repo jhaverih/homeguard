@@ -4,6 +4,11 @@
 
 export interface Reading { t: Date; v: number; receivedAt?: Date }
 
+// Rates use at least this interval: two reports seconds apart (a Pub/Sub
+// event and a poll of the same reading) would otherwise turn a 0.5° step
+// into "28°/min". About the sensors' real reporting resolution.
+export const MIN_RATE_INTERVAL_MINUTES = 1;
+
 export interface Segment { start: Date; end: Date; points: Reading[] }
 
 export interface Preprocessed {
@@ -50,8 +55,8 @@ export function preprocess(readings: Reading[], cfg: { maxGapMinutes: number; ma
         gaps.push({ from: prev.t, to: p.t, minutes: Math.round(minutes) });
         segments.push({ start: current[0].t, end: prev.t, points: current });
         current = [];
-      } else if (minutes > 0 && Math.abs(p.v - prev.v) / minutes > cfg.maxRatePerMinute) {
-        implausibleRates.push({ t: p.t, ratePerMin: Math.round(((p.v - prev.v) / minutes) * 100) / 100 });
+      } else if (minutes > 0 && Math.abs(p.v - prev.v) / Math.max(minutes, MIN_RATE_INTERVAL_MINUTES) > cfg.maxRatePerMinute) {
+        implausibleRates.push({ t: p.t, ratePerMin: Math.round(((p.v - prev.v) / Math.max(minutes, MIN_RATE_INTERVAL_MINUTES)) * 100) / 100 });
       }
     }
     current.push(p);
@@ -62,12 +67,13 @@ export function preprocess(readings: Reading[], cfg: { maxGapMinutes: number; ma
 
 // Per-minute rates between consecutive readings, within segments only —
 // never across a gap, so a reconnect after an outage isn't a "jump".
-export function segmentRates(segments: Segment[]): { t: Date; v: number }[] {
-  const out: { t: Date; v: number }[] = [];
+export function segmentRates(segments: Segment[]): { t: Date; v: number; delta: number }[] {
+  const out: { t: Date; v: number; delta: number }[] = [];
   for (const s of segments) {
     for (let i = 1; i < s.points.length; i++) {
       const minutes = (s.points[i].t.getTime() - s.points[i - 1].t.getTime()) / 60_000;
-      if (minutes > 0) out.push({ t: s.points[i].t, v: (s.points[i].v - s.points[i - 1].v) / minutes });
+      const delta = s.points[i].v - s.points[i - 1].v;
+      if (minutes > 0) out.push({ t: s.points[i].t, v: delta / Math.max(minutes, MIN_RATE_INTERVAL_MINUTES), delta });
     }
   }
   return out;

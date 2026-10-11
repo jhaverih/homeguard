@@ -95,6 +95,24 @@ export class IotAnalyticsController {
     return this.service.getAdminAnalytics(customerId);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Get('admin/hvac-analytics/ai')
+  @ApiOperation({ summary: "Technician view: correlated events with AI explanations, and statistical anomalies (shadow) (admin)" })
+  getAdminAi(@Query('customerId') customerId: string) {
+    return this.service.getAdminAiAnalysis(customerId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post('admin/hvac-analytics/events/:id/explain')
+  @ApiOperation({ summary: 'Queue a fresh AI explanation for an event (admin)' })
+  requestExplanation(@Param('id') id: string) {
+    return this.service.requestExplanation(id);
+  }
+
   // ── Admin — Analytics Thresholds ────────────────────────────────────────
 
   @ApiBearerAuth()

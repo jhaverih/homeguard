@@ -12,9 +12,9 @@ export class ExplanationProcessor {
   constructor(private readonly explanations: ExplanationService) {}
 
   @Process()
-  async handle(job: Job<{ eventId: string; evidenceHash: string }>): Promise<void> {
+  async handle(job: Job<{ eventId: string; evidenceHash: string; force?: boolean }>): Promise<void> {
     try {
-      await this.explanations.explain(job.data.eventId);
+      await this.explanations.explain(job.data.eventId, !!job.data.force);
     } catch (err: any) {
       this.logger.warn(`Explanation job for event ${job.data.eventId} failed: ${err.message}`);
     }

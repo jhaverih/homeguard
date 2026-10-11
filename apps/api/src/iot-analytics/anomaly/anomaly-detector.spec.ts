@@ -135,3 +135,28 @@ describe('context-aware baselines', () => {
     expect(b.values.every((v: number) => v === 48)).toBe(true);
   });
 });
+
+describe('replay-driven safeguards', () => {
+  const { buildContextTimeline } = require('./context');
+  it('treats moments without thermostat call data as UNKNOWN, never IDLE, and skips equipment checks then', () => {
+    const tl = buildContextTimeline([[{ t: at(100), call: 'COOLING' }]], [], []);
+    expect(tl.at(at(50)).mode).toBe('UNKNOWN');
+    expect(tl.at(at(110)).mode).toBe('COOLING');
+    const r = detectSeries({ now: at(60), unit: '°F', pre: pre(series(0, 60, () => 60)), baselineValues, baselineRates, transitions: [], operatingStateKnown: false }, cfg);
+    expect(r.skipped).toMatch(/Operating state unknown/);
+    expect(r.candidates.filter((c) => c.type !== 'SENSOR_QUALITY')).toEqual([]);
+  });
+  it('a resolution-level humidity step is never a rapid change, even against a perfectly flat baseline', () => {
+    const flat = Array.from({ length: 60 }, (_, i) => ({ t: at(-600 + i * 5), v: 64 }));
+    const flatPre = pre(flat);
+    const r = detectSeries({ now: at(60), unit: '%', pre: pre([...series(0, 50, () => 64, 3, 5).map((x) => ({ ...x, v: 64 })), { t: at(55), v: 63 }]),
+      baselineValues: flat.map((x) => x.v), baselineRates: segmentRates(flatPre.segments).map((x) => x.v), transitions: [] }, cfg);
+    expect(r.candidates.filter((c) => c.type === 'RAPID_CHANGE')).toEqual([]);
+  });
+
+  it('does not turn two reports seconds apart into an implausible rate', () => {
+    const p = pre([{ t: at(0), v: 48 }, { t: new Date(at(0).getTime() + 2000), v: 48.5 }]);
+    expect(p.implausibleRates).toEqual([]);
+    expect(segmentRates(p.segments)[0].v).toBeCloseTo(0.5);
+  });
+});

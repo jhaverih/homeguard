@@ -102,7 +102,7 @@ export class AnomalyDetectionService {
       const baselineRates = segmentRates(pre.segments)
         .filter((r) => r.t.getTime() < evalStart && timeline.at(r.t).mode === current.mode).map((r) => r.v);
       const unit = rows.find((r) => r.unit)?.unit ?? '';
-      const { candidates } = detectSeries({ now, unit, pre, baselineValues: base.values, baselineRates, transitions: timeline.transitions }, cfg);
+      const { candidates } = detectSeries({ now, unit, pre, baselineValues: base.values, baselineRates, transitions: timeline.transitions, operatingStateKnown: current.mode !== 'UNKNOWN' }, cfg);
 
       const common = {
         customerId: home.customerId, homeId, equipmentId: assignment.equipmentId ?? hvacEquipmentId, deviceRegistryId: device.id,
