@@ -106,9 +106,25 @@ jobs:
           # at a time reduces the odds of hitting that resource-contention flake again; the
           # Dockerfile guard fix means a genuine build failure now stops this workflow instead
           # of silently deploying a broken image either way.
-          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache admin
-          docker compose -f infrastructure/docker-compose.staging.yml build --no-cache vendor
-          docker compose -f infrastructure/docker-compose.staging.yml build api nginx
+          #
+          # Retried (up to 3 attempts, 20 s apart): the QNAP build host still throws transient
+          # filesystem errors inside Next.js builds — `ENOENT … mkdir .next/standalone/…` and
+          # "Unknown system error -10, mkdir" (2026-10-09/10) — that pass on an immediate rerun.
+          # A genuine code/build error fails all three attempts and still stops the deploy
+          # before any service is touched. (A third flake type, next/font downloading Google
+          # Fonts at build time, was removed by bundling the fonts locally.)
+          build_with_retry() {
+            for attempt in 1 2 3; do
+              if docker compose -f infrastructure/docker-compose.staging.yml build "$@"; then return 0; fi
+              echo "::warning::docker compose build $* failed (attempt $attempt/3)"
+              [ "$attempt" -lt 3 ] && sleep 20
+            done
+            echo "::error::docker compose build $* failed 3 times"
+            return 1
+          }
+          build_with_retry --no-cache admin
+          build_with_retry --no-cache vendor
+          build_with_retry api nginx
 
           # Stop containers (not down — down removes the network which causes QNAP dnsmasq NAT errors)
           docker compose -f infrastructure/docker-compose.staging.yml stop || true
