@@ -42,6 +42,12 @@ describe('validateExplanation', () => {
     expect(validateExplanation({ ...good, technician_message: 'Fixing this will save 20% energy.' }, pkg).reasons.join()).toMatch(/energy savings/);
     expect(validateExplanation({ ...good, recommended_actions: ['Replace the compressor'] }, pkg).reasons.join()).toMatch(/allowed catalog/);
   });
+  it('normalizes format-only variations: catalog codes become titles, an empty safety note becomes none', () => {
+    const r = validateExplanation({ ...good, recommended_actions: ['CHECK_AIR_FILTER'], safety_note: '' }, pkg);
+    expect(r).toMatchObject({ ok: true, explanation: { recommended_actions: ['Check the air filter'], safety_note: null } });
+    expect(validateExplanation({ ...good, recommended_actions: ['REPLACE_COMPRESSOR'] }, pkg).reasons.join()).toMatch(/allowed catalog/);
+  });
+
   it('12. rejects malformed and incomplete output', () => {
     expect(validateExplanation('not json', pkg).ok).toBe(false);
     expect(validateExplanation({ ...good, observations: [] }, pkg).reasons).toContain('observations missing');

@@ -112,6 +112,14 @@ function evidenceNumbers(pkg: EvidencePackage): Set<string> {
 export function validateExplanation(raw: any, pkg: EvidencePackage): ValidationResult {
   const reasons: string[] = [];
   if (raw == null || typeof raw !== 'object') return { ok: false, reasons: ['not a JSON object'] };
+  // Format normalization only (never content): models often answer with the
+  // catalog code instead of its title, or "" for "no safety note".
+  raw = { ...raw };
+  if (raw.safety_note === '' || (typeof raw.safety_note === 'string' && /^(none|n\/a|null)$/i.test(raw.safety_note.trim()))) raw.safety_note = null;
+  if (Array.isArray(raw.recommended_actions)) {
+    const byCode = new Map(pkg.allowedActions.map((a) => [a.code.toLowerCase(), a.title]));
+    raw.recommended_actions = raw.recommended_actions.map((a: any) => (typeof a === 'string' && byCode.get(a.trim().toLowerCase())) || a);
+  }
   if (!isStr(raw.summary, MAX.summary)) reasons.push('summary missing or too long');
   if (!isStrArray(raw.observations) || raw.observations.length === 0) reasons.push('observations missing');
   if (!Array.isArray(raw.possible_causes) || raw.possible_causes.some((c: any) => !isStr(c?.cause, MAX.item) || !isStrArray(c?.supporting_evidence) || !isStrArray(c?.contradicting_evidence))) {

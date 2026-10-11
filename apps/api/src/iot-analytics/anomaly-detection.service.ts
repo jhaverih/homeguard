@@ -79,6 +79,8 @@ export class AnomalyDetectionService {
     const since = new Date(now.getTime() - t.ANOMALY_WINDOW_DAYS * 86_400_000);
     const timeline = await this.loadTimeline(devices, roleOf, since);
     const hvacEquipmentId = assignments.find((a) => a.sensorRole === SensorRole.HVAC_STATE)?.equipmentId ?? null;
+    let scored = 0;
+    let found = 0;
 
     for (const device of devices) {
       const assignment = roleOf.get(device.id);
@@ -112,6 +114,8 @@ export class AnomalyDetectionService {
       };
       await this.store(candidates, common, t.ANOMALY_WINDOW_DAYS);
       await this.resolveMissing(device.id, candidates, now);
+      scored++;
+      found += candidates.filter((c) => c.state === 'ACTIVE' && !c.transition).length;
     }
 
     // Hourly: drift + energy advisories (slower-moving signals).
@@ -119,7 +123,9 @@ export class AnomalyDetectionService {
       await this.detectDriftForHome(home, devices, roleOf, t, configVersion, now, hvacEquipmentId);
       await this.detectEnergyAdvisories(home, devices, roleOf, t, configVersion, now, hvacEquipmentId);
     }
-    await this.correlation.correlateHome(home, now);
+    const events = await this.correlation.correlateHome(home, now);
+    // One line per run so a quiet run is visibly a run, not silence.
+    this.logger.log(`Anomaly detection (shadow) home ${homeId}: ${scored} sensor(s) evaluated, ${found} active anomaly candidate(s), ${events.filter((e) => e.status === 'ACTIVE').length} active event(s)`);
   }
 
   // ── storage ───────────────────────────────────────────────────────────────
