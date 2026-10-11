@@ -137,6 +137,13 @@ describe('context-aware baselines', () => {
 });
 
 describe('replay-driven safeguards', () => {
+  it('a small steady drift (2°F overnight indoor cooling) is not a persistent anomaly even with a flat baseline', () => {
+    const flat = Array.from({ length: 45 }, (_, i) => ({ t: at(-600 + i * 10), v: 68.5 }));
+    const r = detectSeries({ now: at(60), unit: '°F', pre: pre(series(0, 60, () => 66.6, 5, 5).map((x) => ({ ...x, v: 66.6 }))),
+      baselineValues: flat.map((x) => x.v), baselineRates: [], transitions: [] }, cfg);
+    expect(r.candidates.find((c) => c.type === 'PERSISTENT')).toBeUndefined();
+  });
+
   const { buildContextTimeline } = require('./context');
   it('treats moments without thermostat call data as UNKNOWN, never IDLE, and skips equipment checks then', () => {
     const tl = buildContextTimeline([[{ t: at(100), call: 'COOLING' }]], [], []);

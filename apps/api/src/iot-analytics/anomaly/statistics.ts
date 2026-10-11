@@ -27,6 +27,12 @@ export const MAD_FLOOR: Record<string, number> = { '°F': 0.3, '%': 1.0, 'min': 
 // (e.g. humidity 64%→63%) is never "rapid", however quiet the baseline.
 export const MIN_RAPID_DELTA: Record<string, number> = { '°F': 2, '%': 5, default: 2 };
 
+// Smallest deviation from the baseline median that can count as a
+// persistent anomaly. With a short or very steady history MAD collapses to
+// its resolution floor, and a normal 2°F overnight indoor drift scored
+// z≈−4 on the pilot house (2026-10-11). Same idea as MIN_RAPID_DELTA.
+export const MIN_PERSISTENT_DEVIATION: Record<string, number> = { '°F': 3, '%': 8, default: 3 };
+
 export function madFloor(unit: string): number {
   return MAD_FLOOR[unit] ?? MAD_FLOOR.default;
 }

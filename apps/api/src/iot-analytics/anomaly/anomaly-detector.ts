@@ -1,4 +1,4 @@
-import { Baseline, MIN_RAPID_DELTA, baselineOf, madFloor, median, robustZ, mad } from './statistics';
+import { Baseline, MIN_PERSISTENT_DEVIATION, MIN_RAPID_DELTA, baselineOf, madFloor, median, robustZ, mad } from './statistics';
 import { Preprocessed, segmentRates } from './preprocess';
 
 // Statistical anomaly candidates for one sensor (spec §4.3–4.5). Pure: the
@@ -76,11 +76,15 @@ export function detectSeries(input: SeriesInput, cfg: DetectorConfig): { candida
   const z = recent.map((p) => ({ p, z: robustZ(p.v, baseline.median, baseline.mad, floor) }));
 
   // A. / C. Trailing run of same-sign exceedances → persistent vs unconfirmed.
+  // A reading only "exceeds" when it is statistically unusual AND far enough
+  // from the median in real units (see MIN_PERSISTENT_DEVIATION).
+  const minDev = MIN_PERSISTENT_DEVIATION[unit] ?? MIN_PERSISTENT_DEVIATION.default;
+  const exceeds = (e: { p: { v: number }; z: number }) => Math.abs(e.z) > cfg.zThreshold && Math.abs(e.p.v - baseline.median) >= minDev;
   const latest = z[z.length - 1];
-  if (Math.abs(latest.z) > cfg.zThreshold) {
+  if (exceeds(latest)) {
     const sign = Math.sign(latest.z);
     let i = z.length - 1;
-    while (i > 0 && Math.abs(z[i - 1].z) > cfg.zThreshold && Math.sign(z[i - 1].z) === sign) i--;
+    while (i > 0 && exceeds(z[i - 1]) && Math.sign(z[i - 1].z) === sign) i--;
     const run = z.slice(i);
     const minutes = (run[run.length - 1].p.t.getTime() - run[0].p.t.getTime()) / 60_000;
     const persistent = run.length >= cfg.minConsecutive && minutes >= cfg.persistenceMinutes;
