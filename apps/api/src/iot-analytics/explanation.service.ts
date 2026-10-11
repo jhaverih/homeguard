@@ -53,7 +53,9 @@ export class ExplanationService {
   get enabled(): boolean { return this.config.get('HVAC_AI_EXPLANATIONS_ENABLED', 'true') !== 'false'; }
   private get model(): string { return this.config.get('HVAC_LLM_MODEL') || this.config.get('OLLAMA_MODEL', 'llama3.1:8b'); }
   private get ollamaUrl(): string { return this.config.get('OLLAMA_URL', 'http://localhost:11434'); }
-  private get timeoutMs(): number { return Number(this.config.get('HVAC_LLM_TIMEOUT_MS', 120000)); }
+  // llama3.1:8b on the laptop took 60–210 s per answer in the first shadow
+  // day (2026-10-11); at 120 s a third of attempts timed out and retried.
+  private get timeoutMs(): number { return Number(this.config.get('HVAC_LLM_TIMEOUT_MS', 240000)); }
   private get maxRetries(): number { return Number(this.config.get('HVAC_LLM_MAX_RETRIES', 2)); }
 
   // Never awaits the LLM: drops a deduplicated job (one per event+evidence).
