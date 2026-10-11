@@ -302,6 +302,13 @@ export type HvacComponentDetail = {
   markers: FaultMarker[];
   conditions: { ruleId: string; label: string; outcome: string; reason: string | null; evaluatedAt: string }[];
   recommendedActions: RecommendedActionInfo[];
+  // Plain-language summary of an active, rule-backed condition — present
+  // only when the platform enables homeowner AI summaries.
+  aiSummary?: HvacAiSummary | null;
+};
+export type HvacAiSummary = {
+  eventId: string; source: 'ai' | 'standard'; message: string; recommendedActions: string[];
+  confidence: 'high' | 'medium' | 'low' | 'insufficient_evidence'; safetyNote: string | null; generatedAt: string;
 };
 export type HvacInputQuality = { label: string; sensorRole: string; state: 'OK' | 'STALE' | 'INVALID' | 'UNAVAILABLE' | 'AUTH_FAILURE' | 'NO_DATA'; detail: string | null; lastValidAt: string | null };
 

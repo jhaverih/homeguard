@@ -22,6 +22,7 @@ export function AiAnalysis({ data, onRefresh }: { data: any; onRefresh: () => vo
         <div className="flex gap-2 text-xs font-semibold">
           <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700">Statistics: {data.flags.anomalyDetection ? 'on (shadow)' : 'off'}</span>
           <span className="px-2 py-0.5 rounded-md bg-violet-50 text-violet-700">AI explanations: {data.flags.aiExplanations ? 'on' : 'off'}</span>
+          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">Homeowner AI summary: {data.flags.customerVisible ? 'visible (rule-backed events only)' : 'hidden'}</span>
         </div>
       </div>
       {data.events.length === 0 ? (

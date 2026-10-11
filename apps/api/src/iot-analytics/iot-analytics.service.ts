@@ -30,6 +30,7 @@ import { TelemetryDataQuality, TelemetryEvent } from './entities/telemetry-event
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { AnalyticsAnomaly } from './entities/analytics-anomaly.entity';
 import { ExplanationService } from './explanation.service';
+import { customerAiSummary } from './anomaly/customer-summary';
 
 // Roles shown in the customer's Sensor Coverage list — thermostat-based
 // analytics need no supply/return air probes, so those are listed only as
@@ -270,7 +271,20 @@ export class IotAnalyticsService {
       component: { id: tile.id, label: tile.label, healthStatus: tile.healthStatus, status: tile.status, reason: tile.reason, limitations: tile.limitations },
       range, from: from.toISOString(), to: to.toISOString(),
       charts: [...charts.values()], bands, markers, conditions, recommendedActions: actions,
+      aiSummary: await this.customerAiSummaryFor(customerId, componentId, active.map((m) => m.id), summary.findings),
     };
+  }
+
+  get aiCustomerVisible(): boolean { return this.config.get('HVAC_AI_CUSTOMER_VISIBLE', 'false') === 'true'; }
+
+  // Homeowner AI panel — off unless HVAC_AI_CUSTOMER_VISIBLE=true; see
+  // anomaly/customer-summary.ts for what may be shown.
+  private async customerAiSummaryFor(customerId: string, componentId: string, activeMarkerIds: string[], visibleFindings: { id: string }[]) {
+    if (!this.aiCustomerVisible || activeMarkerIds.length === 0) return null;
+    const visibleIds = new Set(visibleFindings.map((f) => f.id));
+    const events = await this.eventsRepo.find({ where: { customerId, status: 'ACTIVE' } });
+    const explanations = new Map(await Promise.all(events.map(async (e) => [e.id, await this.explanationService.latestFor(e.id)] as const)));
+    return customerAiSummary(componentId, events, new Set(activeMarkerIds.filter((id) => visibleIds.has(id))), (id) => explanations.get(id) as any);
   }
 
   // ── Technician view (admin): correlated events + AI explanations, and the
@@ -312,7 +326,7 @@ export class IotAnalyticsService {
       };
     }));
     return {
-      flags: { anomalyDetection: this.config.get('HVAC_ANOMALY_ENABLED', 'true') !== 'false', aiExplanations: this.explanationService.enabled, shadow: true },
+      flags: { anomalyDetection: this.config.get('HVAC_ANOMALY_ENABLED', 'true') !== 'false', aiExplanations: this.explanationService.enabled, customerVisible: this.aiCustomerVisible, shadow: true },
       events: withDetail,
       anomalies: anomalies.map((a) => ({ ...a, inEvent: events.some((e) => e.anomalyIds.includes(a.id)) })),
     };

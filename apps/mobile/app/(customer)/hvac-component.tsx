@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ChartRange, FaultMarker, HealthStatus, HvacComponentDetail, hvacAnalyticsApi } from '../../src/services/api';
+import { ChartRange, FaultMarker, HealthStatus, HvacAiSummary, HvacComponentDetail, hvacAnalyticsApi } from '../../src/services/api';
 import { TimeSeriesChart, clockLabel } from '../../src/components/hvac/TimeSeriesChart';
 import { colors } from '../../src/theme';
 
@@ -94,6 +94,34 @@ function FaultCard({ marker }: { marker: FaultMarker }) {
   );
 }
 
+const CONFIDENCE: Record<HvacAiSummary['confidence'], string> = {
+  high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence', insufficient_evidence: 'Not enough data yet',
+};
+
+// AI summary of the active condition. Shown under the issue banner and kept
+// visually separate from the measured facts: it interprets them, and says so.
+function AiSummaryCard({ summary }: { summary: HvacAiSummary }) {
+  return (
+    <View style={styles.aiCard}>
+      <View style={styles.aiHead}>
+        <Ionicons name="sparkles-outline" size={16} color="#6D28D9" />
+        <Text style={styles.aiTitle}>{summary.source === 'ai' ? 'AI summary' : 'Summary'}</Text>
+        <Text style={styles.aiConfidence}>{CONFIDENCE[summary.confidence] ?? summary.confidence}</Text>
+      </View>
+      <Text style={styles.aiText}>{summary.message}</Text>
+      {summary.recommendedActions.length > 0 && (
+        <View style={{ gap: 2 }}>
+          {summary.recommendedActions.map((a) => <Text key={a} style={styles.bullet}>• {a}</Text>)}
+        </View>
+      )}
+      {!!summary.safetyNote && <Text style={styles.aiSafety}>{summary.safetyNote}</Text>}
+      <Text style={styles.aiFoot}>
+        {summary.source === 'ai' ? 'Written by AI from your sensor readings. ' : ''}This is not a diagnosis; an HVAC professional can confirm the cause.
+      </Text>
+    </View>
+  );
+}
+
 export default function HvacComponentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [range, setRange] = useState<ChartRange>('day');
@@ -154,6 +182,7 @@ export default function HvacComponentScreen() {
           </View>
         </View>
       ) : !!headline && <Text style={styles.subtitle}>{headline}</Text>}
+      {data.aiSummary && <AiSummaryCard summary={data.aiSummary} />}
       {(data.component.limitations ?? []).map((l) => <Text key={l} style={styles.limitation}>{l}</Text>)}
 
       <View style={styles.segment}>
@@ -218,6 +247,13 @@ const styles = StyleSheet.create({
   issueTitle: { fontSize: 15, fontWeight: '800', color: '#DC2626', marginBottom: 2 },
   issueText: { fontSize: 13, color: colors.slate, lineHeight: 18 },
   limitation: { fontSize: 12, color: '#B45309' },
+  aiCard: { backgroundColor: 'rgba(109,40,217,0.06)', borderWidth: 1, borderColor: 'rgba(109,40,217,0.22)', borderRadius: 12, padding: 12, gap: 8 },
+  aiHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  aiTitle: { fontSize: 14, fontWeight: '800', color: '#6D28D9', flex: 1 },
+  aiConfidence: { fontSize: 11, fontWeight: '700', color: colors.steel },
+  aiText: { fontSize: 13, color: colors.ink, lineHeight: 19 },
+  aiSafety: { fontSize: 12, color: '#B45309', fontWeight: '600' },
+  aiFoot: { fontSize: 11, color: colors.steel, lineHeight: 15 },
   segment: { flexDirection: 'row', backgroundColor: colors.mistDim, borderRadius: 10, padding: 3 },
   segmentBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segmentActive: { backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 1 },
