@@ -10,6 +10,14 @@ import { AnalyticsFinding } from './entities/analytics-finding.entity';
 import { AnalyticsThreshold } from './entities/analytics-threshold.entity';
 import { AnalyticsMetricSample } from './entities/analytics-metric-sample.entity';
 import { RuleEvaluation } from './entities/rule-evaluation.entity';
+import { AnalyticsAnomaly } from './entities/analytics-anomaly.entity';
+import { AnalyticsEvent } from './entities/analytics-event.entity';
+import { AnalyticsExplanation } from './entities/analytics-explanation.entity';
+import { BullModule } from '@nestjs/bull';
+import { AnomalyDetectionService } from './anomaly-detection.service';
+import { EventCorrelationService } from './event-correlation.service';
+import { EXPLANATION_QUEUE, ExplanationService } from './explanation.service';
+import { ExplanationProcessor } from './explanation.processor';
 import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { YolinkDevice } from '../yolink/entities/yolink-device.entity';
 import { User } from '../users/entities/user.entity';
@@ -40,14 +48,15 @@ import { NotificationsModule } from '../notifications/notifications.module';
     // close a cycle. Same duplication convention this codebase already used
     // for HvacAnalyticsModule's CustomerSubscription registration.
     TypeOrmModule.forFeature([
-      Home, Equipment, DeviceRegistry, SensorAssignment, SensorClassificationRule, TelemetryEvent, AnalyticsFinding, AnalyticsThreshold, AnalyticsMetricSample, RuleEvaluation,
+      Home, Equipment, DeviceRegistry, SensorAssignment, SensorClassificationRule, TelemetryEvent, AnalyticsFinding, AnalyticsThreshold, AnalyticsMetricSample, RuleEvaluation, AnalyticsAnomaly, AnalyticsEvent, AnalyticsExplanation,
       YolinkHome, YolinkDevice, User, CustomerSubscription,
     ]),
+    BullModule.registerQueue({ name: EXPLANATION_QUEUE }),
     AlertsModule,
     NotificationsModule,
   ],
-  providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService],
+  providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService, AnomalyDetectionService, EventCorrelationService, ExplanationService, ExplanationProcessor],
   controllers: [IotAnalyticsController],
-  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService],
+  exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService, AnomalyDetectionService, EventCorrelationService, ExplanationService],
 })
 export class IotAnalyticsModule {}

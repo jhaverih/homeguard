@@ -296,6 +296,70 @@ export const THRESHOLD_DEFINITIONS: ThresholdDefinition[] = [
     unit: 'hours', defaultValue: 48, min: 6, max: 336, ruleIds: [],
   },
 
+  // ── Statistical anomaly detection (shadow evidence; never alerts or sets
+  // health). Defaults sized for the pilot cadences: line probes report every
+  // ~2–3 min, Nest every 5 min, YoLink indoor every 60 min. ──
+  {
+    key: 'ANOMALY_WINDOW_DAYS', label: 'Anomaly Baseline — Window',
+    description: 'How many days of same-context history form a sensor\'s rolling median/MAD baseline.',
+    unit: 'days', defaultValue: 7, min: 2, max: 60, ruleIds: [],
+  },
+  {
+    key: 'ANOMALY_MIN_SAMPLES', label: 'Anomaly Baseline — Minimum Readings',
+    description: 'Readings a baseline needs before any reading is scored against it (otherwise nothing is scored — never a guessed baseline).',
+    unit: 'readings', defaultValue: 30, min: 10, max: 2000, ruleIds: [],
+  },
+  {
+    key: 'ANOMALY_Z_THRESHOLD', label: 'Anomaly — Robust Z Threshold',
+    description: 'A reading whose robust z-score (0.6745 × deviation ÷ MAD) exceeds this is unusual. 3.5 is the Iglewicz–Hoaglin recommendation.',
+    unit: 'z', defaultValue: 3.5, min: 2, max: 10, ruleIds: [],
+  },
+  {
+    key: 'ANOMALY_RATE_Z_THRESHOLD', label: 'Anomaly — Rate-of-Change Threshold',
+    description: 'A change per minute whose robust z-score against the sensor\'s usual rates exceeds this is a rapid change.',
+    unit: 'z', defaultValue: 4, min: 2, max: 15, ruleIds: [],
+  },
+  {
+    key: 'ANOMALY_MIN_CONSECUTIVE', label: 'Anomaly — Persistence Readings',
+    description: 'Consecutive unusual readings required (together with the persistence duration) before a deviation counts as persistent.',
+    unit: 'readings', defaultValue: 3, min: 2, max: 30, ruleIds: [],
+  },
+  {
+    key: 'ANOMALY_PERSISTENCE_MINUTES', label: 'Anomaly — Persistence Duration',
+    description: 'How long the unusual readings must last before a deviation counts as persistent.',
+    unit: 'minutes', defaultValue: 15, min: 5, max: 240, ruleIds: [],
+  },
+  {
+    key: 'DRIFT_RECENT_DAYS', label: 'Baseline Drift — Recent Period',
+    description: 'Recent period compared against the prior period when checking for gradual drift.',
+    unit: 'days', defaultValue: 7, min: 2, max: 30, ruleIds: [],
+  },
+  {
+    key: 'DRIFT_PRIOR_DAYS', label: 'Baseline Drift — Prior Period',
+    description: 'Prior period the recent period is compared against.',
+    unit: 'days', defaultValue: 21, min: 7, max: 120, ruleIds: [],
+  },
+  {
+    key: 'DRIFT_MIN_SHIFT_MAD', label: 'Baseline Drift — Minimum Shift',
+    description: 'The recent median must move at least this many MADs away from the prior median to count as drift.',
+    unit: 'MAD', defaultValue: 2, min: 1, max: 10, ruleIds: [],
+  },
+  {
+    key: 'CORRELATION_WINDOW_MINUTES', label: 'Event Correlation — Window',
+    description: 'Related findings and anomalies within this many minutes of each other are grouped into one event.',
+    unit: 'minutes', defaultValue: 60, min: 10, max: 1440, ruleIds: [],
+  },
+  {
+    key: 'ENERGY_SETPOINT_CHANGES_PER_DAY', label: 'Energy Advisory — Setpoint Changes',
+    description: 'More setpoint changes than this in 24 hours is noted as an advisory (no savings are estimated).',
+    unit: 'changes', defaultValue: 8, min: 2, max: 50, ruleIds: [],
+  },
+  {
+    key: 'ENERGY_MODE_FLIPS_PER_DAY', label: 'Energy Advisory — Heat/Cool Flips',
+    description: 'More heating↔cooling mode switches than this in 24 hours is noted as an advisory.',
+    unit: 'switches', defaultValue: 2, min: 1, max: 20, ruleIds: [],
+  },
+
   // ── Sensor plausibility / configuration checks ──
   {
     key: 'PLAUSIBLE_TEMP_MIN_F', label: 'Plausible Temperature — Minimum',
