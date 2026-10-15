@@ -4,6 +4,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { hvacAnalyticsApi, HvacAnalytics, HvacFinding, ComponentHealthResult, ComponentHealthStatus, HealthStatus } from '../../src/services/api';
 import { colors } from '../../src/theme';
+import { EdgeSwipeBack } from '../../src/components/EdgeSwipeBack';
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string; border?: string }> = {
   CRITICAL: { color: '#991B1B', bg: '#FEF2F2', border: '#FCA5A5' },
@@ -140,7 +141,7 @@ function FindingCard({ item, onResolve, onDismiss, onSnooze }: { item: HvacFindi
   );
 }
 
-export default function HvacAnalyticsScreen() {
+function HvacAnalyticsScreenContent() {
   const [data, setData] = useState<HvacAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -428,3 +429,8 @@ const styles = StyleSheet.create({
   ctaBtn: { backgroundColor: colors.lanternDeep, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: -4 },
   ctaBtnText: { fontSize: 12.5, fontWeight: '700', color: '#fff' },
 });
+
+// Swipe right from the left edge goes back to the previous screen (iOS).
+export default function HvacAnalyticsScreen() {
+  return <EdgeSwipeBack fallback="/(customer)/alerts"><HvacAnalyticsScreenContent /></EdgeSwipeBack>;
+}

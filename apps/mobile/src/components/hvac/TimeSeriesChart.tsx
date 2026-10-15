@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
+import { Animated, Easing, LayoutChangeEvent, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Svg, { Circle, ClipPath, Defs, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { ChartBand, ChartRange, ChartSeries, FaultMarker } from '../../services/api';
 import { colors } from '../../theme';
 
@@ -8,6 +8,8 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 export const SERIES_COLORS = ['#2563EB', '#DC2626', '#059669', '#7C3AED', '#D97706', '#0891B2', '#DB2777'];
 const PAD = { top: 34, right: 44, bottom: 26, left: 36 };
+// Narrowest window a pinch can zoom to.
+const MIN_SPAN_MS = 20 * 60_000;
 
 type Props = {
   series: ChartSeries[];
@@ -22,10 +24,14 @@ type Props = {
 
 const ms = (iso: string) => new Date(iso).getTime();
 
-function timeLabel(t: number, range: ChartRange): string {
+// Axis labels follow the visible span, so they get finer as you zoom in.
+function timeLabel(t: number, spanMs: number): string {
   const d = new Date(t);
-  if (range === 'day') return d.toLocaleTimeString([], { hour: 'numeric' });
-  if (range === 'week') return d.toLocaleDateString([], { weekday: 'short' });
+  const hours = spanMs / 3600_000;
+  if (hours <= 4) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (hours <= 36) return d.toLocaleTimeString([], { hour: 'numeric' });
+  if (hours <= 24 * 3) return `${d.toLocaleDateString([], { weekday: 'short' })} ${d.toLocaleTimeString([], { hour: 'numeric' })}`;
+  if (hours <= 24 * 10) return d.toLocaleDateString([], { weekday: 'short' });
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
@@ -53,7 +59,9 @@ function valueAt(points: { t: number; v: number }[], t: number): number | null {
 // Multi-sensor time-series chart for the HVAC component drill-down: every
 // related sensor overlaid on one axis, "System running" bands, a dashed
 // marker at each fault's detection time with its active period shaded, and
-// a touch-and-drag crosshair showing every sensor's reading at that moment.
+// a touch-and-drag crosshair showing every sensor's reading at that moment
+// (colour dot + value, matching the legend). Pinch to zoom the time axis;
+// while two fingers are down, moving them together pans.
 export function TimeSeriesChart({ series, unit, bands, markers, from, to, range, height = 240 }: Props) {
   const [width, setWidth] = useState(0);
   const [scrubX, setScrubX] = useState<number | null>(null);
@@ -61,6 +69,16 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
 
   const t0 = ms(from);
   const t1 = ms(to);
+  // Visible window: [t0, t1] until a pinch narrows it.
+  const [view, setView] = useState<[number, number]>([t0, t1]);
+  useEffect(() => { setView([t0, t1]); }, [t0, t1]);
+  const [v0, v1] = view;
+  const zoomed = v0 > t0 || v1 < t1;
+  // The gesture handlers are created once; they read live values from refs.
+  const live = useRef({ view, t0, t1, width });
+  live.current = { view, t0, t1, width };
+  const gesture = useRef({ pinching: false, startDist: 0, startSpan: 0, anchorT: 0, offsetX: 0 });
+
   const parsed = useMemo(() => series.map((s, i) => ({
     ...s, color: SERIES_COLORS[i % SERIES_COLORS.length],
     pts: s.points.map((p) => ({ t: ms(p.t), v: p.v })),
@@ -69,7 +87,13 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
   // Drain-pan water is a 0/1 state (dry / water detected), not a quantity.
   const isWater = unit === 'water';
   const fmt = (v: number) => (isWater ? (v >= 0.5 ? 'Water' : 'Dry') : `${Math.round(v * 10) / 10}${unit === '%' ? '%' : '°'}`);
-  const all = parsed.flatMap((s) => s.pts.map((p) => p.v));
+  // Y range from the readings in view (plus the one in effect at its start),
+  // so a zoomed-in stretch fills the chart height.
+  const inView = parsed.flatMap((s) => {
+    const before = valueAt(s.pts, v0);
+    return [...(before != null ? [before] : []), ...s.pts.filter((p) => p.t >= v0 && p.t <= v1).map((p) => p.v)];
+  });
+  const all = inView.length ? inView : parsed.flatMap((s) => s.pts.map((p) => p.v));
   const rawMin = Math.min(...all);
   const rawMax = Math.max(...all);
   const pad = Math.max(1, (rawMax - rawMin) * 0.12);
@@ -77,7 +101,7 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
   const yMax = isWater ? 1.15 : Math.ceil(rawMax + pad);
   const plotW = Math.max(1, width - PAD.left - PAD.right);
   const plotH = height - PAD.top - PAD.bottom;
-  const x = (t: number) => PAD.left + ((t - t0) / (t1 - t0 || 1)) * plotW;
+  const x = (t: number) => PAD.left + ((t - v0) / (v1 - v0 || 1)) * plotW;
   const y = (v: number) => PAD.top + (1 - (v - yMin) / (yMax - yMin || 1)) * plotH;
 
   // Line draw-in animation whenever the data or range changes.
@@ -106,25 +130,61 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
     return { d, len: Math.max(len, 1) };
   });
 
-  const pan = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > Math.abs(g.dy),
-    onPanResponderGrant: (e) => setScrubX(e.nativeEvent.locationX),
-    onPanResponderMove: (e) => setScrubX(e.nativeEvent.locationX),
-    onPanResponderRelease: () => setScrubX(null),
-    onPanResponderTerminate: () => setScrubX(null),
-  }), []);
+  const pan = useMemo(() => {
+    const end = () => { gesture.current.pinching = false; setScrubX(null); };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (e, g) => e.nativeEvent.touches.length >= 2 || Math.abs(g.dx) > Math.abs(g.dy),
+      // Once a pinch starts, the page's ScrollView can't take the gesture over.
+      onPanResponderTerminationRequest: () => !gesture.current.pinching,
+      onPanResponderGrant: (e) => {
+        gesture.current.offsetX = e.nativeEvent.pageX - e.nativeEvent.locationX;
+        setScrubX(e.nativeEvent.locationX);
+      },
+      onPanResponderMove: (e) => {
+        const touches = e.nativeEvent.touches;
+        const g = gesture.current;
+        const { view: [a, b], t0: lo, t1: hi, width: w } = live.current;
+        const pw = Math.max(1, w - PAD.left - PAD.right);
+        if (touches.length >= 2) {
+          const xa = touches[0].pageX - g.offsetX;
+          const xb = touches[1].pageX - g.offsetX;
+          const dist = Math.max(10, Math.abs(xa - xb));
+          const center = (xa + xb) / 2;
+          if (!g.pinching) {
+            // Anchor the time under the fingers; it stays under them as they move.
+            g.pinching = true;
+            g.startDist = dist;
+            g.startSpan = b - a;
+            g.anchorT = a + ((center - PAD.left) / pw) * (b - a);
+            setScrubX(null);
+            return;
+          }
+          const span = Math.min(hi - lo, Math.max(MIN_SPAN_MS, g.startSpan * (g.startDist / dist)));
+          const start = Math.min(Math.max(g.anchorT - ((center - PAD.left) / pw) * span, lo), hi - span);
+          setView([start, start + span]);
+          return;
+        }
+        if (!g.pinching) setScrubX(e.nativeEvent.pageX - g.offsetX);
+      },
+      onPanResponderRelease: end,
+      onPanResponderTerminate: end,
+    });
+  }, []);
 
   const yTicks = isWater ? [0, 1] : niceTicks(yMin, yMax);
-  const xTicks = Array.from({ length: 5 }, (_, i) => t0 + ((t1 - t0) * i) / 4);
-  const scrubT = scrubX != null ? t0 + ((Math.min(Math.max(scrubX, PAD.left), PAD.left + plotW) - PAD.left) / plotW) * (t1 - t0) : null;
-  const visibleMarkers = markers.filter((m) => ms(m.detectedAt) <= t1);
+  const xTicks = Array.from({ length: 5 }, (_, i) => v0 + ((v1 - v0) * i) / 4);
+  const scrubT = scrubX != null ? v0 + ((Math.min(Math.max(scrubX, PAD.left), PAD.left + plotW) - PAD.left) / plotW) * (v1 - v0) : null;
+  const visibleMarkers = markers.filter((m) => ms(m.detectedAt) <= v1 && (!m.resolvedAt || ms(m.resolvedAt) >= v0));
 
   return (
     <View>
       <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} style={{ height }} {...pan.panHandlers}>
         {width > 0 && (
           <Svg width={width} height={height}>
+            <Defs>
+              <ClipPath id="plot"><Rect x={PAD.left} y={0} width={plotW} height={PAD.top + plotH} /></ClipPath>
+            </Defs>
             {/* gridlines + y axis */}
             {yTicks.map((v) => (
               <G key={`y${v}`}>
@@ -133,19 +193,20 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
               </G>
             ))}
             {xTicks.map((t, i) => (
-              <SvgText key={`x${i}`} x={x(t)} y={height - 8} fontSize={10} fill={colors.steel} textAnchor={i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}>{timeLabel(t, range)}</SvgText>
+              <SvgText key={`x${i}`} x={x(t)} y={height - 8} fontSize={10} fill={colors.steel} textAnchor={i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}>{timeLabel(t, v1 - v0)}</SvgText>
             ))}
 
+            <G clipPath="url(#plot)">
             {/* system running / water bands */}
             {bands.map((b, i) => (
-              <Rect key={`b${i}`} x={x(Math.max(ms(b.from), t0))} y={PAD.top} width={Math.max(1, x(ms(b.to)) - x(Math.max(ms(b.from), t0)))} height={plotH}
+              <Rect key={`b${i}`} x={x(Math.max(ms(b.from), v0))} y={PAD.top} width={Math.max(0, x(Math.min(ms(b.to), v1)) - x(Math.max(ms(b.from), v0)))} height={plotH}
                 fill={b.state === 'DETECTED' ? '#DC2626' : b.state === 'HEATING' ? '#F97316' : '#38BDF8'} opacity={0.12} />
             ))}
 
             {/* fault periods: shaded from detection until resolution (or now) */}
             {visibleMarkers.map((m) => {
-              const start = Math.max(ms(m.detectedAt), t0);
-              const end = m.resolvedAt ? Math.min(ms(m.resolvedAt), t1) : t1;
+              const start = Math.max(ms(m.detectedAt), v0);
+              const end = m.resolvedAt ? Math.min(ms(m.resolvedAt), v1) : v1;
               return <Rect key={`f${m.id}`} x={x(start)} y={PAD.top} width={Math.max(1, x(end) - x(start))} height={plotH} fill="#FEE2E2" opacity={0.55} />;
             })}
 
@@ -157,10 +218,12 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
                 opacity={s.stepped ? 0.7 : 1} />
             ))}
 
-            {/* end-of-line value callouts */}
+            </G>
+
+            {/* end-of-line value callouts (only while the latest reading is in view) */}
             {parsed.map((s) => {
               const last = s.pts[s.pts.length - 1];
-              if (!last) return null;
+              if (!last || last.t < v0 || last.t > v1) return null;
               return (
                 <G key={`c${s.key}`}>
                   <Circle cx={x(last.t)} cy={y(last.v)} r={3.5} fill={s.color} />
@@ -172,8 +235,8 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
             })}
 
             {/* fault markers: dashed line + "Condition detected" pill */}
-            {visibleMarkers.map((m, i) => {
-              const mx = x(Math.max(ms(m.detectedAt), t0));
+            {visibleMarkers.filter((m) => ms(m.detectedAt) >= v0).map((m, i) => {
+              const mx = x(ms(m.detectedAt));
               const label = `Condition detected ${clockLabel(m.detectedAt)}`;
               const pillW = label.length * 5.6 + 12;
               const px = Math.min(Math.max(mx - pillW / 2, 2), width - pillW - 2);
@@ -201,20 +264,26 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
         )}
 
         {scrubT != null && (
-          <View pointerEvents="none" style={[styles.tooltip, { left: Math.min(Math.max(x(scrubT) - 80, 4), Math.max(4, width - 164)) }]}>
+          <View pointerEvents="none" style={[styles.tooltip, { left: Math.min(Math.max(x(scrubT) - TOOLTIP_W / 2, 4), Math.max(4, width - TOOLTIP_W - 4)) }]}>
             <Text style={styles.tooltipTime}>{new Date(scrubT).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</Text>
             {parsed.map((s) => {
               const v = valueAt(s.pts, scrubT);
               return v == null ? null : (
                 <View key={`t${s.key}`} style={styles.tooltipRow}>
                   <View style={[styles.swatch, { backgroundColor: s.color }]} />
-                  <Text style={styles.tooltipText} numberOfLines={1}>{s.label}: {isWater ? fmt(v) : `${Math.round(v * 10) / 10}${unit}`}</Text>
+                  <Text style={styles.tooltipText} numberOfLines={1}>{isWater ? fmt(v) : `${Math.round(v * 10) / 10}${unit}`}</Text>
                 </View>
               );
             })}
           </View>
         )}
       </View>
+
+      {zoomed && (
+        <TouchableOpacity style={styles.resetZoom} onPress={() => setView([t0, t1])}>
+          <Text style={styles.resetZoomText}>Reset zoom</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.legend}>
         {parsed.map((s) => (
@@ -234,11 +303,15 @@ export function TimeSeriesChart({ series, unit, bands, markers, from, to, range,
   );
 }
 
+const TOOLTIP_W = 104;
+
 const styles = StyleSheet.create({
-  tooltip: { position: 'absolute', top: 28, width: 160, backgroundColor: 'rgba(18,24,28,0.92)', borderRadius: 8, padding: 8, gap: 3 },
+  resetZoom: { position: 'absolute', top: PAD.top + 4, right: PAD.right + 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.mistDim },
+  resetZoomText: { fontSize: 11, fontWeight: '700', color: colors.ink },
+  tooltip: { position: 'absolute', top: 28, width: TOOLTIP_W, backgroundColor: 'rgba(18,24,28,0.92)', borderRadius: 8, padding: 8, gap: 3 },
   tooltipTime: { color: '#fff', fontSize: 11, fontWeight: '700', marginBottom: 2 },
   tooltipRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tooltipText: { color: '#E5E7EB', fontSize: 11, flex: 1 },
+  tooltipText: { color: '#E5E7EB', fontSize: 12, fontWeight: '600', flex: 1 },
   swatch: { width: 8, height: 8, borderRadius: 4 },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },

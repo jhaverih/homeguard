@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ChartRange, FaultMarker, HealthStatus, HvacAiSummary, HvacComponentDetail, hvacAnalyticsApi } from '../../src/services/api';
 import { TimeSeriesChart, clockLabel } from '../../src/components/hvac/TimeSeriesChart';
 import { colors } from '../../src/theme';
+import { EdgeSwipeBack } from '../../src/components/EdgeSwipeBack';
 
 const RANGES: { key: ChartRange; label: string }[] = [
   { key: 'day', label: 'Day' },
@@ -122,7 +123,7 @@ function AiSummaryCard({ summary }: { summary: HvacAiSummary }) {
   );
 }
 
-export default function HvacComponentScreen() {
+function HvacComponentScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [range, setRange] = useState<ChartRange>('day');
   const [data, setData] = useState<HvacComponentDetail | null>(null);
@@ -198,7 +199,7 @@ export default function HvacComponentScreen() {
       ) : data.charts.map((c) => (
         <View key={c.unit} style={styles.card}>
           <Text style={styles.chartTitle}>{UNIT_TITLE[c.unit] ?? c.unit}</Text>
-          <Text style={styles.chartHint}>Touch and drag across the chart to see each sensor's reading.</Text>
+          <Text style={styles.chartHint}>Touch and drag to see the readings · pinch with two fingers to zoom.</Text>
           <TimeSeriesChart series={c.series} unit={c.unit} bands={data.bands} markers={data.markers} from={data.from} to={data.to} range={data.range} />
         </View>
       ))}
@@ -282,3 +283,8 @@ const styles = StyleSheet.create({
   condReason: { fontSize: 11, color: colors.steel, marginTop: 2 },
   condOutcome: { fontSize: 12, fontWeight: '700' },
 });
+
+// Swipe right from the left edge goes back to the previous screen (iOS).
+export default function HvacComponentScreen() {
+  return <EdgeSwipeBack fallback="/(customer)/hvac-analytics"><HvacComponentScreenContent /></EdgeSwipeBack>;
+}

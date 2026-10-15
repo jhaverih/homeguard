@@ -62,6 +62,10 @@ export default function CustomerLayout() {
 
   return (
     <Tabs
+      // Back (Android back button / edge swipe) returns to the previous screen
+      // — e.g. a component drill-down back to HVAC Analytics — instead of
+      // jumping to the first tab (Home), the navigator default.
+      backBehavior="history"
       screenOptions={({ route }) => ({
         headerRight: () => <RoleSwitcher />,
         headerStyle: { backgroundColor: colors.ink },
