@@ -15,6 +15,9 @@ export interface ComponentDefinition {
   // Supply Air are installed.
   requiredSensorRoles: SensorRole[];
   ruleGroups: string[];
+  // Roles that only let the tile be inferred (not measured directly); when
+  // they're all the home has, the tile carries this note as a limitation.
+  inferredFrom?: { roles: SensorRole[]; note: string };
 }
 
 // Sensors drawn on a component's drill-down chart, in addition to its
@@ -26,6 +29,8 @@ export const COMPONENT_CHART_ROLES: Record<string, SensorRole[]> = {
   REFRIGERANT: [SensorRole.HVAC_SUCTION_LINE_TEMP, SensorRole.HVAC_LIQUID_LINE_TEMP, SensorRole.HVAC_OUTDOOR_TEMP],
   HUMIDITY: [SensorRole.INDOOR_AMBIENT_HUMIDITY],
   CONTROLS: [SensorRole.HVAC_THERMOSTAT_SETPOINT, SensorRole.INDOOR_AMBIENT_TEMP],
+  // Cooling-call bands carry the cycling story; line and outdoor temps give context.
+  COMPRESSOR: [SensorRole.HVAC_SUCTION_LINE_TEMP, SensorRole.HVAC_LIQUID_LINE_TEMP, SensorRole.HVAC_OUTDOOR_TEMP],
 };
 
 export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
@@ -73,9 +78,12 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ruleGroups: ['HVAC_REFRIGERANT'],
   },
   {
+    // A compressor power sensor measures it directly; thermostat cooling
+    // calls (zones merged) give an inferred view of its cycling.
     id: 'COMPRESSOR', label: 'Compressor',
-    requiredSensorRoles: [SensorRole.HVAC_COMPRESSOR_POWER],
+    requiredSensorRoles: [SensorRole.HVAC_COMPRESSOR_POWER, SensorRole.HVAC_STATE],
     ruleGroups: ['HVAC_COMPRESSOR'],
+    inferredFrom: { roles: [SensorRole.HVAC_STATE], note: 'Cycling inferred from thermostat cooling calls — no compressor sensor installed' },
   },
   {
     // General/whole-unit power only — Compressor and Blower each read from

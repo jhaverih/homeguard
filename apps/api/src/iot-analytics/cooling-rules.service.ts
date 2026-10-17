@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
-import { In, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
+import { Between, In, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import { DeviceRegistry } from './entities/device-registry.entity';
 import { SensorAssignment } from './entities/sensor-assignment.entity';
 import { Equipment } from './entities/equipment.entity';
@@ -19,7 +19,8 @@ import { indoorSensorLabel } from './indoor-temp-grouping';
 import { isSystemMappingVerified, UNVERIFIED_MAPPING_REASON } from './hvac-configuration';
 import {
   CallSample, CycleRecord, Evaluation, LineBaseline, NumSample, SetpointSample, ZoneInputs,
-  evaluateCombined, evaluateCoolingPerformance, evaluateExpectedState, evaluateExtendedRuntime, evaluateFrequentCycling,
+  DailyStarts, evaluateCombined, evaluateCoolingPerformance, evaluateDailyStarts, evaluateExpectedState, evaluateExtendedRuntime, evaluateFrequentCycling,
+  evaluateQuickRestarts, evaluateShortRuns,
   evaluateLineTemp, evaluateSetpointProgress, evaluateSustainedHumidity, isStableCooling, parseSetpoint, systemCoolingCycles,
 } from './cooling-analytics';
 import { RunCycle } from './run-cycles';
@@ -37,6 +38,8 @@ const LINE_RULE: Partial<Record<SensorRole, string>> = {
   [SensorRole.HVAC_LIQUID_LINE_TEMP]: 'HVAC-REFRIGERANT-002',
 };
 const CYCLE_METRIC = 'COOLING_CYCLE_MINUTES';
+const DAILY_STARTS_METRIC = 'DAILY_COOLING_STARTS';
+const DAY_MS = 86_400_000;
 
 export interface Zone {
   key: string;
@@ -321,6 +324,9 @@ export class CoolingRulesService implements OnModuleInit {
       'LINE_TEMP_STABILIZATION_MINUTES', 'LINE_TEMP_DEVIATION_F', 'LINE_TEMP_SUSTAINED_MINUTES', 'LINE_TEMP_MAX_HOLD_MINUTES', 'LINE_TEMP_BASELINE_MIN_SAMPLES',
       'HUMIDITY_SUSTAINED_PERCENT', 'HUMIDITY_SUSTAINED_MINUTES', 'HUMIDITY_MIN_COOLING_FRACTION_PERCENT', 'NEST_STALE_MINUTES',
       'COMBINED_ALIGNMENT_HOURS',
+      'SHORT_RUN_MAX_MINUTES', 'SHORT_RUN_COUNT', 'SHORT_RUN_WINDOW_MINUTES',
+      'QUICK_RESTART_MIN_OFF_MINUTES', 'QUICK_RESTART_COUNT', 'QUICK_RESTART_WINDOW_MINUTES',
+      'DAILY_STARTS_EXCESS_PERCENT', 'DAILY_STARTS_BASELINE_MIN_DAYS',
     ]);
     const setpointChanges = ctx.zones.flatMap((z) => this.setpoints(ctx.series, z).map((s) => s.t)).sort((a, b) => a.getTime() - b.getTime());
     const hasCalls = ctx.zones.some((z) => this.calls(ctx.series, z).length > 0);
@@ -333,6 +339,9 @@ export class CoolingRulesService implements OnModuleInit {
         : evaluateFrequentCycling(ctx.cycles, setpointChanges, ctx.now, { maxStarts: t.COOLING_STARTS_MAX, windowMinutes: t.COOLING_STARTS_WINDOW_MINUTES, exclusionMinutes: t.SETPOINT_CHANGE_EXCLUSION_MINUTES }),
       message: (e) => `Your HVAC system started cooling ${e.evidence.coolingStarts} times in the last ${e.evidence.windowMinutes} minutes — more often than expected. This is worth investigating, but on its own it doesn't mean a component has failed.`,
     });
+
+    // Compressor cycling, inferred from the same merged cooling calls.
+    await this.evaluateCompressorCycling(ctx, t, setpointChanges, hasCalls);
 
     // Rule B — extended runtime (per completed cycle, comparable outdoor band).
     if (!ctx.canCombineZones) {
@@ -377,6 +386,82 @@ export class CoolingRulesService implements OnModuleInit {
       severity: combined.symptoms.length >= 3 ? FindingSeverity.HIGH : FindingSeverity.ATTENTION,
       message: () => `Multiple indicators suggest that an HVAC inspection may be appropriate: ${combined.symptoms.map(symptomLabel).join(', ')}.`,
     });
+  }
+
+  // HVAC-COMPRESSOR-005/006/007 — compressor cycling inferred from thermostat
+  // calls. Skipped where a compressor power sensor measures it directly
+  // (HVAC-COMPRESSOR-003 covers that).
+  private async evaluateCompressorCycling(ctx: SystemContext, t: Record<string, number>, setpointChanges: Date[], hasCalls: boolean): Promise<void> {
+    const measured = await this.assignmentsRepo.count({ where: { equipmentId: ctx.equipment.id, sensorRole: SensorRole.HVAC_COMPRESSOR_POWER } });
+    if (measured > 0) return;
+    const insufficient = (reason: string): Evaluation => ({ outcome: 'INSUFFICIENT_DATA', reason, evidence: {} });
+    const unavailable = !ctx.canCombineZones ? UNVERIFIED_MAPPING_REASON : !hasCalls ? 'Thermostat does not report its heating/cooling action' : null;
+    const note = 'This is inferred from your thermostat\'s cooling calls, not measured at the compressor; an HVAC professional can check it if it continues.';
+
+    await this.apply(ctx, {
+      ruleId: 'HVAC-COMPRESSOR-005', scopeDevice: null, sensorRole: SensorRole.HVAC_STATE,
+      evaluation: unavailable ? insufficient(unavailable)
+        : evaluateShortRuns(ctx.cycles, setpointChanges, ctx.now, { maxRunMinutes: t.SHORT_RUN_MAX_MINUTES, count: t.SHORT_RUN_COUNT, windowMinutes: t.SHORT_RUN_WINDOW_MINUTES, exclusionMinutes: t.SETPOINT_CHANGE_EXCLUSION_MINUTES }),
+      message: (e) => `Cooling ran ${e.evidence.shortRunCount} short cycles under ${e.evidence.maxRunMinutes} minutes in the last ${Math.round(e.evidence.windowMinutes / 60)} hours (${e.evidence.shortRunMinutes.join(', ')} min). Frequent short runs are hard on a compressor. ${note}`,
+    });
+    await this.apply(ctx, {
+      ruleId: 'HVAC-COMPRESSOR-006', scopeDevice: null, sensorRole: SensorRole.HVAC_STATE,
+      evaluation: unavailable ? insufficient(unavailable)
+        : evaluateQuickRestarts(ctx.cycles, setpointChanges, ctx.now, { minOffMinutes: t.QUICK_RESTART_MIN_OFF_MINUTES, count: t.QUICK_RESTART_COUNT, windowMinutes: t.QUICK_RESTART_WINDOW_MINUTES, exclusionMinutes: t.SETPOINT_CHANGE_EXCLUSION_MINUTES }),
+      message: (e) => `Cooling restarted ${e.evidence.quickRestartCount} times less than ${e.evidence.minOffMinutes} minutes after stopping in the last ${Math.round(e.evidence.windowMinutes / 60)} hours (off for ${e.evidence.offMinutes.join(', ')} min). A compressor normally rests a few minutes between runs. ${note}`,
+    });
+    if (unavailable) {
+      await this.apply(ctx, { ruleId: 'HVAC-COMPRESSOR-007', scopeDevice: null, sensorRole: SensorRole.HVAC_STATE, evaluation: insufficient(unavailable), message: () => '' });
+      return;
+    }
+    const days = await this.recordDailyStarts(ctx);
+    if (days) {
+      await this.apply(ctx, {
+        ruleId: 'HVAC-COMPRESSOR-007', scopeDevice: null, sensorRole: SensorRole.HVAC_STATE,
+        evaluation: evaluateDailyStarts(days, { excessPercent: t.DAILY_STARTS_EXCESS_PERCENT, minBaselineDays: t.DAILY_STARTS_BASELINE_MIN_DAYS }),
+        message: (e) => `Cooling started ${e.evidence.dailyStarts} times in a day — well above this home's usual ${e.evidence.baselineMedianStarts} for similar outdoor temperatures. ${note}`,
+      });
+    }
+  }
+
+  // Once per completed UTC day: count that day's whole-system cooling starts
+  // (zones merged, hand-offs merged) and store it as a baseline sample tagged
+  // with the day's outdoor band. Missing days from the last BACKFILL_DAYS are
+  // filled from stored call history too, so the baseline doesn't start empty.
+  // Returns the stored cooling days (oldest→newest) when a day was just
+  // recorded, null otherwise (nothing new to judge).
+  private async recordDailyStarts(ctx: SystemContext): Promise<DailyStarts[] | null> {
+    const BACKFILL_DAYS = 14;
+    const lastEnd = Math.floor(ctx.now.getTime() / DAY_MS) * DAY_MS;
+    const stored = await this.baselines.getRecentSamples(ctx.equipment.id, DAILY_STARTS_METRIC, 60);
+    const have = new Set(stored.map((s) => s.observedAt.getTime()));
+    const added: { value: number; observedAt: Date; context: { band: string } }[] = [];
+    for (let k = BACKFILL_DAYS - 1; k >= 0; k--) {
+      const dayEnd = new Date(lastEnd - k * DAY_MS);
+      if (have.has(dayEnd.getTime())) continue;
+      const dayStart = new Date(dayEnd.getTime() - DAY_MS);
+      const callsByZone: CallSample[][] = [];
+      for (const zone of ctx.zones) {
+        const before = await this.telemetryRepo.findOne({ where: { deviceRegistryId: zone.hvac.id, observedAt: LessThanOrEqual(dayStart), dataQuality: TelemetryDataQuality.VALID }, order: { observedAt: 'DESC' } });
+        const rows = await this.telemetryRepo.find({ where: { deviceRegistryId: zone.hvac.id, observedAt: Between(dayStart, dayEnd), dataQuality: TelemetryDataQuality.VALID }, order: { observedAt: 'ASC' } });
+        // The state in effect at midnight starts the day; without one (and no
+        // rows) the thermostat wasn't reporting, which isn't a zero-start day.
+        callsByZone.push([...(before ? [{ ...before, observedAt: dayStart }] : []), ...rows]
+          .filter((r) => r.value === 'COOLING' || r.value === 'HEATING' || r.value === 'OFF')
+          .map((r) => ({ t: r.observedAt, call: r.value as CallSample['call'] })));
+      }
+      if (callsByZone.every((c) => c.length === 0) || rowsMissing(callsByZone, dayStart)) continue;
+      const starts = systemCoolingCycles(callsByZone).filter((c) => c.start > dayStart && c.start <= dayEnd).length;
+      const band = await this.weather.outdoorBandAt(ctx.equipment.homeId, new Date(dayStart.getTime() + DAY_MS / 2));
+      await this.baselines.recordSample(ctx.home.customerId, ctx.equipment.id, DAILY_STARTS_METRIC, starts, dayEnd, { band });
+      added.push({ value: starts, observedAt: dayEnd, context: { band } });
+    }
+    if (added.length === 0) return null;
+    // Only cooling days are compared — a day with no cooling says nothing about cycling.
+    return [...stored, ...added]
+      .filter((s) => s.value > 0)
+      .map((s) => ({ starts: s.value, band: (s.context as any)?.band ?? UNKNOWN_BAND, end: s.observedAt }))
+      .sort((a, b) => a.end.getTime() - b.end.getTime());
   }
 
   private withDrain(e: Evaluation, drainWet: boolean): Evaluation {
@@ -469,4 +554,11 @@ function symptomLabel(s: string): string {
     REFRIGERANT_LINE: 'a refrigerant-line temperature differs from its normal pattern',
     HUMIDITY: 'indoor humidity stays high during cooling',
   } as Record<string, string>)[s] ?? s.toLowerCase();
+}
+
+// True when no zone has any call reading before the day started — the
+// thermostat wasn't connected yet, so the day can't be counted (partial
+// first day).
+function rowsMissing(callsByZone: CallSample[][], dayStart: Date): boolean {
+  return callsByZone.every((calls) => !calls.some((c) => c.t.getTime() <= dayStart.getTime()));
 }

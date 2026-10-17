@@ -96,6 +96,11 @@ describe('threshold keys referenced by the analytics engines', () => {
       for (const m of src.matchAll(/getValue\('([A-Z0-9_]+)'/g)) referenced.add(m[1]);
       for (const m of src.matchAll(/'(PLAUSIBLE_[A-Z0-9_]+)'/g)) referenced.add(m[1]);
     }
+    // CoolingRulesService loads its keys in batches via thresholdsFor([...]).
+    const cooling: string = fs.readFileSync(path.join(__dirname, 'cooling-rules.service.ts'), 'utf8');
+    for (const block of cooling.matchAll(/thresholdsFor\([^\[]*\[([^\]]*)\]/g)) {
+      for (const m of block[1].matchAll(/'([A-Z0-9_]+)'/g)) referenced.add(m[1]);
+    }
     expect([...referenced].filter((k) => !defined.has(k))).toEqual([]);
   });
 });

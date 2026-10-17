@@ -16,6 +16,7 @@ function fakeRepo(rows: any[] = []) {
         case 'in': return (inner as any[]).includes(actual);
         case 'moreThan': return actual > inner;
         case 'lessThanOrEqual': return actual <= inner;
+        case 'between': return actual >= inner[0] && actual <= inner[1];
         case 'not': return inner instanceof FindOperator && inner.type === 'isNull' ? actual != null : actual !== inner;
         default: throw new Error(`unsupported operator ${v.type}`);
       }
@@ -121,6 +122,30 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
     await service.evaluateEquipment('hvac-01', home, at(58));
     expect(evaluationOf('HVAC-RUNTIME-003')).toMatchObject({ outcome: RuleEvaluationOutcome.CLEAR, inputs: expect.objectContaining({ coolingStarts: 1 }) });
     expect(activeFindings('HVAC-RUNTIME-003')).toHaveLength(0);
+  });
+
+  it('compressor cycling (no compressor sensor): quick restarts inferred from calls raise a dashboard-only WATCH finding', async () => {
+    // Off for only 2 and 3 minutes between runs; the Bedroom hand-off at 40 is merged.
+    reading('k-hvac', 0, 'COOLING', 1); reading('k-hvac', 10, 'OFF', 0);
+    reading('k-hvac', 12, 'COOLING', 1); reading('k-hvac', 22, 'OFF', 0);
+    reading('k-hvac', 25, 'COOLING', 1); reading('k-hvac', 40, 'OFF', 0); reading('b-hvac', 40.5, 'COOLING', 1); reading('b-hvac', 52, 'OFF', 0);
+    every5('k-temp', 0, 58, () => 72); every5('b-temp', 0, 58, () => 72);
+    await service.evaluateEquipment('hvac-01', home, at(58));
+    expect(evaluationOf('HVAC-COMPRESSOR-006')).toMatchObject({ outcome: RuleEvaluationOutcome.TRIGGERED, inputs: expect.objectContaining({ quickRestartCount: 2, offMinutes: [2, 3] }) });
+    const [f] = activeFindings('HVAC-COMPRESSOR-006');
+    expect(f).toMatchObject({ ruleGroup: 'HVAC_COMPRESSOR', severity: 'WATCH' });
+    expect(f.message).toContain('inferred from your thermostat');
+    expect(alerts.createAlert).not.toHaveBeenCalled();
+    // Runs were 10–27 min, so no short-run finding.
+    expect(evaluationOf('HVAC-COMPRESSOR-005')).toMatchObject({ outcome: RuleEvaluationOutcome.CLEAR });
+  });
+
+  it('compressor cycling is left to the power-meter rule where a compressor sensor is installed', async () => {
+    assignments.rows.push({ deviceRegistryId: 'comp-pwr', equipmentId: 'hvac-01', sensorRole: SensorRole.HVAC_COMPRESSOR_POWER });
+    reading('k-hvac', 0, 'COOLING', 1); reading('k-hvac', 10, 'OFF', 0); reading('k-hvac', 12, 'COOLING', 1); reading('k-hvac', 22, 'OFF', 0);
+    every5('k-temp', 0, 30, () => 72); every5('b-temp', 0, 30, () => 72);
+    await service.evaluateEquipment('hvac-01', home, at(30));
+    expect(evaluationOf('HVAC-COMPRESSOR-006')).toBeUndefined();
   });
 
   it('unverified multizone: zone-combining rules report Insufficient data instead of guessing', async () => {

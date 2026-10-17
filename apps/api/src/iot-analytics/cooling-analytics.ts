@@ -101,6 +101,11 @@ export function lastSetpointChange(setpoints: SetpointSample[], at: Date): Date 
   return setpointAt(setpoints, at)?.t ?? null;
 }
 
+// A stop followed by a start this soon is one continuous run: zone
+// hand-offs report one thermostat's OFF a moment before the other's
+// COOLING, and no compressor restarts within a minute anyway.
+export const HANDOFF_MERGE_MINUTES = 1;
+
 // Whole-system COOLING cycles across every zone thermostat on one piece of
 // equipment — running while any zone calls for cooling (zone dampers on one
 // air handler), so a hand-off between zones is one cycle, never two.
@@ -108,7 +113,14 @@ export function systemCoolingCycles(callsByZone: CallSample[][]): RunCycle[] {
   const merged = callsByZone
     .flatMap((calls, i) => calls.map((c) => ({ deviceRegistryId: String(i), observedAt: c.t, numericValue: c.call === 'COOLING' ? 1 : 0 })))
     .sort((a, b) => a.observedAt.getTime() - b.observedAt.getTime());
-  return mergeStateRunCycles(merged);
+  const out: RunCycle[] = [];
+  for (const c of mergeStateRunCycles(merged)) {
+    const prev = out[out.length - 1];
+    if (prev?.end && minutesBetween(prev.end, c.start) <= HANDOFF_MERGE_MINUTES) {
+      out[out.length - 1] = { start: prev.start, end: c.end, durationMinutes: c.end ? minutesBetween(prev.start, c.end) : null };
+    } else out.push(c);
+  }
+  return out;
 }
 
 export function openCycleAt(cycles: RunCycle[], at: Date): RunCycle | null {
@@ -227,6 +239,64 @@ export function evaluateFrequentCycling(cycles: RunCycle[], setpointChanges: Dat
   return { outcome: counted.length > cfg.maxStarts ? 'TRIGGERED' : 'CLEAR', evidence };
 }
 
+// ── Compressor cycling inferred from thermostat calls (HVAC-COMPRESSOR-005/006/007) ──
+// No compressor sensor: a whole-system cooling call (zones merged) stands in
+// for a compressor run. That's what the thermostat asked for, not proof the
+// compressor started, so these are WATCH/ATTENTION patterns, never a diagnosis.
+const near = (t: Date, changes: Date[], minutes: number) => changes.some((ch) => ch <= t && minutesBetween(ch, t) <= minutes);
+
+// Short runs: completed cycles shorter than maxRunMinutes inside the window.
+export function evaluateShortRuns(cycles: RunCycle[], setpointChanges: Date[], now: Date, cfg: { maxRunMinutes: number; count: number; windowMinutes: number; exclusionMinutes: number }): Evaluation {
+  const windowStart = new Date(now.getTime() - cfg.windowMinutes * MIN);
+  const completed = cycles.filter((c) => c.end && c.durationMinutes != null && c.end > windowStart && c.end <= now);
+  const short = completed.filter((c) => c.durationMinutes! < cfg.maxRunMinutes);
+  // A setpoint/mode change can legitimately end or start a brief run.
+  const counted = short.filter((c) => !near(c.start, setpointChanges, cfg.exclusionMinutes) && !near(c.end!, setpointChanges, cfg.exclusionMinutes));
+  const evidence = {
+    shortRunCount: counted.length, excludedShortRuns: short.length - counted.length, completedRuns: completed.length,
+    shortRunMinutes: counted.map((c) => round1(c.durationMinutes!)), maxRunMinutes: cfg.maxRunMinutes, windowMinutes: cfg.windowMinutes,
+  };
+  if (completed.length === 0) return { outcome: 'NOT_APPLICABLE', reason: 'No completed cooling runs in the window', evidence };
+  return { outcome: counted.length >= cfg.count ? 'TRIGGERED' : 'CLEAR', evidence };
+}
+
+// Quick restarts: cooling starting again less than minOffMinutes after the
+// previous run ended (the restart pattern compressor protection exists for).
+export function evaluateQuickRestarts(cycles: RunCycle[], setpointChanges: Date[], now: Date, cfg: { minOffMinutes: number; count: number; windowMinutes: number; exclusionMinutes: number }): Evaluation {
+  const windowStart = new Date(now.getTime() - cfg.windowMinutes * MIN);
+  const restarts: { at: Date; offMinutes: number }[] = [];
+  for (let i = 1; i < cycles.length; i++) {
+    const prevEnd = cycles[i - 1].end;
+    const start = cycles[i].start;
+    if (!prevEnd || start <= windowStart || start > now) continue;
+    restarts.push({ at: start, offMinutes: minutesBetween(prevEnd, start) });
+  }
+  const quick = restarts.filter((r) => r.offMinutes < cfg.minOffMinutes);
+  const counted = quick.filter((r) => !near(r.at, setpointChanges, cfg.exclusionMinutes));
+  const evidence = {
+    quickRestartCount: counted.length, excludedQuickRestarts: quick.length - counted.length, restarts: restarts.length,
+    offMinutes: counted.map((r) => round1(r.offMinutes)), minOffMinutes: cfg.minOffMinutes, windowMinutes: cfg.windowMinutes,
+  };
+  if (restarts.length === 0) return { outcome: 'NOT_APPLICABLE', reason: 'No cooling restarts in the window', evidence };
+  return { outcome: counted.length >= cfg.count ? 'TRIGGERED' : 'CLEAR', evidence };
+}
+
+// Starts per day vs this home's own days in the same outdoor band. `days`
+// are completed 24-hour periods (oldest→newest); the newest is judged.
+export interface DailyStarts { starts: number; band: string; end: Date }
+export function evaluateDailyStarts(days: DailyStarts[], cfg: { excessPercent: number; minBaselineDays: number }): Evaluation {
+  const latest = days[days.length - 1];
+  if (!latest) return { outcome: 'NOT_APPLICABLE', reason: 'No completed day of cooling yet', evidence: {} };
+  const comparable = days.slice(0, -1).filter((d) => d.band === latest.band).map((d) => d.starts).sort((a, b) => a - b);
+  const evidence: Record<string, any> = { dailyStarts: latest.starts, outdoorBand: latest.band, baselineDays: comparable.length };
+  if (comparable.length < cfg.minBaselineDays) return { outcome: 'BASELINE_COLLECTING', reason: 'Baseline collecting', evidence };
+  const median = comparable[Math.floor(comparable.length / 2)];
+  evidence.baselineMedianStarts = median;
+  // At least 3 more starts than usual, so a quiet baseline (e.g. 2/day)
+  // doesn't flag a day with 4.
+  return { outcome: latest.starts > median * (1 + cfg.excessPercent / 100) && latest.starts - median >= 3 ? 'TRIGGERED' : 'CLEAR', evidence };
+}
+
 // ── Rule B — extended cooling runtime (HVAC-RUNTIME-001, HVAC_STATE path) ──
 export interface CycleRecord { minutes: number; band: string; setpointChanged: boolean; end: Date }
 
@@ -313,6 +383,10 @@ export const SYMPTOM_GROUPS: Record<string, string> = {
   'HVAC-COMFORT-003': 'TEMPERATURE_RESPONSE',
   'HVAC-RUNTIME-001': 'RUNTIME',
   'HVAC-RUNTIME-003': 'CYCLING',
+  // Same underlying symptom as frequent cycling — counted once.
+  'HVAC-COMPRESSOR-005': 'CYCLING',
+  'HVAC-COMPRESSOR-006': 'CYCLING',
+  'HVAC-COMPRESSOR-007': 'CYCLING',
   'HVAC-REFRIGERANT-001': 'REFRIGERANT_LINE',
   'HVAC-REFRIGERANT-002': 'REFRIGERANT_LINE',
   'HVAC-HUMIDITY-001': 'HUMIDITY',

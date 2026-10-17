@@ -1,6 +1,6 @@
 import {
   CallSample, CycleRecord, NumSample, SetpointSample, ZoneInputs, evaluateCombined, evaluateCoolingPerformance, evaluateExpectedState,
-  evaluateExtendedRuntime, evaluateFrequentCycling, evaluateLineTemp, evaluateSetpointProgress, evaluateSustainedHumidity, heldValue,
+  evaluateDailyStarts, evaluateExtendedRuntime, evaluateFrequentCycling, evaluateLineTemp, evaluateQuickRestarts, evaluateShortRuns, evaluateSetpointProgress, evaluateSustainedHumidity, heldValue,
   parseSetpoint, systemCoolingCycles, valuesAcross,
 } from './cooling-analytics';
 
@@ -206,5 +206,53 @@ describe('Rule F — combined degradation (HVAC-COMBINED-004)', () => {
   it('side signals alone (humidity + line temp) are not enough, nor symptoms days apart', () => {
     expect(evaluateCombined([{ ruleId: 'HVAC-HUMIDITY-001', detectedAt: at(0) }, { ruleId: 'HVAC-REFRIGERANT-002', detectedAt: at(1) }], at(60), cfg).outcome).toBe('CLEAR');
     expect(evaluateCombined([{ ruleId: 'HVAC-COMFORT-001', detectedAt: at(-3000) }, { ruleId: 'HVAC-RUNTIME-003', detectedAt: at(0) }], at(60), cfg).outcome).toBe('CLEAR');
+  });
+});
+
+describe('compressor cycling inferred from thermostat calls', () => {
+  const ex = 15;
+  it('merges an OFF→COOLING hand-off within a minute into one run', () => {
+    const kitchen = calls([[0, 'COOLING'], [20, 'OFF']]);
+    const bedroom = calls([[20.5, 'COOLING'], [40, 'OFF']]);
+    expect(systemCoolingCycles([kitchen, bedroom])).toEqual([{ start: at(0), end: at(40), durationMinutes: 40 }]);
+    // A real 3-minute pause stays two runs.
+    expect(systemCoolingCycles([calls([[0, 'COOLING'], [20, 'OFF'], [23, 'COOLING'], [40, 'OFF']])])).toHaveLength(2);
+  });
+
+  it('flags repeated short runs, ignoring ones right after a setpoint change', () => {
+    const cfg = { maxRunMinutes: 5, count: 3, windowMinutes: 180, exclusionMinutes: ex };
+    const c = systemCoolingCycles([calls([[0, 'COOLING'], [3, 'OFF'], [30, 'COOLING'], [33.5, 'OFF'], [60, 'COOLING'], [62, 'OFF'], [90, 'COOLING'], [110, 'OFF']])]);
+    expect(evaluateShortRuns(c, [], at(120), cfg)).toMatchObject({ outcome: 'TRIGGERED', evidence: { shortRunCount: 3, shortRunMinutes: [3, 3.5, 2], completedRuns: 4 } });
+    expect(evaluateShortRuns(c, [at(55)], at(120), cfg)).toMatchObject({ outcome: 'CLEAR', evidence: { shortRunCount: 2, excludedShortRuns: 1 } });
+    expect(evaluateShortRuns([], [], at(120), cfg).outcome).toBe('NOT_APPLICABLE');
+  });
+
+  it('pilot week: normal 8–16 min runs with one 2.4 min run are not flagged', () => {
+    const cfg = { maxRunMinutes: 5, count: 3, windowMinutes: 180, exclusionMinutes: ex };
+    const c = systemCoolingCycles([calls([[0, 'COOLING'], [10, 'OFF'], [35, 'COOLING'], [37.4, 'OFF'], [70, 'COOLING'], [86, 'OFF']])]);
+    expect(evaluateShortRuns(c, [], at(100), cfg)).toMatchObject({ outcome: 'CLEAR', evidence: { shortRunCount: 1 } });
+  });
+
+  it('flags quick restarts after a short off time, not hand-offs', () => {
+    const cfg = { minOffMinutes: 5, count: 2, windowMinutes: 180, exclusionMinutes: ex };
+    const c = systemCoolingCycles([calls([[0, 'COOLING'], [10, 'OFF'], [12, 'COOLING'], [22, 'OFF'], [25, 'COOLING'], [35, 'OFF'], [60, 'COOLING'], [70, 'OFF']])]);
+    expect(evaluateQuickRestarts(c, [], at(80), cfg)).toMatchObject({ outcome: 'TRIGGERED', evidence: { quickRestartCount: 2, offMinutes: [2, 3], restarts: 3 } });
+    expect(evaluateQuickRestarts(c, [at(20)], at(80), cfg)).toMatchObject({ outcome: 'CLEAR', evidence: { quickRestartCount: 1, excludedQuickRestarts: 1 } });
+    // Two zones handing off (OFF then COOLING 30 s later) is one run → no restart at all.
+    const handoff = systemCoolingCycles([calls([[0, 'COOLING'], [10, 'OFF']]), calls([[10.5, 'COOLING'], [30, 'OFF']])]);
+    expect(evaluateQuickRestarts(handoff, [], at(40), cfg).outcome).toBe('NOT_APPLICABLE');
+  });
+
+  it('compares daily starts with comparable days only, after a baseline', () => {
+    const cfg = { excessPercent: 50, minBaselineDays: 7 };
+    const day = (starts: number, band: string, d: number) => ({ starts, band, end: at(d * 1440) });
+    const normal = [20, 18, 22, 19, 21, 20, 23].map((s, i) => day(s, '80s', i));
+    expect(evaluateDailyStarts([...normal, day(36, '80s', 8)], cfg)).toMatchObject({ outcome: 'TRIGGERED', evidence: { dailyStarts: 36, baselineMedianStarts: 20 } });
+    expect(evaluateDailyStarts([...normal, day(26, '80s', 8)], cfg).outcome).toBe('CLEAR');
+    // Hotter days aren't comparable, so the baseline is still collecting.
+    expect(evaluateDailyStarts([...normal, day(36, '90s', 8)], cfg)).toMatchObject({ outcome: 'BASELINE_COLLECTING', evidence: { baselineDays: 0 } });
+    // A quiet baseline needs at least 3 extra starts.
+    const quiet = [2, 2, 2, 2, 2, 2, 2].map((s, i) => day(s, '70s', i));
+    expect(evaluateDailyStarts([...quiet, day(4, '70s', 8)], cfg).outcome).toBe('CLEAR');
   });
 });

@@ -75,4 +75,12 @@ describe('ComponentHealthService — evidence-based health', () => {
     const combined = service.computeComponentHealth(pilotRoles, [finding('HVAC_COMBINED', FindingSeverity.ATTENTION)], evidence());
     expect(tile(combined, 'PERFORMANCE').healthStatus).toBe(HealthStatus.MAINTENANCE_RECOMMENDED);
   });
+
+  it('Compressor tile is monitored from thermostat calls alone, labelled as inferred', () => {
+    const h = service.computeComponentHealth(pilotRoles, [], evidence({ evaluations: [evaluation('HVAC-COMPRESSOR-006', RuleEvaluationOutcome.CLEAR)] }));
+    expect(tile(h, 'COMPRESSOR')).toMatchObject({ healthStatus: HealthStatus.HEALTHY });
+    expect(tile(h, 'COMPRESSOR').limitations).toContain('Cycling inferred from thermostat cooling calls — no compressor sensor installed');
+    const withSensor = service.computeComponentHealth(new Set([...pilotRoles, SensorRole.HVAC_COMPRESSOR_POWER]), [], evidence({ evaluations: [evaluation('HVAC-COMPRESSOR-006', RuleEvaluationOutcome.CLEAR)] }));
+    expect(tile(withSensor, 'COMPRESSOR').limitations).not.toContain('Cycling inferred from thermostat cooling calls — no compressor sensor installed');
+  });
 });

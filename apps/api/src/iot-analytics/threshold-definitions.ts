@@ -221,6 +221,46 @@ export const THRESHOLD_DEFINITIONS: ThresholdDefinition[] = [
     unit: 'minutes', defaultValue: 60, min: 30, max: 240, ruleIds: ['HVAC-RUNTIME-003'],
   },
   {
+    key: 'SHORT_RUN_MAX_MINUTES', label: 'Short Cooling Runs — Maximum Run Length',
+    description: 'A completed cooling run shorter than this counts as a short run (inferred from thermostat calls).',
+    unit: 'minutes', defaultValue: 5, min: 2, max: 15, ruleIds: ['HVAC-COMPRESSOR-005'],
+  },
+  {
+    key: 'SHORT_RUN_COUNT', label: 'Short Cooling Runs — Count',
+    description: 'This many short runs within the window is flagged.',
+    unit: 'runs', defaultValue: 3, min: 2, max: 12, ruleIds: ['HVAC-COMPRESSOR-005'],
+  },
+  {
+    key: 'SHORT_RUN_WINDOW_MINUTES', label: 'Short Cooling Runs — Window',
+    description: 'Rolling window over which short runs are counted.',
+    unit: 'minutes', defaultValue: 180, min: 60, max: 360, ruleIds: ['HVAC-COMPRESSOR-005'],
+  },
+  {
+    key: 'QUICK_RESTART_MIN_OFF_MINUTES', label: 'Quick Restarts — Minimum Off Time',
+    description: 'Cooling restarting sooner than this after the previous run ended counts as a quick restart.',
+    unit: 'minutes', defaultValue: 5, min: 2, max: 15, ruleIds: ['HVAC-COMPRESSOR-006'],
+  },
+  {
+    key: 'QUICK_RESTART_COUNT', label: 'Quick Restarts — Count',
+    description: 'This many quick restarts within the window is flagged.',
+    unit: 'restarts', defaultValue: 2, min: 1, max: 12, ruleIds: ['HVAC-COMPRESSOR-006'],
+  },
+  {
+    key: 'QUICK_RESTART_WINDOW_MINUTES', label: 'Quick Restarts — Window',
+    description: 'Rolling window over which quick restarts are counted.',
+    unit: 'minutes', defaultValue: 180, min: 60, max: 360, ruleIds: ['HVAC-COMPRESSOR-006'],
+  },
+  {
+    key: 'DAILY_STARTS_EXCESS_PERCENT', label: 'Daily Cooling Starts — Excess Over Normal',
+    description: 'A day with this much more than the usual number of cooling starts (similar outdoor temperatures) is flagged.',
+    unit: '%', defaultValue: 50, min: 20, max: 200, ruleIds: ['HVAC-COMPRESSOR-007'],
+  },
+  {
+    key: 'DAILY_STARTS_BASELINE_MIN_DAYS', label: 'Daily Cooling Starts — Baseline Days',
+    description: 'Comparable days needed before daily cooling starts are compared against normal.',
+    unit: 'days', defaultValue: 7, min: 3, max: 30, ruleIds: ['HVAC-COMPRESSOR-007'],
+  },
+  {
     key: 'SETPOINT_CHANGE_EXCLUSION_MINUTES', label: 'Setpoint/Mode Change — Exclusion Period',
     description: 'Cooling starts, cycles and expected-state checks within this many minutes after a setpoint or mode change are excluded — a change legitimately starts or stops cooling.',
     unit: 'minutes', defaultValue: 10, min: 0, max: 60, ruleIds: ['HVAC-RUNTIME-001', 'HVAC-RUNTIME-003', 'HVAC-STATE-001'],

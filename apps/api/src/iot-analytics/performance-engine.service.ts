@@ -340,7 +340,10 @@ export class PerformanceEngineService {
       // consistent run lengths for a given weather condition; wildly
       // inconsistent lengths point to an electrical/control fault rather
       // than just short-cycling.
-      if (completed.length >= 3) {
+      // Power-meter only: thermostat cycle lengths vary with weather and
+      // zone hand-offs, and say nothing about electrical behaviour (it fired
+      // on normal thermostat cycles on 2026-10-14).
+      if (completed.length >= 3 && sourceRole === SensorRole.HVAC_POWER) {
         const durations = completed.map((c) => c.durationMinutes ?? 0);
         const meanDur = durations.reduce((a, b) => a + b, 0) / durations.length;
         const varDur = durations.reduce((a, b) => a + (b - meanDur) ** 2, 0) / durations.length;

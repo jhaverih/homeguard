@@ -119,6 +119,7 @@ export class ComponentHealthService {
 
       // 2. Input quality for this tile's installed sensor roles.
       const limitations: string[] = [];
+      if (def.inferredFrom && tagged.every((r) => def.inferredFrom!.roles.includes(r))) limitations.push(def.inferredFrom.note);
       let missing: string | null = null;
       for (const role of tagged) {
         const roleInputs = evidence?.inputs.filter((i) => i.sensorRole === role) ?? [];
