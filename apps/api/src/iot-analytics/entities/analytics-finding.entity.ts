@@ -72,6 +72,11 @@ export class AnalyticsFinding {
   @Column({ type: 'simple-array', default: '' }) recommendedActions: string[];
   @Column({ type: 'timestamp' }) detectedAt: Date;
   @Column({ type: 'timestamp', nullable: true }) resolvedAt: Date | null;
+  // Set when a person closed the finding ("I Fixed It" / Dismiss) rather than
+  // the rule engine clearing it: HOMEOWNER or ADMIN, plus that user's id.
+  // A closed finding is never deleted — it stays in the condition history.
+  @Column({ type: 'varchar', nullable: true }) closedVia: string | null;
+  @Column({ type: 'varchar', nullable: true }) closedByUserId: string | null;
   @Column({ nullable: true }) linkedAlertId: string | null;
   // While set and in the future, the re-alert cron (reAlertActiveFindings)
   // skips this finding — lets a homeowner silence a still-active fault's

@@ -430,15 +430,19 @@ export class AnalyticsEngineService {
     return {
       id: f.id, ruleId: f.ruleId, eventType: f.eventType, severity: f.severity, confidence: f.confidence, status: f.status,
       message: f.message, measurements: f.measurements, reasonCodes: f.reasonCodes, recommendedActions: f.recommendedActions,
-      detectedAt: f.detectedAt, snoozedUntil: f.snoozedUntil,
+      detectedAt: f.detectedAt, snoozedUntil: f.snoozedUntil, resolvedAt: f.resolvedAt, closedVia: f.closedVia,
     };
   }
 
-  async resolveFinding(customerId: string, findingId: string, status: FindingStatus.RESOLVED | FindingStatus.DISMISSED): Promise<void> {
+  // Closes the finding on a person's request — it moves to the condition
+  // history (never deleted) with who closed it recorded.
+  async resolveFinding(customerId: string, findingId: string, status: FindingStatus.RESOLVED | FindingStatus.DISMISSED, closedBy: { via: 'HOMEOWNER' | 'ADMIN'; userId: string } = { via: 'HOMEOWNER', userId: customerId }): Promise<void> {
     const finding = await this.findingsRepo.findOne({ where: { id: findingId, customerId } });
     if (!finding) throw new NotFoundException('Finding not found');
     finding.status = status;
     finding.resolvedAt = new Date();
+    finding.closedVia = closedBy.via;
+    finding.closedByUserId = closedBy.userId;
     await this.findingsRepo.save(finding);
   }
 

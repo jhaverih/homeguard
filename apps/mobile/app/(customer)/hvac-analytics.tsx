@@ -4,6 +4,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { hvacAnalyticsApi, HvacAnalytics, HvacFinding, ComponentHealthResult, ComponentHealthStatus, HealthStatus } from '../../src/services/api';
 import { colors } from '../../src/theme';
+import { conditionStatus } from '../../src/components/hvac/conditionStatus';
 import { EdgeSwipeBack } from '../../src/components/EdgeSwipeBack';
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string; border?: string }> = {
@@ -84,6 +85,42 @@ function ComponentHealthRow({ item }: { item: ComponentHealthResult }) {
   );
 }
 
+// Closed conditions from the last 90 days, newest first — a condition
+// never just vanishes once it's no longer active.
+function ConditionHistory({ items }: { items: HvacFinding[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? items : items.slice(0, 5);
+  return (
+    <View>
+      <Text style={styles.sectionLabel}>Condition History</Text>
+      <View style={[styles.card, { marginTop: 8 }]}>
+        {shown.map((f) => {
+          const st = conditionStatus(f.status, f.closedVia);
+          const sev = SEVERITY_STYLE[f.severity] ?? SEVERITY_STYLE.WATCH;
+          return (
+            <View key={f.id} style={styles.historyRow}>
+              <View style={[styles.historyDot, { backgroundColor: sev.color }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.historyMsg} numberOfLines={2}>{f.message}</Text>
+                <Text style={styles.historyMeta}>
+                  {new Date(f.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  {f.resolvedAt ? ` → ${new Date(f.resolvedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
+                </Text>
+              </View>
+              <Text style={[styles.historyStatus, { color: st.color }]}>{st.label}</Text>
+            </View>
+          );
+        })}
+        {items.length > 5 && (
+          <TouchableOpacity onPress={() => setShowAll((v) => !v)} style={{ paddingTop: 10 }}>
+            <Text style={styles.historyMore}>{showAll ? 'Show fewer' : `Show all ${items.length}`}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
 function FindingCard({ item, onResolve, onDismiss, onSnooze }: { item: HvacFinding; onResolve: () => void; onDismiss: () => void; onSnooze: (minutes: 30 | 60 | 240) => void }) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const style = SEVERITY_STYLE[item.severity] ?? SEVERITY_STYLE.WATCH;
@@ -161,15 +198,43 @@ function HvacAnalyticsScreenContent() {
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
-  const handleResolve = async (id: string) => {
-    await hvacAnalyticsApi.resolveFinding(id).catch(() => {});
-    setData((prev) => prev ? { ...prev, findings: prev.findings.filter((f) => f.id !== id) } : prev);
+  // Closing a condition needs a confirmation, and the condition then moves
+  // to Condition history instead of disappearing.
+  const closeFinding = (id: string, status: 'RESOLVED' | 'DISMISSED') => {
+    const fixed = status === 'RESOLVED';
+    Alert.alert(
+      fixed ? 'Mark as fixed?' : 'Dismiss this condition?',
+      fixed
+        ? "We'll close this condition and keep monitoring. If it happens again you'll be alerted. It stays in your condition history."
+        : "We'll stop showing it as active. It stays in your condition history, and you'll be alerted if it happens again.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: fixed ? 'Mark fixed' : 'Dismiss',
+          style: fixed ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              await (fixed ? hvacAnalyticsApi.resolveFinding(id) : hvacAnalyticsApi.dismissFinding(id));
+            } catch {
+              Alert.alert('Something went wrong', 'Please try again in a moment.');
+              return;
+            }
+            setData((prev) => {
+              if (!prev) return prev;
+              const closed = prev.findings.find((f) => f.id === id);
+              return {
+                ...prev,
+                findings: prev.findings.filter((f) => f.id !== id),
+                history: closed ? [{ ...closed, status, closedVia: 'HOMEOWNER', resolvedAt: new Date().toISOString() }, ...(prev.history ?? [])] : prev.history,
+              };
+            });
+          },
+        },
+      ],
+    );
   };
-
-  const handleDismiss = async (id: string) => {
-    await hvacAnalyticsApi.dismissFinding(id).catch(() => {});
-    setData((prev) => prev ? { ...prev, findings: prev.findings.filter((f) => f.id !== id) } : prev);
-  };
+  const handleResolve = (id: string) => closeFinding(id, 'RESOLVED');
+  const handleDismiss = (id: string) => closeFinding(id, 'DISMISSED');
 
   const handleSnooze = async (id: string, minutes: 30 | 60 | 240) => {
     try {
@@ -299,6 +364,8 @@ function HvacAnalyticsScreenContent() {
         </View>
       )}
 
+      {(data.history?.length ?? 0) > 0 && <ConditionHistory items={data.history!} />}
+
       <View>
         <Text style={styles.sectionLabel}>Sensor Coverage</Text>
         <View style={styles.card}>
@@ -343,6 +410,12 @@ function HvacAnalyticsScreenContent() {
 }
 
 const styles = StyleSheet.create({
+  historyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.canvas },
+  historyDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
+  historyMsg: { fontSize: 13, color: colors.ink, fontWeight: '600' },
+  historyMeta: { fontSize: 11, color: colors.steel, marginTop: 2 },
+  historyStatus: { fontSize: 11, fontWeight: '700', maxWidth: 110, textAlign: 'right' },
+  historyMore: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep, textAlign: 'center' },
   container: { flex: 1, backgroundColor: colors.canvas },
   emptyInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 10 },
   emptyTitle: { fontSize: 15, fontWeight: '700', color: colors.steel, textAlign: 'center' },

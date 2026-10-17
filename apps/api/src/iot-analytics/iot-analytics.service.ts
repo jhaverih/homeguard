@@ -32,6 +32,9 @@ import { AnalyticsAnomaly } from './entities/analytics-anomaly.entity';
 import { ExplanationService } from './explanation.service';
 import { customerAiSummary } from './anomaly/customer-summary';
 
+// How far back closed conditions stay listed for the homeowner.
+const HISTORY_DAYS = 90;
+
 // Roles shown in the customer's Sensor Coverage list — thermostat-based
 // analytics need no supply/return air probes, so those are listed only as
 // optional extras.
@@ -159,11 +162,20 @@ export class IotAnalyticsService {
       || (taggedRoleSet.has(SensorRole.HVAC_RETURN_TEMP) && taggedRoleSet.has(SensorRole.HVAC_SUPPLY_TEMP));
     const evidence = await this.buildHealthEvidence(customerId, visible, allFindings);
 
+    // Closed conditions (cleared by the rules, marked fixed, or dismissed)
+    // from the last HISTORY_DAYS — they move here instead of disappearing.
+    const history = sensors.length
+      ? (await this.findingsRepo.find({ where: { customerId, status: In([FindingStatus.RESOLVED, FindingStatus.DISMISSED]), detectedAt: MoreThan(new Date(Date.now() - HISTORY_DAYS * 86_400_000)) }, order: { detectedAt: 'DESC' }, take: 100 }))
+        .filter((f) => allowedRuleIds.has(f.ruleId) && this.isFindingVisible(f, visibleDeviceIds, visibleEquipmentIds, isProactivePlus))
+        .filter((f) => !(f.measurements as any)?.supersededBy)
+      : [];
+
     return {
       tier: tier ?? 'FREE',
       isProactivePlus,
       healthState: !isProactivePlus ? 'NOT_INCLUDED' : canAnalyzePerformance ? 'LEARNING' : 'AWAITING_SENSORS',
       findings: visibleFindings.map((f) => this.analyticsEngine.toFindingDto(f)),
+      history: history.map((f) => this.analyticsEngine.toFindingDto(f)),
       sensorCoverage,
       componentHealth: this.componentHealthService.computeComponentHealth(taggedRoleSet, visibleFindings, evidence),
       dataQuality: evidence.inputs.map((i) => ({ label: i.label, sensorRole: i.sensorRole, state: i.state, detail: i.detail, lastValidAt: i.lastValidAt })),
@@ -242,18 +254,21 @@ export class IotAnalyticsService {
       ? await bandsFor(SensorRole.HVAC_DRAIN_WATER, ['DETECTED'], 'Water detected')
       : await bandsFor(SensorRole.HVAC_STATE, ['COOLING', 'HEATING'], 'System running');
 
-    // Fault markers: findings behind this component detected in range, or
-    // still active from before it.
+    // Fault markers: every finding behind this component from the last
+    // HISTORY_DAYS (and any still active), whatever the chart range — the
+    // chart draws the ones that overlap its window, the list shows them all,
+    // so a closed condition never silently drops off the screen.
+    const historyFrom = new Date(to.getTime() - HISTORY_DAYS * 86_400_000);
     const groupFindings = (await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'ASC' } }))
       .filter((f) => f.ruleGroup && def.ruleGroups.includes(f.ruleGroup))
-      .filter((f) => f.status === FindingStatus.ACTIVE || f.detectedAt >= from)
+      .filter((f) => f.status === FindingStatus.ACTIVE || f.detectedAt >= historyFrom)
       .filter((f) => !(f.measurements as any)?.supersededBy)
       // Findings from a rule's previous logic (e.g. REFRIGERANT-001 v1's
       // idle-vs-all-hours comparison) aren't drawn as faults.
       .filter((f) => (f.ruleVersion ?? 1) >= (RULE_DEFINITIONS.find((r) => r.ruleId === f.ruleId)?.version ?? 1));
     const markers = groupFindings.map((f) => ({
       id: f.id, ruleId: f.ruleId, label: RULE_DEFINITIONS.find((r) => r.ruleId === f.ruleId)?.label ?? f.ruleId,
-      severity: f.severity, status: f.status, message: f.message,
+      severity: f.severity, status: f.status, closedVia: f.closedVia, message: f.message,
       detectedAt: f.detectedAt.toISOString(), resolvedAt: f.resolvedAt?.toISOString() ?? null,
       evidence: f.measurements ?? {},
       recommendedActions: resolveRecommendedActions(f.recommendedActions ?? []).filter((a) => a.actionCode !== 'I_FIXED_IT'),
@@ -436,7 +451,7 @@ export class IotAnalyticsService {
     const taggedRoleSet = new Set(hvacSensors.map((s) => s.assignment.sensorRole));
     const taggedDeviceIds = new Set(hvacSensors.map((s) => s.device.id));
 
-    const allFindings = await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'DESC' }, take: 50 });
+    const allFindings = await this.findingsRepo.find({ where: { customerId }, order: { detectedAt: 'DESC' }, take: 300 });
     const taggedEquipmentIds = new Set(hvacSensors.map((s) => s.equipment?.id).filter((id): id is string => !!id));
     const findings = allFindings.filter((f) => this.isFindingVisible(f, taggedDeviceIds, taggedEquipmentIds, true));
 

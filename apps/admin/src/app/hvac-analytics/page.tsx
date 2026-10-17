@@ -10,6 +10,16 @@ const SEVERITY_COLOR: Record<string, string> = {
   CRITICAL: '#991B1B', HIGH_ATTENTION: '#991B1B', ATTENTION: '#DC2626', WATCH: '#D97706', INFO: '#2563EB',
 };
 
+// A closed finding stays in the timeline; the badge says how it closed —
+// cleared by the rules, or closed by a person (and which kind).
+function findingStatus(f: any): { label: string; cls: string } {
+  if (f.status === 'ACTIVE') return { label: 'Active', cls: 'bg-red-50 text-red-700' };
+  const who = f.closedVia === 'ADMIN' ? 'admin' : 'homeowner';
+  if (f.status === 'DISMISSED') return { label: `Dismissed by ${who}`, cls: 'bg-amber-50 text-amber-800' };
+  if (f.closedVia) return { label: `Marked fixed by ${who}`, cls: 'bg-sky-50 text-sky-700' };
+  return { label: 'Cleared by rules', cls: 'bg-emerald-50 text-emerald-700' };
+}
+
 export default function HvacAnalyticsPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [data, setData] = useState<any>(null);
@@ -139,9 +149,11 @@ export default function HvacAnalyticsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2.5 flex-wrap">
                           <span className="text-xs font-extrabold tracking-wide text-steel-quiet">{f.ruleId}</span>
+                          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${findingStatus(f).cls}`}>{findingStatus(f).label}</span>
                           <span className="text-xs text-steel-quiet ml-auto">{new Date(f.detectedAt).toLocaleString()}</span>
                         </div>
                         <div className="text-sm font-semibold text-ink mt-1">{f.message}</div>
+                        {f.resolvedAt && f.status !== 'ACTIVE' && <div className="text-xs text-steel-quiet mt-0.5">Closed {new Date(f.resolvedAt).toLocaleString()}</div>}
                       </div>
                     </div>
                   ))}

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ChartRange, FaultMarker, HealthStatus, HvacAiSummary, HvacComponentDetail, hvacAnalyticsApi } from '../../src/services/api';
 import { TimeSeriesChart, clockLabel } from '../../src/components/hvac/TimeSeriesChart';
 import { colors } from '../../src/theme';
+import { conditionStatus } from '../../src/components/hvac/conditionStatus';
 import { EdgeSwipeBack } from '../../src/components/EdgeSwipeBack';
 
 const RANGES: { key: ChartRange; label: string }[] = [
@@ -57,7 +58,7 @@ function observations(m: FaultMarker): string[] {
   return out.length ? out : [m.message];
 }
 
-function FaultCard({ marker }: { marker: FaultMarker }) {
+function FaultCard({ marker, inRange }: { marker: FaultMarker; inRange: boolean }) {
   const checks = marker.recommendedActions.filter((a) => a.actionType === 'HOMEOWNER_ACTION');
   const pro = marker.recommendedActions.filter((a) => a.actionType === 'SERVICE_REQUEST');
   const active = marker.status === 'ACTIVE';
@@ -65,14 +66,14 @@ function FaultCard({ marker }: { marker: FaultMarker }) {
     <View style={styles.faultCard}>
       <View style={styles.faultHead}>
         <Text style={styles.faultTitle}>{marker.label}</Text>
-        <Text style={[styles.faultState, { color: active ? '#DC2626' : '#059669' }]}>{active ? 'Active' : 'Resolved'}</Text>
+        <Text style={[styles.faultState, { color: conditionStatus(marker.status, marker.closedVia).color }]}>{conditionStatus(marker.status, marker.closedVia).label}</Text>
       </View>
       <View style={styles.faultCols}>
         <View style={styles.faultCol}>
           <View style={styles.faultColHead}><Ionicons name="time-outline" size={15} color={colors.ink} /><Text style={styles.faultColTitle}>Detection time</Text></View>
           <Text style={styles.faultBig}>{clockLabel(marker.detectedAt)}</Text>
-          <Text style={styles.faultSmall}>{new Date(marker.detectedAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · dashed line on the chart</Text>
-          {marker.resolvedAt && <Text style={styles.faultSmall}>Resolved {clockLabel(marker.resolvedAt)}</Text>}
+          <Text style={styles.faultSmall}>{new Date(marker.detectedAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}{inRange ? ' · dashed line on the chart' : ''}</Text>
+          {marker.resolvedAt && <Text style={styles.faultSmall}>Closed {new Date(marker.resolvedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} {clockLabel(marker.resolvedAt)}</Text>}
         </View>
         <View style={styles.faultCol}>
           <View style={styles.faultColHead}><Ionicons name="warning-outline" size={15} color={colors.ink} /><Text style={styles.faultColTitle}>Observed condition</Text></View>
@@ -206,8 +207,10 @@ function HvacComponentScreenContent() {
 
       {data.markers.length > 0 && (
         <View style={{ gap: 10 }}>
-          <Text style={styles.section}>Conditions detected</Text>
-          {[...data.markers].reverse().map((m) => <FaultCard key={m.id} marker={m} />)}
+          <Text style={styles.section}>Conditions detected · last 90 days</Text>
+          {[...data.markers].reverse().map((m) => (
+            <FaultCard key={m.id} marker={m} inRange={new Date(m.detectedAt) >= new Date(data.from) && new Date(m.detectedAt) <= new Date(data.to)} />
+          ))}
         </View>
       )}
 

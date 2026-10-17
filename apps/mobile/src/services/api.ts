@@ -259,6 +259,10 @@ export const yolinkApi = {
 
 export type HvacFinding = {
   id: string;
+  status?: 'ACTIVE' | 'RESOLVED' | 'DISMISSED';
+  resolvedAt?: string | null;
+  // HOMEOWNER / ADMIN when a person closed it; null when the rules cleared it.
+  closedVia?: 'HOMEOWNER' | 'ADMIN' | null;
   ruleId: string;
   eventType: string;
   severity: 'INFO' | 'WATCH' | 'ATTENTION' | 'HIGH_ATTENTION' | 'CRITICAL';
@@ -291,7 +295,7 @@ export type ChartSeries = { key: string; sensorRole: string; label: string; step
 export type ChartBand = { from: string; to: string; state: string; label: string };
 export type RecommendedActionInfo = { actionCode: string; title: string; description: string; actionType: 'HOMEOWNER_ACTION' | 'SERVICE_REQUEST' };
 export type FaultMarker = {
-  id: string; ruleId: string; label: string; severity: string; status: string; message: string;
+  id: string; ruleId: string; label: string; severity: string; status: string; closedVia?: 'HOMEOWNER' | 'ADMIN' | null; message: string;
   detectedAt: string; resolvedAt: string | null; evidence: Record<string, any>; recommendedActions: RecommendedActionInfo[];
 };
 export type HvacComponentDetail = {
@@ -317,6 +321,8 @@ export type HvacAnalytics = {
   isProactivePlus: boolean;
   healthState: 'NOT_INCLUDED' | 'AWAITING_SENSORS' | 'LEARNING';
   findings: HvacFinding[];
+  // Closed conditions from the last 90 days — kept visible, never dropped.
+  history?: HvacFinding[];
   sensorCoverage: HvacSensorCoverage[];
   componentHealth: ComponentHealthOverview;
   dataQuality?: HvacInputQuality[];
