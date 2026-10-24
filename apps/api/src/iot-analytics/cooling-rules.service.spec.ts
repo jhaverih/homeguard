@@ -170,6 +170,18 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
     expect(findings.rows.find((f) => f.id === 'swing-1')).toMatchObject({ status: FindingStatus.RESOLVED, measurements: { supersededBy: 'v2' } });
   });
 
+  it('concurrent evaluations of one system run one at a time — no duplicate daily baseline samples', async () => {
+    reading('k-hvac', -2000, 'OFF', 0); reading('b-hvac', -2000, 'OFF', 0);
+    reading('k-sp', -3000, 'COOL 72°F'); reading('b-sp', -3000, 'COOL 72°F');
+    every5('k-temp', -1500, 120, () => 71); every5('b-temp', -1500, 120, () => 71);
+    // A thermostat event and the cron arriving together.
+    await Promise.all([service.evaluateEquipment('hvac-01', home, at(120)), service.evaluateEquipment('hvac-01', home, at(120))]);
+    const keyOf = (s: any) => `${s.metricKey}@${s.observedAt.getTime()}`;
+    const keys = samples.filter((s) => s.metricKey.startsWith('COMFORT_UNCORRECTED_MINUTES') || s.metricKey === 'DAILY_COOLING_STARTS').map(keyOf);
+    expect(keys.length).toBeGreaterThan(0);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
   it('unverified multizone: zone-combining rules report Insufficient data instead of guessing', async () => {
     equipment.rows[0].metadata = null;
     reading('k-hvac', 0, 'COOLING', 1); every5('k-temp', 0, 30, () => 72);

@@ -143,7 +143,24 @@ export class CoolingRulesService implements OnModuleInit {
     }
   }
 
+  // One evaluation per equipment at a time. A thermostat event and the
+  // 5-minute cron can arrive together; run concurrently, both would backfill
+  // the same daily baseline days (duplicate samples skew "usual") and both
+  // would insert the same first rule evaluation (unique-key error).
+  private readonly inFlight = new Map<string, Promise<void>>();
+
   async evaluateEquipment(equipmentId: string, home: YolinkHome, now = new Date()): Promise<void> {
+    const previous = this.inFlight.get(equipmentId) ?? Promise.resolve();
+    const run = previous.catch(() => undefined).then(() => this.evaluateEquipmentNow(equipmentId, home, now));
+    this.inFlight.set(equipmentId, run);
+    try {
+      await run;
+    } finally {
+      if (this.inFlight.get(equipmentId) === run) this.inFlight.delete(equipmentId);
+    }
+  }
+
+  private async evaluateEquipmentNow(equipmentId: string, home: YolinkHome, now: Date): Promise<void> {
     const ctx = await this.loadContext(equipmentId, home, now);
     if (!ctx) return;
     for (const zone of ctx.zones) await this.evaluateZone(ctx, zone);
