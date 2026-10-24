@@ -261,6 +261,61 @@ export const THRESHOLD_DEFINITIONS: ThresholdDefinition[] = [
     unit: 'days', defaultValue: 7, min: 3, max: 30, ruleIds: ['HVAC-COMPRESSOR-007'],
   },
   {
+    key: 'NEST_OUTAGE_GRACE_MINUTES', label: 'Nest Connection — Outage Grace Period',
+    description: 'A temporary Google/network failure only raises "thermostat data is unavailable" once no Nest data (poll or event) has arrived for this long. Authorization problems are reported at once.',
+    unit: 'minutes', defaultValue: 15, min: 5, max: 120, ruleIds: ['SENSOR-005'],
+  },
+  {
+    key: 'COMFORT_TOLERANCE_F', label: 'Comfort Range — Tolerance',
+    description: 'Allowance around the setpoint for the thermostat\'s normal on/off differential; inside it is never counted as outside the range.',
+    unit: '°F', defaultValue: 1, min: 0.5, max: 3, ruleIds: ['HVAC-COMFORT-002'],
+  },
+  {
+    key: 'COMFORT_RECOVERY_BASE_MINUTES', label: 'Comfort Range — Recovery After a Change',
+    description: 'After a setpoint or mode change, being outside the new range is recovery (not counted) for this long, plus the per-degree allowance.',
+    unit: 'minutes', defaultValue: 30, min: 0, max: 120, ruleIds: ['HVAC-COMFORT-002'],
+  },
+  {
+    key: 'COMFORT_RECOVERY_PER_DEGREE_MINUTES', label: 'Comfort Range — Recovery per Degree',
+    description: 'Extra recovery time per °F the setpoint moved (capped at 3 hours in total).',
+    unit: 'minutes', defaultValue: 15, min: 0, max: 60, ruleIds: ['HVAC-COMFORT-002'],
+  },
+  {
+    key: 'COMFORT_EXCESS_PERCENT', label: 'Comfort Range — Excess Over Normal',
+    description: 'A day with this much more uncorrected time outside the range than comparable days is flagged.',
+    unit: '%', defaultValue: 100, min: 25, max: 400, ruleIds: ['HVAC-COMFORT-002'],
+  },
+  {
+    key: 'COMFORT_MIN_OUTSIDE_MINUTES', label: 'Comfort Range — Minimum Time Outside',
+    description: 'Never flagged below this many uncorrected minutes in a day, however quiet the baseline.',
+    unit: 'minutes', defaultValue: 60, min: 15, max: 480, ruleIds: ['HVAC-COMFORT-002'],
+  },
+  {
+    key: 'COMFORT_BASELINE_MIN_DAYS', label: 'Comfort Range — Baseline Days',
+    description: 'Comparable days (same mode, similar outdoor temperature) needed before a day is compared against normal.',
+    unit: 'days', defaultValue: 7, min: 3, max: 30, ruleIds: ['HVAC-COMFORT-002'],
+  },
+  {
+    key: 'COMFORT_MIN_CONTROLLABLE_MINUTES', label: 'Comfort Range — Minimum Controllable Time',
+    description: 'A day is only judged if the thermostat mode could act on the room for at least this long.',
+    unit: 'minutes', defaultValue: 240, min: 60, max: 1440, ruleIds: ['HVAC-COMFORT-002'],
+  },
+  {
+    key: 'MODE_ADVISORY_MARGIN_F', label: 'Mode Advisory — Degrees Past Setpoint',
+    description: 'The room must stay at least this far past the temperature the zone is normally held at (its lowest recent cooling setpoint in Cool mode, highest heating setpoint in Heat mode) before suggesting a mode change.',
+    unit: '°F', defaultValue: 3, min: 2, max: 10, ruleIds: ['HVAC-COMFORT-004'],
+  },
+  {
+    key: 'MODE_ADVISORY_SUSTAINED_MINUTES', label: 'Mode Advisory — Sustained For',
+    description: 'How long the room must stay past that margin.',
+    unit: 'minutes', defaultValue: 60, min: 30, max: 360, ruleIds: ['HVAC-COMFORT-004'],
+  },
+  {
+    key: 'MODE_ADVISORY_CLEAR_HOURS', label: 'Mode Advisory — Clears After',
+    description: 'Once raised, the suggestion stays until the mode changes or the condition has been absent this long — so it is shown once per cold or warm spell, not every night.',
+    unit: 'hours', defaultValue: 24, min: 6, max: 96, ruleIds: ['HVAC-COMFORT-004'],
+  },
+  {
     key: 'SETPOINT_CHANGE_EXCLUSION_MINUTES', label: 'Setpoint/Mode Change — Exclusion Period',
     description: 'Cooling starts, cycles and expected-state checks within this many minutes after a setpoint or mode change are excluded — a change legitimately starts or stops cooling.',
     unit: 'minutes', defaultValue: 10, min: 0, max: 60, ruleIds: ['HVAC-RUNTIME-001', 'HVAC-RUNTIME-003', 'HVAC-STATE-001'],

@@ -16,6 +16,7 @@ import { CallSample, parseSetpoint } from './cooling-analytics';
 import { preprocess, segmentRates } from './anomaly/preprocess';
 import { AnomalyCandidate, DETECTOR_VERSION, DetectorConfig, detectDrift, detectSeries } from './anomaly/anomaly-detector';
 import { buildContextTimeline, contextBaseline, ContextTimeline } from './anomaly/context';
+import { isOutOfAuthority } from './comfort-analytics';
 import { ROLE_COMPONENT } from './anomaly/correlation';
 
 // Sensors the statistical detector analyses, with the gap beyond which the
@@ -99,7 +100,17 @@ export class AnomalyDetectionService {
 
       const evalStart = now.getTime() - EVALUATION_MINUTES * 60_000;
       const current = timeline.at(pre.latestAt);
-      const history = pre.points.filter((p) => p.t.getTime() < evalStart);
+      // Indoor temperature drifting past a setpoint no zone's mode can act on
+      // (Cool mode, cold night, system idle) is the weather plus a settings
+      // choice — never scored and never part of the baseline.
+      const uncontrolled = (p: { t: Date; v: number }) => assignment.sensorRole === SensorRole.INDOOR_AMBIENT_TEMP
+        && isOutOfAuthority(p.v, timeline.setpointsAt(p.t), timeline.at(p.t).mode !== 'IDLE', t.COMFORT_TOLERANCE_F);
+      const latestPoint = pre.points[pre.points.length - 1];
+      if (latestPoint && uncontrolled(latestPoint)) {
+        await this.resolveMissing(device.id, [], now);
+        continue;
+      }
+      const history = pre.points.filter((p) => p.t.getTime() < evalStart && !uncontrolled(p));
       const base = contextBaseline(history, timeline, current, cfg.minSamples);
       const baselineRates = segmentRates(pre.segments)
         .filter((r) => r.t.getTime() < evalStart && timeline.at(r.t).mode === current.mode).map((r) => r.v);
@@ -168,13 +179,15 @@ export class AnomalyDetectionService {
     const [calls, setpoints, outdoor] = await Promise.all([rows(SensorRole.HVAC_STATE), rows(SensorRole.HVAC_THERMOSTAT_SETPOINT), rows(SensorRole.HVAC_OUTDOOR_TEMP)]);
     const byZone = new Map<string, CallSample[]>();
     for (const r of calls) byZone.set(r.deviceRegistryId, [...(byZone.get(r.deviceRegistryId) ?? []), { t: r.observedAt, call: r.value as CallSample['call'] }]);
-    return buildContextTimeline([...byZone.values()], outdoor.filter((r) => r.numericValue != null).map((r) => ({ t: r.observedAt, v: Number(r.numericValue) })), setpoints.map((r) => r.observedAt));
+    const setpointsByZone = new Map<string, ReturnType<typeof parseSetpoint>[]>();
+    for (const r of setpoints) setpointsByZone.set(r.deviceRegistryId, [...(setpointsByZone.get(r.deviceRegistryId) ?? []), parseSetpoint(r.value, r.observedAt)]);
+    return buildContextTimeline([...byZone.values()], outdoor.filter((r) => r.numericValue != null).map((r) => ({ t: r.observedAt, v: Number(r.numericValue) })), setpoints.map((r) => r.observedAt), [...setpointsByZone.values()]);
   }
 
   private async loadThresholds(customerId: string): Promise<Record<string, number>> {
     const keys = ['ANOMALY_WINDOW_DAYS', 'ANOMALY_MIN_SAMPLES', 'ANOMALY_Z_THRESHOLD', 'ANOMALY_RATE_Z_THRESHOLD', 'ANOMALY_MIN_CONSECUTIVE',
       'ANOMALY_PERSISTENCE_MINUTES', 'SETPOINT_CHANGE_EXCLUSION_MINUTES', 'DRIFT_RECENT_DAYS', 'DRIFT_PRIOR_DAYS', 'DRIFT_MIN_SHIFT_MAD',
-      'ENERGY_SETPOINT_CHANGES_PER_DAY', 'ENERGY_MODE_FLIPS_PER_DAY'];
+      'ENERGY_SETPOINT_CHANGES_PER_DAY', 'ENERGY_MODE_FLIPS_PER_DAY', 'COMFORT_TOLERANCE_F'];
     const values = await Promise.all(keys.map((k) => this.thresholds.getValue(k, customerId)));
     return Object.fromEntries(keys.map((k, i) => [k, values[i]]));
   }

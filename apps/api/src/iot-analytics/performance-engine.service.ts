@@ -410,23 +410,12 @@ export class PerformanceEngineService {
       });
     }
 
-    // ── Comfort (COMFORT-001/002) ──
-    const indoorTempAssignment = await this.assignmentsRepo.findOne({ where: { equipmentId, sensorRole: SensorRole.INDOOR_AMBIENT_TEMP } });
-    if (indoorTempAssignment) {
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const readings = await this.telemetryRepo.find({ where: { deviceRegistryId: indoorTempAssignment.deviceRegistryId, observedAt: MoreThan(since) }, order: { observedAt: 'ASC' } });
-      const values = readings.filter((r) => r.numericValue != null).map((r) => Number(r.numericValue));
-      if (values.length >= 4) {
-        const mean = values.reduce((a, b) => a + b, 0) / values.length;
-        const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
-        await this.baselineService.recordSample(ctx.customerId, equipmentId, 'INDOOR_TEMP_VARIANCE', Math.sqrt(variance), new Date());
-        await this.evaluateBaselineDeviation(ctx, 'INDOOR_TEMP_VARIANCE', 'HVAC-COMFORT-002', 'high', (v, b) =>
-          `Indoor temperature has been swinging more than usual — today's variance (±${v.toFixed(1)}°F) is above this home's baseline (±${b.mean.toFixed(1)}°F).`);
-      }
-
-      // HVAC-COMFORT-001 (cooling not reaching setpoint, spec Rule A) is
-      // evaluated per zone in real time by CoolingRulesService.
-    }
+    // ── Comfort ──
+    // HVAC-COMFORT-002 (comfort range not held) is evaluated per zone against
+    // each thermostat's own setpoint and mode by CoolingRulesService; the
+    // previous raw daily-spread comparison here ignored mode, setpoint and
+    // weather. HVAC-COMFORT-001 (cooling not reaching setpoint) likewise
+    // lives there.
 
     // ── Humidity response during cooling (HUMIDITY-002) ──
     await this.evaluateBaselineDeviation(ctx, 'HUMIDITY_SAMPLE', 'HVAC-HUMIDITY-002', 'high', (v, b) =>

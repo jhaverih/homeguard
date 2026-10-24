@@ -84,7 +84,7 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
       getRecentSamples: jest.fn(async (equipmentId: string, metricKey: string) => samples.filter((s) => s.equipmentId === equipmentId && s.metricKey === metricKey).sort((a, b) => a.observedAt.getTime() - b.observedAt.getTime())),
     };
     const performance = new PerformanceEngineService(findings as any, equipment as any, registry as any, assignments as any, telemetry as any, {} as any, {} as any, alerts as any, thresholds, baselines);
-    const weather: any = { outdoorBandAt: jest.fn(async () => '90s') };
+    const weather: any = { outdoorBandAt: jest.fn(async () => '90s'), outdoorTempAt: jest.fn(async () => 92) };
     service = new CoolingRulesService(registry as any, assignments as any, equipment as any, telemetry as any, findings as any, evaluations as any, fakeRepo([home]) as any, thresholds, baselines, performance, weather);
 
     zone('k', 'Kitchen');
@@ -146,6 +146,28 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
     every5('k-temp', 0, 30, () => 72); every5('b-temp', 0, 30, () => 72);
     await service.evaluateEquipment('hvac-01', home, at(30));
     expect(evaluationOf('HVAC-COMPRESSOR-006')).toBeUndefined();
+  });
+
+  it('cold night in Cool mode: a mode-vs-weather tip for the zone, never an equipment or comfort finding', async () => {
+    // Both zones in Cool mode (72°F); the kitchen slides to 66°F overnight with 40°F outside, system idle.
+    reading('k-hvac', -300, 'OFF', 0); reading('b-hvac', -300, 'OFF', 0);
+    every5('k-temp', 0, 120, (m) => 67.5 - m / 80); every5('b-temp', 0, 120, () => 71.5);
+    const weather = (service as any).weather;
+    weather.outdoorTempAt.mockResolvedValue(40); weather.outdoorBandAt.mockResolvedValue('40s');
+    await service.evaluateEquipment('hvac-01', home, at(120));
+    const [tip] = activeFindings('HVAC-COMFORT-004');
+    expect(tip).toMatchObject({ deviceRegistryId: 'k-temp', severity: 'INFO', ruleGroup: 'HVAC_ADVISORY' });
+    expect(tip.message).toMatch(/^Kitchen thermostat: The thermostat is in Cool mode and the room has dropped to 66°F.*working normally/);
+    expect(evaluationOf('HVAC-COMFORT-004', 'device:b-temp')).toMatchObject({ outcome: RuleEvaluationOutcome.CLEAR });
+    expect(activeFindings('HVAC-COMFORT-002')).toHaveLength(0);
+    expect(activeFindings('HVAC-COMFORT-001')).toHaveLength(0);
+    expect(alerts.createAlert).not.toHaveBeenCalled();
+  });
+
+  it('retires findings from the old daily-spread comfort rule (v1) as superseded', async () => {
+    findings.rows.push({ id: 'swing-1', ruleId: 'HVAC-COMFORT-002', ruleVersion: 1, status: FindingStatus.ACTIVE, sensorRole: null, measurements: {} });
+    expect(await service.supersedeOldFindings()).toBe(1);
+    expect(findings.rows.find((f) => f.id === 'swing-1')).toMatchObject({ status: FindingStatus.RESOLVED, measurements: { supersededBy: 'v2' } });
   });
 
   it('unverified multizone: zone-combining rules report Insufficient data instead of guessing', async () => {

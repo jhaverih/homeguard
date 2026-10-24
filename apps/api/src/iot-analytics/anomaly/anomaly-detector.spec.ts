@@ -167,3 +167,17 @@ describe('replay-driven safeguards', () => {
     expect(segmentRates(p.segments)[0].v).toBeCloseTo(0.5);
   });
 });
+
+describe('context timeline — each zone\'s setpoint in effect', () => {
+  it('reports the latest mode/setpoint per zone at a moment, null before any is known', () => {
+    const { parseSetpoint } = require('../cooling-analytics');
+    const { buildContextTimeline } = require('./context');
+    const tl = buildContextTimeline([], [], [], [
+      [parseSetpoint('COOL 67.8°F', at(0)), parseSetpoint('HEATCOOL 64–75°F', at(300))],
+      [parseSetpoint('COOL 75.3°F', at(100))],
+    ]);
+    expect(tl.setpointsAt(at(50)).map((s: any) => s?.mode ?? null)).toEqual(['COOL', null]);
+    expect(tl.setpointsAt(at(200)).map((s: any) => s?.coolF ?? null)).toEqual([67.8, 75.3]);
+    expect(tl.setpointsAt(at(400))[0]).toMatchObject({ mode: 'HEATCOOL', heatF: 64, coolF: 75 });
+  });
+});

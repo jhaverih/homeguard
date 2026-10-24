@@ -19,6 +19,7 @@ import { EquipmentType, MeasurementType, SensorRole } from '../common/enums/sens
 import { encrypt, decrypt } from '../common/crypto/encryption.util';
 import { NestAuthorizationRevokedError, NestConfig, PubsubClient, SdmClient, nestConfigFromEnv } from './nest-google.clients';
 import { signOAuthState, verifyOAuthState } from './nest-oauth-state';
+import { isTransientNestError, shouldReportNestOutage, withTransientRetry } from './nest-sync-resilience';
 import {
   NestReadingKind, NestTraits, SdmDevice, TRAIT, hvacStatus, describeSetpoint, isThermostat,
   mergeTraits, readingsFor, sdmDeviceId, thermostatIdentity, flattenTraits,
@@ -53,6 +54,8 @@ const CHANNEL_KINDS: NestReadingKind[] = ['temperature', 'humidity', 'hvac', 'se
 const PULL_IDLE_DELAY_MS = 5000;
 const MAX_BACKOFF_MS = 5 * 60 * 1000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Waits before re-trying a poll that failed transiently (503s, timeouts, network blips).
+const SYNC_RETRY_DELAYS_MS = [10_000, 30_000];
 
 @Injectable()
 export class NestService implements OnModuleInit, OnModuleDestroy {
@@ -209,7 +212,7 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
   private async syncAccount(account: NestAccount): Promise<number> {
     const key = `sync:${account.id}`;
     try {
-      const devices = (await this.sdm!.listDevices(await this.accessToken(account))).filter(isThermostat);
+      const devices = (await withTransientRetry(async () => this.sdm!.listDevices(await this.accessToken(account)), SYNC_RETRY_DELAYS_MS, sleep)).filter(isThermostat);
       for (const device of devices) {
         const thermostat = await this.upsertThermostat(account, device);
         const retrievedAt = new Date();
@@ -224,10 +227,24 @@ export class NestService implements OnModuleInit, OnModuleDestroy {
     } catch (err: any) {
       const message = err instanceof NestAuthorizationRevokedError ? err.message : `Nest sync failed: ${err.response?.data?.error?.message ?? err.message}`;
       if (account.lastError !== message) { account.lastError = message; await this.accountsRepo.save(account).catch(() => {}); }
-      await this.reportIntegrationHealth(account, message).catch(() => {});
+      // A short Google/network outage doesn't make thermostat data unavailable:
+      // Pub/Sub events keep arriving and the next poll catches up. Only report
+      // once it has lasted past the grace period (authorization problems at once).
+      const report = shouldReportNestOutage({
+        transient: isTransientNestError(err), lastSuccessAt: await this.lastNestDataAt(account), now: new Date(),
+        graceMinutes: await this.thresholdsService.getValue('NEST_OUTAGE_GRACE_MINUTES', account.customerId),
+      });
+      if (report) await this.reportIntegrationHealth(account, message).catch(() => {});
       this.recordFailure(key, `${message} (account ${account.id})`);
       throw err;
     }
+  }
+
+  // Latest moment Nest data arrived for the account — a successful poll or a Pub/Sub event.
+  private async lastNestDataAt(account: NestAccount): Promise<Date | null> {
+    const thermostats = await this.thermostatsRepo.find({ where: { nestAccountId: account.id } });
+    const times = [account.lastSyncAt, ...thermostats.map((t) => t.lastEventAt)].filter((d): d is Date => !!d).map((d) => d.getTime());
+    return times.length ? new Date(Math.max(...times)) : null;
   }
 
   private async upsertThermostat(account: NestAccount, device: SdmDevice): Promise<NestThermostat> {

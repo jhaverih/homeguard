@@ -24,6 +24,7 @@ import {
   evaluateLineTemp, evaluateSetpointProgress, evaluateSustainedHumidity, isStableCooling, parseSetpoint, systemCoolingCycles,
 } from './cooling-analytics';
 import { RunCycle } from './run-cycles';
+import { ComfortDay, comfortReferenceF, evaluateComfortDays, evaluateModeAdvisory, summarizeComfort } from './comfort-analytics';
 
 // How much history each evaluation loads — enough for the longest window
 // (the current cooling run, the 60-min humidity/performance windows, the
@@ -39,6 +40,8 @@ const LINE_RULE: Partial<Record<SensorRole, string>> = {
 };
 const CYCLE_METRIC = 'COOLING_CYCLE_MINUTES';
 const DAILY_STARTS_METRIC = 'DAILY_COOLING_STARTS';
+// Per zone: one sample per completed UTC day (keyed by the zone's temperature channel).
+const comfortMetric = (zone: Zone) => `COMFORT_UNCORRECTED_MINUTES:${(zone.temp ?? zone.hvac).id}`;
 const DAY_MS = 86_400_000;
 
 export interface Zone {
@@ -311,6 +314,99 @@ export class CoolingRulesService implements OnModuleInit {
       ruleId: 'HVAC-STATE-001', scopeDevice: zone.hvac, sensorRole: SensorRole.HVAC_STATE, resolveWhenNotApplicable: true,
       evaluation: evaluateExpectedState(z, { errorF: t.EXPECTED_STATE_ERROR_F, graceMinutes: t.EXPECTED_STATE_GRACE_MINUTES, exclusionMinutes: t.SETPOINT_CHANGE_EXCLUSION_MINUTES, holdMinutes: hold }),
       message: (e) => `${zone.label}: Expected operating state not observed. The thermostat is in ${e.evidence.mode === 'HEATCOOL' ? 'Heat·Cool' : 'Cool'} mode and more than ${t.EXPECTED_STATE_ERROR_F}°F above its ${e.evidence.coolSetpointF}°F cooling setpoint, but it hasn't reported a cooling call for ${e.evidence.windowMinutes} minutes.`,
+    });
+    await this.evaluateModeAdvisory(ctx, zone, scope);
+    await this.evaluateComfortRange(ctx, zone, scope);
+  }
+
+  // HVAC-COMFORT-004 — Cool mode while the house cools down on a cold night
+  // (or Heat mode on a hot day): a settings suggestion, never a fault.
+  private async evaluateModeAdvisory(ctx: SystemContext, zone: Zone, scope: DeviceRegistry): Promise<void> {
+    const ruleId = 'HVAC-COMFORT-004';
+    if (!zone.temp || !zone.setpoint) return;
+    const t = await this.thresholdsFor(ctx.home.customerId, ['MODE_ADVISORY_MARGIN_F', 'MODE_ADVISORY_SUSTAINED_MINUTES', 'MODE_ADVISORY_CLEAR_HOURS', 'NEST_STALE_MINUTES']);
+    const active = !!(await this.findingsRepo.findOne({ where: { deviceRegistryId: scope.id, ruleId, status: FindingStatus.ACTIVE } }));
+    const prior = await this.evaluationsRepo.findOne({ where: { scopeKey: `device:${scope.id}`, ruleId } });
+    const lastMetAt = prior?.inputs?.lastMetAt ? new Date(prior.inputs.lastMetAt) : null;
+    // The temperature this zone is normally cooled (or heated) to, from the
+    // last two weeks of its setpoints — not tonight's scheduled setback.
+    const setpoints = this.setpoints(ctx.series, zone);
+    const mode = setpoints[setpoints.length - 1]?.mode;
+    let referenceF: number | null = null;
+    if (mode === 'COOL' || mode === 'HEAT') {
+      const history = await this.telemetryRepo.find({ where: { deviceRegistryId: zone.setpoint.id, observedAt: MoreThan(new Date(ctx.now.getTime() - 14 * DAY_MS)), dataQuality: TelemetryDataQuality.VALID }, order: { observedAt: 'ASC' } });
+      referenceF = comfortReferenceF([...history.map((r) => parseSetpoint(r.value, r.observedAt)), ...setpoints].filter((s) => s.mode === mode), mode);
+    }
+    const evaluation = evaluateModeAdvisory(
+      { now: ctx.now, temps: this.num(ctx.series, zone.temp), setpoints, referenceF, outdoorF: await this.weather.outdoorTempAt(ctx.equipment.homeId, ctx.now), active, lastMetAt },
+      { marginF: t.MODE_ADVISORY_MARGIN_F, sustainedMinutes: t.MODE_ADVISORY_SUSTAINED_MINUTES, holdMinutes: t.NEST_STALE_MINUTES, clearHours: t.MODE_ADVISORY_CLEAR_HOURS },
+    );
+    await this.apply(ctx, {
+      ruleId, scopeDevice: scope, sensorRole: SensorRole.INDOOR_AMBIENT_TEMP, evaluation, resolveWhenNotApplicable: true,
+      message: (e) => e.evidence.direction === 'cold'
+        ? `${zone.label}: The thermostat is in Cool mode and the room has dropped to ${e.evidence.extremeF}°F, well below the ${e.evidence.referenceF}°F you normally cool to, with ${e.evidence.outdoorF}°F outside. Your system is working normally — Cool mode just can't add heat. Switching to Heat or Heat·Cool would keep the room from getting colder.`
+        : `${zone.label}: The thermostat is in Heat mode and the room has risen to ${e.evidence.extremeF}°F, well above the ${e.evidence.referenceF}°F you normally heat to, with ${e.evidence.outdoorF}°F outside. Your system is working normally — Heat mode just can't cool. Switching to Cool or Heat·Cool would keep the room from getting warmer.`,
+    });
+  }
+
+  // HVAC-COMFORT-002 v2 — once per completed UTC day per zone: minutes the
+  // zone was outside its mode's range while the mode could correct it (not
+  // recovering from a change), against comparable days. Missing days from
+  // the last two weeks are backfilled from stored history.
+  private async evaluateComfortRange(ctx: SystemContext, zone: Zone, scope: DeviceRegistry): Promise<void> {
+    const ruleId = 'HVAC-COMFORT-002';
+    if (!zone.temp || !zone.setpoint) {
+      await this.apply(ctx, { ruleId, scopeDevice: scope, sensorRole: SensorRole.INDOOR_AMBIENT_TEMP, evaluation: { outcome: 'INSUFFICIENT_DATA', reason: 'Zone thermostat does not report its temperature and setpoint', evidence: {} }, message: () => '' });
+      return;
+    }
+    const t = await this.thresholdsFor(ctx.home.customerId, [
+      'COMFORT_TOLERANCE_F', 'COMFORT_RECOVERY_BASE_MINUTES', 'COMFORT_RECOVERY_PER_DEGREE_MINUTES', 'COMFORT_EXCESS_PERCENT',
+      'COMFORT_MIN_OUTSIDE_MINUTES', 'COMFORT_BASELINE_MIN_DAYS', 'COMFORT_MIN_CONTROLLABLE_MINUTES', 'NEST_STALE_MINUTES',
+    ]);
+    const metric = comfortMetric(zone);
+    const lastEnd = Math.floor(ctx.now.getTime() / DAY_MS) * DAY_MS;
+    const stored = await this.baselines.getRecentSamples(ctx.equipment.id, metric, 60);
+    const have = new Set(stored.map((s) => s.observedAt.getTime()));
+    let added = false;
+    for (let k = 13; k >= 0; k--) {
+      const dayEnd = new Date(lastEnd - k * DAY_MS);
+      if (have.has(dayEnd.getTime())) continue;
+      const dayStart = new Date(dayEnd.getTime() - DAY_MS);
+      const load = async (device: DeviceRegistry) => {
+        const before = await this.telemetryRepo.findOne({ where: { deviceRegistryId: device.id, observedAt: LessThanOrEqual(dayStart), dataQuality: TelemetryDataQuality.VALID }, order: { observedAt: 'DESC' } });
+        const rows = await this.telemetryRepo.find({ where: { deviceRegistryId: device.id, observedAt: Between(dayStart, dayEnd), dataQuality: TelemetryDataQuality.VALID }, order: { observedAt: 'ASC' } });
+        return [...(before ? [before] : []), ...rows];
+      };
+      const [tempRows, setpointRows, callRows] = await Promise.all([load(zone.temp), load(zone.setpoint), load(zone.hvac)]);
+      // A day before this zone reported at all can't be judged.
+      if (!setpointRows.some((r) => r.observedAt <= dayStart) || tempRows.length === 0) continue;
+      const summary = summarizeComfort(
+        tempRows.filter((r) => r.numericValue != null).map((r) => ({ t: r.observedAt, v: Number(r.numericValue) })),
+        setpointRows.map((r) => parseSetpoint(r.value, r.observedAt)),
+        callRows.filter((r) => r.value === 'COOLING' || r.value === 'HEATING' || r.value === 'OFF').map((r) => ({ t: r.observedAt, call: r.value as CallSample['call'] })),
+        dayStart, dayEnd,
+        { toleranceF: t.COMFORT_TOLERANCE_F, holdMinutes: t.NEST_STALE_MINUTES, recoveryBaseMinutes: t.COMFORT_RECOVERY_BASE_MINUTES, recoveryPerDegreeMinutes: t.COMFORT_RECOVERY_PER_DEGREE_MINUTES },
+      );
+      const m = summary.minutes;
+      const band = await this.weather.outdoorBandAt(ctx.equipment.homeId, new Date(dayStart.getTime() + DAY_MS / 2));
+      await this.baselines.recordSample(ctx.home.customerId, ctx.equipment.id, metric, summary.uncorrectedMinutes, dayEnd, {
+        band, mode: summary.dominantMode, controllableMinutes: m.IN_RANGE + m.RECOVERING + m.OUTSIDE_RUNNING + m.OUTSIDE_IDLE,
+        recoveringMinutes: m.RECOVERING, outOfAuthorityMinutes: m.OUT_OF_AUTHORITY, runningMinutes: m.OUTSIDE_RUNNING,
+        degreeMinutes: summary.uncorrectedDegreeMinutes, minF: summary.minF, maxF: summary.maxF,
+      });
+      stored.push({ value: summary.uncorrectedMinutes, observedAt: dayEnd, context: { band, mode: summary.dominantMode, controllableMinutes: m.IN_RANGE + m.RECOVERING + m.OUTSIDE_RUNNING + m.OUTSIDE_IDLE, outOfAuthorityMinutes: m.OUT_OF_AUTHORITY, recoveringMinutes: m.RECOVERING } } as any);
+      added = true;
+    }
+    if (!added) return;
+    const days: ComfortDay[] = stored
+      .map((s) => ({ uncorrectedMinutes: s.value, controllableMinutes: (s.context as any)?.controllableMinutes ?? 0, band: (s.context as any)?.band ?? UNKNOWN_BAND, mode: (s.context as any)?.mode ?? 'UNKNOWN', end: s.observedAt }))
+      .sort((a, b) => a.end.getTime() - b.end.getTime());
+    const latest = stored.find((s) => s.observedAt.getTime() === days[days.length - 1].end.getTime());
+    const evaluation = evaluateComfortDays(days, { excessPercent: t.COMFORT_EXCESS_PERCENT, minMinutes: t.COMFORT_MIN_OUTSIDE_MINUTES, minBaselineDays: t.COMFORT_BASELINE_MIN_DAYS, minControllableMinutes: t.COMFORT_MIN_CONTROLLABLE_MINUTES });
+    evaluation.evidence = { ...evaluation.evidence, outOfAuthorityMinutes: (latest?.context as any)?.outOfAuthorityMinutes ?? null, recoveringMinutes: (latest?.context as any)?.recoveringMinutes ?? null };
+    await this.apply(ctx, {
+      ruleId, scopeDevice: scope, sensorRole: SensorRole.INDOOR_AMBIENT_TEMP, evaluation,
+      message: (e) => `${zone.label}: The room spent ${e.evidence.uncorrectedMinutes} minutes outside the range your thermostat is set to hold in the last day, at times the system could have corrected it — usually about ${e.evidence.baselineMedianMinutes} minutes on similar days. Recovery after setpoint changes, and times the thermostat mode can't act on, aren't counted. Checking the thermostat settings and the air filter is a good first step.`,
     });
   }
 

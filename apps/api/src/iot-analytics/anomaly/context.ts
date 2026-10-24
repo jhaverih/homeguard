@@ -1,4 +1,4 @@
-import { CallSample, systemCoolingCycles } from '../cooling-analytics';
+import { CallSample, SetpointSample, systemCoolingCycles } from '../cooling-analytics';
 import { mergeStateRunCycles, RunCycle } from '../run-cycles';
 import { outdoorBand } from '../weather.service';
 
@@ -15,11 +15,13 @@ export interface ContextTimeline {
   transitions: Date[];          // cycle starts/stops + mode/setpoint changes
   cooling: RunCycle[];
   heating: RunCycle[];
+  // Each zone's mode/setpoint in effect at t (null = not known yet).
+  setpointsAt(t: Date): (SetpointSample | null)[];
 }
 
 const OUTDOOR_MAX_AGE_MS = 3 * 3600_000;
 
-export function buildContextTimeline(callsByZone: CallSample[][], outdoor: { t: Date; v: number }[], setpointChanges: Date[]): ContextTimeline {
+export function buildContextTimeline(callsByZone: CallSample[][], outdoor: { t: Date; v: number }[], setpointChanges: Date[], setpointsByZone: SetpointSample[][] = []): ContextTimeline {
   const cooling = systemCoolingCycles(callsByZone);
   const heating = mergeStateRunCycles(callsByZone
     .flatMap((calls, i) => calls.map((c) => ({ deviceRegistryId: String(i), observedAt: c.t, numericValue: c.call === 'HEATING' ? 1 : 0 })))
@@ -28,8 +30,12 @@ export function buildContextTimeline(callsByZone: CallSample[][], outdoor: { t: 
   const sortedOutdoor = [...outdoor].sort((a, b) => a.t.getTime() - b.t.getTime());
   const firstCall = Math.min(...callsByZone.flatMap((z) => z.map((c) => c.t.getTime())), Infinity);
 
+  const zones = setpointsByZone.map((z) => [...z].sort((a, b) => a.t.getTime() - b.t.getTime()));
   return {
     cooling, heating,
+    setpointsAt(t: Date) {
+      return zones.map((z) => { let last: SetpointSample | null = null; for (const s of z) { if (s.t <= t) last = s; else break; } return last; });
+    },
     transitions: [...cooling.flatMap((c) => [c.start, c.end]), ...heating.flatMap((c) => [c.start, c.end]), ...setpointChanges]
       .filter((d): d is Date => !!d).sort((a, b) => a.getTime() - b.getTime()),
     at(t: Date): Ctx {
