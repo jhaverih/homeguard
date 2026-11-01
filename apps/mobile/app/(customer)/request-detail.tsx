@@ -8,6 +8,7 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
+import Constants from 'expo-constants';
 import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
 import { formatRelativeAge } from '../../src/utils/datetime';
@@ -95,6 +96,13 @@ function DateTimeField({ value, onChange }: { value: Date; onChange: (d: Date) =
     </>
   );
 }
+
+// Android map tiles need a Google Maps API key (app.json android.config.
+// googleMaps.apiKey); until a real one is configured the MapView renders an
+// empty grey box, so it's left out and the ETA banner stands on its own.
+// iOS uses Apple Maps and needs no key.
+const ANDROID_MAPS_KEY: string | undefined = (Constants.expoConfig as any)?.android?.config?.googleMaps?.apiKey;
+const MAPS_AVAILABLE = Platform.OS !== 'android' || (!!ANDROID_MAPS_KEY && !ANDROID_MAPS_KEY.startsWith('REPLACE_WITH'));
 
 export default function RequestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -445,7 +453,7 @@ export default function RequestDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {hasVendorLocation && initialRegion && (
+            {MAPS_AVAILABLE && hasVendorLocation && initialRegion && (
               <View style={styles.mapContainer}>
                 <MapView style={styles.map} initialRegion={initialRegion}>
                   <Marker coordinate={{ latitude: vendorLat, longitude: vendorLng }} title="Your vendor" anchor={{ x: 0.5, y: 0.5 }}>
@@ -941,7 +949,9 @@ const styles = StyleSheet.create({
   reviewDeclineText: { color: '#c53030', fontWeight: '700', fontSize: 14 },
   addonBanner: { backgroundColor: '#fef3c7', borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#fde68a' },
   addonBannerText: { fontSize: 13, color: '#92400e', fontWeight: '600' },
-  enRouteBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#fffbeb', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 2, borderColor: '#f59e0b' },
+  // Stacked (column): the header row inside carries its own row layout; a
+  // row here pushed the live map beside the header and off-screen.
+  enRouteBanner: { backgroundColor: '#fffbeb', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 2, borderColor: '#f59e0b' },
   enRouteTitle: { fontSize: 15, fontWeight: '800', color: '#92400e', marginBottom: 2 },
   enRouteBody: { fontSize: 13, color: '#78350f', lineHeight: 20 },
   enRouteMeta: { fontSize: 11, color: '#b45309', marginTop: 2 },
