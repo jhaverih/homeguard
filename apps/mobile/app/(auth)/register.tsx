@@ -1,229 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Image, Linking, Platform, Keyboard,
+  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import RNDateTimePicker from '@react-native-community/datetimepicker';
-import * as Location from 'expo-location';
 import { AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { PlanName } from '../../src/components/PlanName';
-import { authApi, subscriptionsApi, uploadsApi, vendorApi, api, TERMS_URL, API_URL } from '../../src/services/api';
+import { AddressPicker, AddressResult } from '../../src/components/AddressPicker';
+import { authApi, subscriptionsApi, api, TERMS_URL, VENDOR_TERMS_URL, API_URL } from '../../src/services/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { colors } from '../../src/theme';
 
-const US_STATES: Record<string, string> = {
-  'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
-  'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
-  'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
-  'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
-  'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS', 'Missouri': 'MO',
-  'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ',
-  'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH',
-  'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
-  'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT',
-  'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY',
+// Vendors only create the account and company here. Everything else the
+// review needs (services, licenses, service area, documents, photo, the
+// background check statement) is collected afterwards on the in-app
+// application checklist — app/(vendor-onboarding).
+type Step = 'select' | 'account' | 'plan' | 'vendor-confirm' | 'verify';
+
+type AddressFields = { street: string; city: string; state: string; zipCode: string };
+const ADDRESS_FIELD_NAMES: Record<'CUSTOMER' | 'VENDOR', AddressFields> = {
+  CUSTOMER: { street: 'address', city: 'city', state: 'state', zipCode: 'zipCode' },
+  VENDOR: { street: 'companyAddress', city: 'companyCity', state: 'companyState', zipCode: 'companyZipCode' },
 };
-
-type AddressResult = { address: string; city: string; state: string; zipCode: string };
-
-// Nominatim's free-text /search endpoint often matches a residential street
-// as a road-level result with no addr.house_number attached — common for
-// newer subdivisions OSM hasn't imported address-interpolation data for —
-// even though the street/city/state/zip context it found is correct. When
-// that happens, fall back to the house number the user actually typed
-// (assumed to be the leading number of their query) rather than silently
-// dropping it.
-function formatAddressResult(item: any, rawQuery: string): AddressResult {
-  const addr = item.address || {};
-  const typedHouseNumber = rawQuery.trim().match(/^(\d+[a-zA-Z]?)\b/)?.[1] ?? '';
-  const houseNumber = addr.house_number || typedHouseNumber;
-  const road = addr.road || addr.pedestrian || addr.footway || '';
-  const street = [houseNumber, road].filter(Boolean).join(' ');
-  const city = addr.city || addr.town || addr.village || addr.hamlet || addr.county || '';
-  const stateName = addr.state || '';
-  const state = US_STATES[stateName] || stateName.slice(0, 2).toUpperCase();
-  const zipCode = (addr.postcode || '').slice(0, 5);
-  return { address: street || item.display_name.split(',')[0], city, state, zipCode };
-}
-
-// Short "#, street, city, state zip" label — Nominatim's own display_name
-// is a full place-name string (road, neighborhood, county, region, country)
-// that's far noisier than what a user needs to confirm this is their address.
-function formatSuggestionLabel(item: any, rawQuery: string): string {
-  const r = formatAddressResult(item, rawQuery);
-  const cityState = [r.city, r.state].filter(Boolean).join(', ');
-  const tail = [cityState, r.zipCode].filter(Boolean).join(' ');
-  return [r.address, tail].filter(Boolean).join(', ');
-}
-
-function AddressPicker({
-  onSelect,
-  validated,
-  onClear,
-}: {
-  onSelect: (addr: AddressResult) => void;
-  validated: boolean;
-  onClear: () => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Soft proximity bias only — never blocks or requires location. Grabbed
-  // once when this step of the form mounts, since the user is about to
-  // search for an address right after.
-  const biasRef = useRef<{ lat: number; lon: number } | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const existing = await Location.getForegroundPermissionsAsync();
-        const granted = existing.status === 'granted'
-          ? true
-          : (await Location.requestForegroundPermissionsAsync()).status === 'granted';
-        if (!granted) return;
-        const last = await Location.getLastKnownPositionAsync();
-        const pos = last ?? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-        biasRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      } catch {
-        // Best-effort only — suggestions work fine unbiased.
-      }
-    })();
-  }, []);
-
-  const search = (text: string) => {
-    setQuery(text);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (text.length < 5) { setSuggestions([]); return; }
-    debounceRef.current = setTimeout(async () => {
-      setSearching(true);
-      try {
-        // bounded=0 makes the viewbox a soft preference, not a hard filter —
-        // an address far from the phone's current location can still match,
-        // it's just not favored over an equally-good nearby match.
-        const bias = biasRef.current;
-        const biasParams = bias
-          ? `&viewbox=${bias.lon - 0.5},${bias.lat + 0.5},${bias.lon + 0.5},${bias.lat - 0.5}&bounded=0`
-          : '';
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=us&q=${encodeURIComponent(text)}&limit=6${biasParams}`,
-          { headers: { 'User-Agent': 'AttenteveApp/1.0' } }
-        );
-        const data = await res.json();
-        setSuggestions(Array.isArray(data) ? data : []);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 500);
-  };
-
-  const pick = (item: any) => {
-    const result = formatAddressResult(item, query);
-    setSuggestions([]);
-    setQuery(result.address);
-    onSelect(result);
-    // This field's job is done once an address is picked — scrolling
-    // content up to try to clear a keyboard that's still animating open is
-    // fighting a moving target and landed short in testing. Dismissing it
-    // outright is the standard pattern (Google Maps, Uber, etc. all do this
-    // on autocomplete selection) and guarantees the confirmation is visible
-    // regardless of screen size or animation timing.
-    Keyboard.dismiss();
-  };
-
-  return (
-    <View style={{ zIndex: 200 }}>
-      <View style={addrStyles.inputWrap}>
-        <Ionicons name="search-outline" size={18} color={colors.steel} style={addrStyles.searchIcon} />
-        <TextInput
-          style={addrStyles.searchInput}
-          placeholder="Search your home address..."
-          placeholderTextColor={colors.steel}
-          value={query}
-          onChangeText={search}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {searching && <ActivityIndicator size="small" color={colors.lanternDeep} style={{ marginRight: 8 }} />}
-        {validated && !searching && (
-          <TouchableOpacity onPress={() => { setQuery(''); setSuggestions([]); onClear(); }}>
-            <Ionicons name="close-circle" size={20} color={colors.steel} style={{ marginRight: 8 }} />
-          </TouchableOpacity>
-        )}
-      </View>
-      {suggestions.length > 0 && (
-        <View style={addrStyles.dropdown}>
-          {suggestions.map((item) => (
-            <TouchableOpacity
-              key={item.place_id}
-              onPress={() => pick(item)}
-              style={addrStyles.suggestion}
-            >
-              <Ionicons name="location-outline" size={14} color={colors.lanternDeep} style={{ marginRight: 8, flexShrink: 0 }} />
-              <Text style={addrStyles.suggestionText} numberOfLines={2}>{formatSuggestionLabel(item, query)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-const addrStyles = StyleSheet.create({
-  inputWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border,
-    borderRadius: 12, marginBottom: 4,
-  },
-  searchIcon: { marginLeft: 14 },
-  searchInput: {
-    flex: 1, padding: 15, fontSize: 16, color: colors.ink,
-  },
-  dropdown: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border,
-    borderRadius: 12, marginBottom: 8, overflow: 'hidden',
-  },
-  suggestion: {
-    flexDirection: 'row', alignItems: 'center', padding: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  suggestionText: { fontSize: 13, color: colors.ink, flex: 1, lineHeight: 18 },
-});
-
-type Step = 'select' | 'account' | 'vendor-licenses' | 'plan' | 'vendor-confirm' | 'verify';
-
-const LICENSE_TYPES = [
-  { value: 'GENERAL_CONTRACTOR', label: 'General Contractor' },
-  { value: 'ELECTRICAL', label: 'Electrical' },
-  { value: 'PLUMBING', label: 'Plumbing' },
-  { value: 'HVAC', label: 'HVAC / AC' },
-  { value: 'ROOFING', label: 'Roofing' },
-  { value: 'PEST_CONTROL', label: 'Pest Control' },
-  { value: 'LANDSCAPING', label: 'Landscaping' },
-  { value: 'PAINTING', label: 'Painting' },
-  { value: 'POOL', label: 'Pool & Spa' },
-  { value: 'OTHER', label: 'Other' },
-];
-
-type License = {
-  id: string;
-  licenseType: string;
-  licenseNumber: string;
-  licenseState: string;
-  expiryDate: string; // ISO — uploaded/submitted only after the account itself is created
-  fileUri: string;
-  fileName: string;
-  mimeType: string;
-};
-
-let _licenseId = 0;
 
 export default function RegisterScreen() {
   const [step, setStep] = useState<Step>('select');
@@ -232,13 +32,6 @@ export default function RegisterScreen() {
   const [showPass, setShowPass] = useState(false);
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
-  const [licenses, setLicenses] = useState<License[]>([]);
-  const [adding, setAdding] = useState<{
-    licenseType: string; licenseNumber: string; licenseState: string;
-    fileUri?: string; fileName?: string; mimeType?: string;
-  }>({ licenseType: 'GENERAL_CONTRACTOR', licenseNumber: '', licenseState: '' });
-  const [addingExpiryDate, setAddingExpiryDate] = useState(new Date());
-  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
   const [pendingAuth, setPendingAuth] = useState<{ user: any; accessToken: string } | null>(null);
   const [pendingEmail, setPendingEmail] = useState('');
   const [verifyCode, setVerifyCode] = useState('');
@@ -263,6 +56,7 @@ export default function RegisterScreen() {
   const { setAuth } = useAuthStore();
   const { control, handleSubmit, trigger, reset, setValue, formState: { errors } } = useForm();
   const isVendor = selectedRole === 'VENDOR';
+  const addressFields = ADDRESS_FIELD_NAMES[isVendor ? 'VENDOR' : 'CUSTOMER'];
 
   useEffect(() => () => { if (cooldownRef.current) clearInterval(cooldownRef.current); }, []);
 
@@ -273,18 +67,11 @@ export default function RegisterScreen() {
     }, 1000);
   };
 
-  const resetFlow = () => {
-    setStep('select');
-    setSelectedRole(null);
-    setSelectedPlanId('');
-    setLicenses([]);
-    setAdding({ licenseType: 'GENERAL_CONTRACTOR', licenseNumber: '', licenseState: '' });
-    setAddingExpiryDate(new Date());
-    setAddressValidated(false);
+  const clearAddress = () => {
+    for (const field of Object.values(addressFields)) setValue(field, '');
     setPickedAddress(null);
+    setAddressValidated(false);
     setMissingAddressFields([]);
-    setAcceptedTerms(false);
-    reset();
   };
 
   const handleRoleSelect = async (role: 'CUSTOMER' | 'VENDOR') => {
@@ -295,88 +82,51 @@ export default function RegisterScreen() {
     setStep('account');
   };
 
+  // One step back, keeping what was typed — only leaving the account step
+  // (back to "who are you signing up as") starts the form over.
   const handleBack = () => {
     if (step === 'verify') {
       Alert.alert('Verify Your Email', 'Please enter the code sent to your email to complete registration.');
     } else if (step === 'select') {
       router.back();
+    } else if (step === 'account') {
+      setStep('select');
+      setSelectedRole(null);
+      setSelectedPlanId('');
+      setAcceptedTerms(false);
+      setAddressValidated(false);
+      setPickedAddress(null);
+      setMissingAddressFields([]);
+      reset();
     } else {
-      resetFlow();
+      setAcceptedTerms(false);
+      setStep('account');
     }
   };
 
   const handleContinueFromAccount = async () => {
-    if (!isVendor && !addressValidated) {
-      Alert.alert('Address Required', 'Please search for and select your home address from the suggestions to continue.');
+    if (!addressValidated) {
+      Alert.alert(
+        'Address Required',
+        isVendor
+          ? 'Search for and select your business address from the suggestions to continue.'
+          : 'Please search for and select your home address from the suggestions to continue.',
+      );
       return;
     }
-    // city/state/zipCode carry real `required` rules now (see the hidden
+    // The address fields carry real `required` rules (see the hidden
     // Controllers below) — Nominatim frequently omits one of them (most
     // often zip), so "picked a suggestion" alone isn't enough; this also
     // catches whatever the fallback mini-form below hasn't been filled in
     // yet, since setValue() from AddressPicker/the fallback inputs both
     // write into the same tracked fields this trigger() call checks.
-    if (!await trigger(['firstName', 'lastName', 'email', 'phone', 'password', ...(isVendor ? ['companyName', 'ein', 'companyAddress', 'companyCity', 'companyState', 'companyZipCode'] : ['address', 'city', 'state', 'zipCode'])])) return;
-    setStep(isVendor ? 'vendor-licenses' : 'plan');
-  };
-
-  const addLicense = () => {
-    if (!adding.licenseNumber?.trim()) { Alert.alert('Required', 'Enter the license number.'); return; }
-    if (!adding.licenseState?.trim()) { Alert.alert('Required', 'Enter the issuing state.'); return; }
-    if (!adding.fileUri) { Alert.alert('Required', 'Attach a photo or PDF of the license.'); return; }
-    setLicenses((prev) => [...prev, {
-      id: String(++_licenseId),
-      licenseType: adding.licenseType || 'GENERAL_CONTRACTOR',
-      licenseNumber: adding.licenseNumber!.trim(),
-      licenseState: adding.licenseState!.trim().toUpperCase().slice(0, 2),
-      expiryDate: addingExpiryDate.toISOString(),
-      fileUri: adding.fileUri!,
-      fileName: adding.fileName || 'license',
-      mimeType: adding.mimeType || 'image/jpeg',
-    }]);
-    setAdding({ licenseType: 'GENERAL_CONTRACTOR', licenseNumber: '', licenseState: '' });
-    setAddingExpiryDate(new Date());
-  };
-
-  const pickDocument = () => {
-    Alert.alert('License Document', 'Choose source', [
-      {
-        text: 'Take Photo',
-        onPress: async () => {
-          const result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
-          if (!result.canceled && result.assets?.length) {
-            setAdding((prev) => ({ ...prev, fileUri: result.assets[0].uri, fileName: 'photo.jpg', mimeType: 'image/jpeg' }));
-          }
-        },
-      },
-      {
-        text: 'Photo Library',
-        onPress: async () => {
-          const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            quality: 0.6,
-          });
-          if (!result.canceled && result.assets?.length) {
-            setAdding((prev) => ({ ...prev, fileUri: result.assets[0].uri, fileName: 'photo.jpg', mimeType: 'image/jpeg' }));
-          }
-        },
-      },
-      {
-        text: 'PDF Document',
-        onPress: async () => {
-          const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
-          if (!result.canceled && result.assets?.length) {
-            const asset = result.assets[0];
-            setAdding((prev) => ({ ...prev, fileUri: asset.uri, fileName: asset.name || 'license.pdf', mimeType: 'application/pdf' }));
-          }
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    const fields = ['firstName', 'lastName', 'email', 'phone', 'password', ...Object.values(addressFields), ...(isVendor ? ['companyName', 'ein'] : [])];
+    if (!await trigger(fields)) return;
+    setStep(isVendor ? 'vendor-confirm' : 'plan');
   };
 
   const onSubmit = async (data: any) => {
-    if (selectedRole === 'CUSTOMER' && selectedPlanId && !acceptedTerms) {
+    if ((selectedRole === 'CUSTOMER' && selectedPlanId && !acceptedTerms) || (isVendor && !acceptedTerms)) {
       Alert.alert('Terms Required', 'Please accept the Terms and Conditions to continue.');
       return;
     }
@@ -384,30 +134,16 @@ export default function RegisterScreen() {
     try {
       const payload: any = { ...data, roles: [selectedRole] };
       const res: any = await authApi.register(payload);
+      const authHeader = { headers: { Authorization: `Bearer ${res.accessToken}` } };
       if (selectedRole === 'CUSTOMER' && selectedPlanId) {
         try {
-          await api.post(`/subscriptions/subscribe/${selectedPlanId}`, { acceptedTerms }, {
-            headers: { Authorization: `Bearer ${res.accessToken}` },
-          });
+          await api.post(`/subscriptions/subscribe/${selectedPlanId}`, { acceptedTerms }, authHeader);
         } catch {}
       }
-      // Licenses can only be uploaded/submitted once the account (and its
-      // accessToken) exists — the registration payload itself never carries
-      // them. A failed upload here shouldn't block onboarding; the vendor can
-      // always resubmit from the Certifications screen later.
-      if (isVendor && licenses.length > 0) {
-        for (const lic of licenses) {
-          try {
-            const uploaded: any = await uploadsApi.uploadDocument(lic.fileUri, 'vendor-licenses', lic.mimeType, lic.fileName, res.accessToken);
-            await vendorApi.submitCertification({
-              certificationType: lic.licenseType,
-              licenseNumber: lic.licenseNumber,
-              issuingState: lic.licenseState,
-              expirationDate: lic.expiryDate,
-              documentKey: uploaded.key,
-            }, res.accessToken);
-          } catch {}
-        }
+      // Recorded now with the version and timestamp; if this call fails the
+      // app's terms gate asks again right after the first sign-in.
+      if (isVendor) {
+        try { await api.patch('/users/me/accept-terms', { termsType: 'VENDOR' }, authHeader); } catch {}
       }
       setPendingEmail(data.email);
       setPendingAuth({ user: res.user, accessToken: res.accessToken });
@@ -430,7 +166,13 @@ export default function RegisterScreen() {
     setVerifyError('');
     try {
       await authApi.verifyEmail(pendingEmail, verifyCode.trim());
-      await setAuth(pendingAuth!.user, pendingAuth!.accessToken);
+      // Re-read the user so a vendor's freshly recorded terms acceptance is
+      // in the store and the terms gate doesn't ask a second time.
+      let user = pendingAuth!.user;
+      try {
+        user = await api.get('/users/me', { headers: { Authorization: `Bearer ${pendingAuth!.accessToken}` } });
+      } catch {}
+      await setAuth(user, pendingAuth!.accessToken);
     } catch (e: any) {
       setVerifyError(e.message || 'Invalid or expired code. Try again.');
     } finally {
@@ -469,6 +211,21 @@ export default function RegisterScreen() {
     }
   };
 
+  const TermsCheckbox = ({ url }: { url: string }) => (
+    <TouchableOpacity style={styles.termsRow} onPress={() => setAcceptedTerms((v) => !v)} activeOpacity={0.7}>
+      <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+        {acceptedTerms && <Ionicons name="checkmark" size={14} color={colors.ink} />}
+      </View>
+      <Text style={styles.termsText}>
+        I agree to the{' '}
+        <Text style={styles.termsLink} onPress={() => Linking.openURL(url)}>
+          {isVendor ? 'Vendor Terms and Conditions' : 'Terms and Conditions'}
+        </Text>
+        {isVendor ? ', and I confirm my company is an independent contractor, not an Attenteve employee.' : ''}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -476,7 +233,7 @@ export default function RegisterScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
           <Ionicons name="arrow-back" size={22} color={colors.steel} />
           {step !== 'select' && step !== 'verify' && (
-            <Text style={styles.backLabel}>Cancel — start over</Text>
+            <Text style={styles.backLabel}>Back</Text>
           )}
         </TouchableOpacity>
 
@@ -527,6 +284,7 @@ export default function RegisterScreen() {
                 {isVendor ? 'Service Provider' : 'Homeowner'}
               </Text>
             </View>
+            {isVendor && <Text style={styles.stepHint}>Step 1 of 2 · About you and your company</Text>}
 
             {(['firstName', 'lastName'] as const).map((field) => (
               <Controller key={field} control={control} name={field}
@@ -634,243 +392,96 @@ export default function RegisterScreen() {
                     </>
                   )}
                 />
-
-                <Text style={styles.sectionLabel}>Company Address</Text>
-                {(['companyAddress', 'companyCity', 'companyState', 'companyZipCode'] as const).map((field) => (
-                  <Controller key={field} control={control} name={field}
-                    rules={{ required: `${field === 'companyAddress' ? 'Street address' : field === 'companyCity' ? 'City' : field === 'companyState' ? 'State' : 'Zip code'} is required` }}
-                    render={({ field: { onChange, value } }) => (
-                      <>
-                        <TextInput
-                          style={[styles.input, errors[field] && styles.inputError]}
-                          placeholder={field === 'companyAddress' ? 'Street Address' : field === 'companyCity' ? 'City' : field === 'companyState' ? 'State (e.g. TN)' : 'Zip Code'}
-                          placeholderTextColor={colors.steel} value={value} onChangeText={onChange}
-                          keyboardType={field === 'companyZipCode' ? 'number-pad' : 'default'}
-                          maxLength={field === 'companyZipCode' ? 5 : undefined}
-                        />
-                        {errors[field] && <Text style={styles.errorText}>{(errors[field] as any)?.message}</Text>}
-                      </>
-                    )}
-                  />
-                ))}
               </>
             )}
 
-            {!isVendor && (
-              <>
-                <Text style={styles.sectionLabel}>Home Address</Text>
-                <AddressPicker
-                  validated={addressValidated}
-                  onSelect={(addr) => {
-                    setValue('address', addr.address);
-                    setValue('city', addr.city);
-                    setValue('state', addr.state);
-                    setValue('zipCode', addr.zipCode);
-                    setPickedAddress(addr);
-                    setAddressValidated(true);
-                    setMissingAddressFields((['city', 'state', 'zipCode'] as const).filter((f) => !addr[f]));
-                    // Keyboard stays open after picking a suggestion (the
-                    // TextInput keeps focus), so the confirmation box and
-                    // Continue button that just appeared below it can end up
-                    // hidden behind the keyboard. Nothing else renders below
-                    // Continue in this step, so scrolling to the bottom of
-                    // the form reliably brings both into view above it.
-                    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-                  }}
-                  onClear={() => {
-                    setValue('address', '');
-                    setValue('city', '');
-                    setValue('state', '');
-                    setValue('zipCode', '');
-                    setPickedAddress(null);
-                    setAddressValidated(false);
-                    setMissingAddressFields([]);
-                  }}
-                />
-                {addressValidated && pickedAddress && (
-                  <View style={styles.addrConfirmed}>
-                    <Ionicons name="checkmark-circle" size={18} color="#059669" />
-                    <View style={{ flex: 1, marginLeft: 8 }}>
-                      <Text style={styles.addrConfirmedStreet}>{pickedAddress.address}</Text>
-                      <Text style={styles.addrConfirmedCity}>{pickedAddress.city}, {pickedAddress.state} {pickedAddress.zipCode}</Text>
-                    </View>
-                  </View>
-                )}
-                {/* Nominatim frequently omits one of city/state/zip (most
-                    often zip) for rural/new-subdivision addresses — rather
-                    than blocking selection outright, ask for just the
-                    missing piece(s) manually so a real address isn't a dead
-                    end. handleContinueFromAccount's trigger() re-validates
-                    these as `required`, so Continue stays blocked until
-                    they're filled either way. */}
-                {addressValidated && missingAddressFields.length > 0 && (
-                  <View style={styles.addrMissingBox}>
-                    <Text style={styles.addrMissingLabel}>
-                      We couldn't find the {missingAddressFields.map((f) => (f === 'zipCode' ? 'zip code' : f)).join(' / ')} for this address — please enter it:
-                    </Text>
-                    {missingAddressFields.includes('city') && (
-                      <TextInput
-                        style={styles.input}
-                        placeholder="City" placeholderTextColor={colors.steel}
-                        onChangeText={(t) => setValue('city', t)}
-                      />
-                    )}
-                    {missingAddressFields.includes('state') && (
-                      <TextInput
-                        style={styles.input}
-                        placeholder="State (e.g. TN)" placeholderTextColor={colors.steel}
-                        maxLength={2} autoCapitalize="characters"
-                        onChangeText={(t) => setValue('state', t.toUpperCase())}
-                      />
-                    )}
-                    {missingAddressFields.includes('zipCode') && (
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Zip Code" placeholderTextColor={colors.steel}
-                        keyboardType="number-pad" maxLength={5}
-                        onChangeText={(t) => setValue('zipCode', t)}
-                      />
-                    )}
-                  </View>
-                )}
-                {!addressValidated && (
-                  <Text style={[styles.errorText, { marginBottom: 8 }]}>
-                    Search and select your address to continue
-                  </Text>
-                )}
-                {/* Hidden registered fields used in form submission — real
-                    `required` rules now (values are still written via
-                    setValue() from AddressPicker/the fallback inputs above,
-                    not this render prop) so handleContinueFromAccount's
-                    trigger() genuinely blocks an incomplete address. */}
-                {(['address', 'city', 'state', 'zipCode'] as const).map((field) => (
-                  <Controller key={field} control={control} name={field}
-                    rules={{ required: `${field === 'address' ? 'Street address' : field === 'city' ? 'City' : field === 'state' ? 'State' : 'Zip code'} is required` }}
-                    render={() => <View style={{ display: 'none' }} />}
-                  />
-                ))}
-              </>
+            <Text style={styles.sectionLabel}>{isVendor ? 'Business Address' : 'Home Address'}</Text>
+            <AddressPicker
+              placeholder={isVendor ? 'Search your business address...' : undefined}
+              validated={addressValidated}
+              onSelect={(addr) => {
+                setValue(addressFields.street, addr.address);
+                setValue(addressFields.city, addr.city);
+                setValue(addressFields.state, addr.state);
+                setValue(addressFields.zipCode, addr.zipCode);
+                setPickedAddress(addr);
+                setAddressValidated(true);
+                setMissingAddressFields((['city', 'state', 'zipCode'] as const).filter((f) => !addr[f]));
+                // Keyboard stays open after picking a suggestion (the
+                // TextInput keeps focus), so the confirmation box and
+                // Continue button that just appeared below it can end up
+                // hidden behind the keyboard. Nothing else renders below
+                // Continue in this step, so scrolling to the bottom of
+                // the form reliably brings both into view above it.
+                setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+              }}
+              onClear={clearAddress}
+            />
+            {addressValidated && pickedAddress && (
+              <View style={styles.addrConfirmed}>
+                <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.addrConfirmedStreet}>{pickedAddress.address}</Text>
+                  <Text style={styles.addrConfirmedCity}>{pickedAddress.city}, {pickedAddress.state} {pickedAddress.zipCode}</Text>
+                </View>
+              </View>
             )}
+            {/* Nominatim frequently omits one of city/state/zip (most
+                often zip) for rural/new-subdivision addresses — rather
+                than blocking selection outright, ask for just the
+                missing piece(s) manually so a real address isn't a dead
+                end. handleContinueFromAccount's trigger() re-validates
+                these as `required`, so Continue stays blocked until
+                they're filled either way. */}
+            {addressValidated && missingAddressFields.length > 0 && (
+              <View style={styles.addrMissingBox}>
+                <Text style={styles.addrMissingLabel}>
+                  We couldn't find the {missingAddressFields.map((f) => (f === 'zipCode' ? 'zip code' : f)).join(' / ')} for this address — please enter it:
+                </Text>
+                {missingAddressFields.includes('city') && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="City" placeholderTextColor={colors.steel}
+                    onChangeText={(t) => setValue(addressFields.city, t)}
+                  />
+                )}
+                {missingAddressFields.includes('state') && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="State (e.g. TN)" placeholderTextColor={colors.steel}
+                    maxLength={2} autoCapitalize="characters"
+                    onChangeText={(t) => setValue(addressFields.state, t.toUpperCase())}
+                  />
+                )}
+                {missingAddressFields.includes('zipCode') && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Zip Code" placeholderTextColor={colors.steel}
+                    keyboardType="number-pad" maxLength={5}
+                    onChangeText={(t) => setValue(addressFields.zipCode, t)}
+                  />
+                )}
+              </View>
+            )}
+            {!addressValidated && (
+              <Text style={[styles.errorText, { marginBottom: 8 }]}>
+                Search and select your address to continue
+              </Text>
+            )}
+            {/* Hidden registered fields used in form submission — real
+                `required` rules (values are written via setValue() from
+                AddressPicker/the fallback inputs above, not this render
+                prop) so handleContinueFromAccount's trigger() genuinely
+                blocks an incomplete address. */}
+            {(Object.entries(addressFields) as [keyof AddressFields, string][]).map(([part, field]) => (
+              <Controller key={field} control={control} name={field}
+                rules={{ required: `${part === 'street' ? 'Street address' : part === 'city' ? 'City' : part === 'state' ? 'State' : 'Zip code'} is required` }}
+                render={() => <View style={{ display: 'none' }} />}
+              />
+            ))}
 
             <TouchableOpacity style={styles.button} onPress={handleContinueFromAccount}>
               <Text style={styles.buttonText}>Continue</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* ── State Licenses (vendor) ── */}
-        {step === 'vendor-licenses' && (
-          <>
-            <Text style={styles.title}>State Licenses</Text>
-            <Text style={styles.subtitle}>Add your professional licenses to be matched with relevant jobs.</Text>
-
-            {licenses.length > 0 && (
-              <View style={styles.licenseList}>
-                {licenses.map((lic) => (
-                  <View key={lic.id} style={styles.licenseChip}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.licenseChipType}>
-                        {LICENSE_TYPES.find((t) => t.value === lic.licenseType)?.label ?? lic.licenseType}
-                      </Text>
-                      <Text style={styles.licenseChipDetail}>
-                        {lic.licenseState} · {lic.licenseNumber} · exp {new Date(lic.expiryDate).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    {lic.mimeType.startsWith('image/') ? (
-                      <Image source={{ uri: lic.fileUri }} style={styles.licenseThumbSm} />
-                    ) : (
-                      <Ionicons name="document-text-outline" size={28} color={colors.lanternDeep} />
-                    )}
-                    <TouchableOpacity onPress={() => setLicenses((p) => p.filter((l) => l.id !== lic.id))}>
-                      <Ionicons name="close-circle" size={22} color={colors.danger} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <View style={styles.addBox}>
-              <Text style={styles.addBoxTitle}>Add License</Text>
-
-              <Text style={styles.addBoxLabel}>License Type</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {LICENSE_TYPES.map((type) => (
-                    <TouchableOpacity
-                      key={type.value}
-                      onPress={() => setAdding((p) => ({ ...p, licenseType: type.value }))}
-                      style={[styles.typeChip, adding.licenseType === type.value && styles.typeChipActive]}
-                    >
-                      <Text style={[styles.typeChipText, adding.licenseType === type.value && styles.typeChipTextActive]}>
-                        {type.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 4 }]}
-                  placeholder="License Number" placeholderTextColor={colors.steel}
-                  value={adding.licenseNumber || ''}
-                  onChangeText={(v) => setAdding((p) => ({ ...p, licenseNumber: v }))}
-                />
-                <TextInput
-                  style={[styles.input, { width: 70, marginBottom: 4 }]}
-                  placeholder="State" placeholderTextColor={colors.steel}
-                  autoCapitalize="characters" maxLength={2}
-                  value={adding.licenseState || ''}
-                  onChangeText={(v) => setAdding((p) => ({ ...p, licenseState: v.toUpperCase() }))}
-                />
-              </View>
-
-              <Text style={styles.addBoxLabel}>Expiry Date</Text>
-              <TouchableOpacity style={[styles.input, { marginTop: 0 }]} onPress={() => setShowExpiryPicker(true)}>
-                <Text style={{ fontSize: 16, color: colors.ink }}>{addingExpiryDate.toLocaleDateString()}</Text>
-              </TouchableOpacity>
-              {showExpiryPicker && (
-                <RNDateTimePicker
-                  value={addingExpiryDate}
-                  mode="date"
-                  minimumDate={new Date()}
-                  onChange={(_, d) => {
-                    setShowExpiryPicker(Platform.OS === 'ios');
-                    if (d) setAddingExpiryDate(d);
-                  }}
-                />
-              )}
-
-              <TouchableOpacity style={styles.uploadBtn} onPress={pickDocument}>
-                <Ionicons name="camera-outline" size={18} color={colors.lanternDeep} />
-                <Text style={styles.uploadBtnText}>
-                  {adding.fileUri ? 'Change Document' : 'Attach License Photo or PDF'}
-                </Text>
-              </TouchableOpacity>
-              {adding.fileUri && (
-                adding.mimeType?.startsWith('image/') ? (
-                  <Image source={{ uri: adding.fileUri }} style={styles.licenseThumb} />
-                ) : (
-                  <View style={styles.pdfPreview}>
-                    <Ionicons name="document-text-outline" size={22} color={colors.lanternDeep} />
-                    <Text style={styles.pdfPreviewText} numberOfLines={1}>{adding.fileName}</Text>
-                  </View>
-                )
-              )}
-
-              <TouchableOpacity style={[styles.button, styles.addLicenseBtn]} onPress={addLicense}>
-                <Ionicons name="add" size={18} color={colors.mist} />
-                <Text style={[styles.buttonText, { marginLeft: 4, color: colors.mist }]}>Add License</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, licenses.length === 0 && styles.buttonOutline]}
-              onPress={() => setStep('vendor-confirm')}
-            >
-              <Text style={[styles.buttonText, licenses.length === 0 && { color: colors.lanternDeep }]}>
-                {licenses.length === 0 ? 'Skip for Now' : `Continue with ${licenses.length} License${licenses.length !== 1 ? 's' : ''}`}
-              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -904,19 +515,7 @@ export default function RegisterScreen() {
               ))
             )}
 
-            {selectedPlanId && (
-              <TouchableOpacity style={styles.termsRow} onPress={() => setAcceptedTerms((v) => !v)} activeOpacity={0.7}>
-                <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
-                  {acceptedTerms && <Ionicons name="checkmark" size={14} color={colors.ink} />}
-                </View>
-                <Text style={styles.termsText}>
-                  I agree to the{' '}
-                  <Text style={styles.termsLink} onPress={() => Linking.openURL(TERMS_URL)}>
-                    Terms and Conditions
-                  </Text>
-                </Text>
-              </TouchableOpacity>
-            )}
+            {selectedPlanId && <TermsCheckbox url={TERMS_URL} />}
 
             <TouchableOpacity
               style={[styles.button, selectedPlanId && !acceptedTerms && styles.buttonDisabled]}
@@ -931,18 +530,21 @@ export default function RegisterScreen() {
         {/* ── Vendor confirm ── */}
         {step === 'vendor-confirm' && (
           <>
-            <Text style={styles.title}>Almost Done!</Text>
+            <Text style={styles.title}>Almost Done</Text>
+            <Text style={styles.stepHint}>Step 2 of 2 · Terms</Text>
             <View style={styles.confirmBox}>
               <Ionicons name="construct" size={40} color={colors.lanternDeep} style={{ marginBottom: 12 }} />
               <Text style={styles.confirmText}>
-                Your Service Provider account will be created.
-                {licenses.length > 0
-                  ? ` ${licenses.length} license${licenses.length !== 1 ? 's' : ''} will be submitted for review.`
-                  : ''}
-                {'\n\n'}Complete your Stripe payout setup from your profile to start receiving payments.
+                After you verify your email, you'll finish your application in the app: the services you offer and any licenses they need, your service area, your business registration and insurance, a profile photo, and a background check statement.
+                {'\n\n'}Attenteve reviews every application. You'll be able to see and accept jobs once your company is approved and Stripe payouts are set up.
               </Text>
             </View>
-            <TouchableOpacity style={styles.button} onPress={handleSubmit(onSubmit)} disabled={loading}>
+            <TermsCheckbox url={VENDOR_TERMS_URL} />
+            <TouchableOpacity
+              style={[styles.button, !acceptedTerms && styles.buttonDisabled]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={loading || !acceptedTerms}
+            >
               {loading ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.buttonText}>Create Account</Text>}
             </TouchableOpacity>
           </>
@@ -1036,6 +638,7 @@ const styles = StyleSheet.create({
   logoRow: { alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 26, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 6 },
   subtitle: { fontSize: 15, color: colors.steel, textAlign: 'center', marginBottom: 24 },
+  stepHint: { fontSize: 13, color: colors.steel, textAlign: 'center', marginBottom: 16 },
 
   roleCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
@@ -1050,7 +653,7 @@ const styles = StyleSheet.create({
   rolePill: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'center',
     gap: 5, paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 99, marginBottom: 20,
+    borderRadius: 99, marginBottom: 12,
   },
   rolePillText: { fontSize: 13, fontWeight: '600' },
 
@@ -1070,62 +673,17 @@ const styles = StyleSheet.create({
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
     marginTop: 12, marginBottom: 8,
   },
-  buttonOutline: {
-    backgroundColor: 'transparent', borderWidth: 2, borderColor: colors.lantern,
-  },
   buttonDisabled: { backgroundColor: colors.steel },
   buttonText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
 
-  termsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 2 },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, paddingHorizontal: 2 },
   checkbox: {
-    width: 20, height: 20, borderRadius: 5, marginRight: 10,
+    width: 20, height: 20, borderRadius: 5, marginRight: 10, marginTop: 1,
     borderWidth: 1.5, borderColor: colors.steel, alignItems: 'center', justifyContent: 'center',
   },
   checkboxChecked: { backgroundColor: colors.lantern, borderColor: colors.lanternDeep },
   termsText: { flex: 1, fontSize: 13, color: colors.steel, lineHeight: 18 },
   termsLink: { color: colors.lanternDeep, fontWeight: '600', textDecorationLine: 'underline' },
-
-  // Licenses
-  licenseList: { marginBottom: 16, gap: 10 },
-  licenseChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#fff', borderRadius: 12, padding: 12,
-    borderWidth: 1.5, borderColor: colors.border,
-  },
-  licenseChipType: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
-  licenseChipDetail: { fontSize: 12, color: colors.steel, marginTop: 2 },
-  licenseThumbSm: { width: 40, height: 40, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
-
-  addBox: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    borderWidth: 1.5, borderColor: colors.border, marginBottom: 4,
-  },
-  addBoxTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 12 },
-  addBoxLabel: { fontSize: 13, fontWeight: '600', color: colors.steel, marginBottom: 8 },
-
-  typeChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99,
-    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.canvas,
-  },
-  typeChipActive: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
-  typeChipText: { fontSize: 13, color: colors.steel, fontWeight: '500' },
-  typeChipTextActive: { color: colors.lanternDeep, fontWeight: '700' },
-
-  uploadBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: colors.lanternDeep, borderRadius: 10,
-    padding: 12, marginTop: 8,
-  },
-  uploadBtnText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
-  licenseThumb: { width: '100%', height: 120, borderRadius: 10, marginTop: 8, resizeMode: 'cover' },
-  pdfPreview: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.canvas, borderRadius: 10, padding: 10, marginTop: 8,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  pdfPreviewText: { flex: 1, fontSize: 13, color: colors.ink },
-
-  addLicenseBtn: { backgroundColor: colors.slate, marginTop: 12, marginBottom: 0 },
 
   // Plans
   planCard: {

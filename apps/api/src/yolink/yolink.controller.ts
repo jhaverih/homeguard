@@ -2,6 +2,7 @@ import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request, 
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { ApprovedVendorGuard } from '../common/guards/approved-vendor.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/role.enum';
 import { YolinkService } from './yolink.service';
@@ -41,7 +42,7 @@ export class YolinkController {
   // Admin / Vendor routes ─────────────────────────────────────────────────────
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, ApprovedVendorGuard)
   @Roles(UserRole.ADMIN, UserRole.VENDOR)
   @Post('link')
   @ApiOperation({ summary: "Connect a customer's own Yolink home monitoring — validates the credentials against Yolink before saving" })

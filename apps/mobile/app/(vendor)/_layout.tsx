@@ -1,10 +1,11 @@
-import { Tabs } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AttenteveIcon, AttenteveLogo } from '../../src/components/AttenteveLogo';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
-import { userApi } from '../../src/services/api';
+import { userApi, onboardingApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
 function RoleSwitcher() {
@@ -27,6 +28,20 @@ function RoleSwitcher() {
 }
 
 export default function VendorLayout() {
+  // Only an approved company gets the vendor tabs; anyone else (still filling
+  // in, under review, sent back, rejected) is sent to their application. If
+  // the check itself fails, show the tabs — the API refuses every vendor call
+  // for an unapproved company anyway.
+  const [gate, setGate] = useState<'checking' | 'approved' | 'onboarding'>('checking');
+  useEffect(() => {
+    onboardingApi.getStatus()
+      .then((s) => setGate(s.applicationStatus === 'APPROVED' ? 'approved' : 'onboarding'))
+      .catch(() => setGate('approved'));
+  }, []);
+
+  if (gate === 'checking') return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
+  if (gate === 'onboarding') return <Redirect href="/(vendor-onboarding)" />;
+
   return (
     <Tabs
       screenOptions={{

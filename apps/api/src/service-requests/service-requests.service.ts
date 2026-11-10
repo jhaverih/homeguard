@@ -30,6 +30,7 @@ import { calcAssessmentCustomerSurcharge, calcAssessmentVendorCost } from '../co
 import { PropertyCharacteristicsService } from '../users/property-characteristics.service';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
+import { getVendorAccess, assertCanAcceptJobs } from '../vendor/vendor-access';
 
 // How close (in meters) the vendor's GPS needs to be to the job's geocoded
 // address before "I Have Arrived" is confirmable/auto-triggers — roughly
@@ -439,6 +440,7 @@ export class ServiceRequestsService {
   }
 
   async accept(requestId: string, vendorId: string, scheduledDate: string, notes?: string): Promise<ServiceRequest> {
+    await assertCanAcceptJobs(this.dataSource, vendorId);
     const request = await this.findById(requestId);
     if (request.status !== ServiceRequestStatus.PENDING) {
       throw new BadRequestException('Request is no longer available');
@@ -488,6 +490,7 @@ export class ServiceRequestsService {
   // goal is avoiding *unnecessary* multi-vendor dispatch, not guaranteeing
   // every original group member goes to one vendor.
   async acceptGroup(bookingGroupId: string, vendorId: string, scheduledDate: string, notes?: string): Promise<ServiceRequest[]> {
+    await assertCanAcceptJobs(this.dataSource, vendorId);
     const eligible = await this.getEligiblePendingRequests(vendorId);
     const groupRequests = eligible.filter((r) => r.bookingGroupId === bookingGroupId);
     if (groupRequests.length === 0) {
@@ -819,6 +822,7 @@ export class ServiceRequestsService {
       throw new BadRequestException('Select at least 2 requests to bundle');
     }
 
+    await assertCanAcceptJobs(this.dataSource, vendorId);
     const eligible = await this.getEligiblePendingRequests(vendorId);
     const candidates = eligible.filter((r) => requestIds.includes(r.id));
     if (candidates.length === 0) {
@@ -1104,6 +1108,9 @@ export class ServiceRequestsService {
   private async getEligiblePendingRequests(callerId: string): Promise<ServiceRequest[]> {
     const callerProfile = await this.vendorProfileRepo.findOne({ where: { userId: callerId } });
     if (!callerProfile) return [];
+
+    // A company still onboarding or under review sees no open jobs at all.
+    if (!(await getVendorAccess(this.dataSource, callerId)).approved) return [];
 
     const [caller, company] = await Promise.all([
       this.usersService.findById(callerId),

@@ -2,7 +2,11 @@ import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
 } from 'typeorm';
 
+// INCOMPLETE: registered, still filling in the onboarding checklist — never
+// seen by reviewers as a submission. PENDING_REVIEW is only reached through
+// VendorOnboardingService.submit(), once every checklist item is complete.
 export enum VendorApplicationStatus {
+  INCOMPLETE = 'INCOMPLETE',
   PENDING_REVIEW = 'PENDING_REVIEW',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
@@ -50,8 +54,35 @@ export class VendorCompany {
   @Column({ default: false })
   stripeOnboardingComplete: boolean;
 
-  @Column({ type: 'enum', enum: VendorApplicationStatus, default: VendorApplicationStatus.PENDING_REVIEW })
+  @Column({ type: 'enum', enum: VendorApplicationStatus, default: VendorApplicationStatus.INCOMPLETE })
   applicationStatus: VendorApplicationStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  submittedAt: Date | null;
+
+  // Checklist items a reviewer sent back with NEEDS_INFO, each with its note.
+  // Only these items reopen for editing; `resolved` flips once the vendor
+  // changes that item, and every entry must be resolved before resubmitting.
+  @Column({ type: 'jsonb', nullable: true })
+  needsInfoItems: { key: string; note: string; resolved: boolean }[] | null;
+
+  // Background-check and drug-test responsibility statement (see
+  // common/constants/vendor-background-check.ts) — the version accepted and
+  // the typed name/title of whoever signed it for the company.
+  @Column({ nullable: true })
+  backgroundCheckVersion: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  backgroundCheckAcceptedAt: Date | null;
+
+  @Column({ nullable: true })
+  backgroundCheckSignerName: string | null;
+
+  @Column({ nullable: true })
+  backgroundCheckSignerTitle: string | null;
+
+  @Column({ nullable: true })
+  backgroundCheckAcceptedByUserId: string | null;
 
   @Column({ nullable: true })
   reviewedByUserId: string;

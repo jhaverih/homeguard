@@ -2,12 +2,15 @@
 import { useEffect, useState, useMemo } from 'react';
 import { adminApi, userApi } from '@/lib/api';
 
-type ViewKey = 'applications' | 'certifications' | 'elite';
+type ViewKey = 'applications' | 'certifications' | 'elite' | 'signup';
 
-const APPLICATION_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'NEEDS_INFO'] as const;
+// INCOMPLETE = registered but not submitted yet; listed so admins can see who
+// is mid-application, but never reviewable.
+const APPLICATION_STATUSES = ['PENDING_REVIEW', 'NEEDS_INFO', 'INCOMPLETE', 'APPROVED', 'REJECTED'] as const;
 const CERTIFICATION_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const;
 
 const STATUS_STYLE: Record<string, string> = {
+  INCOMPLETE: 'bg-mist-dim text-steel',
   PENDING_REVIEW: 'bg-yellow-50 text-yellow-700',
   APPROVED: 'bg-green-50 text-green-700',
   REJECTED: 'bg-red-50 text-red-700',
@@ -15,11 +18,14 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  INCOMPLETE: 'Not Submitted',
   PENDING_REVIEW: 'Pending Review',
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
   NEEDS_INFO: 'Needs Info',
 };
+
+type NeedsInfoForm = Record<string, { checked: boolean; note: string }>;
 
 const CERT_TYPE_LABEL: Record<string, string> = {
   HVAC: 'HVAC (Mechanical)',
@@ -52,7 +58,12 @@ export default function VendorApplicationsPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [form, setForm] = useState<{ decision: string; note: string }>({ decision: '', note: '' });
+  const [needsInfo, setNeedsInfo] = useState<NeedsInfoForm>({});
   const [formError, setFormError] = useState('');
+
+  // Capabilities offered on the vendor sign-up "Services you offer" step.
+  const [capabilities, setCapabilities] = useState<any[]>([]);
+  const [savingCapId, setSavingCapId] = useState<string | null>(null);
 
   // Elite membership requests — vendors already exist and are just requesting
   // an upgrade, so this reuses adminApi.getVendors() (filtered client-side)
@@ -65,11 +76,12 @@ export default function VendorApplicationsPage() {
 
   const load = () => {
     setLoading(true);
-    return Promise.all([adminApi.getVendorApplications(), adminApi.getVendorCertifications(), adminApi.getVendors()])
-      .then(([apps, certs, vendors]) => {
+    return Promise.all([adminApi.getVendorApplications(), adminApi.getVendorCertifications(), adminApi.getVendors(), adminApi.getCapabilities()])
+      .then(([apps, certs, vendors, caps]) => {
         setApplications(apps);
         setCertifications(certs);
         setEliteVendors((vendors || []).filter((v: any) => v.eliteRequestedAt));
+        setCapabilities(caps || []);
       })
       .finally(() => setLoading(false));
   };
@@ -119,24 +131,42 @@ export default function VendorApplicationsPage() {
   const toggleExpand = (id: string) => {
     setExpanded((prev) => (prev === id ? null : id));
     setForm({ decision: '', note: '' });
+    setNeedsInfo({});
     setFormError('');
+  };
+
+  const togglePromoted = async (cap: any) => {
+    setSavingCapId(cap.id);
+    try {
+      const updated = await adminApi.updateCapability(cap.id, { isPromoted: !cap.isPromoted });
+      setCapabilities((prev) => prev.map((c) => (c.id === cap.id ? { ...c, ...updated } : c)));
+    } finally {
+      setSavingCapId(null);
+    }
   };
 
   const submitReview = async (id: string) => {
     if (!form.decision) { setFormError('Select a decision.'); return; }
+    const flagged = Object.entries(needsInfo).filter(([, v]) => v.checked).map(([key, v]) => ({ key, note: v.note.trim() }));
+    if (view === 'applications' && form.decision === 'NEEDS_INFO') {
+      if (!flagged.length) { setFormError('Pick at least one item for the vendor to fix.'); return; }
+      if (flagged.some((f) => !f.note)) { setFormError('Add a note for each item you send back.'); return; }
+    }
     setReviewing(id);
     setFormError('');
     try {
       if (view === 'applications') {
-        const updated = await adminApi.reviewVendorApplication(id, form.decision, form.note.trim() || undefined);
+        const updated = await adminApi.reviewVendorApplication(
+          id, form.decision, form.note.trim() || undefined, form.decision === 'NEEDS_INFO' ? flagged : undefined,
+        );
         setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated } : a)));
       } else {
         const updated = await adminApi.reviewVendorCertification(id, form.decision, form.note.trim() || undefined);
         setCertifications((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
       }
       setExpanded(null);
-    } catch {
-      setFormError('Failed to submit review. Please try again.');
+    } catch (err: any) {
+      setFormError(err.response?.data?.message || 'Failed to submit review. Please try again.');
     } finally {
       setReviewing(null);
     }
@@ -178,9 +208,43 @@ export default function VendorApplicationsPage() {
           Elite Requests
           {eliteVendors.length > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${view === 'elite' ? 'bg-lantern text-ink' : 'bg-border text-steel'}`}>{eliteVendors.length}</span>}
         </button>
+        <button
+          onClick={() => setView('signup')}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'signup' ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
+        >
+          Sign-up Services
+        </button>
       </div>
 
-      {view !== 'elite' && (
+      {view === 'signup' && (
+        <div className="bg-white rounded-2xl border border-mist-dim overflow-hidden">
+          <p className="px-6 py-4 text-sm text-steel border-b border-mist-dim">
+            New vendors choose their services from the promoted list during sign-up. Approved vendors can still add any active service from their Capabilities screen.
+          </p>
+          {capabilities.map((cap, idx) => (
+            <label key={cap.id} className={`flex items-center justify-between gap-4 px-6 py-3 ${idx !== 0 ? 'border-t border-mist-dim' : ''}`}>
+              <span className="text-sm text-ink">
+                {cap.name}
+                {cap.requiredCertificationType !== 'NONE' && (
+                  <span className="ml-2 text-xs text-steel">needs {CERT_TYPE_LABEL[cap.requiredCertificationType] || cap.requiredCertificationType} license</span>
+                )}
+              </span>
+              <span className="flex items-center gap-2 text-xs text-steel">
+                {cap.isPromoted ? 'Promoted' : 'Not offered at sign-up'}
+                <input
+                  type="checkbox"
+                  className="accent-lantern w-4 h-4"
+                  checked={!!cap.isPromoted}
+                  disabled={savingCapId === cap.id}
+                  onChange={() => togglePromoted(cap)}
+                />
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {view !== 'elite' && view !== 'signup' && (
       <div className="flex gap-1 bg-mist-dim p-1 rounded-lg w-fit mb-6">
         <button
           onClick={() => setStatusFilter('ALL')}
@@ -202,7 +266,7 @@ export default function VendorApplicationsPage() {
       </div>
       )}
 
-      {view === 'elite' ? (
+      {view === 'signup' ? null : view === 'elite' ? (
         loading ? (
           <div className="text-steel text-sm">Loading...</div>
         ) : eliteVendors.length === 0 ? (
@@ -317,14 +381,42 @@ export default function VendorApplicationsPage() {
                       <div>
                         {view === 'applications' ? (
                           <>
-                            <h3 className="text-sm font-semibold text-ink mb-2">Completeness</h3>
+                            <h3 className="text-sm font-semibold text-ink mb-2">
+                              Checklist {item.checklist && `(${item.checklist.completeCount} of ${item.checklist.totalCount})`}
+                            </h3>
                             <div className="flex flex-wrap gap-1.5 mb-4">
-                              <CompletenessBadge ok={item.completeness.stateRegistration} label="State Registration" />
-                              <CompletenessBadge ok={item.completeness.ein} label="EIN" />
-                              <CompletenessBadge ok={item.completeness.coi} label="General Liability Insurance (valid)" />
-                              <CompletenessBadge ok={item.completeness.vendorAdminPhoto} label="Admin Photo" />
+                              {(item.checklist?.items ?? []).map((c: any) => (
+                                <CompletenessBadge key={c.key} ok={c.complete} label={c.label} />
+                              ))}
                             </div>
+                            {item.submittedAt && <p className="text-sm text-steel mb-1">Submitted: {new Date(item.submittedAt).toLocaleString()}</p>}
                             <p className="text-sm text-steel mb-1">EIN: <span className="font-mono">{item.ein || '—'}</span></p>
+                            <p className="text-sm text-steel mb-1">
+                              Address: {[item.address, item.city, [item.state, item.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—'}
+                            </p>
+                            <p className="text-sm text-steel mb-1">Service area: {item.serviceCounties?.length ?? 0} {item.serviceCounties?.length === 1 ? 'county' : 'counties'}</p>
+                            <p className="text-sm text-steel mb-1">
+                              Services: {(item.services ?? []).map((s: any) => s.name).join(', ') || '—'}
+                            </p>
+                            {(item.licenses ?? []).length > 0 && (
+                              <div className="text-sm text-steel mb-1">
+                                Licenses:
+                                {item.licenses.map((l: any) => (
+                                  <span key={l.id} className="block ml-3">
+                                    {CERT_TYPE_LABEL[l.certificationType] || l.certificationType} · {l.issuingState} #{l.licenseNumber} · exp {new Date(l.expirationDate).toLocaleDateString()} · {STATUS_LABEL[l.status] || l.status}
+                                    {l.documentUrl && <a href={l.documentUrl} target="_blank" rel="noreferrer" className="ml-2 text-lantern-deep font-semibold hover:underline">document</a>}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <p className="text-sm text-steel mb-1">
+                              Background check statement: {item.backgroundCheckSignerName
+                                ? `signed by ${item.backgroundCheckSignerName}, ${item.backgroundCheckSignerTitle} on ${new Date(item.backgroundCheckAcceptedAt).toLocaleDateString()} (v${item.backgroundCheckVersion})`
+                                : 'not signed'}
+                            </p>
+                            {item.vendorAdmin?.avatarUrl && (
+                              <img src={item.vendorAdmin.avatarUrl} alt="Applicant" className="w-16 h-16 rounded-full object-cover mt-2" />
+                            )}
                             <div className="flex flex-col gap-1 mt-3">
                               {item.stateRegistrationUrl && (
                                 <a href={item.stateRegistrationUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">→ State registration document</a>
@@ -380,6 +472,35 @@ export default function VendorApplicationsPage() {
                               </label>
                             ))}
                           </div>
+                          {view === 'applications' && form.decision === 'NEEDS_INFO' && (
+                            <div className="mb-4 space-y-2">
+                              <p className="text-xs font-semibold text-steel">Send back only these items (each needs a note):</p>
+                              {(item.checklist?.items ?? []).map((c: any) => {
+                                const entry = needsInfo[c.key] ?? { checked: false, note: '' };
+                                return (
+                                  <div key={c.key} className="border border-border rounded-xl p-2">
+                                    <label className="flex items-center gap-2 text-sm text-ink cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        className="accent-lantern"
+                                        checked={entry.checked}
+                                        onChange={(e) => setNeedsInfo((p) => ({ ...p, [c.key]: { ...entry, checked: e.target.checked } }))}
+                                      />
+                                      {c.label}
+                                    </label>
+                                    {entry.checked && (
+                                      <input
+                                        value={entry.note}
+                                        onChange={(e) => setNeedsInfo((p) => ({ ...p, [c.key]: { ...entry, note: e.target.value } }))}
+                                        placeholder="What should the vendor change?"
+                                        className="mt-2 w-full border border-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern/30"
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                           <textarea rows={3} placeholder="Optional note — sent to the vendor."
                             value={form.note}
                             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
@@ -392,11 +513,28 @@ export default function VendorApplicationsPage() {
                         </div>
                       ) : (
                         <div className="flex items-center justify-center">
-                          <div className="text-center text-steel">
-                            <div className="text-3xl mb-2">✓</div>
-                            <p className="text-sm font-medium">Already reviewed</p>
-                            <p className="text-xs mt-1">{STATUS_LABEL[status]}</p>
-                          </div>
+                          {status === 'INCOMPLETE' ? (
+                            <div className="text-center text-steel">
+                              <div className="text-3xl mb-2">…</div>
+                              <p className="text-sm font-medium">Not submitted yet</p>
+                              <p className="text-xs mt-1">The vendor is still completing the checklist in the app.</p>
+                            </div>
+                          ) : status === 'NEEDS_INFO' && view === 'applications' ? (
+                            <div className="text-steel w-full">
+                              <p className="text-sm font-medium mb-2">Waiting for the vendor to update:</p>
+                              {(item.needsInfoItems ?? []).map((n: any) => (
+                                <p key={n.key} className="text-xs mb-1">
+                                  {n.resolved ? '✓' : '•'} <span className="font-semibold">{item.checklist?.items.find((c: any) => c.key === n.key)?.label ?? n.key}</span>: {n.note}
+                                </p>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center text-steel">
+                              <div className="text-3xl mb-2">✓</div>
+                              <p className="text-sm font-medium">Already reviewed</p>
+                              <p className="text-xs mt-1">{STATUS_LABEL[status]}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

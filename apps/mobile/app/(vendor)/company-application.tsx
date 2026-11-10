@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput, Platform,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
-import RNDateTimePicker from '@react-native-community/datetimepicker';
-import { router, useFocusEffect } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect } from 'expo-router';
 import { vendorApi, uploadsApi } from '../../src/services/api';
+import { pickDocument } from '../../src/utils/pickDocument';
+import { FutureDateField } from '../../src/components/onboarding/OnboardingUI';
 import { colors } from '../../src/theme';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -25,65 +25,52 @@ const STATUS_LABEL: Record<string, string> = {
 type DocKey = 'stateRegistrationDocKey' | 'coiDocumentKey';
 
 function DocUploadRow({
-  label, uploaded, uploading, onPress,
-}: { label: string; uploaded: boolean; uploading: boolean; onPress: () => void }) {
+  label, onFile, replaced, uploading, onPress,
+}: { label: string; onFile: boolean; replaced: boolean; uploading: boolean; onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.docBtn} onPress={onPress} disabled={uploading}>
       {uploading ? (
         <ActivityIndicator color={colors.lanternDeep} />
       ) : (
-        <Text style={styles.docBtnText}>{uploaded ? `✓ ${label} uploaded — tap to replace` : `📷 Upload ${label}`}</Text>
+        <Text style={styles.docBtnText}>
+          {replaced ? `✓ New ${label} attached — tap Save to keep it` : onFile ? `✓ ${label} on file — tap to replace` : `Upload ${label} (photo or PDF)`}
+        </Text>
       )}
     </TouchableOpacity>
   );
 }
 
+// Approved companies keeping their documents current (a renewed insurance
+// certificate, for example). Updating documents here doesn't change the
+// company's approval; new applications go through app/(vendor-onboarding).
 export default function CompanyApplicationScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [application, setApplication] = useState<any>(null);
 
   const [ein, setEin] = useState('');
-  const [docKeys, setDocKeys] = useState<Partial<Record<DocKey, string>>>({});
+  const [newKeys, setNewKeys] = useState<Partial<Record<DocKey, string>>>({});
   const [uploadingKey, setUploadingKey] = useState<DocKey | null>(null);
-  const [coiExpirationDate, setCoiExpirationDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [coiExpirationDate, setCoiExpirationDate] = useState<Date | null>(null);
 
   const load = useCallback(() => {
     vendorApi.getApplication().then((res: any) => {
       setApplication(res);
       setEin(res?.ein || '');
-      if (res?.coiExpirationDate) setCoiExpirationDate(new Date(res.coiExpirationDate));
+      setNewKeys({});
+      setCoiExpirationDate(res?.coiExpirationDate && new Date(res.coiExpirationDate) > new Date() ? new Date(res.coiExpirationDate) : null);
     }).catch((e: any) => Alert.alert('Error', e.message)).finally(() => setLoading(false));
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const pickDocument = (key: DocKey) => {
-    Alert.alert('Upload Document', 'Choose source', [
-      {
-        text: 'Take Photo',
-        onPress: async () => {
-          const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-          if (!result.canceled && result.assets?.length) await uploadDocument(key, result.assets[0].uri);
-        },
-      },
-      {
-        text: 'Photo Library',
-        onPress: async () => {
-          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
-          if (!result.canceled && result.assets?.length) await uploadDocument(key, result.assets[0].uri);
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
-  const uploadDocument = async (key: DocKey, uri: string) => {
+  const upload = async (key: DocKey) => {
+    const file = await pickDocument(key === 'coiDocumentKey' ? 'Certificate of Insurance' : 'State Registration');
+    if (!file) return;
     setUploadingKey(key);
     try {
-      const res: any = await uploadsApi.uploadPhoto(uri, 'vendor-applications');
-      setDocKeys((prev) => ({ ...prev, [key]: res.key }));
+      const res = await uploadsApi.uploadDocument(file.uri, 'vendor-applications', file.mimeType, file.name);
+      setNewKeys((prev) => ({ ...prev, [key]: res.key }));
     } catch (e: any) {
       Alert.alert('Upload failed', e.message);
     } finally {
@@ -92,15 +79,19 @@ export default function CompanyApplicationScreen() {
   };
 
   const submit = async () => {
+    if (newKeys.coiDocumentKey && !coiExpirationDate) {
+      Alert.alert('Expiry date needed', 'Enter the expiry date printed on the new certificate.');
+      return;
+    }
     setSubmitting(true);
     try {
       await vendorApi.submitApplication({
         ein: ein.trim() || undefined,
-        stateRegistrationDocKey: docKeys.stateRegistrationDocKey,
-        coiDocumentKey: docKeys.coiDocumentKey,
-        coiExpirationDate: docKeys.coiDocumentKey ? coiExpirationDate.toISOString() : undefined,
+        stateRegistrationDocKey: newKeys.stateRegistrationDocKey,
+        coiDocumentKey: newKeys.coiDocumentKey,
+        coiExpirationDate: coiExpirationDate ? coiExpirationDate.toISOString() : undefined,
       });
-      Alert.alert('Submitted', 'Your application has been updated and is pending review.');
+      Alert.alert('Saved', 'Your company documents have been updated.');
       load();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -113,8 +104,8 @@ export default function CompanyApplicationScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.title}>Company Application</Text>
-      <Text style={styles.subtitle}>Submit your company's documents for admin review.</Text>
+      <Text style={styles.title}>Company Documents</Text>
+      <Text style={styles.subtitle}>Keep your registration and insurance current.</Text>
 
       {application?.applicationStatus && (
         <View style={styles.statusCard}>
@@ -137,35 +128,25 @@ export default function CompanyApplicationScreen() {
       <Text style={styles.formLabel}>State Registration Document</Text>
       <DocUploadRow
         label="state registration"
-        uploaded={!!docKeys.stateRegistrationDocKey}
+        onFile={!!application?.stateRegistrationDocKey}
+        replaced={!!newKeys.stateRegistrationDocKey}
         uploading={uploadingKey === 'stateRegistrationDocKey'}
-        onPress={() => pickDocument('stateRegistrationDocKey')}
+        onPress={() => upload('stateRegistrationDocKey')}
       />
 
       <Text style={styles.formLabel}>Certificate of Insurance (COI)</Text>
-      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
-        <Text style={styles.dateBtnText}>Expires: {coiExpirationDate.toLocaleDateString()}</Text>
-      </TouchableOpacity>
-      {showDatePicker && (
-        <RNDateTimePicker
-          value={coiExpirationDate}
-          mode="date"
-          minimumDate={new Date()}
-          onChange={(_, d) => {
-            setShowDatePicker(Platform.OS === 'ios');
-            if (d) setCoiExpirationDate(d);
-          }}
-        />
-      )}
       <DocUploadRow
-        label="COI"
-        uploaded={!!docKeys.coiDocumentKey}
+        label="certificate"
+        onFile={!!application?.coiDocumentKey}
+        replaced={!!newKeys.coiDocumentKey}
         uploading={uploadingKey === 'coiDocumentKey'}
-        onPress={() => pickDocument('coiDocumentKey')}
+        onPress={() => upload('coiDocumentKey')}
       />
+      <Text style={styles.formLabel}>Insurance expiry date</Text>
+      <FutureDateField value={coiExpirationDate} onChange={setCoiExpirationDate} placeholder="Expiry date on the certificate" />
 
       <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={submitting}>
-        {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Submit Application</Text>}
+        {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>Save</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -183,8 +164,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10,
     padding: 12, fontSize: 14, color: colors.ink, marginBottom: 12,
   },
-  dateBtn: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 12 },
-  dateBtnText: { fontSize: 14, color: colors.ink },
   docBtn: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 },
   docBtnText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '600' },
   submitBtn: { backgroundColor: colors.lantern, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 24 },

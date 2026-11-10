@@ -224,9 +224,10 @@ export class UsersService implements OnModuleInit {
   }
 
   // A brand-new Vendor Admin registering (not a technician being invited onto an
-  // existing team) gets their own company, starting in PENDING_REVIEW — unlike the
-  // one-time backfill for pre-existing accounts, new registrations are not
-  // grandfathered and must go through the document review queue.
+  // existing team) gets their own company, starting INCOMPLETE — it reaches the
+  // review queue only once the vendor finishes the onboarding checklist and
+  // submits (VendorOnboardingService.submit). Unlike the one-time backfill for
+  // pre-existing accounts, new registrations are never grandfathered.
   private async createCompanyForNewVendor(
     profile: VendorProfile,
     user: User,
@@ -240,7 +241,7 @@ export class UsersService implements OnModuleInit {
     const company = await this.vendorCompanyRepo.save(
       this.vendorCompanyRepo.create({
         name: companyName || `${user.firstName} ${user.lastName}`.trim(),
-        applicationStatus: VendorApplicationStatus.PENDING_REVIEW,
+        applicationStatus: VendorApplicationStatus.INCOMPLETE,
         ...(ein ? { ein } : {}),
         ...(companyAddress ? { address: companyAddress } : {}),
         ...(companyCity ? { city: companyCity } : {}),
@@ -326,10 +327,13 @@ export class UsersService implements OnModuleInit {
     return this.findById(userId);
   }
 
+  // Only vendors whose company is approved — a company still onboarding or
+  // under review never hears about jobs.
   async findAvailableVendors(): Promise<User[]> {
     return this.usersRepo
       .createQueryBuilder('user')
       .innerJoin('user.vendorProfile', 'vp', 'vp.isAvailable = true')
+      .innerJoin(VendorCompany, 'vc', 'vc.id = vp.companyId AND vc.applicationStatus = :approved', { approved: VendorApplicationStatus.APPROVED })
       .where('user.status = :status', { status: UserStatus.ACTIVE })
       .andWhere('user.roles LIKE :role', { role: `%${UserRole.VENDOR}%` })
       .getMany();

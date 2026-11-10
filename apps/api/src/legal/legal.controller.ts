@@ -5,6 +5,7 @@ import {
   CURRENT_VENDOR_TOS_VERSION,
   CURRENT_FACILITATOR_DISCLOSURE_VERSION,
 } from '../common/constants/tos';
+import { CURRENT_VENDOR_BACKGROUND_CHECK_VERSION } from '../common/constants/vendor-background-check';
 
 // The actual terms documents are static HTML served by the admin Next.js
 // app (apps/admin/public/legal/*.html) — nginx's LAN catch-all routes
@@ -22,6 +23,7 @@ export class LegalController {
       customerTosVersion: CURRENT_CUSTOMER_TOS_VERSION,
       vendorTosVersion: CURRENT_VENDOR_TOS_VERSION,
       facilitatorDisclosureVersion: CURRENT_FACILITATOR_DISCLOSURE_VERSION,
+      vendorBackgroundCheckVersion: CURRENT_VENDOR_BACKGROUND_CHECK_VERSION,
     };
   }
 }

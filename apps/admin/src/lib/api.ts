@@ -168,8 +168,10 @@ export const adminApi = {
     api.post('/admin/capabilities', data).then((r) => r.data),
   getVendorApplications: (status?: string) =>
     api.get(`/admin/vendor-applications${status ? `?status=${status}` : ''}`).then((r) => r.data),
-  reviewVendorApplication: (id: string, status: string, reviewNotes?: string) =>
-    api.patch(`/admin/vendor-applications/${id}`, { status, reviewNotes }).then((r) => r.data),
+  updateCapability: (id: string, data: { isPromoted?: boolean }) =>
+    api.patch(`/admin/capabilities/${id}`, data).then((r) => r.data),
+  reviewVendorApplication: (id: string, status: string, reviewNotes?: string, needsInfoItems?: { key: string; note: string }[]) =>
+    api.patch(`/admin/vendor-applications/${id}`, { status, reviewNotes, needsInfoItems }).then((r) => r.data),
   getVendorCertifications: (status?: string) =>
     api.get(`/admin/vendor-certifications${status ? `?status=${status}` : ''}`).then((r) => r.data),
   reviewVendorCertification: (id: string, status: string, reviewNotes?: string) =>

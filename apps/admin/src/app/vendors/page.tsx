@@ -6,7 +6,6 @@ import { adminApi } from '@/lib/api';
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [approving, setApproving] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [reviewStats, setReviewStats] = useState<Record<string, { avg: number; count: number }>>({});
 
@@ -27,16 +26,6 @@ export default function VendorsPage() {
       );
     }).finally(() => setLoading(false));
   }, []);
-
-  const approve = async (id: string) => {
-    setApproving(id);
-    try {
-      await adminApi.approveVendor(id);
-      setVendors((prev) => prev.map((v) => v.id === id ? { ...v, status: 'ACTIVE' } : v));
-    } finally {
-      setApproving(null);
-    }
-  };
 
   const remove = async (id: string, name: string) => {
     if (!confirm(`Suspend vendor "${name}"? They will no longer be able to log in.`)) return;
@@ -137,14 +126,14 @@ export default function VendorsPage() {
                     {new Date(v.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 flex gap-2">
+                    {/* Approval happens only through the submitted application. */}
                     {v.status === 'PENDING_APPROVAL' && (
-                      <button
-                        onClick={() => approve(v.id)}
-                        disabled={approving === v.id}
-                        className="bg-lantern text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                      <Link
+                        href="/vendor-applications"
+                        className="bg-lantern text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
                       >
-                        {approving === v.id ? 'Approving…' : 'Approve'}
-                      </button>
+                        Review application
+                      </Link>
                     )}
                     {v.status !== 'SUSPENDED' && (
                       <button

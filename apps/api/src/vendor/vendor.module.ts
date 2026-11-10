@@ -20,6 +20,8 @@ import { VendorCapabilityAcknowledgment } from './entities/vendor-capability-ack
 import { VendorCertification } from './entities/vendor-certification.entity';
 import { VendorService } from './vendor.service';
 import { VendorController } from './vendor.controller';
+import { VendorOnboardingService } from './vendor-onboarding.service';
+import { VendorOnboardingController } from './vendor-onboarding.controller';
 
 @Module({
   imports: [
@@ -34,8 +36,8 @@ import { VendorController } from './vendor.controller';
     PricingModule,
     MarketplaceModule,
   ],
-  providers: [VendorService],
-  controllers: [VendorController],
-  exports: [VendorService],
+  providers: [VendorService, VendorOnboardingService],
+  controllers: [VendorOnboardingController, VendorController],
+  exports: [VendorService, VendorOnboardingService],
 })
 export class VendorModule {}

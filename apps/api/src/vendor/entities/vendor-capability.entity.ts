@@ -49,6 +49,12 @@ export class VendorCapability {
   @Column({ default: false })
   requiresAcknowledgment: boolean;
 
+  // Offered to new vendors on the onboarding "Services you offer" step — the
+  // services Attenteve is currently promoting. Approved vendors still see
+  // every active capability on their Capabilities screen.
+  @Column({ default: true })
+  isPromoted: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

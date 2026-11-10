@@ -7,14 +7,17 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/role.enum';
 import { VendorAdminGuard } from '../common/guards/vendor-admin.guard';
+import { ApprovedVendorGuard } from '../common/guards/approved-vendor.guard';
 import { VendorAdminOnly } from '../common/decorators/vendor-admin.decorator';
 import { VendorService } from './vendor.service';
 import { CertificationType } from './entities/vendor-capability.entity';
 import { SetCapabilitiesDto } from './dto/set-capabilities.dto';
 
+// Approved companies only — a vendor still onboarding (or under review) uses
+// VendorOnboardingController instead and sees nothing else.
 @ApiTags('Vendor Portal')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard, VendorAdminGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ApprovedVendorGuard, VendorAdminGuard)
 @Roles(UserRole.VENDOR)
 @Controller('vendor')
 export class VendorController {

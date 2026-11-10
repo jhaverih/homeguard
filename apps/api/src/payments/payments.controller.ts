@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApprovedVendorGuard } from '../common/guards/approved-vendor.guard';
 import { PaymentsService } from './payments.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { MarketplaceService } from '../marketplace/marketplace.service';
@@ -25,9 +26,11 @@ export class PaymentsController {
     private readonly marketplaceService: MarketplaceService,
   ) {}
 
+  // Payout enrollment opens once the company is approved; accepting jobs
+  // then requires it (vendor-access.ts assertCanAcceptJobs).
   @Post('vendor/onboarding')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ApprovedVendorGuard)
   @ApiOperation({ summary: 'Vendor: get Stripe Connect onboarding link' })
   getOnboardingLink(@Request() req) {
     return this.service.createVendorOnboardingLink(req.user.id);

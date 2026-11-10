@@ -93,7 +93,7 @@ export function VerificationDocumentsSection() {
         disabled={submittingApp}
         className="mt-4 bg-lantern text-ink px-4 py-2 rounded-lg text-sm font-semibold hover:bg-lantern-deep disabled:opacity-40 transition-colors"
       >
-        {submittingApp ? 'Submitting…' : 'Submit for review'}
+        {submittingApp ? 'Saving…' : 'Save documents'}
       </button>
     </div>
   );

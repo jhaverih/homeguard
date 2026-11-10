@@ -3,15 +3,14 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Linking, Alert, AppState,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { requestsApi, paymentsApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
-const STRIPE_SKIP_KEY = 'vendorStripeSkipped';
-
-function StripeSetupBanner({ onDismiss }: { onDismiss: () => void }) {
+// Required, not dismissable: the API refuses every Accept until the company's
+// Stripe payout account is finished (vendor-access.ts assertCanAcceptJobs).
+function StripeSetupBanner() {
   const [loading, setLoading] = useState(false);
 
   const openStripe = async () => {
@@ -32,19 +31,16 @@ function StripeSetupBanner({ onDismiss }: { onDismiss: () => void }) {
         <View style={styles.cardChip}>
           <Text style={styles.cardChipText}>$</Text>
         </View>
-        <Text style={styles.stripeBannerTitle}>Set Up Payouts to Get Paid</Text>
+        <Text style={styles.stripeBannerTitle}>Set Up Payouts to Start Accepting Jobs</Text>
       </View>
       <Text style={styles.stripeBannerBody}>
-        Connect your Stripe account so Attenteve can pay you when jobs are completed.
+        Your company is approved. Connect a Stripe account so Attenteve can pay you. You can browse open jobs now, and you can accept them once payouts are set up.
       </Text>
       <TouchableOpacity style={styles.stripeBtn} onPress={openStripe} disabled={loading}>
         {loading
           ? <ActivityIndicator color="#fff" size="small" />
           : <Text style={styles.stripeBtnText}>Connect Stripe Account</Text>
         }
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.dismissBtn} onPress={onDismiss}>
-        <Text style={styles.dismissText}>Remind me later</Text>
       </TouchableOpacity>
     </View>
   );
@@ -60,25 +56,15 @@ export default function VendorDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [jobs, skipVal] = await Promise.all([
-        requestsApi.getVendorJobs().catch(() => []),
-        AsyncStorage.getItem(STRIPE_SKIP_KEY).catch(() => null),
-      ]);
+      const jobs = await requestsApi.getVendorJobs().catch(() => []);
       setMyJobs((jobs as any[]) || []);
 
-      if (skipVal !== 'true') {
-        const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
-        const status: any = await Promise.race([
-          paymentsApi.getVendorStripeStatus().catch(() => null),
-          deadline,
-        ]);
-        if (status && !status.onboardingComplete) {
-          setShowStripeBanner(true);
-        } else if (status?.onboardingComplete) {
-          setShowStripeBanner(false);
-          AsyncStorage.removeItem(STRIPE_SKIP_KEY).catch(() => {});
-        }
-      }
+      const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
+      const status: any = await Promise.race([
+        paymentsApi.getVendorStripeStatus().catch(() => null),
+        deadline,
+      ]);
+      if (status) setShowStripeBanner(!status.onboardingComplete);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -98,11 +84,6 @@ export default function VendorDashboard() {
     return () => sub.remove();
   }, [load]);
 
-  const handleDismiss = () => {
-    AsyncStorage.setItem(STRIPE_SKIP_KEY, 'true').catch(() => {});
-    setShowStripeBanner(false);
-  };
-
   const activeJob = myJobs.find((j) => ['ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(j.status));
   const upcomingJobs = myJobs.filter((j) => j.status === 'ACCEPTED').slice(0, 3);
   const completedCount = myJobs.filter((j) => j.status === 'COMPLETED').length;
@@ -114,7 +95,7 @@ export default function VendorDashboard() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
-      {showStripeBanner && <StripeSetupBanner onDismiss={handleDismiss} />}
+      {showStripeBanner && <StripeSetupBanner />}
 
       <View style={styles.header}>
         <Text style={styles.greeting}>Hello, {user?.firstName}!</Text>
@@ -193,8 +174,6 @@ const styles = StyleSheet.create({
   stripeBannerBody: { fontSize: 13, color: colors.steel, lineHeight: 20, marginBottom: 16 },
   stripeBtn: { backgroundColor: '#635bff', borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 8 },
   stripeBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  dismissBtn: { alignItems: 'center', paddingVertical: 6 },
-  dismissText: { fontSize: 13, color: colors.steel },
   // Dashboard
   header: { backgroundColor: colors.ink, padding: 24, paddingTop: 16 },
   greeting: { fontSize: 24, fontWeight: '700', color: colors.mist },

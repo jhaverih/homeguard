@@ -2,13 +2,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
-import { userApi, uploadsApi } from '@/lib/api';
+import { userApi, uploadsApi, onboardingApi } from '@/lib/api';
 import { usePermissions } from '@/lib/permissions';
 
 const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password'];
+const STATUS_PATH = '/application-status';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
+  const [approved, setApproved] = useState(true);
   const [forbiddenMessage, setForbiddenMessage] = useState('');
   const [needsPhoto, setNeedsPhoto] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -23,7 +25,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     // it via the Team page's edit control. Only technicians see this banner.
     // (isCompanyAdmin resolves asynchronously from localStorage, so explicitly clear
     // needsPhoto rather than just skipping the fetch, to avoid a stale flash of the banner.)
-    if (isPublic || isCompanyAdmin) {
+    if (isPublic || isCompanyAdmin || pathname === STATUS_PATH) {
       setNeedsPhoto(false);
       return;
     }
@@ -46,14 +48,34 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Only an approved company gets the portal. A company whose application is
+  // submitted but not approved sees /application-status and nothing else; one
+  // that hasn't submitted yet is signed out (login refuses it too).
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
       const token = localStorage.getItem('vendor_token');
       if (!token && !isPublic) {
         router.replace('/login');
-      } else {
-        setReady(true);
+        return;
       }
+      if (isPublic) { setReady(true); return; }
+      try {
+        const { applicationStatus } = await onboardingApi.getStatus();
+        if (applicationStatus === 'INCOMPLETE') {
+          localStorage.removeItem('vendor_token');
+          localStorage.removeItem('vendor_is_admin');
+          router.replace('/login');
+          return;
+        }
+        const approved = applicationStatus === 'APPROVED';
+        setApproved(approved);
+        if (!approved && pathname !== STATUS_PATH) { router.replace(STATUS_PATH); return; }
+        if (approved && pathname === STATUS_PATH) { router.replace('/'); return; }
+      } catch {
+        // A 401 is handled by the api interceptor; anything else falls back to
+        // the API's own per-endpoint approval checks.
+      }
+      setReady(true);
     };
 
     checkAuth();
@@ -75,7 +97,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isPublic) {
+  if (isPublic || (!approved && pathname === STATUS_PATH)) {
     return <>{children}</>;
   }
 

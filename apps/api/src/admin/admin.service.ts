@@ -30,6 +30,8 @@ import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.
 import { geocodeAddress } from '../common/utils/geocode.utils';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from '../payments/payments.service';
+import { VendorOnboardingService } from '../vendor/vendor-onboarding.service';
+import { CHECKLIST_KEYS, ChecklistKey } from '../vendor/onboarding/onboarding-checklist';
 
 @Injectable()
 export class AdminService {
@@ -57,6 +59,7 @@ export class AdminService {
     private pricingService: PricingService,
     private configService: ConfigService,
     private paymentsService: PaymentsService,
+    private vendorOnboardingService: VendorOnboardingService,
   ) {}
 
   private getAdminPortalUrl(): string {
@@ -181,7 +184,15 @@ export class AdminService {
     });
   }
 
+  // Reactivates a vendor user whose company is already approved. A new
+  // company is approved only through reviewVendorApplication, so this can't
+  // activate someone whose application was never reviewed.
   async approveVendor(vendorId: string) {
+    const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
+    const company = profile?.companyId ? await this.vendorCompanyRepo.findOne({ where: { id: profile.companyId } }) : null;
+    if (company?.applicationStatus !== VendorApplicationStatus.APPROVED) {
+      throw new BadRequestException('Approve this vendor from Vendor Applications once they submit their application.');
+    }
     await this.usersRepo.update(vendorId, { status: UserStatus.ACTIVE });
     return this.usersRepo.findOne({ where: { id: vendorId }, relations: ['vendorProfile'] });
   }
@@ -872,15 +883,19 @@ export class AdminService {
     return Promise.all(companies.map(async (c) => {
       const admin = adminByCompany.get(c.id);
       const coiValid = !!c.coiDocumentKey && !!c.coiExpirationDate && new Date(c.coiExpirationDate) > new Date();
-      const [stateRegistrationUrl, coiUrl, adminAvatarUrl] = await Promise.all([
+      const [stateRegistrationUrl, coiUrl, adminAvatarUrl, review] = await Promise.all([
         c.stateRegistrationDocKey ? this.uploadsService.getSignedUrl(c.stateRegistrationDocKey) : Promise.resolve(null),
         c.coiDocumentKey ? this.uploadsService.getSignedUrl(c.coiDocumentKey) : Promise.resolve(null),
         admin?.avatarUrl ? this.uploadsService.getSignedUrl(admin.avatarUrl) : Promise.resolve(null),
+        this.vendorOnboardingService.getReviewDetails(c, admin?.id ?? null),
       ]);
       return {
         ...c,
         stateRegistrationUrl,
         coiUrl,
+        checklist: review.checklist,
+        services: review.services,
+        licenses: review.licenses,
         vendorAdmin: admin ? { id: admin.id, name: `${admin.firstName} ${admin.lastName}`, email: admin.email, avatarUrl: adminAvatarUrl } : null,
         completeness: {
           stateRegistration: !!c.stateRegistrationDocKey,
@@ -892,12 +907,42 @@ export class AdminService {
     }));
   }
 
-  async reviewVendorApplication(companyId: string, status: VendorApplicationStatus, reviewNotes?: string) {
+  // Only a submitted application (PENDING_REVIEW) can be decided. NEEDS_INFO
+  // must name the checklist items to reopen, each with a note — only those
+  // items unlock for the vendor (see onboarding-checklist.ts isEditable).
+  async reviewVendorApplication(
+    companyId: string,
+    status: VendorApplicationStatus,
+    reviewNotes?: string,
+    needsInfoItems?: { key: string; note: string }[],
+    reviewerId?: string,
+  ) {
     const company = await this.vendorCompanyRepo.findOne({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Vendor company not found');
+    if (company.applicationStatus !== VendorApplicationStatus.PENDING_REVIEW) {
+      throw new BadRequestException(
+        company.applicationStatus === VendorApplicationStatus.INCOMPLETE
+          ? 'This vendor has not submitted the application yet.'
+          : 'This application has already been reviewed.',
+      );
+    }
+    const decisions = [VendorApplicationStatus.APPROVED, VendorApplicationStatus.NEEDS_INFO, VendorApplicationStatus.REJECTED];
+    if (!decisions.includes(status)) throw new BadRequestException('Choose Approve, Needs Info or Reject.');
+
+    if (status === VendorApplicationStatus.NEEDS_INFO) {
+      const items = (needsInfoItems ?? [])
+        .filter((i) => CHECKLIST_KEYS.includes(i.key as ChecklistKey))
+        .map((i) => ({ key: i.key, note: (i.note ?? '').trim(), resolved: false }));
+      if (!items.length) throw new BadRequestException('Pick at least one item for the vendor to fix.');
+      if (items.some((i) => !i.note)) throw new BadRequestException('Add a note for each item you send back.');
+      company.needsInfoItems = items;
+    } else {
+      company.needsInfoItems = null;
+    }
 
     company.applicationStatus = status;
     company.reviewedAt = new Date();
+    company.reviewedByUserId = reviewerId ?? null;
     company.reviewNotes = reviewNotes ?? null;
     await this.vendorCompanyRepo.save(company);
 
@@ -917,11 +962,16 @@ export class AdminService {
         [VendorApplicationStatus.REJECTED]: 'Application Rejected',
         [VendorApplicationStatus.NEEDS_INFO]: 'More Information Needed',
       };
-      await this.notificationsService.notifyUser(
+      const defaults: Record<string, string> = {
+        [VendorApplicationStatus.APPROVED]: 'Welcome to Attenteve. Set up Stripe payouts in the app to start accepting jobs.',
+        [VendorApplicationStatus.REJECTED]: 'Your company application was not approved.',
+        [VendorApplicationStatus.NEEDS_INFO]: 'Open the Attenteve app to see what to update, then resubmit.',
+      };
+      await this.notificationsService.notifyUserWithEmail(
         admin.id,
         NotificationType.SERVICE_UPDATE,
         titles[status] ?? 'Application Updated',
-        reviewNotes || `Your company application status is now ${status}.`,
+        reviewNotes || defaults[status],
         {},
       );
     }

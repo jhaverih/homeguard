@@ -26,6 +26,7 @@ import { AdminController } from './admin.controller';
 import { VendorSchedulerService } from './vendor-scheduler.service';
 import { EmailService } from '../common/email/email.service';
 import { PaymentsModule } from '../payments/payments.module';
+import { VendorModule } from '../vendor/vendor.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { PaymentsModule } from '../payments/payments.module';
     ServiceRequestsModule,
     PricingModule,
     PaymentsModule,
+    VendorModule,
   ],
   providers: [AdminService, VendorSchedulerService, EmailService],
   controllers: [AdminController],

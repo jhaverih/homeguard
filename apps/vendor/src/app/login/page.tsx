@@ -2,7 +2,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { api, onboardingApi, INCOMPLETE_APPLICATION_MESSAGE } from '@/lib/api';
 import { Logo } from '@/components/Logo';
 
 function EyeIcon({ off }: { off: boolean }) {
@@ -37,9 +37,16 @@ export default function LoginPage() {
         setError('Access denied. Vendor accounts only.');
         return;
       }
+      // No portal access until the application has been submitted; until it's
+      // approved, the portal shows only its status.
+      const application = await onboardingApi.getStatus(accessToken);
+      if (application.applicationStatus === 'INCOMPLETE') {
+        setError(INCOMPLETE_APPLICATION_MESSAGE);
+        return;
+      }
       localStorage.setItem('vendor_token', accessToken);
       localStorage.setItem('vendor_is_admin', String(!!user.vendorProfile?.isCompanyAdmin));
-      router.replace('/');
+      router.replace(application.applicationStatus === 'APPROVED' ? '/' : '/application-status');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Check your credentials.');
     } finally {

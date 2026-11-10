@@ -80,6 +80,26 @@ export const vendorApi = {
   getRates: () => api.get('/vendor/rates').then((r) => r.data),
 };
 
+// The portal's only view of a company that isn't approved: its status and the
+// items still open. Applications are filled in and submitted in the app only.
+export type ApplicationStatus = {
+  applicationStatus: 'INCOMPLETE' | 'PENDING_REVIEW' | 'NEEDS_INFO' | 'APPROVED' | 'REJECTED';
+  companyName: string;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  isCompanyAdmin: boolean;
+  openItems: { label: string; reviewerNote: string | null }[];
+};
+
+export const onboardingApi = {
+  getStatus: (token?: string): Promise<ApplicationStatus> =>
+    api.get('/vendor/onboarding/status', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined).then((r) => r.data),
+};
+
+export const INCOMPLETE_APPLICATION_MESSAGE =
+  'Your company application isn\'t finished yet. Complete it and submit it for review in the Attenteve app. The vendor portal opens once it\'s submitted.';
+
 export const userApi = {
   getMe: () => api.get('/users/me').then((r) => r.data),
   updateProfile: (data: any) => api.patch('/users/me/profile', data).then((r) => r.data),

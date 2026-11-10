@@ -439,6 +439,68 @@ export const vendorApi = {
   }) => api.post('/vendor/application', data),
 };
 
+// The vendor application before approval — the only vendor endpoints the API
+// opens to a company that isn't approved yet (apps/api VendorOnboardingController).
+export type ChecklistItem = {
+  key: 'company' | 'photo' | 'services' | 'licenses' | 'counties' | 'stateRegistration' | 'insurance' | 'backgroundCheck' | 'terms';
+  label: string;
+  complete: boolean;
+  missing: string | null;
+  reviewerNote: string | null;
+  editable: boolean;
+};
+
+export type VendorApplication = {
+  applicationStatus: 'INCOMPLETE' | 'PENDING_REVIEW' | 'NEEDS_INFO' | 'APPROVED' | 'REJECTED';
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  isCompanyAdmin: boolean;
+  checklist: { items: ChecklistItem[]; completeCount: number; totalCount: number; canSubmit: boolean; coiExpiresSoon: boolean };
+  company: { name: string; ein: string | null; address: string | null; city: string | null; state: string | null; zipCode: string | null };
+  photoUrl: string | null;
+  services: { id: string; name: string; requiredCertificationType: string }[];
+  licenses: {
+    id: string; certificationType: string; licenseNumber: string; issuingState: string; expirationDate: string;
+    status: string; reviewNotes: string | null; documentUrl: string | null;
+  }[];
+  serviceCounties: string[];
+  documents: {
+    stateRegistrationUrl: string | null; stateRegistrationOnFile: boolean;
+    coiUrl: string | null; coiOnFile: boolean; coiExpirationDate: string | null;
+  };
+  backgroundCheck: {
+    title: string; paragraphs: string[]; version: string;
+    signedVersion: string | null; signedAt: string | null; signerName: string | null; signerTitle: string | null;
+  };
+};
+
+export type ServiceOption = {
+  id: string; name: string; requiredCertificationType: string; isSpecialty: boolean;
+  trainingDocumentUrl: string | null; requiresAcknowledgment: boolean; acknowledged: boolean; selected: boolean;
+};
+
+export const onboardingApi = {
+  getStatus: (): Promise<{ applicationStatus: VendorApplication['applicationStatus'] }> => api.get('/vendor/onboarding/status') as any,
+  get: (): Promise<VendorApplication> => api.get('/vendor/onboarding') as any,
+  updateCompany: (data: { name?: string; ein?: string; address?: string; city?: string; state?: string; zipCode?: string }): Promise<VendorApplication> =>
+    api.patch('/vendor/onboarding/company', data) as any,
+  setPhoto: (avatarKey: string): Promise<VendorApplication> => api.patch('/vendor/onboarding/photo', { avatarKey }) as any,
+  updateDocuments: (data: { stateRegistrationDocKey?: string; coiDocumentKey?: string; coiExpirationDate?: string }): Promise<VendorApplication> =>
+    api.patch('/vendor/onboarding/documents', data) as any,
+  getServiceOptions: (): Promise<ServiceOption[]> => api.get('/vendor/onboarding/services') as any,
+  setServices: (capabilityIds: string[]): Promise<VendorApplication> => api.put('/vendor/onboarding/services', { capabilityIds }) as any,
+  acknowledgeService: (capabilityId: string) => api.post(`/vendor/onboarding/services/${capabilityId}/acknowledge`),
+  addLicense: (data: { certificationType: string; licenseNumber: string; issuingState: string; expirationDate: string; documentKey: string }): Promise<VendorApplication> =>
+    api.post('/vendor/onboarding/licenses', data) as any,
+  removeLicense: (id: string): Promise<VendorApplication> => api.delete(`/vendor/onboarding/licenses/${id}`) as any,
+  getCountyOptions: (): Promise<Record<string, { fips: string; name: string }[]>> => api.get('/vendor/onboarding/counties') as any,
+  setCounties: (serviceCounties: string[]): Promise<VendorApplication> => api.put('/vendor/onboarding/counties', { serviceCounties }) as any,
+  signBackgroundCheck: (data: { signerName: string; signerTitle: string; agreed: boolean }): Promise<VendorApplication> =>
+    api.post('/vendor/onboarding/background-check', data) as any,
+  submit: (): Promise<VendorApplication> => api.post('/vendor/onboarding/submit') as any,
+};
+
 export const disputesApi = {
   open: (data: {
     serviceRequestId: string;

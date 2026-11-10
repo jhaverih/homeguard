@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput, Platform, Linking,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput, Linking,
 } from 'react-native';
-import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { vendorApi, uploadsApi, userApi } from '../../src/services/api';
+import { pickDocument } from '../../src/utils/pickDocument';
+import { FutureDateField, StatePicker } from '../../src/components/onboarding/OnboardingUI';
 import { colors } from '../../src/theme';
 
 const CERT_TYPES = [
@@ -43,8 +43,7 @@ export default function CertificationsScreen() {
   const [certType, setCertType] = useState('HVAC');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [issuingState, setIssuingState] = useState('');
-  const [expirationDate, setExpirationDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [expirationDate, setExpirationDate] = useState<Date | null>(null);
   const [document, setDocument] = useState<{ uri: string; key?: string } | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
@@ -59,32 +58,14 @@ export default function CertificationsScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const pickDocument = () => {
-    Alert.alert('License Photo', 'Choose source', [
-      {
-        text: 'Take Photo',
-        onPress: async () => {
-          const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-          if (!result.canceled && result.assets?.length) await uploadDocument(result.assets[0].uri);
-        },
-      },
-      {
-        text: 'Photo Library',
-        onPress: async () => {
-          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
-          if (!result.canceled && result.assets?.length) await uploadDocument(result.assets[0].uri);
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
-  const uploadDocument = async (uri: string) => {
-    setDocument({ uri });
+  const pickLicense = async () => {
+    const file = await pickDocument('License');
+    if (!file) return;
+    setDocument({ uri: file.uri });
     setUploadingDoc(true);
     try {
-      const res: any = await uploadsApi.uploadPhoto(uri, 'certifications');
-      setDocument({ uri, key: res.key });
+      const res: any = await uploadsApi.uploadDocument(file.uri, 'certifications', file.mimeType, file.name);
+      setDocument({ uri: file.uri, key: res.key });
     } catch (e: any) {
       Alert.alert('Upload failed', e.message);
       setDocument(null);
@@ -97,7 +78,7 @@ export default function CertificationsScreen() {
     setCertType('HVAC');
     setLicenseNumber('');
     setIssuingState('');
-    setExpirationDate(new Date());
+    setExpirationDate(null);
     setDocument(null);
     setShowForm(false);
     setEditingId(null);
@@ -108,7 +89,7 @@ export default function CertificationsScreen() {
     setCertType(c.certificationType);
     setLicenseNumber(c.licenseNumber);
     setIssuingState(c.issuingState || '');
-    setExpirationDate(c.expirationDate ? new Date(c.expirationDate) : new Date());
+    setExpirationDate(c.expirationDate && new Date(c.expirationDate) > new Date() ? new Date(c.expirationDate) : null);
     setDocument(null); // replacing the document is optional on edit — leave blank to keep the existing one
     setShowForm(true);
   };
@@ -119,8 +100,9 @@ export default function CertificationsScreen() {
 
   const submit = async () => {
     if (!licenseNumber.trim()) { Alert.alert('Required', 'Enter the license number.'); return; }
-    if (!issuingState.trim()) { Alert.alert('Required', 'Enter the issuing state.'); return; }
-    if (!editingId && !document?.key) { Alert.alert('Required', 'Upload a photo of your license.'); return; }
+    if (!issuingState.trim()) { Alert.alert('Required', 'Choose the issuing state.'); return; }
+    if (!expirationDate) { Alert.alert('Required', 'Enter the expiry date printed on the license.'); return; }
+    if (!editingId && !document?.key) { Alert.alert('Required', 'Upload a photo or PDF of your license.'); return; }
     setSubmitting(true);
     try {
       const payload = {
@@ -210,34 +192,13 @@ export default function CertificationsScreen() {
             value={licenseNumber}
             onChangeText={setLicenseNumber}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="Issuing state (e.g. TN)"
-            placeholderTextColor={colors.steel}
-            value={issuingState}
-            onChangeText={setIssuingState}
-            maxLength={2}
-            autoCapitalize="characters"
-          />
+          <StatePicker value={issuingState} onChange={setIssuingState} placeholder="Issuing state" />
 
           <Text style={styles.formLabel}>Expiration Date</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
-            <Text style={styles.dateBtnText}>{expirationDate.toLocaleDateString()}</Text>
-          </TouchableOpacity>
-          {showDatePicker && (
-            <RNDateTimePicker
-              value={expirationDate}
-              mode="date"
-              minimumDate={new Date()}
-              onChange={(_, d) => {
-                setShowDatePicker(Platform.OS === 'ios');
-                if (d) setExpirationDate(d);
-              }}
-            />
-          )}
+          <FutureDateField value={expirationDate} onChange={setExpirationDate} placeholder="Expiry date on the license" />
 
           <Text style={styles.formLabel}>License Photo{editingId ? ' (optional — leave blank to keep the existing document)' : ''}</Text>
-          <TouchableOpacity style={styles.docBtn} onPress={pickDocument} disabled={uploadingDoc}>
+          <TouchableOpacity style={styles.docBtn} onPress={pickLicense} disabled={uploadingDoc}>
             {uploadingDoc ? (
               <ActivityIndicator color={colors.lanternDeep} />
             ) : (

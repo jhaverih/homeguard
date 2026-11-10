@@ -191,10 +191,11 @@ export class AdminController {
   @MinAdminLevel(AdminLevel.ADMIN)
   @ApiOperation({ summary: 'Admin/Super User: approve/reject/request-info on a vendor company application' })
   reviewVendorApplication(
+    @Request() req,
     @Param('id') id: string,
-    @Body() body: { status: VendorApplicationStatus; reviewNotes?: string },
+    @Body() body: { status: VendorApplicationStatus; reviewNotes?: string; needsInfoItems?: { key: string; note: string }[] },
   ) {
-    return this.service.reviewVendorApplication(id, body.status, body.reviewNotes);
+    return this.service.reviewVendorApplication(id, body.status, body.reviewNotes, body.needsInfoItems, req.user.id);
   }
 
   @Get('vendor-certifications')
