@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
-import { requestsApi, paymentsApi } from '../../src/services/api';
+import { requestsApi, paymentsApi, onboardingApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
 // Required, not dismissable: the API refuses every Accept until the company's
@@ -52,6 +52,8 @@ export default function VendorDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showStripeBanner, setShowStripeBanner] = useState(false);
+  // Days until the soonest credential expires, when within the 60-day window.
+  const [expiringDays, setExpiringDays] = useState<number | null>(null);
   const appState = useRef(AppState.currentState);
 
   const load = useCallback(async () => {
@@ -65,6 +67,10 @@ export default function VendorDashboard() {
         deadline,
       ]);
       if (status) setShowStripeBanner(!status.onboardingComplete);
+
+      const creds = await onboardingApi.getCredentials().catch(() => null);
+      const soon = creds && [creds.insurance, ...creds.licenses].filter((c) => c.expiringSoon && c.daysLeft !== null);
+      setExpiringDays(soon && soon.length ? Math.min(...soon.map((c) => c.daysLeft!)) : null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -96,6 +102,15 @@ export default function VendorDashboard() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
     >
       {showStripeBanner && <StripeSetupBanner />}
+
+      {expiringDays !== null && (
+        <TouchableOpacity style={styles.expiryBanner} onPress={() => router.push('/(vendor-onboarding)/credentials')}>
+          <Text style={styles.expiryTitle}>
+            A credential expires in {expiringDays} day{expiringDays === 1 ? '' : 's'}
+          </Text>
+          <Text style={styles.expiryBody}>Upload the renewed insurance or license before then to keep access to jobs. Tap to renew.</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.header}>
         <Text style={styles.greeting}>Hello, {user?.firstName}!</Text>
@@ -165,6 +180,10 @@ export default function VendorDashboard() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.canvas },
+  // Credential expiry banner
+  expiryBanner: { backgroundColor: '#fffbeb', margin: 16, marginBottom: 8, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#fde68a' },
+  expiryTitle: { fontSize: 15, fontWeight: '700', color: '#92400e', marginBottom: 4 },
+  expiryBody: { fontSize: 13, color: '#92400e', lineHeight: 19 },
   // Stripe banner
   stripeBanner: { backgroundColor: '#fff', margin: 16, marginBottom: 8, borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, borderLeftWidth: 4, borderLeftColor: '#635bff' },
   stripeBannerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },

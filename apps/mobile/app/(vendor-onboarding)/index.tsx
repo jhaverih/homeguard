@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, RefreshControl,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, RefreshControl, AppState,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,9 +28,22 @@ export default function VendorApplicationScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Approved → (vendor)/_layout, which sends the vendor to Stripe payout setup
+  // when it isn't finished yet.
   useEffect(() => {
     if (app?.applicationStatus === 'APPROVED') router.replace('/(vendor)');
   }, [app?.applicationStatus]);
+
+  // A vendor waiting on Under Review usually leaves the app; check again when
+  // they come back so an approval moves them on without a manual refresh.
+  useEffect(() => {
+    let prev = AppState.currentState;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (prev.match(/inactive|background/) && next === 'active') reload();
+      prev = next;
+    });
+    return () => sub.remove();
+  }, [reload]);
 
   if (loading || !app) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 

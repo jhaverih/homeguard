@@ -89,6 +89,8 @@ export type ApplicationStatus = {
   reviewedAt: string | null;
   reviewNotes: string | null;
   isCompanyAdmin: boolean;
+  // Approved, but insurance or a trade license has expired — locked until renewed in the app.
+  credentialsLocked: boolean;
   openItems: { label: string; reviewerNote: string | null }[];
 };
 

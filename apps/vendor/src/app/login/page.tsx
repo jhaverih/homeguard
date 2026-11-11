@@ -46,7 +46,7 @@ export default function LoginPage() {
       }
       localStorage.setItem('vendor_token', accessToken);
       localStorage.setItem('vendor_is_admin', String(!!user.vendorProfile?.isCompanyAdmin));
-      router.replace(application.applicationStatus === 'APPROVED' ? '/' : '/application-status');
+      router.replace(application.applicationStatus === 'APPROVED' && !application.credentialsLocked ? '/' : '/application-status');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Check your credentials.');
     } finally {

@@ -5,7 +5,8 @@ import { AttenteveIcon, AttenteveLogo } from '../../src/components/AttenteveLogo
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
-import { userApi, onboardingApi } from '../../src/services/api';
+import { userApi, onboardingApi, paymentsApi } from '../../src/services/api';
+import { isPayoutSetupDeferred } from '../../src/utils/payoutPrompt';
 import { colors } from '../../src/theme';
 
 function RoleSwitcher() {
@@ -32,15 +33,30 @@ export default function VendorLayout() {
   // in, under review, sent back, rejected) is sent to their application. If
   // the check itself fails, show the tabs — the API refuses every vendor call
   // for an unapproved company anyway.
-  const [gate, setGate] = useState<'checking' | 'approved' | 'onboarding'>('checking');
+  // An approved company without finished Stripe payouts goes to the payout
+  // screen first, unless the vendor chose "Browse open jobs first" this session.
+  // An expired insurance certificate or trade license locks the tabs until
+  // it's renewed (apps/api vendor-access.ts).
+  const [gate, setGate] = useState<'checking' | 'approved' | 'onboarding' | 'payouts' | 'credentials'>('checking');
   useEffect(() => {
-    onboardingApi.getStatus()
-      .then((s) => setGate(s.applicationStatus === 'APPROVED' ? 'approved' : 'onboarding'))
-      .catch(() => setGate('approved'));
+    (async () => {
+      try {
+        const s = await onboardingApi.getStatus();
+        if (s.applicationStatus !== 'APPROVED') { setGate('onboarding'); return; }
+        if (s.credentialsLocked) { setGate('credentials'); return; }
+        if (isPayoutSetupDeferred()) { setGate('approved'); return; }
+        const stripe = await paymentsApi.getVendorStripeStatus().catch(() => null);
+        setGate(stripe && !stripe.onboardingComplete ? 'payouts' : 'approved');
+      } catch {
+        setGate('approved');
+      }
+    })();
   }, []);
 
   if (gate === 'checking') return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
   if (gate === 'onboarding') return <Redirect href="/(vendor-onboarding)" />;
+  if (gate === 'payouts') return <Redirect href="/(vendor-onboarding)/payouts" />;
+  if (gate === 'credentials') return <Redirect href="/(vendor-onboarding)/credentials" />;
 
   return (
     <Tabs

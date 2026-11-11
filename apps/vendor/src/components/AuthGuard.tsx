@@ -60,14 +60,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
       if (isPublic) { setReady(true); return; }
       try {
-        const { applicationStatus } = await onboardingApi.getStatus();
+        const { applicationStatus, credentialsLocked } = await onboardingApi.getStatus();
         if (applicationStatus === 'INCOMPLETE') {
           localStorage.removeItem('vendor_token');
           localStorage.removeItem('vendor_is_admin');
           router.replace('/login');
           return;
         }
-        const approved = applicationStatus === 'APPROVED';
+        // An expired insurance certificate or trade license locks an approved
+        // company out too, until it's renewed in the app.
+        const approved = applicationStatus === 'APPROVED' && !credentialsLocked;
         setApproved(approved);
         if (!approved && pathname !== STATUS_PATH) { router.replace(STATUS_PATH); return; }
         if (approved && pathname === STATUS_PATH) { router.replace('/'); return; }

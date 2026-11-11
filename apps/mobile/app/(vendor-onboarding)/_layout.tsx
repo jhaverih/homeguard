@@ -49,6 +49,8 @@ export default function VendorOnboardingLayout() {
       <Stack.Screen name="documents" options={{ title: 'Registration & Insurance' }} />
       <Stack.Screen name="background-check" options={{ title: 'Background Checks' }} />
       <Stack.Screen name="submission" options={{ title: 'Your Submission' }} />
+      <Stack.Screen name="credentials" options={{ title: 'Credentials', headerBackVisible: false, gestureEnabled: false, headerRight: () => <HeaderActions /> }} />
+      <Stack.Screen name="payouts" options={{ title: 'Set Up Payouts', headerBackVisible: false, gestureEnabled: false, headerRight: () => <HeaderActions /> }} />
     </Stack>
   );
 }

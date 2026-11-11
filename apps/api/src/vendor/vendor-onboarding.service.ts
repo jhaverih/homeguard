@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
+import { getVendorAccess } from './vendor-access';
+import { daysUntil, isExpired, REMINDER_DAYS } from './credentials/credential-expiry';
 import { User } from '../users/entities/user.entity';
 import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { VendorCompany, VendorApplicationStatus } from './entities/vendor-company.entity';
@@ -41,6 +43,7 @@ export class VendorOnboardingService {
     private uploadsService: UploadsService,
     private notificationsService: NotificationsService,
     private vendorService: VendorService,
+    private dataSource: DataSource,
   ) {}
 
   private async load(userId: string) {
@@ -97,9 +100,12 @@ export class VendorOnboardingService {
   // yet. Deliberately carries no application data.
   async getStatus(userId: string) {
     const { company, profile } = await this.load(userId);
-    const checklist = await this.getChecklist(userId, company);
+    const [checklist, access] = await Promise.all([this.getChecklist(userId, company), getVendorAccess(this.dataSource, userId)]);
     return {
       applicationStatus: company.applicationStatus,
+      // Approved, but insurance or the caller's own license has expired: the
+      // app and portal show only the credential renewal screen.
+      credentialsLocked: access.credentialsExpired,
       companyName: company.name,
       submittedAt: company.submittedAt,
       reviewedAt: company.reviewedAt,
@@ -202,6 +208,7 @@ export class VendorOnboardingService {
         const expiry = new Date(data.coiExpirationDate);
         if (isNaN(expiry.getTime()) || expiry <= new Date()) throw new BadRequestException('The insurance expiry date must be in the future.');
         company.coiExpirationDate = expiry;
+        company.coiReminderSentDays = null;
       } else if (data.coiDocumentKey !== company.coiDocumentKey) {
         throw new BadRequestException('Enter the expiry date shown on the new certificate.');
       }
@@ -314,6 +321,98 @@ export class VendorOnboardingService {
     await this.certificationRepo.delete(cert.id);
     await this.saveEdit(company, 'licenses');
     return this.getApplication(userId);
+  }
+
+  // ── Credential renewal (approved companies) ───────────────────────────────
+  // Reachable while locked out for an expired credential (vendor-access.ts):
+  // this is how the vendor gets access back. Renewing early, from an expiry
+  // reminder, works the same way.
+
+  async getCredentials(userId: string) {
+    const { company, profile } = await this.load(userId);
+    const access = await getVendorAccess(this.dataSource, userId);
+    const now = new Date();
+    const certs = await this.certificationRepo.find({ where: { userId }, order: { expirationDate: 'DESC' } });
+    const expiredIds = new Set(access.expiredLicenseIds);
+    const credential = (expiry: Date | null) => ({
+      expirationDate: expiry,
+      daysLeft: expiry ? daysUntil(expiry, now) : null,
+      expired: isExpired(expiry, now),
+      expiringSoon: !!expiry && !isExpired(expiry, now) && daysUntil(expiry, now) <= REMINDER_DAYS[0],
+    });
+    return {
+      locked: access.credentialsExpired,
+      isCompanyAdmin: profile.isCompanyAdmin,
+      insurance: {
+        ...credential(company.coiExpirationDate),
+        documentUrl: company.coiDocumentKey ? await this.uploadsService.getSignedUrl(company.coiDocumentKey) : null,
+        // Company-level: only the company admin can replace it.
+        canRenew: profile.isCompanyAdmin,
+      },
+      licenses: await Promise.all(certs
+        .filter((c) => c.status !== CertificationReviewStatus.REJECTED)
+        .map(async (c) => ({
+          id: c.id,
+          certificationType: c.certificationType,
+          licenseNumber: c.licenseNumber,
+          issuingState: c.issuingState,
+          status: c.status,
+          ...credential(c.expirationDate),
+          // Superseded by a newer license of the same type → not blocking.
+          blocking: expiredIds.has(c.id),
+          documentUrl: c.documentKey ? await this.uploadsService.getSignedUrl(c.documentKey) : null,
+        }))),
+    };
+  }
+
+  private parseFutureDate(value: string, what: string) {
+    const date = new Date(value);
+    if (!value || isNaN(date.getTime()) || date <= new Date()) throw new BadRequestException(`The ${what} expiry date must be in the future.`);
+    return date;
+  }
+
+  async renewInsurance(userId: string, data: { coiDocumentKey: string; coiExpirationDate: string }) {
+    const { company } = await this.loadAsApplicant(userId);
+    if (company.applicationStatus !== VendorApplicationStatus.APPROVED) {
+      throw new BadRequestException('Update your insurance from your application.');
+    }
+    if (!data.coiDocumentKey) throw new BadRequestException('Attach the renewed certificate of insurance.');
+    company.coiExpirationDate = this.parseFutureDate(data.coiExpirationDate, 'insurance');
+    company.coiDocumentKey = data.coiDocumentKey;
+    company.coiReminderSentDays = null;
+    await this.companyRepo.save(company);
+    await this.notificationsService.notifyAdmins(
+      NotificationType.VENDOR_CREDENTIAL_RENEWED,
+      'Vendor Insurance Renewed',
+      `${company.name} uploaded a renewed certificate of insurance (expires ${company.coiExpirationDate.toLocaleDateString()}).`,
+      { vendorCompanyId: company.id },
+    );
+    return this.getCredentials(userId);
+  }
+
+  // The renewed license goes back to PENDING_REVIEW: the vendor gets the app
+  // back right away, but jobs needing that trade license only match again
+  // once an admin approves it (service-requests: APPROVED, unexpired certs).
+  async renewLicense(userId: string, licenseId: string, data: { licenseNumber?: string; expirationDate: string; documentKey: string }) {
+    const { company } = await this.load(userId);
+    const cert = await this.certificationRepo.findOne({ where: { id: licenseId, userId } });
+    if (!cert) throw new NotFoundException('License not found');
+    if (!data.documentKey) throw new BadRequestException('Attach a photo or PDF of the renewed license.');
+    cert.expirationDate = this.parseFutureDate(data.expirationDate, 'license');
+    if (data.licenseNumber?.trim()) cert.licenseNumber = data.licenseNumber.trim();
+    cert.documentKey = data.documentKey;
+    cert.status = CertificationReviewStatus.PENDING_REVIEW;
+    cert.reviewNotes = null as any;
+    cert.reviewedAt = null;
+    cert.reminderSentDays = null;
+    await this.certificationRepo.save(cert);
+    await this.notificationsService.notifyAdmins(
+      NotificationType.VENDOR_CREDENTIAL_RENEWED,
+      'Vendor License Renewed',
+      `${company.name} uploaded a renewed ${cert.certificationType} license for review.`,
+      { vendorCompanyId: company.id, certificationId: cert.id },
+    );
+    return this.getCredentials(userId);
   }
 
   getCountyOptions() {

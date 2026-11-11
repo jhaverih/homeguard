@@ -22,6 +22,7 @@ import { VendorService } from './vendor.service';
 import { VendorController } from './vendor.controller';
 import { VendorOnboardingService } from './vendor-onboarding.service';
 import { VendorOnboardingController } from './vendor-onboarding.controller';
+import { CredentialReminderService } from './credentials/credential-reminder.service';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { VendorOnboardingController } from './vendor-onboarding.controller';
     PricingModule,
     MarketplaceModule,
   ],
-  providers: [VendorService, VendorOnboardingService],
+  providers: [VendorService, VendorOnboardingService, CredentialReminderService],
   controllers: [VendorOnboardingController, VendorController],
   exports: [VendorService, VendorOnboardingService],
 })

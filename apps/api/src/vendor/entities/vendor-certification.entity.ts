@@ -44,6 +44,12 @@ export class VendorCertification {
   @Column({ nullable: true, type: 'text' })
   reviewNotes: string;
 
+  // Last expiry notice emailed for this license: 60/30/7 days, or 0 once the
+  // "expired" notice went out. Cleared when the expiry date changes.
+  // See credentials/credential-expiry.ts.
+  @Column({ type: 'int', nullable: true })
+  reminderSentDays: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

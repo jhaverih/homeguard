@@ -37,11 +37,23 @@ api.interceptors.response.use(
       // No response = network error (wrong WiFi, server down, timeout)
       return Promise.reject(new Error('NETWORK_ERROR'));
     }
+    // A credential expired mid-session (apps/api vendor-access.ts): every
+    // vendor call now 403s with this code, so go straight to renewal.
+    if (err.response?.data?.code === 'CREDENTIALS_EXPIRED') openCredentialRenewal();
     const raw = err.response?.data?.message;
     const message = Array.isArray(raw) ? raw[0] : (raw || 'Something went wrong');
     return Promise.reject(new Error(message));
   },
 );
+
+let renewalOpenedAt = 0;
+function openCredentialRenewal() {
+  // Several screens' calls fail at once — navigate only once.
+  if (Date.now() - renewalOpenedAt < 5000) return;
+  renewalOpenedAt = Date.now();
+  // Required lazily so this module stays importable outside the router (tests).
+  require('expo-router').router.replace('/(vendor-onboarding)/credentials');
+}
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -475,13 +487,33 @@ export type VendorApplication = {
   };
 };
 
+type CredentialExpiry = { expirationDate: string | null; daysLeft: number | null; expired: boolean; expiringSoon: boolean };
+
+// Insurance and trade-license expiry for an approved company. `locked` = an
+// expired credential is blocking jobs until it's renewed.
+export type VendorCredentials = {
+  locked: boolean;
+  isCompanyAdmin: boolean;
+  insurance: CredentialExpiry & { documentUrl: string | null; canRenew: boolean };
+  licenses: (CredentialExpiry & {
+    id: string; certificationType: string; licenseNumber: string; issuingState: string; status: string;
+    blocking: boolean; documentUrl: string | null;
+  })[];
+};
+
 export type ServiceOption = {
   id: string; name: string; requiredCertificationType: string; isSpecialty: boolean;
   trainingDocumentUrl: string | null; requiresAcknowledgment: boolean; acknowledged: boolean; selected: boolean;
 };
 
 export const onboardingApi = {
-  getStatus: (): Promise<{ applicationStatus: VendorApplication['applicationStatus'] }> => api.get('/vendor/onboarding/status') as any,
+  getStatus: (): Promise<{ applicationStatus: VendorApplication['applicationStatus']; credentialsLocked: boolean }> =>
+    api.get('/vendor/onboarding/status') as any,
+  getCredentials: (): Promise<VendorCredentials> => api.get('/vendor/onboarding/credentials') as any,
+  renewInsurance: (data: { coiDocumentKey: string; coiExpirationDate: string }): Promise<VendorCredentials> =>
+    api.post('/vendor/onboarding/credentials/insurance', data) as any,
+  renewLicense: (id: string, data: { licenseNumber?: string; expirationDate: string; documentKey: string }): Promise<VendorCredentials> =>
+    api.post(`/vendor/onboarding/credentials/licenses/${id}`, data) as any,
   get: (): Promise<VendorApplication> => api.get('/vendor/onboarding') as any,
   updateCompany: (data: { name?: string; ein?: string; address?: string; city?: string; state?: string; zipCode?: string }): Promise<VendorApplication> =>
     api.patch('/vendor/onboarding/company', data) as any,

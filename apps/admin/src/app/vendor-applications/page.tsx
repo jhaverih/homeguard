@@ -86,6 +86,25 @@ export default function VendorApplicationsPage() {
       .finally(() => setLoading(false));
   };
 
+  // Opened from Vendors → "Review application": show only that company (its
+  // application, and its members' certifications) so other vendors can't be
+  // mistaken for it. Read from the URL directly to avoid a Suspense boundary.
+  const [focusCompanyId, setFocusCompanyId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('company');
+    if (id) setFocusCompanyId(id);
+  }, []);
+  // Open the focused application once the data is in (after the view-change
+  // reset below has run).
+  useEffect(() => {
+    if (focusCompanyId && !loading && view === 'applications') setExpanded(focusCompanyId);
+  }, [focusCompanyId, loading, view]);
+  const clearFocus = () => {
+    setFocusCompanyId(null);
+    setExpanded(null);
+    window.history.replaceState(null, '', '/vendor-applications');
+  };
+
   useEffect(() => {
     load();
     userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
@@ -113,7 +132,12 @@ export default function VendorApplicationsPage() {
   }, [view]);
 
   const statuses = view === 'applications' ? APPLICATION_STATUSES : CERTIFICATION_STATUSES;
-  const items = view === 'applications' ? applications : certifications;
+  const allItems = view === 'applications' ? applications : certifications;
+  const items = useMemo(() => {
+    if (!focusCompanyId) return allItems;
+    return allItems.filter((i) => (view === 'applications' ? i.id : i.companyId) === focusCompanyId);
+  }, [allItems, focusCompanyId, view]);
+  const focusCompany = focusCompanyId ? applications.find((a) => a.id === focusCompanyId) : null;
 
   const filtered = useMemo(() => {
     if (statusFilter === 'ALL') return items;
@@ -188,6 +212,19 @@ export default function VendorApplicationsPage() {
       <h1 className="text-2xl font-bold text-lantern-deep mb-1">Vendor Applications</h1>
       <p className="text-steel mb-6">Review company applications and individual trade certifications.</p>
 
+      {focusCompanyId && (
+        <div className="flex items-center justify-between gap-4 flex-wrap bg-lantern/10 border border-lantern rounded-xl px-4 py-3 mb-4">
+          <p className="text-sm text-ink">
+            Showing only <span className="font-semibold">{focusCompany?.name ?? 'this vendor'}</span>
+            {focusCompany?.vendorAdmin?.name && <span className="text-steel"> · {focusCompany.vendorAdmin.name}</span>}
+          </p>
+          <div className="flex gap-2">
+            <a href="/vendors" className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-border bg-white text-steel hover:bg-canvas">← Back to Vendors</a>
+            <button onClick={clearFocus} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-lantern bg-white text-lantern-deep hover:bg-canvas">Show all vendors</button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-1 bg-mist-dim p-1 rounded-lg w-fit mb-4">
         <button
           onClick={() => setView('applications')}
@@ -201,6 +238,8 @@ export default function VendorApplicationsPage() {
         >
           Certifications
         </button>
+        {/* Elite requests and the sign-up catalog aren't per-vendor views. */}
+        {!focusCompanyId && <>
         <button
           onClick={() => setView('elite')}
           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'elite' ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
@@ -214,6 +253,7 @@ export default function VendorApplicationsPage() {
         >
           Sign-up Services
         </button>
+        </>}
       </div>
 
       {view === 'signup' && (

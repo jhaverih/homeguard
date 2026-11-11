@@ -30,7 +30,7 @@ import { calcAssessmentCustomerSurcharge, calcAssessmentVendorCost } from '../co
 import { PropertyCharacteristicsService } from '../users/property-characteristics.service';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
-import { getVendorAccess, assertCanAcceptJobs } from '../vendor/vendor-access';
+import { getVendorAccess, assertCanAcceptJobs, assertApprovedVendor } from '../vendor/vendor-access';
 
 // How close (in meters) the vendor's GPS needs to be to the job's geocoded
 // address before "I Have Arrived" is confirmable/auto-triggers — roughly
@@ -1098,6 +1098,8 @@ export class ServiceRequestsService {
   }
 
   async getVendorRequests(vendorId: string): Promise<ServiceRequest[]> {
+    // Carries customer names and addresses — locked like the open-job list.
+    await assertApprovedVendor(this.dataSource, vendorId);
     return this.requestsRepo.find({
       where: { vendorId },
       relations: ['customer', 'customer.customerProfile', 'additionalServices'],
@@ -1110,7 +1112,8 @@ export class ServiceRequestsService {
     if (!callerProfile) return [];
 
     // A company still onboarding or under review sees no open jobs at all.
-    if (!(await getVendorAccess(this.dataSource, callerId)).approved) return [];
+    const access = await getVendorAccess(this.dataSource, callerId);
+    if (!access.approved || access.credentialsExpired) return [];
 
     const [caller, company] = await Promise.all([
       this.usersService.findById(callerId),
@@ -1472,12 +1475,18 @@ export class ServiceRequestsService {
 
   async findByIdForUser(id: string, userId: string): Promise<ServiceRequest> {
     const req = await this.findById(id);
-    if (req.vendorId === userId) return req;
-    if (req.status === ServiceRequestStatus.PENDING) return req;
 
-    // Allow family members and parent to view each other's requests
+    // The customer, or family members and parent viewing each other's requests
+    if (req.customerId === userId) return req;
     const relatedIds = await this.usersService.getRelatedCustomerIds(userId);
     if (relatedIds.includes(req.customerId)) return req;
+
+    // Vendor side — the assigned vendor, or an open job being browsed. Not
+    // for a company that isn't approved or whose credentials have expired.
+    if (req.vendorId === userId || req.status === ServiceRequestStatus.PENDING) {
+      await assertApprovedVendor(this.dataSource, userId);
+      return req;
+    }
 
     throw new ForbiddenException();
   }

@@ -3,8 +3,27 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 
+// Filters on the company's application status (vendor_companies), which is
+// what decides whether a vendor can work — not the user's login status.
+const FILTERS = [
+  { key: 'ALL', label: 'All', match: (_: any) => true },
+  { key: 'APPROVED', label: 'Approved', match: (v: any) => v.applicationStatus === 'APPROVED' },
+  { key: 'REVIEW', label: 'Review application', match: (v: any) => v.applicationStatus === 'PENDING_REVIEW' },
+  { key: 'PENDING', label: 'Pending', match: (v: any) => v.applicationStatus === 'INCOMPLETE' || v.applicationStatus === 'NEEDS_INFO' },
+] as const;
+type FilterKey = typeof FILTERS[number]['key'];
+
+const APP_STATUS: Record<string, { label: string; cls: string }> = {
+  INCOMPLETE: { label: 'Not submitted', cls: 'bg-mist-dim text-steel' },
+  NEEDS_INFO: { label: 'Needs info', cls: 'bg-blue-50 text-blue-700' },
+  PENDING_REVIEW: { label: 'Awaiting review', cls: 'bg-yellow-50 text-yellow-700' },
+  APPROVED: { label: 'Approved', cls: 'bg-green-50 text-green-700' },
+  REJECTED: { label: 'Rejected', cls: 'bg-red-50 text-red-700' },
+};
+
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<any[]>([]);
+  const [filter, setFilter] = useState<FilterKey>('ALL');
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
   const [reviewStats, setReviewStats] = useState<Record<string, { avg: number; count: number }>>({});
@@ -38,10 +57,28 @@ export default function VendorsPage() {
     }
   };
 
+  const shown = vendors.filter(FILTERS.find((f) => f.key === filter)!.match);
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-lantern-deep mb-2">Vendors</h1>
-      <p className="text-steel mb-8">Service providers registered on the platform.</p>
+      <p className="text-steel mb-6">Service providers registered on the platform.</p>
+
+      <div className="flex gap-1 bg-mist-dim p-1 rounded-lg w-fit mb-6 flex-wrap">
+        {FILTERS.map((f) => {
+          const count = vendors.filter(f.match).length;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${filter === f.key ? 'bg-white text-lantern-deep shadow-sm' : 'text-steel hover:text-ink'}`}
+            >
+              {f.label}
+              {count > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${filter === f.key ? 'bg-lantern text-ink' : 'bg-border text-steel'}`}>{count}</span>}
+            </button>
+          );
+        })}
+      </div>
 
       {loading ? (
         <div className="text-steel text-sm">Loading...</div>
@@ -49,6 +86,10 @@ export default function VendorsPage() {
         <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
           <div className="text-4xl mb-4">🔧</div>
           <p className="text-steel text-sm">No vendors yet. They register through the mobile app.</p>
+        </div>
+      ) : shown.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-mist-dim p-12 text-center">
+          <p className="text-steel text-sm">No vendors match this filter.</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-mist-dim overflow-x-hidden">
@@ -68,7 +109,7 @@ export default function VendorsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-canvas">
-              {vendors.map((v) => (
+              {shown.map((v) => (
                 <tr key={v.id} className="hover:bg-canvas transition-colors">
                   <td className="px-6 py-4 font-medium text-ink">
                     <Link href={`/vendors/${v.id}`} className="text-lantern-deep hover:underline">{v.name}</Link>
@@ -95,6 +136,11 @@ export default function VendorsPage() {
                       }`}>
                         {v.status === 'PENDING_APPROVAL' ? 'Pending' : v.status}
                       </span>
+                      {v.applicationStatus && APP_STATUS[v.applicationStatus] && (
+                        <span className={`px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap ${APP_STATUS[v.applicationStatus].cls}`}>
+                          Application: {APP_STATUS[v.applicationStatus].label}
+                        </span>
+                      )}
                       {v.eliteRequestedAt && (
                         <span
                           className="px-2 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 whitespace-nowrap"
@@ -127,12 +173,16 @@ export default function VendorsPage() {
                   </td>
                   <td className="px-6 py-4 flex gap-2">
                     {/* Approval happens only through the submitted application. */}
-                    {v.status === 'PENDING_APPROVAL' && (
+                    {v.companyId && (
                       <Link
-                        href="/vendor-applications"
-                        className="bg-lantern text-ink text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
+                        href={`/vendor-applications?company=${v.companyId}`}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-opacity whitespace-nowrap ${
+                          v.applicationStatus === 'PENDING_REVIEW'
+                            ? 'bg-lantern text-ink hover:opacity-90'
+                            : 'bg-white text-lantern-deep border border-lantern hover:bg-canvas'
+                        }`}
                       >
-                        Review application
+                        {v.applicationStatus === 'PENDING_REVIEW' ? 'Review application' : 'View application'}
                       </Link>
                     )}
                     {v.status !== 'SUSPENDED' && (

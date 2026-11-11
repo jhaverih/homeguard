@@ -36,6 +36,11 @@ export class VendorCompany {
   @Column({ type: 'timestamp', nullable: true })
   coiExpirationDate: Date | null;
 
+  // Last insurance expiry notice emailed: 60/30/7 days, or 0 once the
+  // "expired" notice went out. Cleared when a renewed certificate is saved.
+  @Column({ type: 'int', nullable: true })
+  coiReminderSentDays: number | null;
+
   @Column({ type: 'varchar', default: 'STANDARD' })
   planTier: 'STANDARD' | 'ELITE';
 

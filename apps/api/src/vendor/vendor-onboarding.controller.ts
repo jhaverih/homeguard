@@ -98,6 +98,26 @@ export class VendorOnboardingController {
     return this.service.signBackgroundCheck(req.user.id, body);
   }
 
+  // Renewal — the only vendor endpoints open while an approved company is
+  // locked out for an expired credential.
+  @Get('credentials')
+  @ApiOperation({ summary: 'Insurance and license expiry status, and whether access is locked' })
+  getCredentials(@Request() req) {
+    return this.service.getCredentials(req.user.id);
+  }
+
+  @Post('credentials/insurance')
+  @ApiOperation({ summary: 'Upload a renewed certificate of insurance (company admin)' })
+  renewInsurance(@Request() req, @Body() body: { coiDocumentKey: string; coiExpirationDate: string }) {
+    return this.service.renewInsurance(req.user.id, body);
+  }
+
+  @Post('credentials/licenses/:id')
+  @ApiOperation({ summary: 'Upload a renewed trade license (goes back to admin review)' })
+  renewLicense(@Request() req, @Param('id') id: string, @Body() body: { licenseNumber?: string; expirationDate: string; documentKey: string }) {
+    return this.service.renewLicense(req.user.id, id, body);
+  }
+
   @Post('submit')
   @ApiOperation({ summary: 'Submit the completed application for review' })
   submit(@Request() req) {

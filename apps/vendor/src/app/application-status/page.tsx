@@ -12,7 +12,8 @@ const HEADLINE: Record<string, string> = {
 
 // Everything the portal shows a company that has submitted its application
 // but isn't approved yet. Status only — the application itself is filled in,
-// updated and resubmitted in the Attenteve app.
+// updated and resubmitted in the Attenteve app. Also shown to an approved
+// company whose insurance or a trade license has expired, until it's renewed.
 export default function ApplicationStatusPage() {
   const router = useRouter();
   const [status, setStatus] = useState<ApplicationStatus | null>(null);
@@ -35,8 +36,17 @@ export default function ApplicationStatusPage() {
         {error && <p className="text-sm text-red-600 text-center">{error}</p>}
         {status && (
           <>
-            <h1 className="text-xl font-bold text-ink text-center mb-2">{HEADLINE[status.applicationStatus] ?? 'Application status'}</h1>
+            <h1 className="text-xl font-bold text-ink text-center mb-2">
+              {status.credentialsLocked ? 'Your credentials have expired' : HEADLINE[status.applicationStatus] ?? 'Application status'}
+            </h1>
             <p className="text-sm text-steel text-center mb-6">{status.companyName}</p>
+
+            {status.credentialsLocked && (
+              <p className="text-sm text-steel leading-relaxed">
+                Your company's certificate of insurance or a trade license has expired, so jobs and customer details are locked.
+                Open the Attenteve app and upload the renewed document. Access comes back as soon as you submit it.
+              </p>
+            )}
 
             {status.applicationStatus === 'PENDING_REVIEW' && (
               <p className="text-sm text-steel leading-relaxed">

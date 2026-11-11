@@ -681,7 +681,10 @@ export class VendorService implements OnModuleInit {
     if (data.certificationType !== undefined) cert.certificationType = data.certificationType;
     if (data.licenseNumber !== undefined) cert.licenseNumber = data.licenseNumber;
     if (data.issuingState !== undefined) cert.issuingState = data.issuingState;
-    if (data.expirationDate !== undefined) cert.expirationDate = new Date(data.expirationDate);
+    if (data.expirationDate !== undefined) {
+      cert.expirationDate = new Date(data.expirationDate);
+      cert.reminderSentDays = null; // new date → expiry reminders start over
+    }
     if (data.documentKey !== undefined) cert.documentKey = data.documentKey;
     // An edited license needs re-verification — same assumption Attenteve's own review flow makes.
     cert.status = CertificationReviewStatus.PENDING_REVIEW;
@@ -707,7 +710,10 @@ export class VendorService implements OnModuleInit {
     if (data.ein !== undefined) company.ein = data.ein;
     if (data.stateRegistrationDocKey !== undefined) company.stateRegistrationDocKey = data.stateRegistrationDocKey;
     if (data.coiDocumentKey !== undefined) company.coiDocumentKey = data.coiDocumentKey;
-    if (data.coiExpirationDate !== undefined) company.coiExpirationDate = new Date(data.coiExpirationDate);
+    if (data.coiExpirationDate !== undefined) {
+      company.coiExpirationDate = new Date(data.coiExpirationDate);
+      company.coiReminderSentDays = null; // new date → expiry reminders start over
+    }
     return this.companyRepo.save(company);
   }
 }

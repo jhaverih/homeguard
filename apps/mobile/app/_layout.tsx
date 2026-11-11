@@ -36,6 +36,8 @@ function resolveNotificationRoute(screen: string | undefined, role: string | und
       return '/(customer)/my-services';
     case 'my-jobs':
       return '/(vendor)/my-jobs';
+    case 'vendor-credentials': // insurance / license expiry reminders
+      return isVendor ? '/(vendor-onboarding)/credentials' : '/(customer)/notifications';
     case 'capabilities':
       return isVendor ? '/(vendor)/capabilities' : '/(customer)/notifications';
     case 'notifications':

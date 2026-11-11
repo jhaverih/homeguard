@@ -168,6 +168,8 @@ export class AdminService {
         phone: u.phone,
         status: u.status,
         companyName: company?.name ?? u.vendorProfile?.companyName ?? null,
+        companyId: company?.id ?? null,
+        applicationStatus: company?.applicationStatus ?? null,
         logoKey: company?.logoKey ?? null,
         createdAt: u.createdAt,
         stripeConnected: !!(company?.stripeConnectAccountId ?? u.vendorProfile?.stripeConnectAccountId),
@@ -987,12 +989,15 @@ export class AdminService {
     const userIds = [...new Set(certs.map((c) => c.userId))];
     const users = userIds.length ? await this.usersRepo.find({ where: { id: In(userIds) } }) : [];
     const userMap = new Map(users.map((u) => [u.id, u]));
+    const profiles = userIds.length ? await this.vendorProfileRepo.find({ where: { userId: In(userIds) } }) : [];
+    const companyByUser = new Map(profiles.map((p) => [p.userId, p.companyId]));
 
     return Promise.all(certs.map(async (c) => {
       const user = userMap.get(c.userId);
       const documentUrl = c.documentKey ? await this.uploadsService.getSignedUrl(c.documentKey) : null;
       return {
         ...c,
+        companyId: companyByUser.get(c.userId) ?? null,
         documentUrl,
         user: user ? { id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email } : null,
         completeness: {
