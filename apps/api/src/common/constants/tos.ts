@@ -12,6 +12,6 @@
 // formatting change should not bump the version — edit the .md content
 // in apps/api/legal/ and leave the constant alone. Only bump when the
 // answer to that question is genuinely yes.
-export const CURRENT_CUSTOMER_TOS_VERSION = '2026-07-15';
-export const CURRENT_VENDOR_TOS_VERSION = '2026-07-15';
+export const CURRENT_CUSTOMER_TOS_VERSION = '2026-11-11';
+export const CURRENT_VENDOR_TOS_VERSION = '2026-11-11';
 export const CURRENT_FACILITATOR_DISCLOSURE_VERSION = '2026-09-06';
