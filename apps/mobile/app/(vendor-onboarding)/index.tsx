@@ -105,7 +105,7 @@ export default function VendorApplicationScreen() {
       <ScrollView style={ui.screen} contentContainerStyle={ui.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await reload(); setRefreshing(false); }} />}>
         <View style={[styles.hero, rejected ? styles.heroRejected : styles.heroReview]}>
-          <Ionicons name={rejected ? 'close-circle' : 'hourglass-outline'} size={44} color={rejected ? '#b91c1c' : colors.lanternDeep} />
+          <Ionicons name={rejected ? 'close-circle' : 'hourglass-outline'} size={44} color={rejected ? colors.dangerText : colors.lanternDeep} />
           <Text style={styles.heroTitle}>{rejected ? 'Application not approved' : 'Your application is under review'}</Text>
           <Text style={styles.heroText}>
             {rejected
@@ -139,7 +139,7 @@ export default function VendorApplicationScreen() {
 
       {needsInfo && app.reviewNotes && (
         <View style={ui.noteBox}>
-          <Ionicons name="chatbox-ellipses-outline" size={18} color="#1d4ed8" />
+          <Ionicons name="chatbox-ellipses-outline" size={18} color={colors.lanternDeep} />
           <Text style={[ui.noteText, { flex: 1 }]}>{app.reviewNotes}</Text>
         </View>
       )}
@@ -164,7 +164,7 @@ export default function VendorApplicationScreen() {
               <Ionicons
                 name={item.complete ? 'checkmark-circle' : item.reviewerNote ? 'alert-circle' : 'ellipse-outline'}
                 size={24}
-                color={item.complete ? '#059669' : item.reviewerNote ? '#2563eb' : colors.steel}
+                color={item.complete ? colors.success : item.reviewerNote ? colors.lanternDeep : colors.steel}
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>{item.label}</Text>
@@ -192,20 +192,20 @@ export default function VendorApplicationScreen() {
 const styles = StyleSheet.create({
   hero: { borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 16, borderWidth: 1 },
   heroReview: { backgroundColor: colors.mist, borderColor: colors.border },
-  heroRejected: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  heroRejected: { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder },
   heroTitle: { fontSize: 20, fontWeight: '800', color: colors.ink, textAlign: 'center', marginTop: 10, marginBottom: 8 },
   heroText: { fontSize: 14, color: colors.steel, textAlign: 'center', lineHeight: 20 },
-  heroNote: { fontSize: 14, color: '#7f1d1d', textAlign: 'center', lineHeight: 20, marginTop: 12 },
+  heroNote: { fontSize: 14, color: colors.dangerText, textAlign: 'center', lineHeight: 20, marginTop: 12 },
   progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   progressText: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep },
   progressTrack: { height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden', marginBottom: 16 },
   progressFill: { height: 8, backgroundColor: colors.lantern },
-  list: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
+  list: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
   rowLocked: { opacity: 0.6 },
   rowLabel: { fontSize: 15, fontWeight: '600', color: colors.ink },
-  rowNote: { fontSize: 13, color: '#1d4ed8', marginTop: 3, lineHeight: 18 },
+  rowNote: { fontSize: 13, color: colors.lanternDeep, marginTop: 3, lineHeight: 18 },
   rowMissing: { fontSize: 13, color: colors.steel, marginTop: 3, lineHeight: 18 },
   submitHint: { fontSize: 12, color: colors.steel, textAlign: 'center', marginTop: 8 },
 });

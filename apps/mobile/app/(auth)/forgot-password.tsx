@@ -65,7 +65,7 @@ export default function ForgotPasswordScreen() {
                 Enter your email address and we'll send you a 6-digit code to reset your password.
               </Text>
 
-              <TextInput
+              <TextInput placeholderTextColor={colors.steel}
                 style={styles.input}
                 placeholder="Email address"
                 autoCapitalize="none"

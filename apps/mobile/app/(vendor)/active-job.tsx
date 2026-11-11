@@ -891,27 +891,27 @@ export default function ActiveJobScreen() {
                       Enter this customer's own Yolink credentials — found in their Yolink app under
                       Account → Advanced Settings → User Access Credentials. Attenteve never needs their Yolink login.
                     </Text>
-                    <TextInput
+                    <TextInput placeholderTextColor={colors.steel}
                       style={styles.promptInput}
                       placeholder="UAID (starts with ua_)"
                       value={monitorForm.yolinkUAID}
                       onChangeText={(t) => setMonitorForm((f) => ({ ...f, yolinkUAID: t }))}
                       autoCapitalize="none"
                     />
-                    <TextInput
+                    <TextInput placeholderTextColor={colors.steel}
                       style={[styles.promptInput, { marginTop: 8 }]}
                       placeholder="Secret Key (starts with sec_)"
                       value={monitorForm.yolinkSecretKey}
                       onChangeText={(t) => setMonitorForm((f) => ({ ...f, yolinkSecretKey: t }))}
                       autoCapitalize="none"
                     />
-                    <TextInput
+                    <TextInput placeholderTextColor={colors.steel}
                       style={[styles.promptInput, { marginTop: 8 }]}
                       placeholder="Home name"
                       value={monitorForm.homeName}
                       onChangeText={(t) => setMonitorForm((f) => ({ ...f, homeName: t }))}
                     />
-                    <TextInput
+                    <TextInput placeholderTextColor={colors.steel}
                       style={[styles.promptInput, { marginTop: 8 }]}
                       placeholder="Address (optional)"
                       value={monitorForm.address}

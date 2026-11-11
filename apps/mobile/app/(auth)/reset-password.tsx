@@ -95,7 +95,7 @@ export default function ResetPasswordScreen() {
               <Text style={styles.subtitle}>Check your email for a 6-digit code, enter it below, then choose a new password.</Text>
 
               <Text style={styles.label}>6-digit code</Text>
-              <TextInput
+              <TextInput placeholderTextColor={colors.steel}
                 style={styles.input}
                 placeholder="000000"
                 keyboardType="number-pad"
@@ -111,7 +111,7 @@ export default function ResetPasswordScreen() {
                 </TouchableOpacity>
               </View>
               <View style={styles.passRow}>
-                <TextInput
+                <TextInput placeholderTextColor={colors.steel}
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   placeholder="At least 8 characters"
                   secureTextEntry={!showPass}
@@ -140,7 +140,7 @@ export default function ResetPasswordScreen() {
               </View>
 
               <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
+              <TextInput placeholderTextColor={colors.steel}
                 style={styles.input}
                 placeholder="Repeat new password"
                 secureTextEntry={!showPass}

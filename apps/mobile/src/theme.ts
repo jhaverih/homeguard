@@ -19,6 +19,11 @@ export const colors = {
   success: '#059669',
   warning: '#D97706',
   danger: '#DC2626',
+  // Tinted status boxes (background / border / text) — status colors, kept
+  // out of the brand palette so Lantern stays reserved for the mark and CTAs.
+  successSoft: '#ECFDF5', successBorder: '#86EFAC', successText: '#065F46',
+  warningSoft: '#FFFBEB', warningBorder: '#FDE68A', warningText: '#92400E',
+  dangerSoft: '#FEF2F2', dangerBorder: '#FECACA', dangerText: '#B91C1C',
 } as const;
 
 // Common role aliases, so most screens only need these few names.

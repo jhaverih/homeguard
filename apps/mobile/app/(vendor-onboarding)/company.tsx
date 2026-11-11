@@ -93,7 +93,7 @@ export default function CompanyDetailsScreen() {
         {editable && <PrimaryButton label="Save" onPress={save} loading={saving} />}
         {status?.complete && !editable && (
           <View style={[ui.onFile, { marginTop: 4 }]}>
-            <Ionicons name="checkmark-circle" size={18} color="#059669" />
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
             <Text style={ui.onFileText}>Company details complete</Text>
           </View>
         )}

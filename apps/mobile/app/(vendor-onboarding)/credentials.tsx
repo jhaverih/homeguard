@@ -12,16 +12,16 @@ const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—')
 function ExpiryLine({ c }: { c: { expirationDate: string | null; daysLeft: number | null; expired: boolean; expiringSoon: boolean } }) {
   if (c.expired) {
     return (
-      <View style={[ui.warnBox, { backgroundColor: '#fef2f2', borderColor: '#fecaca' }]}>
-        <Ionicons name="alert-circle" size={18} color="#b91c1c" />
-        <Text style={[ui.warnText, { color: '#b91c1c' }]}>Expired {fmt(c.expirationDate)}. Upload the renewed one to get access back.</Text>
+      <View style={[ui.warnBox, { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder }]}>
+        <Ionicons name="alert-circle" size={18} color={colors.dangerText} />
+        <Text style={[ui.warnText, { color: colors.dangerText }]}>Expired {fmt(c.expirationDate)}. Upload the renewed one to get access back.</Text>
       </View>
     );
   }
   if (c.expiringSoon) {
     return (
       <View style={ui.warnBox}>
-        <Ionicons name="warning-outline" size={18} color="#92400e" />
+        <Ionicons name="warning-outline" size={18} color={colors.warningText} />
         <Text style={ui.warnText}>Expires {fmt(c.expirationDate)}, in {c.daysLeft} day{c.daysLeft === 1 ? '' : 's'}. Renew it before then to keep your access.</Text>
       </View>
     );
@@ -64,7 +64,7 @@ function RenewForm({ title, withNumber, onSave }: {
       {withNumber && (
         <>
           <Text style={ui.label}>New license number (leave blank if unchanged)</Text>
-          <TextInput style={ui.input} value={number} onChangeText={setNumber} autoCapitalize="characters" placeholder="License number" />
+          <TextInput placeholderTextColor={colors.steel} style={ui.input} value={number} onChangeText={setNumber} autoCapitalize="characters" placeholder="License number" />
         </>
       )}
       <Text style={ui.label}>New expiry date</Text>

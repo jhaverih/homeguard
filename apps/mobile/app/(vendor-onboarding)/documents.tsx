@@ -10,7 +10,7 @@ import { colors } from '../../src/theme';
 function OnFile({ label, url }: { label: string; url: string | null }) {
   return (
     <View style={ui.onFile}>
-      <Ionicons name="checkmark-circle" size={18} color="#059669" />
+      <Ionicons name="checkmark-circle" size={18} color={colors.success} />
       <Text style={ui.onFileText}>{label}</Text>
       {url && <Text style={ui.link} onPress={() => Linking.openURL(url)}>View</Text>}
     </View>
@@ -90,7 +90,7 @@ export default function DocumentsScreen() {
         )}
         {daysLeft !== null && daysLeft > 0 && daysLeft <= 30 && (
           <View style={ui.warnBox}>
-            <Ionicons name="warning-outline" size={18} color="#92400e" />
+            <Ionicons name="warning-outline" size={18} color={colors.warningText} />
             <Text style={ui.warnText}>Your insurance expires in {daysLeft} day{daysLeft === 1 ? '' : 's'}. Upload the renewed certificate as soon as you have it.</Text>
           </View>
         )}

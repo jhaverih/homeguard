@@ -87,7 +87,7 @@ export default function ServiceAreaScreen() {
 
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#fff' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },
   chipOn: { borderColor: colors.lanternDeep, backgroundColor: colors.mist },
   chipText: { fontSize: 13, color: colors.steel },
   chipTextOn: { color: colors.lanternDeep, fontWeight: '700' },

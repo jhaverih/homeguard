@@ -189,14 +189,15 @@ export default function LoginScreen() {
             </View>
           )}
 
+          <Text style={styles.label}>Email</Text>
           <Controller
             control={control}
             name="email"
             rules={{ required: 'Email is required' }}
             render={({ field: { onChange, value } }) => (
-              <TextInput
+              <TextInput placeholderTextColor={colors.steel}
                 style={[styles.input, errors.email && styles.inputError]}
-                placeholder="Email address"
+                placeholder="you@example.com"
                 autoCapitalize="none"
                 keyboardType="email-address"
                 autoComplete="email"
@@ -207,15 +208,16 @@ export default function LoginScreen() {
           />
           {errors.email && <Text style={styles.error}>{errors.email.message as string}</Text>}
 
+          <Text style={styles.label}>Password</Text>
           <Controller
             control={control}
             name="password"
             rules={{ required: 'Password is required' }}
             render={({ field: { onChange, value } }) => (
               <View style={styles.passRow}>
-                <TextInput
+                <TextInput placeholderTextColor={colors.steel}
                   style={[styles.input, styles.passInput, errors.password && styles.inputError]}
-                  placeholder="Password"
+                  placeholder="Your password"
                   secureTextEntry={!showPass}
                   autoComplete="password"
                   value={value}
@@ -273,6 +275,7 @@ const styles = StyleSheet.create({
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 10 },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { fontSize: 13, color: colors.steel },
+  label: { fontSize: 14, fontWeight: '600', color: colors.ink, marginBottom: 6, marginLeft: 4 },
   input: {
     backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, borderRadius: 14,
     padding: 16, fontSize: 16, marginBottom: 12, color: colors.ink,

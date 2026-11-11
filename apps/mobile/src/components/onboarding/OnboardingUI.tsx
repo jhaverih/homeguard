@@ -88,7 +88,7 @@ export function ReviewerNote({ note }: { note: string | null | undefined }) {
   if (!note) return null;
   return (
     <View style={ui.noteBox}>
-      <Ionicons name="chatbox-ellipses-outline" size={18} color="#1d4ed8" />
+      <Ionicons name="chatbox-ellipses-outline" size={18} color={colors.lanternDeep} />
       <View style={{ flex: 1 }}>
         <Text style={ui.noteTitle}>Reviewer's note</Text>
         <Text style={ui.noteText}>{note}</Text>
@@ -129,18 +129,18 @@ export const ui = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   title: { fontSize: 22, fontWeight: '800', color: colors.ink, marginBottom: 4 },
   subtitle: { fontSize: 14, color: colors.steel, lineHeight: 20, marginBottom: 16 },
-  section: { backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 14 },
+  section: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 14 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 4 },
   sectionHint: { fontSize: 13, color: colors.steel, lineHeight: 18, marginBottom: 12 },
   label: { fontSize: 13, fontWeight: '600', color: colors.steel, marginBottom: 6, marginTop: 4 },
   input: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
+    backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 13, marginBottom: 10,
   },
   inputText: { fontSize: 15, color: colors.ink, flex: 1 },
   textInput: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
+    backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colors.ink, marginBottom: 10,
   },
   button: { backgroundColor: colors.lantern, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 },
@@ -148,18 +148,18 @@ export const ui = StyleSheet.create({
   buttonText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
   secondaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: colors.lanternDeep, borderRadius: 12, padding: 13, marginBottom: 10 },
   secondaryBtnText: { fontSize: 14, color: colors.lanternDeep, fontWeight: '700' },
-  onFile: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#ecfdf5', borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#86efac' },
-  onFileText: { flex: 1, fontSize: 13, color: '#065f46', fontWeight: '600' },
+  onFile: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.successSoft, borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.successBorder },
+  onFileText: { flex: 1, fontSize: 13, color: colors.successText, fontWeight: '600' },
   link: { fontSize: 13, color: colors.lanternDeep, fontWeight: '700' },
-  warnBox: { flexDirection: 'row', gap: 8, backgroundColor: '#fffbeb', borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#fde68a' },
-  warnText: { flex: 1, fontSize: 13, color: '#92400e', lineHeight: 18 },
-  noteBox: { flexDirection: 'row', gap: 10, backgroundColor: '#eff6ff', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#bfdbfe' },
-  noteTitle: { fontSize: 12, fontWeight: '700', color: '#1d4ed8', marginBottom: 2 },
-  noteText: { fontSize: 14, color: '#1e3a8a', lineHeight: 20 },
+  warnBox: { flexDirection: 'row', gap: 8, backgroundColor: colors.warningSoft, borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.warningBorder },
+  warnText: { flex: 1, fontSize: 13, color: colors.warningText, lineHeight: 18 },
+  noteBox: { flexDirection: 'row', gap: 10, backgroundColor: colors.mist, borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: colors.lanternDeep },
+  noteTitle: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep, marginBottom: 2 },
+  noteText: { fontSize: 14, color: colors.ink, lineHeight: 20 },
   lockedBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.mist, borderRadius: 10, padding: 12, marginBottom: 14 },
   lockedText: { flex: 1, fontSize: 13, color: colors.steel },
   sheetOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '75%', paddingBottom: 24 },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '75%', paddingBottom: 24 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
   sheetTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
   sheetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },

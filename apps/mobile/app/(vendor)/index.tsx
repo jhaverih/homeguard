@@ -181,11 +181,11 @@ export default function VendorDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.canvas },
   // Credential expiry banner
-  expiryBanner: { backgroundColor: '#fffbeb', margin: 16, marginBottom: 8, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#fde68a' },
-  expiryTitle: { fontSize: 15, fontWeight: '700', color: '#92400e', marginBottom: 4 },
-  expiryBody: { fontSize: 13, color: '#92400e', lineHeight: 19 },
+  expiryBanner: { backgroundColor: colors.warningSoft, margin: 16, marginBottom: 8, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.warningBorder },
+  expiryTitle: { fontSize: 15, fontWeight: '700', color: colors.warningText, marginBottom: 4 },
+  expiryBody: { fontSize: 13, color: colors.warningText, lineHeight: 19 },
   // Stripe banner
-  stripeBanner: { backgroundColor: '#fff', margin: 16, marginBottom: 8, borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, borderLeftWidth: 4, borderLeftColor: '#635bff' },
+  stripeBanner: { backgroundColor: colors.surface, margin: 16, marginBottom: 8, borderRadius: 16, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, borderLeftWidth: 4, borderLeftColor: '#635bff' },
   stripeBannerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   cardChip: { width: 36, height: 24, backgroundColor: '#635bff', borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   cardChipText: { color: '#fff', fontWeight: '900', fontSize: 14 },

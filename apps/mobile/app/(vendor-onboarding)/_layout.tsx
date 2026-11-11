@@ -59,5 +59,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, marginRight: 8 },
   btn: { backgroundColor: colors.lanternDeep, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   signOut: { backgroundColor: colors.slate },
-  btnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  btnText: { color: colors.surface, fontSize: 12, fontWeight: '600' },
 });

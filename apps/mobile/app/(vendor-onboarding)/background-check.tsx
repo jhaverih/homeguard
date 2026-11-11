@@ -49,7 +49,7 @@ export default function BackgroundCheckScreen() {
 
         {signedCurrent && (
           <View style={ui.onFile}>
-            <Ionicons name="checkmark-circle" size={18} color="#059669" />
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
             <Text style={ui.onFileText}>
               Signed by {bc.signerName}, {bc.signerTitle}{bc.signedAt ? ` on ${new Date(bc.signedAt).toLocaleDateString()}` : ''}
             </Text>

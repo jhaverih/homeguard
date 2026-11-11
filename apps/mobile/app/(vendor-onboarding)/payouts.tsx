@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 22, fontWeight: '700', color: colors.ink, marginTop: 10, textAlign: 'center' },
   body: { fontSize: 15, color: colors.steel, lineHeight: 22, textAlign: 'center', marginTop: 8 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 18, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: '#635bff' },
+  card: { backgroundColor: colors.surface, borderRadius: 16, padding: 18, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: '#635bff' },
   cardTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 8 },
   bullet: { fontSize: 14, color: colors.steel, lineHeight: 22 },
   note: { fontSize: 13, color: colors.steel, marginTop: 10 },
