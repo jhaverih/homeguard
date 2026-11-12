@@ -420,23 +420,50 @@ export class SubscriptionsService implements OnModuleInit {
     if (!plan) throw new NotFoundException('Plan not found');
     this.assertPlanAvailable(plan, email);
 
-    if (sub.stripeSubscriptionId && plan.stripePriceId) {
-      const priceId = await this.resolveTargetStripePriceId(sub.customerId, plan);
-      const stripeSub = await this.stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+    // The Stripe subscription behind this plan, if it still exists and is
+    // billing. It can be gone (deleted in Stripe, or created under another
+    // Stripe account/test-mode reset) — retrieve then 404s, which used to
+    // surface as a 500 on every switch.
+    let stripeSub: Stripe.Subscription | null = null;
+    if (sub.stripeSubscriptionId) {
+      stripeSub = await this.stripe.subscriptions.retrieve(sub.stripeSubscriptionId).catch((err) => {
+        if (err?.code === 'resource_missing') {
+          this.logger.warn(`Stripe subscription ${sub.stripeSubscriptionId} no longer exists — treating ${sub.customerId} as unbilled`);
+          return null;
+        }
+        throw err;
+      });
+    }
+    const billing = !!stripeSub && ['active', 'trialing', 'past_due'].includes(stripeSub.status);
 
-      if (stripeSub.status === 'incomplete') {
-        // Payment was never collected — cancel the stale subscription and start fresh.
-        // Use sub.customerId (the resolved owner), not the caller's own id, so a family
-        // member restarting checkout doesn't fork off a separate subscription.
-        try { await this.stripe.subscriptions.cancel(sub.stripeSubscriptionId); } catch { /* ignore */ }
+    if (plan.stripePriceId) {
+      const priceId = await this.resolveTargetStripePriceId(sub.customerId, plan);
+      if (billing) {
+        await this.stripe.subscriptions.update(stripeSub!.id, {
+          items: [{ id: stripeSub!.items.data[0].id, price: priceId }],
+          proration_behavior: 'create_prorations',
+        });
+      } else {
+        // Nothing is billing yet (a free plan, a checkout that never paid, or a
+        // Stripe subscription that's gone) — start a fresh paid subscription
+        // so the customer pays for the plan instead of getting it free. Uses
+        // sub.customerId (the household owner), so a family member switching
+        // doesn't fork off a separate subscription.
+        if (stripeSub && stripeSub.status === 'incomplete') {
+          try { await this.stripe.subscriptions.cancel(stripeSub.id); } catch { /* ignore */ }
+        }
         await this.subscriptionsRepo.remove(sub);
         return this.subscribeViaStripe(sub.customerId, plan, priceId);
       }
-
-      await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
-        items: [{ id: stripeSub.items.data[0].id, price: priceId }],
-        proration_behavior: 'create_prorations',
-      });
+    } else if (sub.stripeSubscriptionId) {
+      // Moving to an unpriced plan (Care Plan): stop the paid Stripe
+      // subscription, or the customer keeps being billed for the old plan.
+      if (stripeSub && stripeSub.status !== 'canceled') {
+        try { await this.stripe.subscriptions.cancel(stripeSub.id); } catch (err) {
+          this.logger.warn(`Stripe subscription cancel failed on downgrade: ${(err as Error).message}`);
+        }
+      }
+      sub.stripeSubscriptionId = null;
     }
 
     sub.planId = newPlanId;
