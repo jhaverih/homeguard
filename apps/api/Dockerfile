@@ -19,6 +19,8 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps --omit=dev && npm cache clean --force
 
 COPY --from=builder --chown=node:node /app/dist ./dist
+# Published terms pages, served by LegalController at /api/legal/<doc>.html.
+COPY --chown=node:node legal ./legal
 
 USER node
 EXPOSE 3000

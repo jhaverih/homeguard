@@ -3,13 +3,11 @@ import * as SecureStore from 'expo-secure-store';
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.86.29/api';
 
-// The admin app serves these two as static files (apps/admin/public/legal/)
-// at its root domain — nginx's LAN catch-all routes anything not matching
-// /api/, /socket.io/, etc. straight to admin, so these never go through
-// this file's `api` instance below. Opened directly in the device browser
-// via Linking.openURL, no auth needed.
-export const TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/customer-terms.html`;
-export const VENDOR_TERMS_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/vendor-terms.html`;
+// Published terms pages, served by the API (apps/api/legal/*.html via
+// LegalController) so they're reachable on the public host. Opened directly
+// in the device browser via Linking.openURL, no auth needed.
+export const TERMS_URL = `${API_URL.replace(/\/$/, '')}/legal/customer-terms.html`;
+export const VENDOR_TERMS_URL = `${API_URL.replace(/\/$/, '')}/legal/vendor-terms.html`;
 
 export const api = axios.create({
   baseURL: API_URL,

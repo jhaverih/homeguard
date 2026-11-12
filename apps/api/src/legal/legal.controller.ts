@@ -1,5 +1,7 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { join } from 'path';
 import {
   CURRENT_CUSTOMER_TOS_VERSION,
   CURRENT_VENDOR_TOS_VERSION,
@@ -7,13 +9,15 @@ import {
 } from '../common/constants/tos';
 import { CURRENT_VENDOR_BACKGROUND_CHECK_VERSION } from '../common/constants/vendor-background-check';
 
-// The actual terms documents are static HTML served by the admin Next.js
-// app (apps/admin/public/legal/*.html) — nginx's LAN catch-all routes
-// anything not matching /api/, /socket.io/, etc. straight to admin, so
-// this API never sees those requests at all. This controller only exposes
-// the version numbers, which the client needs but a static HTML file can't
-// provide — see apps/api/legal/*.md for the (separately maintained) source
-// content those static files are rendered from.
+// The published terms pages live in apps/api/legal/*.html (rendered from the
+// .md sources beside them) and are copied into the image by the Dockerfile.
+// Serving them from the API keeps them on the public host (api.attenteve.com
+// only routes /api/* to this app), so the mobile app's "Read terms" links
+// work off the home network. Relative links between the pages (e.g. to
+// privacy-policy.html) resolve under the same /api/legal/ path.
+const LEGAL_DIR = join(process.cwd(), 'legal');
+const DOCUMENTS = new Set(['customer-terms', 'vendor-terms', 'privacy-policy']);
+
 @ApiTags('Legal')
 @Controller('legal')
 export class LegalController {
@@ -25,5 +29,15 @@ export class LegalController {
       facilitatorDisclosureVersion: CURRENT_FACILITATOR_DISCLOSURE_VERSION,
       vendorBackgroundCheckVersion: CURRENT_VENDOR_BACKGROUND_CHECK_VERSION,
     };
+  }
+
+  @Get(':file')
+  getDocument(@Param('file') file: string, @Res() res: Response) {
+    const doc = file.replace(/\.html$/, '');
+    if (!DOCUMENTS.has(doc)) throw new NotFoundException();
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.sendFile(`${doc}.html`, { root: LEGAL_DIR }, (err) => {
+      if (err && !res.headersSent) res.status(404).json({ statusCode: 404, message: 'Not Found' });
+    });
   }
 }
