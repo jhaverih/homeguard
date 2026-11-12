@@ -6,6 +6,7 @@ import { hvacAnalyticsApi, HvacAnalytics, HvacFinding, ComponentHealthResult, Co
 import { colors } from '../../src/theme';
 import { conditionStatus } from '../../src/components/hvac/conditionStatus';
 import { EdgeSwipeBack } from '../../src/components/EdgeSwipeBack';
+import { useLaunchFeatures } from '../../src/hooks/useLaunchFeatures';
 
 const SEVERITY_STYLE: Record<string, { color: string; bg: string; border?: string }> = {
   CRITICAL: { color: '#991B1B', bg: '#FEF2F2', border: '#FCA5A5' },
@@ -180,6 +181,7 @@ function FindingCard({ item, onResolve, onDismiss, onSnooze }: { item: HvacFindi
 
 function HvacAnalyticsScreenContent() {
   const [data, setData] = useState<HvacAnalytics | null>(null);
+  const { proactive } = useLaunchFeatures();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -388,10 +390,12 @@ function HvacAnalyticsScreenContent() {
         <View style={styles.lockCard}>
           <View style={styles.lockIcon}><Ionicons name="lock-closed" size={16} color={colors.steel} /></View>
           <Text style={styles.lockTitle}>HVAC Performance Analytics</Text>
-          <Text style={styles.lockSub}>Cooling &amp; heating trend detection, runtime analysis, and your HVAC Health Score are included with the Proactive plan.</Text>
-          <TouchableOpacity style={styles.lockBtn} onPress={() => router.push('/(customer)/subscribe')}>
-            <Text style={styles.lockBtnText}>Upgrade to Proactive</Text>
-          </TouchableOpacity>
+          <Text style={styles.lockSub}>Cooling &amp; heating trend detection, runtime analysis, and your HVAC Health Score {proactive ? 'are included with the Proactive plan.' : 'are coming soon.'}</Text>
+          {proactive && (
+            <TouchableOpacity style={styles.lockBtn} onPress={() => router.push('/(customer)/subscribe')}>
+              <Text style={styles.lockBtnText}>Upgrade to Proactive</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 

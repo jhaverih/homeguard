@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/role.enum';
@@ -16,9 +17,18 @@ export class SubscriptionsController {
   constructor(private readonly service: SubscriptionsService) {}
 
   @Get('plans')
-  @ApiOperation({ summary: 'Get all available subscription plans' })
-  getPlans() {
-    return this.service.getPlans();
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Get the subscription plans this user can buy (launch tiers only, unless a preview tester)' })
+  getPlans(@Request() req) {
+    return this.service.getPlans(req.user?.email);
+  }
+
+  @Get('features')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Which not-yet-launched homeowner features this user can see' })
+  getFeatures(@Request() req) {
+    return this.service.getLaunchFeatures(req.user.id, req.user.email);
   }
 
   @Get('my')
@@ -34,7 +44,7 @@ export class SubscriptionsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Subscribe to a plan — requires acceptedTerms: true on a customer\'s first subscription' })
   subscribe(@Request() req, @Param('planId') planId: string, @Body() body: SubscribeDto) {
-    return this.service.subscribe(req.user.id, planId, body.acceptedTerms ?? false);
+    return this.service.subscribe(req.user.id, planId, body.acceptedTerms ?? false, req.user.email);
   }
 
   @Post('cancel')
@@ -50,7 +60,7 @@ export class SubscriptionsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Change my subscription plan' })
   changePlan(@Request() req, @Param('planId') planId: string) {
-    return this.service.changePlan(req.user.id, planId);
+    return this.service.changePlan(req.user.id, planId, req.user.email);
   }
 
   @Post('reprice')

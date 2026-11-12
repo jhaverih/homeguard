@@ -7,6 +7,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { alertsApi, subscriptionsApi, yolinkApi, MonitoringDevice } from '../../src/services/api';
 import { useAlertsStore } from '../../src/store/alerts.store';
+import { useLaunchFeatures } from '../../src/hooks/useLaunchFeatures';
 import { colors } from '../../src/theme';
 
 // MEDIUM/LOW are relabeled "Alert"/"Info" here rather than their raw severity
@@ -96,6 +97,7 @@ export default function MonitoringScreen() {
   const [loadError, setLoadError] = useState(false);
   const [subscription, setSubscription] = useState<any>(null);
   const { setUnreadCount, decrement: decrementBadge } = useAlertsStore();
+  const { proactive } = useLaunchFeatures();
 
   const load = async () => {
     try {
@@ -190,12 +192,18 @@ export default function MonitoringScreen() {
         ) : noMonitoringPlan ? (
           <View style={styles.emptyInner}>
             <Ionicons name="shield-outline" size={56} color={colors.lantern} />
-            <Text style={styles.emptyTitle}>Home Monitoring Available</Text>
-            <Text style={styles.emptyText}>Real-time sensor monitoring and alerts are included with the Proactive plan — upgrade to start monitoring your home.</Text>
-            <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/(customer)/subscribe')}>
-              <Text style={styles.upgradeBtnText}>View Plans</Text>
-              <Ionicons name="arrow-forward" size={14} color={colors.ink} />
-            </TouchableOpacity>
+            <Text style={styles.emptyTitle}>{proactive ? 'Home Monitoring Available' : 'Home Monitoring'}</Text>
+            {proactive ? (
+              <>
+                <Text style={styles.emptyText}>Real-time sensor monitoring and alerts are included with the Proactive plan — upgrade to start monitoring your home.</Text>
+                <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/(customer)/subscribe')}>
+                  <Text style={styles.upgradeBtnText}>View Plans</Text>
+                  <Ionicons name="arrow-forward" size={14} color={colors.ink} />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={styles.emptyText}>Real-time sensor monitoring and alerts are coming soon.</Text>
+            )}
           </View>
         ) : (
           <>

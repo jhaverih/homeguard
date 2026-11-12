@@ -7,6 +7,7 @@ import { SubscriptionPlan } from './entities/subscription-plan.entity';
 import { CustomerSubscription, SubscriptionStatus } from './entities/customer-subscription.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { PlanTier } from '../common/enums/role.enum';
+import { isLaunchedTier, isPreviewTester } from '../common/constants/launch';
 import { addYears } from './utils/date.util';
 import { UsersService } from '../users/users.service';
 import { YolinkService } from '../yolink/yolink.service';
@@ -277,13 +278,30 @@ export class SubscriptionsService implements OnModuleInit {
     return customer.id;
   }
 
-  async getPlans(): Promise<SubscriptionPlan[]> {
-    const plans = await this.plansRepo.find({ where: { isActive: true } });
+  async getPlans(email?: string | null): Promise<SubscriptionPlan[]> {
+    const tester = isPreviewTester(email);
+    const plans = (await this.plansRepo.find({ where: { isActive: true } }))
+      .filter((p) => tester || isLaunchedTier(p.tier));
     // No ORDER BY at the DB level, so row order is otherwise undefined —
     // always show Basic/Standard/Premium in that fixed tier order, everywhere
     // this single endpoint is consumed (admin, mobile subscribe/register).
     const tierOrder = Object.values(PlanTier);
     return plans.sort((a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier));
+  }
+
+  // Proactive and home monitoring aren't launched yet (common/constants/launch.ts).
+  // A preview tester sees both; a customer already on an unlaunched plan keeps
+  // the monitoring they pay for, but isn't offered the plan again.
+  async getLaunchFeatures(userId: string, email?: string | null): Promise<{ proactive: boolean; monitoring: boolean }> {
+    if (isPreviewTester(email)) return { proactive: true, monitoring: true };
+    const sub = await this.getActiveSubscription(userId).catch(() => null);
+    return { proactive: false, monitoring: !!sub?.plan && !isLaunchedTier(sub.plan.tier) };
+  }
+
+  private assertPlanAvailable(plan: SubscriptionPlan, email?: string | null) {
+    if (!isLaunchedTier(plan.tier) && !isPreviewTester(email)) {
+      throw new BadRequestException(`The ${plan.name} plan isn't available yet.`);
+    }
   }
 
   async getActiveSubscription(customerId: string): Promise<CustomerSubscription | null> {
@@ -295,7 +313,7 @@ export class SubscriptionsService implements OnModuleInit {
     });
   }
 
-  async subscribe(customerId: string, planId: string, acceptedTerms = false): Promise<{ clientSecret: string; subscriptionId?: string; paymentIntentId?: string }> {
+  async subscribe(customerId: string, planId: string, acceptedTerms = false, email?: string | null): Promise<{ clientSecret: string; subscriptionId?: string; paymentIntentId?: string }> {
     const ownerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
     const existing = await this.getActiveSubscription(ownerId);
     if (existing) throw new BadRequestException('Customer already has an active subscription');
@@ -310,6 +328,7 @@ export class SubscriptionsService implements OnModuleInit {
 
     const plan = await this.plansRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
+    this.assertPlanAvailable(plan, email);
 
     if (!user.termsAcceptedAt) {
       await this.usersService.acceptCustomerTerms(customerId, CURRENT_CUSTOMER_TOS_VERSION);
@@ -393,12 +412,13 @@ export class SubscriptionsService implements OnModuleInit {
     return this.subscriptionsRepo.save(sub);
   }
 
-  async changePlan(customerId: string, newPlanId: string): Promise<{ clientSecret?: string; subscriptionId?: string }> {
+  async changePlan(customerId: string, newPlanId: string, email?: string | null): Promise<{ clientSecret?: string; subscriptionId?: string }> {
     // Any family member can change the shared household subscription — "same rights".
     const sub = await this.getActiveSubscription(customerId);
     if (!sub) throw new NotFoundException('No active subscription found');
     const plan = await this.plansRepo.findOne({ where: { id: newPlanId } });
     if (!plan) throw new NotFoundException('Plan not found');
+    this.assertPlanAvailable(plan, email);
 
     if (sub.stripeSubscriptionId && plan.stripePriceId) {
       const priceId = await this.resolveTargetStripePriceId(sub.customerId, plan);

@@ -90,8 +90,11 @@ export const teamApi = {
   removeMember: (memberId: string) => api.delete(`/users/me/team/${memberId}`),
 };
 
+export type LaunchFeatures = { proactive: boolean; monitoring: boolean };
+
 export const subscriptionsApi = {
   getPlans: () => api.get('/subscriptions/plans'),
+  getFeatures: (): Promise<LaunchFeatures> => api.get('/subscriptions/features') as any,
   getMySubscription: () => api.get('/subscriptions/my'),
   subscribe: (planId: string, acceptedTerms?: boolean): Promise<{ clientSecret: string; subscriptionId?: string }> =>
     api.post(`/subscriptions/subscribe/${planId}`, { acceptedTerms }) as any,

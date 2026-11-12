@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { useAlertsStore } from '../../src/store/alerts.store';
+import { useLaunchFeatures } from '../../src/hooks/useLaunchFeatures';
 import { userApi } from '../../src/services/api';
 import { AttenteveIcon, AttenteveLogo } from '../../src/components/AttenteveLogo';
 import { colors } from '../../src/theme';
@@ -59,6 +60,9 @@ function MonitoringHeader() {
 
 export default function CustomerLayout() {
   const { unreadCount } = useAlertsStore();
+  // Home monitoring isn't launched yet — the tab only shows for preview
+  // testers and customers who already have it (useLaunchFeatures).
+  const { monitoring } = useLaunchFeatures();
 
   return (
     <Tabs
@@ -106,6 +110,7 @@ export default function CustomerLayout() {
       <Tabs.Screen
         name="alerts"
         options={{
+          href: monitoring ? undefined : null,
           title: 'Monitoring',
           header: () => <MonitoringHeader />,
           // Matches the dashboard mockup's own icon for this tab — a 2x2
