@@ -36,7 +36,9 @@ describe('SubscriptionsService.changePlan', () => {
     const t = setup({ stripeSubId: 'sub_gone', retrieve: missing, targetPrice: 'price_1' });
     const res = await t.service.changePlan('owner', 'new', TESTER);
     expect(res).toEqual({ clientSecret: 'cs', subscriptionId: 'sub_new' });
-    expect(t.subscriptionsRepo.remove).toHaveBeenCalledWith(t.sub);
+    // Old row is retired, not deleted (service requests reference it).
+    expect(t.subscriptionsRepo.remove).not.toHaveBeenCalled();
+    expect(t.sub.status).toBe('CANCELLED');
     expect(t.subscribeViaStripe).toHaveBeenCalledWith('owner', expect.objectContaining({ id: 'new' }), 'price_1');
     expect(t.stripe.subscriptions.update).not.toHaveBeenCalled();
   });
@@ -46,6 +48,15 @@ describe('SubscriptionsService.changePlan', () => {
     const res = await t.service.changePlan('owner', 'new', TESTER);
     expect(res.clientSecret).toBe('cs');
     expect(t.stripe.subscriptions.retrieve).not.toHaveBeenCalled();
+    expect(t.sub.status).toBe('CANCELLED');
+  });
+
+  it('keeps the current plan when creating the Stripe subscription fails', async () => {
+    const t = setup({ stripeSubId: null, targetPrice: 'price_1' });
+    t.subscribeViaStripe.mockRejectedValueOnce(new Error('card_declined'));
+    await expect(t.service.changePlan('owner', 'new', TESTER)).rejects.toThrow('card_declined');
+    expect(t.sub.status).toBeUndefined();
+    expect(t.subscriptionsRepo.save).not.toHaveBeenCalled();
   });
 
   it('updates the price on a billing Stripe subscription', async () => {

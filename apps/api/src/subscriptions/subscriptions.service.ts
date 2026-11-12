@@ -452,8 +452,13 @@ export class SubscriptionsService implements OnModuleInit {
         if (stripeSub && stripeSub.status === 'incomplete') {
           try { await this.stripe.subscriptions.cancel(stripeSub.id); } catch { /* ignore */ }
         }
-        await this.subscriptionsRepo.remove(sub);
-        return this.subscribeViaStripe(sub.customerId, plan, priceId);
+        // Create the new subscription first, so a Stripe failure leaves the
+        // current plan untouched; then retire the old row. It's kept (marked
+        // CANCELLED), not deleted — service requests reference it.
+        const created = await this.subscribeViaStripe(sub.customerId, plan, priceId);
+        sub.status = SubscriptionStatus.CANCELLED;
+        await this.subscriptionsRepo.save(sub);
+        return created;
       }
     } else if (sub.stripeSubscriptionId) {
       // Moving to an unpriced plan (Care Plan): stop the paid Stripe
