@@ -507,7 +507,10 @@ export default function RegisterScreen() {
                     <Ionicons name="checkmark-circle" size={20} color={colors.lanternDeep} style={styles.planCheck} />
                   )}
                   <PlanName name={plan.name} style={styles.planName} />
-                  <Text style={styles.planPrice}>${plan.price}/year</Text>
+                  <Text style={styles.planPrice}>{plan.tier === 'BASIC' ? 'from ' : ''}${Number(plan.price).toFixed(2)}/year</Text>
+                  {plan.tier === 'BASIC' && (
+                    <Text style={styles.planPriceNote}>Final price depends on your home's size and systems. We'll ask a few details before checkout.</Text>
+                  )}
                   {plan.features?.map((f: string, i: number) => (
                     <Text key={i} style={styles.planFeature}>✓ {f}</Text>
                   ))}
@@ -694,6 +697,7 @@ const styles = StyleSheet.create({
   planCheck: { position: 'absolute', top: 14, right: 14 },
   planName: { fontSize: 17, fontWeight: '700', color: colors.lanternDeep, marginBottom: 2 },
   planPrice: { fontSize: 22, fontWeight: '800', color: colors.lanternDeep, marginBottom: 8 },
+  planPriceNote: { fontSize: 12, color: colors.steel, marginTop: -4, marginBottom: 8 },
   planFeature: { fontSize: 14, color: colors.steel, lineHeight: 22 },
 
   emptyPlans: {

@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Linking,
@@ -30,6 +30,10 @@ export default function SubscribeScreen() {
   const [showCancelFeedback, setShowCancelFeedback] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [characteristics, setCharacteristics] = useState<PropertyCharacteristics | null>(null);
+  // CarePlus is priced per home: base + a home-size/systems surcharge (the
+  // API bakes it into a per-customer Stripe Price). Shown up front so the
+  // card matches what checkout charges. null = no home details yet.
+  const [carePlusSurcharge, setCarePlusSurcharge] = useState<number | null>(null);
   // Which flow the modal should resume once characteristics are saved —
   // subscribing fresh, switching plans, or just editing on an existing
   // CarePlus subscription (which reprices instead of subscribing).
@@ -49,6 +53,31 @@ export default function SubscribeScreen() {
       }).finally(() => setFetching(false));
     }, [])
   );
+
+  useEffect(() => {
+    if (!characteristics) { setCarePlusSurcharge(null); return; }
+    let live = true;
+    propertyCharacteristicsApi.quote(characteristics)
+      .then((q) => { if (live) setCarePlusSurcharge(q.carePlusSurcharge); })
+      .catch(() => { if (live) setCarePlusSurcharge(null); });
+    return () => { live = false; };
+  }, [characteristics]);
+
+  const money = (n: number) => `$${n.toFixed(2)}`;
+  // Price shown on a plan card: CarePlus shows this home's own price, or
+  // "from" the base price until the home details are known.
+  const priceFor = (plan: any): { label: string; note: string | null } => {
+    const base = Number(plan?.price ?? 0);
+    if (plan?.tier !== 'BASIC') return { label: money(base), note: null };
+    if (carePlusSurcharge == null) {
+      return { label: `from ${money(base)}`, note: "Final price depends on your home's size and systems. We'll ask a few details before checkout." };
+    }
+    if (carePlusSurcharge <= 0) return { label: money(base), note: null };
+    return {
+      label: money(base + carePlusSurcharge),
+      note: `${money(base)} base + ${money(carePlusSurcharge)} for your home's size and systems`,
+    };
+  };
 
   const presentStripeSheet = async (clientSecret: string): Promise<boolean> => {
     if (!clientSecret) return true; // No Stripe price configured — fallback mode
@@ -193,7 +222,10 @@ export default function SubscribeScreen() {
             <Ionicons name="shield-checkmark" size={32} color={colors.lanternDeep} />
             <View style={{ flex: 1, marginLeft: 14 }}>
               <Text style={styles.activePlanName}>{subscription.plan?.name}</Text>
-              <Text style={styles.activePlanPrice}>${subscription.plan?.price}<Text style={styles.activePlanPer}>/yr</Text></Text>
+              <Text style={styles.activePlanPrice}>{priceFor(subscription.plan).label.replace(/^from /, '')}<Text style={styles.activePlanPer}>/yr</Text></Text>
+              {carePlusSurcharge != null && !!priceFor(subscription.plan).note && (
+                <Text style={styles.priceNote}>{priceFor(subscription.plan).note}</Text>
+              )}
             </View>
             <View style={[styles.statusBadge, isCancelled ? styles.statusCancelled : styles.statusActive]}>
               <Text style={[styles.statusText, isCancelled ? { color: '#c53030' } : { color: '#059669' }]}>
@@ -316,8 +348,9 @@ export default function SubscribeScreen() {
           >
             <View style={styles.planHeader}>
               <PlanName name={plan.name} style={styles.planName} />
-              <Text style={styles.planPrice}>${plan.price}<Text style={styles.planPer}>/yr</Text></Text>
+              <Text style={styles.planPrice}>{priceFor(plan).label}<Text style={styles.planPer}>/yr</Text></Text>
             </View>
+            {!!priceFor(plan).note && <Text style={styles.priceNote}>{priceFor(plan).note}</Text>}
             {!!plan.description && <Text style={styles.planDesc}>{plan.description}</Text>}
             {plan.features?.map((f: string, i: number) => (
               isSubFeature(f) ? (
@@ -434,6 +467,7 @@ const styles = StyleSheet.create({
   planName: { fontSize: 17, fontWeight: '700', color: colors.lanternDeep },
   planPrice: { fontSize: 20, fontWeight: '800', color: colors.lanternDeep },
   planPer: { fontSize: 13, fontWeight: '400', color: colors.steel },
+  priceNote: { fontSize: 12, color: colors.steel, marginTop: 4, marginBottom: 6 },
   planDesc: { fontSize: 13, color: '#666', marginBottom: 10, lineHeight: 18 },
   planFeature: { fontSize: 13, color: '#444', lineHeight: 22 },
   planFeatureSub: { fontSize: 12, color: colors.steel, lineHeight: 20, marginLeft: 22 },
