@@ -51,6 +51,14 @@ export class UploadsService implements OnModuleInit {
     return key;
   }
 
+  // Reads a stored file back into memory (used to hand an uploaded license
+  // to the license reader). Returns the bytes and the content type it was saved with.
+  async getObject(key: string): Promise<{ data: Buffer; contentType: string }> {
+    const res = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const bytes = await res.Body!.transformToByteArray();
+    return { data: Buffer.from(bytes), contentType: res.ContentType || 'application/octet-stream' };
+  }
+
   async getSignedUrl(key: string): Promise<string> {
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.s3Public, command, { expiresIn: 3600 });

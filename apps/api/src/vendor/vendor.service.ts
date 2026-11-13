@@ -18,6 +18,7 @@ import { UserRole, UserStatus, PaymentStatus, ServiceRequestStatus } from '../co
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { LicenseReadingService } from './licenses/license-reading.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { emailEquals } from '../common/utils/email.util';
 import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.utils';
@@ -88,6 +89,7 @@ export class VendorService implements OnModuleInit {
     private authService: AuthService,
     private uploadsService: UploadsService,
     private notificationsService: NotificationsService,
+    private licenseReading: LicenseReadingService,
     private pricingService: PricingService,
     private marketplaceService: MarketplaceService,
     private dataSource: DataSource,
@@ -647,6 +649,22 @@ export class VendorService implements OnModuleInit {
         documentUrl: c.documentKey ? await this.uploadsService.getSignedUrl(c.documentKey) : null,
         user: submitter ? { id: submitter.id, name: `${submitter.firstName} ${submitter.lastName}`, email: submitter.email } : null,
       };
+    }));
+  }
+
+  // Upload-and-read: the license reader on the AI laptop fills in the number,
+  // state, names and dates in the background (licenses/license-reading.service.ts).
+  async uploadCertification(userId: string, data: { certificationType: CertificationType; documentKey: string }) {
+    if (!Object.values(CertificationType).includes(data.certificationType) || data.certificationType === CertificationType.NONE) {
+      throw new BadRequestException('Choose the license type.');
+    }
+    if (!data.documentKey?.startsWith('vendor-licenses/')) throw new BadRequestException('Attach a photo or PDF of the license.');
+    return this.licenseReading.start(this.certificationRepo.create({
+      userId,
+      certificationType: data.certificationType,
+      documentKey: data.documentKey,
+      licenseNumber: null,
+      expirationDate: null,
     }));
   }
 

@@ -41,7 +41,7 @@ export default function SubmissionScreen() {
         <Section title="Licenses">
           {app.licenses.map((l) => (
             <Text key={l.id} style={styles.listItem}>
-              • {LICENSE_LABEL[l.certificationType] ?? l.certificationType}, {l.issuingState} #{l.licenseNumber}, expires {new Date(l.expirationDate).toLocaleDateString()}
+              • {LICENSE_LABEL[l.certificationType] ?? l.certificationType}{l.issuingState ? `, ${l.issuingState}` : ''}{l.licenseNumber ? ` #${l.licenseNumber}` : ''}, {l.expirationDate ? `expires ${new Date(l.expirationDate).toLocaleDateString()}` : 'being checked'}
             </Text>
           ))}
         </Section>

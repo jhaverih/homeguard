@@ -1,11 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput, Linking,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Linking,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { vendorApi, uploadsApi, userApi } from '../../src/services/api';
-import { pickDocument } from '../../src/utils/pickDocument';
-import { FutureDateField, StatePicker } from '../../src/components/onboarding/OnboardingUI';
+import { vendorApi, userApi } from '../../src/services/api';
+import { LicenseUpload } from '../../src/components/onboarding/LicenseUpload';
+import { ExpiryText, formatDay, LICENSE_STATUS, LicenseStatusBadge } from '../../src/components/onboarding/LicenseStatus';
 import { colors } from '../../src/theme';
 
 const CERT_TYPES = [
@@ -17,35 +17,15 @@ const CERT_TYPES = [
   { value: 'NABCEP', label: 'NABCEP (Solar)' },
 ];
 
-const STATUS_COLOR: Record<string, string> = {
-  PENDING_REVIEW: '#b45309',
-  APPROVED: '#059669',
-  REJECTED: '#dc2626',
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  PENDING_REVIEW: 'Pending Review',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
-};
-
 export default function CertificationsScreen() {
   const [certs, setCerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   // Fetched fresh (not from the auth store) on every focus, matching profile.tsx's
   // own isCompanyAdmin pattern — admin status can change after login/app-install,
   // and this gates read/write access to compliance data so it shouldn't go stale.
   const [isCompanyAdmin, setIsCompanyAdmin] = useState<boolean | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
   const [certType, setCertType] = useState('HVAC');
-  const [licenseNumber, setLicenseNumber] = useState('');
-  const [issuingState, setIssuingState] = useState('');
-  const [expirationDate, setExpirationDate] = useState<Date | null>(null);
-  const [document, setDocument] = useState<{ uri: string; key?: string } | null>(null);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   const load = useCallback(() => {
     userApi.getMe().then((res: any) => {
@@ -58,77 +38,13 @@ export default function CertificationsScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const pickLicense = async () => {
-    const file = await pickDocument('License');
-    if (!file) return;
-    setDocument({ uri: file.uri });
-    setUploadingDoc(true);
-    try {
-      const res: any = await uploadsApi.uploadDocument(file.uri, 'certifications', file.mimeType, file.name);
-      setDocument({ uri: file.uri, key: res.key });
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message);
-      setDocument(null);
-    } finally {
-      setUploadingDoc(false);
-    }
-  };
-
-  const resetForm = () => {
-    setCertType('HVAC');
-    setLicenseNumber('');
-    setIssuingState('');
-    setExpirationDate(null);
-    setDocument(null);
-    setShowForm(false);
-    setEditingId(null);
-  };
-
-  const startEdit = (c: any) => {
-    setEditingId(c.id);
-    setCertType(c.certificationType);
-    setLicenseNumber(c.licenseNumber);
-    setIssuingState(c.issuingState || '');
-    setExpirationDate(c.expirationDate && new Date(c.expirationDate) > new Date() ? new Date(c.expirationDate) : null);
-    setDocument(null); // replacing the document is optional on edit — leave blank to keep the existing one
-    setShowForm(true);
-  };
-
-  const viewDocument = (c: any) => {
-    if (c.documentUrl) Linking.openURL(c.documentUrl);
-  };
-
-  const submit = async () => {
-    if (!licenseNumber.trim()) { Alert.alert('Required', 'Enter the license number.'); return; }
-    if (!issuingState.trim()) { Alert.alert('Required', 'Choose the issuing state.'); return; }
-    if (!expirationDate) { Alert.alert('Required', 'Enter the expiry date printed on the license.'); return; }
-    if (!editingId && !document?.key) { Alert.alert('Required', 'Upload a photo or PDF of your license.'); return; }
-    setSubmitting(true);
-    try {
-      const payload = {
-        certificationType: certType,
-        licenseNumber: licenseNumber.trim(),
-        issuingState: issuingState.trim().toUpperCase().slice(0, 2),
-        expirationDate: expirationDate.toISOString(),
-        ...(document?.key ? { documentKey: document.key } : {}),
-      };
-      if (editingId) {
-        await vendorApi.updateCertification(editingId, payload);
-      } else {
-        await vendorApi.submitCertification({ ...payload, documentKey: document!.key! });
-      }
-      resetForm();
-      load();
-      Alert.alert(
-        editingId ? 'Updated' : 'Submitted',
-        editingId ? 'Your changes are now pending admin review.' : 'Your certification is now pending admin review.',
-      );
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // While a license is being read by the AI, check back every 10 seconds.
+  const reading = certs.some((c) => c.status === 'READING');
+  useEffect(() => {
+    if (!reading) return;
+    const timer = setInterval(load, 10_000);
+    return () => clearInterval(timer);
+  }, [reading, load]);
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
@@ -143,37 +59,41 @@ export default function CertificationsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
       <Text style={styles.title}>Team Certifications</Text>
-      <Text style={styles.subtitle}>Every license submitted by anyone on your team. Submit or revise for admin review to unlock licensed-trade jobs.</Text>
+      <Text style={styles.subtitle}>Every license on your team. Upload a license and we read its details for you; Attenteve then verifies it to unlock licensed-trade jobs.</Text>
 
       {certs.map((c) => (
         <View key={c.id} style={styles.card}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <Text style={styles.cardTitle}>{CERT_TYPES.find((t) => t.value === c.certificationType)?.label || c.certificationType}</Text>
-            <Text style={[styles.statusBadge, { color: STATUS_COLOR[c.status] }]}>{STATUS_LABEL[c.status] || c.status}</Text>
-          </View>
-          <Text style={styles.cardSub}>License #{c.licenseNumber} · {c.issuingState}</Text>
-          <Text style={styles.cardSub}>Expires {new Date(c.expirationDate).toLocaleDateString()}</Text>
-          {c.user?.name && <Text style={styles.cardSub}>Submitted by {c.user.name}</Text>}
-          {c.status === 'REJECTED' && c.reviewNotes && (
-            <Text style={styles.rejectNote}>{c.reviewNotes}</Text>
+          <Text style={styles.cardTitle}>{CERT_TYPES.find((t) => t.value === c.certificationType)?.label || c.certificationType}</Text>
+          <LicenseStatusBadge status={c.status} />
+          {c.status === 'READING' ? (
+            <Text style={styles.cardSub}>{LICENSE_STATUS.READING.hint}</Text>
+          ) : (
+            <>
+              <Text style={styles.cardSub}>
+                {[c.licenseNumber ? `License #${c.licenseNumber}` : 'License number not found', c.issuingState].filter(Boolean).join(' · ')}
+              </Text>
+              {(c.holderName || c.businessName) && <Text style={styles.cardSub}>{[c.holderName, c.businessName].filter(Boolean).join(' · ')}</Text>}
+              {c.issueDate && <Text style={styles.cardSub}>Issued {formatDay(c.issueDate)}</Text>}
+              <ExpiryText date={c.expirationDate} status={c.status} />
+            </>
           )}
-          <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
-            {c.documentUrl && (
-              <TouchableOpacity onPress={() => viewDocument(c)}>
-                <Text style={styles.cardLink}>View Document</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => startEdit(c)}>
-              <Text style={styles.cardLink}>Edit</Text>
+          {c.user?.name && <Text style={styles.cardSub}>Submitted by {c.user.name}</Text>}
+          {(c.status === 'REJECTED' || c.status === 'EXPIRED') && (
+            <Text style={styles.rejectNote}>{c.reviewNotes || LICENSE_STATUS[c.status]?.hint}</Text>
+          )}
+          {c.status === 'NEEDS_REVIEW' && (c.reviewReasons ?? []).map((r: string) => <Text key={r} style={styles.reason}>• {r}</Text>)}
+          {c.documentUrl && (
+            <TouchableOpacity onPress={() => Linking.openURL(c.documentUrl)} style={{ marginTop: 8 }}>
+              <Text style={styles.cardLink}>View Document</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </View>
       ))}
 
       {showForm ? (
         <View style={styles.formCard}>
           <Text style={styles.formLabel}>License Type</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
             {CERT_TYPES.map((t) => (
               <TouchableOpacity
                 key={t.value}
@@ -184,32 +104,16 @@ export default function CertificationsScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-
-          <TextInput
-            style={styles.input}
-            placeholder="License number"
-            placeholderTextColor={colors.steel}
-            value={licenseNumber}
-            onChangeText={setLicenseNumber}
+          <LicenseUpload
+            key={certType}
+            type={certType}
+            submit={async (documentKey) => {
+              await vendorApi.uploadCertification({ certificationType: certType, documentKey });
+              setShowForm(false);
+              load();
+            }}
           />
-          <StatePicker value={issuingState} onChange={setIssuingState} placeholder="Issuing state" />
-
-          <Text style={styles.formLabel}>Expiration Date</Text>
-          <FutureDateField value={expirationDate} onChange={setExpirationDate} placeholder="Expiry date on the license" />
-
-          <Text style={styles.formLabel}>License Photo{editingId ? ' (optional — leave blank to keep the existing document)' : ''}</Text>
-          <TouchableOpacity style={styles.docBtn} onPress={pickLicense} disabled={uploadingDoc}>
-            {uploadingDoc ? (
-              <ActivityIndicator color={colors.lanternDeep} />
-            ) : (
-              <Text style={styles.docBtnText}>{document?.key ? '✓ Photo uploaded — tap to replace' : '📷 Take or choose a photo'}</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={submitting}>
-            {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitBtnText}>{editingId ? 'Save Changes' : 'Submit Certification'}</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity onPress={resetForm} style={styles.cancelBtn}>
+          <TouchableOpacity onPress={() => setShowForm(false)} style={styles.cancelBtn}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -225,12 +129,13 @@ export default function CertificationsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.canvas },
   title: { fontSize: 22, fontWeight: '700', color: colors.lanternDeep, marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
+  subtitle: { fontSize: 14, color: colors.steel, marginBottom: 20 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
   cardTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
-  cardSub: { fontSize: 13, color: '#666', marginTop: 2 },
+  cardSub: { fontSize: 13, color: colors.steel, marginTop: 2 },
   statusBadge: { fontSize: 12, fontWeight: '700' },
-  rejectNote: { fontSize: 12, color: '#dc2626', marginTop: 6, fontStyle: 'italic' },
+  rejectNote: { fontSize: 12, color: colors.dangerText, marginTop: 6 },
+  reason: { fontSize: 12, color: colors.warningText, marginTop: 2 },
   cardLink: { fontSize: 12, fontWeight: '700', color: colors.lanternDeep },
   addBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.lanternDeep, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
   addBtnText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 15 },

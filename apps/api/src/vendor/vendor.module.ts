@@ -23,6 +23,8 @@ import { VendorController } from './vendor.controller';
 import { VendorOnboardingService } from './vendor-onboarding.service';
 import { VendorOnboardingController } from './vendor-onboarding.controller';
 import { CredentialReminderService } from './credentials/credential-reminder.service';
+import { LicenseReaderClient } from './licenses/license-reader.client';
+import { LicenseReadingService } from './licenses/license-reading.service';
 
 @Module({
   imports: [
@@ -37,7 +39,7 @@ import { CredentialReminderService } from './credentials/credential-reminder.ser
     PricingModule,
     MarketplaceModule,
   ],
-  providers: [VendorService, VendorOnboardingService, CredentialReminderService],
+  providers: [VendorService, VendorOnboardingService, CredentialReminderService, LicenseReaderClient, LicenseReadingService],
   controllers: [VendorOnboardingController, VendorController],
   exports: [VendorService, VendorOnboardingService],
 })

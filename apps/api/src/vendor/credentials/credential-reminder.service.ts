@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, LessThan, Not, Repository } from 'typeorm';
 import { VendorCompany, VendorApplicationStatus } from '../entities/vendor-company.entity';
 import { VendorCertification, CertificationReviewStatus } from '../entities/vendor-certification.entity';
 import { VendorProfile } from '../../users/entities/vendor-profile.entity';
 import { NotificationsService, NotificationType } from '../../notifications/notifications.service';
 import { dueNotice, EXPIRED_NOTICE, noticeText } from './credential-expiry';
+import { LicenseReadingService } from '../licenses/license-reading.service';
 
 const LICENSE_LABEL: Record<string, string> = {
   HVAC: 'HVAC license', ELECTRICAL: 'Electrical license', PLUMBING: 'Plumbing license', ROOFING: 'Roofing license',
@@ -27,6 +28,7 @@ export class CredentialReminderService {
     @InjectRepository(VendorCertification) private certificationRepo: Repository<VendorCertification>,
     @InjectRepository(VendorProfile) private profileRepo: Repository<VendorProfile>,
     private notificationsService: NotificationsService,
+    private licenseReading: LicenseReadingService,
   ) {}
 
   // 9:00 every morning, server time.
@@ -36,11 +38,40 @@ export class CredentialReminderService {
     try {
       sent += await this.remindInsurance(now);
       sent += await this.remindLicenses(now);
+      await this.markExpiredLicenses(now);
     } catch (err) {
       this.logger.error(`Credential reminder run failed: ${(err as Error).message}`);
     }
     if (sent) this.logger.log(`Sent ${sent} credential expiry notice(s)`);
     return { sent };
+  }
+
+  // Licenses whose expiry date has passed become EXPIRED. Customers already
+  // stop seeing the vendor for that trade (only APPROVED, unexpired licenses
+  // match jobs), and vendor-access.ts locks the vendor when it was their last
+  // valid license of that trade. The status makes it plain in the app and admin.
+  async markExpiredLicenses(now = new Date()): Promise<number> {
+    const res = await this.certificationRepo.update(
+      {
+        status: In([CertificationReviewStatus.APPROVED, CertificationReviewStatus.PENDING_REVIEW, CertificationReviewStatus.NEEDS_REVIEW]),
+        expirationDate: LessThan(now),
+      },
+      { status: CertificationReviewStatus.EXPIRED },
+    );
+    if (res.affected) this.logger.log(`Marked ${res.affected} license(s) expired`);
+    return res.affected ?? 0;
+  }
+
+  // Every 10 minutes: a license still READING 20+ minutes after its last
+  // update was probably dropped by an API restart. Read it again; the reader
+  // always finishes with a status (falling back to "needs review").
+  @Cron('0 */10 * * * *')
+  async retryStuckReads(now = new Date()): Promise<number> {
+    const stuck = await this.certificationRepo.find({
+      where: { status: CertificationReviewStatus.READING, updatedAt: LessThan(new Date(now.getTime() - 20 * 60 * 1000)) },
+    });
+    for (const c of stuck) await this.licenseReading.read(c.id).catch((err) => this.logger.warn(`Retry read ${c.id}: ${(err as Error).message}`));
+    return stuck.length;
   }
 
   private async companyAdminIds(companyIds: string[]): Promise<Map<string, string[]>> {

@@ -7,7 +7,10 @@ type ViewKey = 'applications' | 'certifications' | 'elite' | 'signup';
 // INCOMPLETE = registered but not submitted yet; listed so admins can see who
 // is mid-application, but never reviewable.
 const APPLICATION_STATUSES = ['PENDING_REVIEW', 'NEEDS_INFO', 'INCOMPLETE', 'APPROVED', 'REJECTED'] as const;
-const CERTIFICATION_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const;
+// READING: the license reader on the AI laptop is still reading the document.
+// NEEDS_REVIEW: it was read, but something needs a closer look (reasons shown).
+// EXPIRED: set by the daily job once the expiry date has passed.
+const CERTIFICATION_STATUSES = ['NEEDS_REVIEW', 'PENDING_REVIEW', 'READING', 'APPROVED', 'REJECTED', 'EXPIRED'] as const;
 
 const STATUS_STYLE: Record<string, string> = {
   INCOMPLETE: 'bg-mist-dim text-steel',
@@ -15,6 +18,9 @@ const STATUS_STYLE: Record<string, string> = {
   APPROVED: 'bg-green-50 text-green-700',
   REJECTED: 'bg-red-50 text-red-700',
   NEEDS_INFO: 'bg-blue-50 text-blue-700',
+  NEEDS_REVIEW: 'bg-orange-50 text-orange-700',
+  READING: 'bg-mist-dim text-steel',
+  EXPIRED: 'bg-red-50 text-red-700',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -23,6 +29,9 @@ const STATUS_LABEL: Record<string, string> = {
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
   NEEDS_INFO: 'Needs Info',
+  NEEDS_REVIEW: 'Needs Review',
+  READING: 'Reading…',
+  EXPIRED: 'Expired',
 };
 
 type NeedsInfoForm = Record<string, { checked: boolean; note: string }>;
@@ -58,6 +67,8 @@ export default function VendorApplicationsPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [form, setForm] = useState<{ decision: string; note: string }>({ decision: '', note: '' });
+  // Certification view: values the admin can correct before deciding (prefilled from what was read).
+  const [fix, setFix] = useState<{ licenseNumber: string; issuingState: string; expirationDate: string }>({ licenseNumber: '', issuingState: '', expirationDate: '' });
   const [needsInfo, setNeedsInfo] = useState<NeedsInfoForm>({});
   const [formError, setFormError] = useState('');
 
@@ -154,6 +165,12 @@ export default function VendorApplicationsPage() {
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => (prev === id ? null : id));
+    const cert = certifications.find((c) => c.id === id);
+    setFix({
+      licenseNumber: cert?.licenseNumber ?? '',
+      issuingState: cert?.issuingState ?? '',
+      expirationDate: cert?.expirationDate ? String(cert.expirationDate).slice(0, 10) : '',
+    });
     setForm({ decision: '', note: '' });
     setNeedsInfo({});
     setFormError('');
@@ -185,7 +202,11 @@ export default function VendorApplicationsPage() {
         );
         setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated } : a)));
       } else {
-        const updated = await adminApi.reviewVendorCertification(id, form.decision, form.note.trim() || undefined);
+        const updated = await adminApi.reviewVendorCertification(id, form.decision, form.note.trim() || undefined, {
+          licenseNumber: fix.licenseNumber.trim() || undefined,
+          issuingState: fix.issuingState.trim() || undefined,
+          expirationDate: fix.expirationDate || undefined,
+        });
         setCertifications((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
       }
       setExpanded(null);
@@ -375,7 +396,7 @@ export default function VendorApplicationsPage() {
           {filtered.map((item, idx) => {
             const isExpandedRow = expanded === item.id;
             const status = item.applicationStatus ?? item.status;
-            const isPending = status === 'PENDING_REVIEW';
+            const isPending = status === 'PENDING_REVIEW' || (view === 'certifications' && status === 'NEEDS_REVIEW');
 
             return (
               <div key={item.id} className={idx !== 0 ? 'border-t border-mist-dim' : ''}>
@@ -484,7 +505,27 @@ export default function VendorApplicationsPage() {
                             </div>
                             <p className="text-sm text-steel mb-1">Issued in: {item.issuingState || '—'}</p>
                             <p className="text-sm text-steel mb-1">Expires: {item.expirationDate ? new Date(item.expirationDate).toLocaleDateString() : '—'}</p>
-                            <p className="text-sm text-steel mb-1">Submitted by: {item.user?.email || '—'}</p>
+                            <p className="text-sm text-steel mb-1">Submitted by: {item.user?.name || ''} {item.user?.email ? `(${item.user.email})` : '—'}</p>
+                            {/* What the license reader found on the document. */}
+                            {item.extractedAt && (
+                              <div className="mt-3 rounded-xl border border-border p-3">
+                                <h3 className="text-xs font-semibold text-ink mb-1">
+                                  Read from the document · {item.extractionConfidence ?? 'no'} confidence
+                                </h3>
+                                <p className="text-xs text-steel">Holder: {item.holderName || '—'}</p>
+                                <p className="text-xs text-steel">Business: {item.businessName || '—'}</p>
+                                <p className="text-xs text-steel">Type printed: {item.extractedLicenseType || '—'}</p>
+                                <p className="text-xs text-steel">Issued: {item.issueDate || '—'}</p>
+                              </div>
+                            )}
+                            {item.reviewReasons?.length > 0 && (
+                              <div className="mt-3 rounded-xl bg-orange-50 p-3">
+                                <h3 className="text-xs font-semibold text-orange-700 mb-1">Why it needs a closer look</h3>
+                                <ul className="list-disc pl-4 text-xs text-orange-700 space-y-0.5">
+                                  {item.reviewReasons.map((r: string) => <li key={r}>{r}</li>)}
+                                </ul>
+                              </div>
+                            )}
                             {item.documentUrl && (
                               <a href={item.documentUrl} target="_blank" rel="noreferrer" className="block mt-3 text-xs text-lantern-deep font-semibold hover:underline">→ License document</a>
                             )}
@@ -512,6 +553,19 @@ export default function VendorApplicationsPage() {
                               </label>
                             ))}
                           </div>
+                          {view === 'certifications' && (
+                            <div className="mb-4 space-y-2">
+                              <p className="text-xs font-semibold text-steel">Check against the document and correct if needed:</p>
+                              <input value={fix.licenseNumber} onChange={(e) => setFix((f) => ({ ...f, licenseNumber: e.target.value }))}
+                                placeholder="License number" className="w-full border border-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern/30" />
+                              <input value={fix.issuingState} onChange={(e) => setFix((f) => ({ ...f, issuingState: e.target.value.toUpperCase().slice(0, 2) }))}
+                                placeholder="State (e.g. TX)" className="w-full border border-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern/30" />
+                              <label className="block text-xs text-steel">Expiration date
+                                <input type="date" value={fix.expirationDate} onChange={(e) => setFix((f) => ({ ...f, expirationDate: e.target.value }))}
+                                  className="mt-1 w-full border border-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lantern/30" />
+                              </label>
+                            </div>
+                          )}
                           {view === 'applications' && form.decision === 'NEEDS_INFO' && (
                             <div className="mb-4 space-y-2">
                               <p className="text-xs font-semibold text-steel">Send back only these items (each needs a note):</p>

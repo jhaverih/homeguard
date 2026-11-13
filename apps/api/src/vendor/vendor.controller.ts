@@ -200,6 +200,13 @@ export class VendorController {
     return this.service.submitCertification(req.user.id, body);
   }
 
+  @Post('me/certifications/upload')
+  @VendorAdminOnly()
+  @ApiOperation({ summary: 'Vendor Admin: upload a trade license; its details are read automatically' })
+  uploadCertification(@Request() req, @Body() body: { certificationType: CertificationType; documentKey: string }) {
+    return this.service.uploadCertification(req.user.id, body);
+  }
+
   @Patch('me/certifications/:id')
   @VendorAdminOnly()
   @ApiOperation({ summary: "Vendor Admin: revise a certification submitted by anyone on my team" })

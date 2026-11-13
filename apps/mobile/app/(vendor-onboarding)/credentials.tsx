@@ -1,10 +1,12 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View, TouchableOpacity, Alert, ActivityIndicator, Linking, TextInput, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { onboardingApi, uploadsApi, VendorCredentials } from '../../src/services/api';
 import { pickDocument, PickedFile } from '../../src/utils/pickDocument';
 import { FutureDateField, LICENSE_LABEL, PrimaryButton, Section, ui } from '../../src/components/onboarding/OnboardingUI';
+import { LicenseUpload } from '../../src/components/onboarding/LicenseUpload';
+import { ExpiryText, LICENSE_STATUS, LicenseStatusBadge } from '../../src/components/onboarding/LicenseStatus';
 import { colors } from '../../src/theme';
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
@@ -93,6 +95,25 @@ export default function CredentialsScreen() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // A renewed license is read by the AI in the background; check back every
+  // 10 seconds until it's done, and tell the vendor when access comes back.
+  const reading = !!creds?.licenses.some((l) => l.status === 'READING');
+  const wasLocked = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!reading) return;
+    const timer = setInterval(() => { load(); }, 10_000);
+    return () => clearInterval(timer);
+  }, [reading, load]);
+  useEffect(() => {
+    if (!creds) return;
+    if (wasLocked.current && !creds.locked) {
+      Alert.alert('Thanks, access restored', 'Your renewed license was read. Attenteve will verify it.', [
+        { text: 'Continue', onPress: () => router.replace('/(vendor)') },
+      ]);
+    }
+    wasLocked.current = creds.locked;
+  }, [creds]);
+
   if (!creds) return <ActivityIndicator style={{ flex: 1 }} color={colors.lanternDeep} size="large" />;
 
   const applied = (next: VendorCredentials) => {
@@ -109,15 +130,18 @@ export default function CredentialsScreen() {
     applied(await onboardingApi.renewInsurance({ coiDocumentKey: key, coiExpirationDate: expiry.toISOString() }));
   };
 
-  const renewLicense = (id: string) => async (file: PickedFile, expiry: Date, number: string) => {
-    const { key } = await uploadsApi.uploadDocument(file.uri, 'vendor-licenses', file.mimeType, file.name);
-    applied(await onboardingApi.renewLicense(id, { documentKey: key, expirationDate: expiry.toISOString(), licenseNumber: number || undefined }));
+  // The renewed license is read automatically; the screen updates when it's done.
+  const renewLicense = (id: string) => async (documentKey: string) => {
+    setCreds(await onboardingApi.renewLicenseUpload(id, documentKey));
   };
 
   const ins = creds.insurance;
   const insNeedsAction = ins.expired || ins.expiringSoon;
-  const licenses = creds.licenses.filter((l) => l.blocking || l.expiringSoon);
-  const current = creds.licenses.filter((l) => !l.blocking && !l.expiringSoon && !l.expired);
+  // A trade with a renewal already being read or checked doesn't need another upload.
+  const inProgress = creds.licenses.filter((l) => l.status === 'READING' || l.status === 'NEEDS_REVIEW');
+  const renewingTypes = new Set(inProgress.map((l) => l.certificationType));
+  const licenses = creds.licenses.filter((l) => (l.blocking || l.expiringSoon) && !inProgress.includes(l));
+  const current = creds.licenses.filter((l) => !l.blocking && !l.expiringSoon && !l.expired && !inProgress.includes(l));
 
   return (
     <ScrollView
@@ -148,21 +172,43 @@ export default function CredentialsScreen() {
       </Section>
 
       {licenses.map((l) => (
-        <Section key={l.id} title={LICENSE_LABEL[l.certificationType] ?? l.certificationType} hint={`${l.issuingState} #${l.licenseNumber}`}>
+        <Section key={l.id} title={LICENSE_LABEL[l.certificationType] ?? l.certificationType} hint={[l.issuingState, l.licenseNumber && `#${l.licenseNumber}`].filter(Boolean).join(' ')}>
           <ExpiryLine c={l} />
           {l.documentUrl && <Text style={ui.link} onPress={() => Linking.openURL(l.documentUrl!)}>View current license</Text>}
-          <RenewForm title="Trade License" withNumber onSave={renewLicense(l.id)} />
+          {renewingTypes.has(l.certificationType)
+            ? <Text style={[ui.label, { marginTop: 6 }]}>Your renewed license is being checked (below).</Text>
+            : <LicenseUpload type={l.certificationType} title="Upload your renewed license" submit={renewLicense(l.id)} />}
           <Text style={[ui.label, { marginTop: 6 }]}>Attenteve re-verifies a renewed license before matching you to jobs that need it.</Text>
         </Section>
       ))}
 
+      {inProgress.length > 0 && (
+        <Section title="Renewals being checked">
+          {inProgress.map((l) => (
+            <View key={l.id} style={{ marginBottom: 10 }}>
+              <Text style={ui.label}>{LICENSE_LABEL[l.certificationType] ?? l.certificationType}</Text>
+              <LicenseStatusBadge status={l.status} />
+              {l.status === 'READING'
+                ? <ActivityIndicator style={{ alignSelf: 'flex-start', marginTop: 6 }} color={colors.lanternDeep} />
+                : <ExpiryText date={l.expirationDate} status={l.status} />}
+              <Text style={ui.label}>{LICENSE_STATUS[l.status]?.hint}</Text>
+              {l.reviewReasons?.map((r) => <Text key={r} style={[ui.label, { color: colors.warningText }]}>• {r}</Text>)}
+            </View>
+          ))}
+        </Section>
+      )}
+
       {current.length > 0 && (
         <Section title="Current licenses">
           {current.map((l) => (
-            <Text key={l.id} style={ui.label}>
-              {LICENSE_LABEL[l.certificationType] ?? l.certificationType} · {l.issuingState} #{l.licenseNumber} · until {fmt(l.expirationDate)}
-              {l.status === 'PENDING_REVIEW' ? ' · being verified' : ''}
-            </Text>
+            <View key={l.id} style={{ marginBottom: 10 }}>
+              <Text style={ui.label}>
+                {LICENSE_LABEL[l.certificationType] ?? l.certificationType}
+                {[l.issuingState, l.licenseNumber && `#${l.licenseNumber}`].filter(Boolean).length ? ` · ${[l.issuingState, l.licenseNumber && `#${l.licenseNumber}`].filter(Boolean).join(' ')}` : ''}
+              </Text>
+              <LicenseStatusBadge status={l.status} />
+              <ExpiryText date={l.expirationDate} status={l.status} />
+            </View>
           ))}
         </Section>
       )}

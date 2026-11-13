@@ -174,8 +174,11 @@ export const adminApi = {
     api.patch(`/admin/vendor-applications/${id}`, { status, reviewNotes, needsInfoItems }).then((r) => r.data),
   getVendorCertifications: (status?: string) =>
     api.get(`/admin/vendor-certifications${status ? `?status=${status}` : ''}`).then((r) => r.data),
-  reviewVendorCertification: (id: string, status: string, reviewNotes?: string) =>
-    api.patch(`/admin/vendor-certifications/${id}`, { status, reviewNotes }).then((r) => r.data),
+  // corrections: values the admin fixed or filled in that the license reader missed.
+  reviewVendorCertification: (
+    id: string, status: string, reviewNotes?: string,
+    corrections?: { licenseNumber?: string; issuingState?: string; expirationDate?: string },
+  ) => api.patch(`/admin/vendor-certifications/${id}`, { status, reviewNotes, ...corrections }).then((r) => r.data),
   getMonitoringSetupRequests: () => api.get('/admin/monitoring-setup-requests').then((r) => r.data),
   requestMonitoringConnection: (customerId: string) =>
     api.post(`/admin/monitoring-setup-requests/${customerId}/request`).then((r) => r.data),

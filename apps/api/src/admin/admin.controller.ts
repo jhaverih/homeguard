@@ -210,9 +210,11 @@ export class AdminController {
   @ApiOperation({ summary: 'Admin/Super User: approve/reject an individual trade certification' })
   reviewVendorCertification(
     @Param('id') id: string,
-    @Body() body: { status: CertificationReviewStatus; reviewNotes?: string },
+    @Body() body: { status: CertificationReviewStatus; reviewNotes?: string; licenseNumber?: string; issuingState?: string; expirationDate?: string },
   ) {
-    return this.service.reviewVendorCertification(id, body.status, body.reviewNotes);
+    return this.service.reviewVendorCertification(id, body.status, body.reviewNotes, {
+      licenseNumber: body.licenseNumber, issuingState: body.issuingState, expirationDate: body.expirationDate,
+    });
   }
 
   @Post('capabilities')

@@ -1,4 +1,7 @@
 name: Update QNAP .env
+# WARNING: this rewrites the whole QNAP .env from the lines below. Values that
+# exist only on the QNAP (Nest, Yolink, Firebase, SMTP, ENCRYPTION_KEY, ...)
+# are lost when it runs. Add a new variable to the QNAP .env by hand instead.
 
 on:
   workflow_dispatch:
@@ -16,6 +19,8 @@ jobs:
           STRIPE_SECRET:  ${{ secrets.QNAP_STRIPE_SECRET }}
           STRIPE_PK:      ${{ secrets.QNAP_STRIPE_PK }}
           EXPO_TOKEN:     ${{ secrets.QNAP_EXPO_TOKEN }}
+          LICENSE_READER_URL: ${{ secrets.QNAP_LICENSE_READER_URL }}
+          READER_TOKEN:   ${{ secrets.QNAP_READER_TOKEN }}
         run: |
           mkdir -p /share/Container/homeguard
           F=/share/Container/homeguard/.env
@@ -46,6 +51,8 @@ jobs:
             echo "ADMIN_PORT=3002"
             echo "API_URL=http://192.168.86.29/api"
             echo "ALLOWED_ORIGINS=http://192.168.86.29"
+            echo "LICENSE_READER_URL=${LICENSE_READER_URL}"
+            echo "READER_TOKEN=${READER_TOKEN}"
           } > "$F"
           echo ".env written successfully"
 

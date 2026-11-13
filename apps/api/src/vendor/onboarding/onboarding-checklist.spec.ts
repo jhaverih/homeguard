@@ -100,6 +100,24 @@ describe('licenses for trade services', () => {
     expect(item(input, 'licenses').complete).toBe(true);
   });
 
+  it('counts a license still being read, or waiting for a closer look', () => {
+    for (const status of [CertificationReviewStatus.READING, CertificationReviewStatus.NEEDS_REVIEW]) {
+      const input = complete({
+        selectedServices: [hvac],
+        certifications: [{ certificationType: CertificationType.HVAC, status, expirationDate: null }],
+      });
+      expect(item(input, 'licenses').complete).toBe(true);
+    }
+  });
+
+  it('does not count a license marked expired by the daily job', () => {
+    const input = complete({
+      selectedServices: [hvac],
+      certifications: [{ certificationType: CertificationType.HVAC, status: CertificationReviewStatus.EXPIRED, expirationDate: new Date(NOW.getTime() - DAY) }],
+    });
+    expect(item(input, 'licenses').complete).toBe(false);
+  });
+
   it('does not count rejected or expired licenses', () => {
     const input = complete({
       selectedServices: [hvac],

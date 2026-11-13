@@ -418,8 +418,10 @@ export const uploadsApi = {
   // upload PDFs (or any file) instead of always sending image/jpeg. `token` lets
   // callers authenticate before the auth store's interceptor token is set yet,
   // e.g. right after register() returns an accessToken but before email verification.
+  // onProgress (optional) receives 0–1 as the file uploads.
   uploadDocument: async (
     uri: string, folder: string, mimeType: string, filename: string, token?: string,
+    onProgress?: (fraction: number) => void,
   ): Promise<{ key: string; url: string }> => {
     const formData = new FormData();
     formData.append('file', { uri, type: mimeType, name: filename } as any);
@@ -428,7 +430,10 @@ export const uploadsApi = {
         'Content-Type': 'multipart/form-data',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      timeout: 30000,
+      timeout: 60000,
+      onUploadProgress: onProgress
+        ? (e) => { if (e.total) onProgress(Math.min(1, e.loaded / e.total)); }
+        : undefined,
     }) as any;
   },
 };
@@ -439,6 +444,9 @@ export const vendorApi = {
   setMyCapabilities: (capabilityIds: string[]) => api.patch('/vendor/me/capabilities', { capabilityIds }),
   acknowledgeCapability: (capabilityId: string) => api.post(`/vendor/me/capabilities/${capabilityId}/acknowledge`),
   getMyCertifications: (): Promise<any[]> => api.get('/vendor/me/certifications') as any,
+  // Upload-and-read: the server reads the license details from the file.
+  uploadCertification: (data: { certificationType: string; documentKey: string }) =>
+    api.post('/vendor/me/certifications/upload', data),
   submitCertification: (data: {
     certificationType: string; licenseNumber: string; issuingState?: string; expirationDate: string; documentKey: string;
   }, token?: string) => api.post('/vendor/me/certifications', data, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined),
@@ -473,10 +481,7 @@ export type VendorApplication = {
   company: { name: string; ein: string | null; address: string | null; city: string | null; state: string | null; zipCode: string | null };
   photoUrl: string | null;
   services: { id: string; name: string; requiredCertificationType: string }[];
-  licenses: {
-    id: string; certificationType: string; licenseNumber: string; issuingState: string; expirationDate: string;
-    status: string; reviewNotes: string | null; documentUrl: string | null;
-  }[];
+  licenses: VendorLicense[];
   serviceCounties: string[];
   documents: {
     stateRegistrationUrl: string | null; stateRegistrationOnFile: boolean;
@@ -488,6 +493,17 @@ export type VendorApplication = {
   };
 };
 
+// A trade license on file. status:
+//   READING (being read by the AI) | PENDING_REVIEW (pending verification) |
+//   NEEDS_REVIEW | APPROVED | REJECTED | EXPIRED
+// The issue date, names, type and confidence come from the license reader.
+export type VendorLicense = {
+  id: string; certificationType: string; licenseNumber: string | null; issuingState: string | null;
+  expirationDate: string | null; status: string; reviewNotes: string | null; documentUrl: string | null;
+  issueDate: string | null; holderName: string | null; businessName: string | null;
+  extractedLicenseType: string | null; extractionConfidence: string | null; reviewReasons: string[];
+};
+
 type CredentialExpiry = { expirationDate: string | null; daysLeft: number | null; expired: boolean; expiringSoon: boolean };
 
 // Insurance and trade-license expiry for an approved company. `locked` = an
@@ -497,8 +513,8 @@ export type VendorCredentials = {
   isCompanyAdmin: boolean;
   insurance: CredentialExpiry & { documentUrl: string | null; canRenew: boolean };
   licenses: (CredentialExpiry & {
-    id: string; certificationType: string; licenseNumber: string; issuingState: string; status: string;
-    blocking: boolean; documentUrl: string | null;
+    id: string; certificationType: string; licenseNumber: string | null; issuingState: string | null; status: string;
+    blocking: boolean; documentUrl: string | null; reviewReasons: string[]; reviewNotes: string | null;
   })[];
 };
 
@@ -515,6 +531,9 @@ export const onboardingApi = {
     api.post('/vendor/onboarding/credentials/insurance', data) as any,
   renewLicense: (id: string, data: { licenseNumber?: string; expirationDate: string; documentKey: string }): Promise<VendorCredentials> =>
     api.post(`/vendor/onboarding/credentials/licenses/${id}`, data) as any,
+  // Renewed license read automatically by the license reader, then verified.
+  renewLicenseUpload: (id: string, documentKey: string): Promise<VendorCredentials> =>
+    api.post(`/vendor/onboarding/credentials/licenses/${id}/upload`, { documentKey }) as any,
   get: (): Promise<VendorApplication> => api.get('/vendor/onboarding') as any,
   updateCompany: (data: { name?: string; ein?: string; address?: string; city?: string; state?: string; zipCode?: string }): Promise<VendorApplication> =>
     api.patch('/vendor/onboarding/company', data) as any,
@@ -527,6 +546,9 @@ export const onboardingApi = {
   addLicense: (data: { certificationType: string; licenseNumber: string; issuingState: string; expirationDate: string; documentKey: string }): Promise<VendorApplication> =>
     api.post('/vendor/onboarding/licenses', data) as any,
   removeLicense: (id: string): Promise<VendorApplication> => api.delete(`/vendor/onboarding/licenses/${id}`) as any,
+  // Upload-and-read: the server reads the license number, dates and names from the file.
+  uploadLicense: (data: { certificationType: string; documentKey: string }): Promise<VendorApplication> =>
+    api.post('/vendor/onboarding/licenses/upload', data) as any,
   getCountyOptions: (): Promise<Record<string, { fips: string; name: string }[]>> => api.get('/vendor/onboarding/counties') as any,
   setCounties: (serviceCounties: string[]): Promise<VendorApplication> => api.put('/vendor/onboarding/counties', { serviceCounties }) as any,
   signBackgroundCheck: (data: { signerName: string; signerTitle: string; agreed: boolean }): Promise<VendorApplication> =>

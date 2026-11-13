@@ -24,7 +24,8 @@ export function isExpired(expiry: Date | null | undefined, now: Date): boolean {
 // null when nothing new is due. Only the nearest threshold is sent, so a
 // credential entered with 20 days left gets the 30-day notice once and the
 // 7-day notice later, never the 60-day one.
-export function dueNotice(expiry: Date, lastSentDays: number | null, now: Date): number | null {
+export function dueNotice(expiry: Date | null, lastSentDays: number | null, now: Date): number | null {
+  if (!expiry) return null; // still being read, or no date found yet
   if (isExpired(expiry, now)) return lastSentDays === EXPIRED_NOTICE ? null : EXPIRED_NOTICE;
   const left = daysUntil(expiry, now);
   const threshold = [...REMINDER_DAYS].reverse().find((t) => left <= t); // 7, then 30, then 60
@@ -37,7 +38,7 @@ export interface LicenseLike {
   id: string;
   certificationType: CertificationType;
   status: CertificationReviewStatus;
-  expirationDate: Date;
+  expirationDate: Date | null;
 }
 
 // A license type counts as expired only when none of the user's non-rejected
@@ -45,7 +46,9 @@ export interface LicenseLike {
 // renewing the old row clears the lock too. Returns the expired rows to renew
 // (the newest one per type).
 export function expiredLicenses<T extends LicenseLike>(licenses: T[], now: Date): T[] {
-  const live = licenses.filter((l) => l.status !== CertificationReviewStatus.REJECTED);
+  // Licenses with no expiry date yet (still being read, or waiting for an
+  // admin to fill it in) count as neither current nor expired.
+  const live = licenses.filter((l) => l.status !== CertificationReviewStatus.REJECTED && !!l.expirationDate);
   const byType = new Map<CertificationType, T[]>();
   for (const l of live) byType.set(l.certificationType, [...(byType.get(l.certificationType) ?? []), l]);
   const out: T[] = [];

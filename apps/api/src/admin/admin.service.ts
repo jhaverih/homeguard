@@ -1002,16 +1002,36 @@ export class AdminService {
         user: user ? { id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email } : null,
         completeness: {
           licenseNumber: !!c.licenseNumber,
-          notExpired: new Date(c.expirationDate) > new Date(),
+          notExpired: !!c.expirationDate && new Date(c.expirationDate) > new Date(),
           document: !!c.documentKey,
         },
       };
     }));
   }
 
-  async reviewVendorCertification(certId: string, status: CertificationReviewStatus, reviewNotes?: string) {
+  // Admins can also correct what the license reader got wrong or couldn't
+  // read (number, state, expiry) while reviewing; a license can't be
+  // approved without an expiry date in the future.
+  async reviewVendorCertification(
+    certId: string,
+    status: CertificationReviewStatus,
+    reviewNotes?: string,
+    corrections: { licenseNumber?: string; issuingState?: string; expirationDate?: string } = {},
+  ) {
     const cert = await this.vendorCertificationRepo.findOne({ where: { id: certId } });
     if (!cert) throw new NotFoundException('Certification not found');
+
+    if (corrections.licenseNumber?.trim()) cert.licenseNumber = corrections.licenseNumber.trim();
+    if (corrections.issuingState?.trim()) cert.issuingState = corrections.issuingState.trim().toUpperCase();
+    if (corrections.expirationDate) {
+      const d = new Date(`${corrections.expirationDate.slice(0, 10)}T12:00:00Z`);
+      if (isNaN(d.getTime())) throw new BadRequestException('Invalid expiration date.');
+      cert.expirationDate = d;
+      cert.reminderSentDays = null;
+    }
+    if (status === CertificationReviewStatus.APPROVED && (!cert.expirationDate || new Date(cert.expirationDate) <= new Date())) {
+      throw new BadRequestException('Enter a future expiration date before approving this license.');
+    }
 
     cert.status = status;
     cert.reviewedAt = new Date();

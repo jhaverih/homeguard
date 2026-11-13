@@ -51,7 +51,7 @@ export interface ChecklistInput {
   hasPhoto: boolean;
   vendorTosVersion: string | null;
   selectedServices: { id: string; name: string; requiredCertificationType: CertificationType }[];
-  certifications: { certificationType: CertificationType; status: CertificationReviewStatus; expirationDate: Date }[];
+  certifications: { certificationType: CertificationType; status: CertificationReviewStatus; expirationDate: Date | null }[];
   currentTosVersion: string;
   currentBackgroundCheckVersion: string;
   now: Date;
@@ -87,7 +87,13 @@ export function missingLicenseTypes(input: Pick<ChecklistInput, 'selectedService
   );
   const covered = new Set(
     input.certifications
-      .filter((c) => c.status !== CertificationReviewStatus.REJECTED && new Date(c.expirationDate) > input.now)
+      // Provided = being read by the AI or waiting for a closer look (an admin
+      // finishes those during review), or any other non-rejected, non-expired
+      // license with a future expiry date.
+      .filter((c) => c.status === CertificationReviewStatus.READING
+        || c.status === CertificationReviewStatus.NEEDS_REVIEW
+        || (c.status !== CertificationReviewStatus.REJECTED && c.status !== CertificationReviewStatus.EXPIRED
+          && !!c.expirationDate && new Date(c.expirationDate) > input.now))
       .map((c) => c.certificationType),
   );
   return [...required].filter((t) => !covered.has(t));

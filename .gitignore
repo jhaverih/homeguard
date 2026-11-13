@@ -17,6 +17,7 @@ out/
 .env*
 !.env.example
 !apps/*/.env.example
+!services/*/.env.example
 
 # Logs
 *.log
@@ -51,3 +52,8 @@ infrastructure/.env
 # itself is fine to commit, it's public identifiers only per Expo's own docs)
 firebase-service-account*.json
 apps/mobile/firebase-adminsdk*.json
+
+# Python (services/license-reader)
+.venv/
+__pycache__/
+services/license-reader/samples/

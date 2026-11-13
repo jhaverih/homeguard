@@ -74,6 +74,12 @@ export class VendorOnboardingController {
     return this.service.addLicense(req.user.id, body);
   }
 
+  @Post('licenses/upload')
+  @ApiOperation({ summary: 'Upload a trade license; the license reader fills in its details in the background' })
+  uploadLicense(@Request() req, @Body() body: { certificationType: CertificationType; documentKey: string }) {
+    return this.service.uploadLicense(req.user.id, body);
+  }
+
   @Delete('licenses/:id')
   @ApiOperation({ summary: 'Remove a license that has not been approved' })
   removeLicense(@Request() req, @Param('id') id: string) {
@@ -110,6 +116,12 @@ export class VendorOnboardingController {
   @ApiOperation({ summary: 'Upload a renewed certificate of insurance (company admin)' })
   renewInsurance(@Request() req, @Body() body: { coiDocumentKey: string; coiExpirationDate: string }) {
     return this.service.renewInsurance(req.user.id, body);
+  }
+
+  @Post('credentials/licenses/:id/upload')
+  @ApiOperation({ summary: 'Upload a renewed trade license; it is read automatically, then verified' })
+  renewLicenseUpload(@Request() req, @Param('id') id: string, @Body() body: { documentKey: string }) {
+    return this.service.renewLicenseUpload(req.user.id, id, body);
   }
 
   @Post('credentials/licenses/:id')

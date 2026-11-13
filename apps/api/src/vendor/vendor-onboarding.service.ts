@@ -12,6 +12,7 @@ import { VendorCertification, CertificationReviewStatus } from './entities/vendo
 import { UploadsService } from '../uploads/uploads.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { VendorService } from './vendor.service';
+import { LicenseReadingService } from './licenses/license-reading.service';
 import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.utils';
 import { CURRENT_VENDOR_TOS_VERSION } from '../common/constants/tos';
 import {
@@ -44,6 +45,7 @@ export class VendorOnboardingService {
     private notificationsService: NotificationsService,
     private vendorService: VendorService,
     private dataSource: DataSource,
+    private licenseReading: LicenseReadingService,
   ) {}
 
   private async load(userId: string) {
@@ -279,6 +281,13 @@ export class VendorOnboardingService {
       expirationDate: c.expirationDate,
       status: c.status,
       reviewNotes: c.reviewNotes,
+      // What the license reader found (null until it has read the document).
+      issueDate: c.issueDate,
+      holderName: c.holderName,
+      businessName: c.businessName,
+      extractedLicenseType: c.extractedLicenseType,
+      extractionConfidence: c.extractionConfidence,
+      reviewReasons: c.reviewReasons ?? [],
       documentUrl: c.documentKey ? await this.uploadsService.getSignedUrl(c.documentKey) : null,
     })));
   }
@@ -309,6 +318,32 @@ export class VendorOnboardingService {
     }));
     await this.saveEdit(company, 'licenses');
     return this.getApplication(userId);
+  }
+
+  // Upload-and-read flow: the vendor picks the trade and uploads the file; the
+  // license reader on the AI laptop fills in the number, state, names and
+  // dates in the background (licenses/license-reading.service.ts). The app
+  // re-fetches the application to see the result.
+  async uploadLicense(userId: string, data: { certificationType: CertificationType; documentKey: string }) {
+    const { company } = await this.loadAsApplicant(userId);
+    this.assertEditable(company, 'licenses');
+    this.assertLicenseUpload(data);
+    await this.licenseReading.start(this.certificationRepo.create({
+      userId,
+      certificationType: data.certificationType,
+      documentKey: data.documentKey,
+      licenseNumber: null,
+      expirationDate: null,
+    }));
+    await this.saveEdit(company, 'licenses');
+    return this.getApplication(userId);
+  }
+
+  private assertLicenseUpload(data: { certificationType: CertificationType; documentKey: string }) {
+    if (!Object.values(CertificationType).includes(data.certificationType) || data.certificationType === CertificationType.NONE) {
+      throw new BadRequestException('Choose the license type.');
+    }
+    if (!data.documentKey?.startsWith('vendor-licenses/')) throw new BadRequestException('Attach a photo or PDF of the license.');
   }
 
   // Only licenses that haven't been approved yet can be removed during onboarding.
@@ -357,6 +392,8 @@ export class VendorOnboardingService {
           licenseNumber: c.licenseNumber,
           issuingState: c.issuingState,
           status: c.status,
+          reviewReasons: c.reviewReasons ?? [],
+          reviewNotes: c.reviewNotes,
           ...credential(c.expirationDate),
           // Superseded by a newer license of the same type → not blocking.
           blocking: expiredIds.has(c.id),
@@ -412,6 +449,25 @@ export class VendorOnboardingService {
       `${company.name} uploaded a renewed ${cert.certificationType} license for review.`,
       { vendorCompanyId: company.id, certificationId: cert.id },
     );
+    return this.getCredentials(userId);
+  }
+
+  // Renewal through the reader: the renewed license is saved as a new record
+  // of the same trade and read in the background. Once it's verified, it
+  // replaces the expired one (credential-expiry.ts treats a type as expired
+  // only when no newer license of that type is current).
+  async renewLicenseUpload(userId: string, licenseId: string, data: { documentKey: string }) {
+    const old = await this.certificationRepo.findOne({ where: { id: licenseId, userId } });
+    if (!old) throw new NotFoundException('License not found');
+    this.assertLicenseUpload({ certificationType: old.certificationType, documentKey: data.documentKey });
+    await this.licenseReading.start(this.certificationRepo.create({
+      userId,
+      certificationType: old.certificationType,
+      documentKey: data.documentKey,
+      issuingState: old.issuingState,
+      licenseNumber: null,
+      expirationDate: null,
+    }));
     return this.getCredentials(userId);
   }
 
