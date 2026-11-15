@@ -232,7 +232,7 @@ export class UsersService implements OnModuleInit {
     profile: VendorProfile,
     user: User,
     companyName?: string,
-    ein?: string,
+    _ein?: string,
     companyAddress?: string,
     companyCity?: string,
     companyState?: string,
@@ -242,7 +242,7 @@ export class UsersService implements OnModuleInit {
       this.vendorCompanyRepo.create({
         name: companyName || `${user.firstName} ${user.lastName}`.trim(),
         applicationStatus: VendorApplicationStatus.INCOMPLETE,
-        ...(ein ? { ein } : {}),
+        // EIN is no longer collected; an old app build may still send it, and it's ignored.
         ...(companyAddress ? { address: companyAddress } : {}),
         ...(companyCity ? { city: companyCity } : {}),
         ...(companyState ? { state: companyState } : {}),

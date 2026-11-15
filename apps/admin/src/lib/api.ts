@@ -179,6 +179,14 @@ export const adminApi = {
     id: string, status: string, reviewNotes?: string,
     corrections?: { licenseNumber?: string; issuingState?: string; expirationDate?: string },
   ) => api.patch(`/admin/vendor-certifications/${id}`, { status, reviewNotes, ...corrections }).then((r) => r.data),
+  // A company's business registration for one state (read by the AI laptop).
+  reviewStateRegistration: (
+    id: string, status: string, reviewNotes?: string,
+    corrections?: { businessName?: string; entityNumber?: string },
+  ) => api.patch(`/admin/vendor-state-registrations/${id}`, { status, reviewNotes, ...corrections }).then((r) => r.data),
+  // A company's certificate of insurance (read by the AI laptop).
+  reviewInsurance: (companyId: string, status: string, reviewNotes?: string, corrections?: { expirationDate?: string }) =>
+    api.patch(`/admin/vendor-applications/${companyId}/insurance`, { status, reviewNotes, ...corrections }).then((r) => r.data),
   getMonitoringSetupRequests: () => api.get('/admin/monitoring-setup-requests').then((r) => r.data),
   requestMonitoringConnection: (customerId: string) =>
     api.post(`/admin/monitoring-setup-requests/${customerId}/request`).then((r) => r.data),

@@ -16,7 +16,7 @@ import os
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
-from extract import ReadError, read_license
+from extract import KINDS, ReadError, read_document
 
 READER_TOKEN = os.environ.get("READER_TOKEN", "")
 MAX_BYTES = 10 * 1024 * 1024  # 10 MB, the same limit as the app and API
@@ -42,10 +42,15 @@ def health() -> dict:
 async def extract(
     file: UploadFile = File(...),
     trade: str | None = Form(None),
+    kind: str = Form("license"),
+    state: str | None = Form(None),
     x_reader_token: str | None = Header(None),
 ) -> dict:
-    """Reads one license file and returns its fields as JSON."""
+    """Reads one document and returns its fields as JSON.
+    kind: license (default, hint = trade), registration (hint = state) or coi."""
     _check_token(x_reader_token)
+    if kind not in KINDS:
+        raise HTTPException(400, f"kind must be one of: {', '.join(KINDS)}.")
     data = await file.read()
     if len(data) > MAX_BYTES:
         raise HTTPException(413, "The file is larger than 10 MB.")
@@ -54,6 +59,7 @@ async def extract(
         content_type = "image/jpeg"
     try:
         # Model calls block for a while; run them off the web server's main loop.
-        return await run_in_threadpool(read_license, data, content_type, trade)
+        hint = state if kind == "registration" else trade
+        return await run_in_threadpool(read_document, data, content_type, kind, hint)
     except ReadError as exc:
         raise HTTPException(422, str(exc)) from exc

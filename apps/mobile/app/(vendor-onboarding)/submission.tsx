@@ -1,6 +1,7 @@
 import { ScrollView, Text, View, Image, ActivityIndicator, StyleSheet, Linking } from 'react-native';
 import { useVendorApplication } from '../../src/hooks/useVendorApplication';
 import { LICENSE_LABEL, Section, ui } from '../../src/components/onboarding/OnboardingUI';
+import { LICENSE_STATUS } from '../../src/components/onboarding/LicenseStatus';
 import { colors } from '../../src/theme';
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
@@ -25,7 +26,6 @@ export default function SubmissionScreen() {
     <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
       <Section title="Company">
         <Row label="Name" value={c.name} />
-        <Row label="EIN" value={c.ein} />
         <Row label="Address" value={[c.address, c.city, [c.state, c.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ')} />
       </Section>
 
@@ -52,9 +52,10 @@ export default function SubmissionScreen() {
       </Section>
 
       <Section title="Documents">
-        <Row label="State registration" value={d.stateRegistrationOnFile ? 'On file' : null} />
-        {d.stateRegistrationUrl && <Text style={ui.link} onPress={() => Linking.openURL(d.stateRegistrationUrl!)}>View registration</Text>}
-        <Row label="Insurance" value={d.coiExpirationDate ? `Expires ${new Date(d.coiExpirationDate).toLocaleDateString()}` : null} />
+        {app.states.map((s) => (
+          <Row key={s.state} label={`${s.state} registration`} value={s.registration ? (LICENSE_STATUS[s.registration.status]?.label ?? s.registration.status) : null} />
+        ))}
+        <Row label="Insurance" value={d.coiExpirationDate ? `Expires ${new Date(d.coiExpirationDate).toLocaleDateString()}` : d.coiStatus ? (LICENSE_STATUS[d.coiStatus]?.label ?? d.coiStatus) : null} />
         {d.coiUrl && <Text style={ui.link} onPress={() => Linking.openURL(d.coiUrl!)}>View certificate</Text>}
       </Section>
 

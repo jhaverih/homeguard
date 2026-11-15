@@ -30,7 +30,7 @@ export class VendorOnboardingController {
   }
 
   @Patch('company')
-  @ApiOperation({ summary: 'Company name, EIN and business address' })
+  @ApiOperation({ summary: 'Company name and business address' })
   updateCompany(@Request() req, @Body() body: { name?: string; ein?: string; address?: string; city?: string; state?: string; zipCode?: string }) {
     return this.service.updateCompany(req.user.id, body);
   }
@@ -45,6 +45,24 @@ export class VendorOnboardingController {
   @ApiOperation({ summary: 'State registration and certificate of insurance' })
   updateDocuments(@Request() req, @Body() body: { stateRegistrationDocKey?: string; coiDocumentKey?: string; coiExpirationDate?: string }) {
     return this.service.updateDocuments(req.user.id, body);
+  }
+
+  @Get('states')
+  @ApiOperation({ summary: 'States I serve or am registered in, and whether I can take jobs there' })
+  getStates(@Request() req) {
+    return this.service.getMyStates(req.user.id);
+  }
+
+  @Post('state-registrations')
+  @ApiOperation({ summary: 'Upload the business registration for one state; it is read automatically' })
+  uploadStateRegistration(@Request() req, @Body() body: { state: string; documentKey: string }) {
+    return this.service.uploadStateRegistration(req.user.id, body);
+  }
+
+  @Post('insurance/upload')
+  @ApiOperation({ summary: 'Upload the certificate of insurance; it is read automatically' })
+  uploadInsurance(@Request() req, @Body() body: { documentKey: string }) {
+    return this.service.uploadInsurance(req.user.id, body);
   }
 
   @Get('services')

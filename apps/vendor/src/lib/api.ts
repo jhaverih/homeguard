@@ -97,6 +97,14 @@ export type ApplicationStatus = {
 export const onboardingApi = {
   getStatus: (token?: string): Promise<ApplicationStatus> =>
     api.get('/vendor/onboarding/status', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined).then((r) => r.data),
+  // Full application: states (with each business registration) and insurance status.
+  get: () => api.get('/vendor/onboarding').then((r) => r.data),
+  // Upload a business registration for one state; it's read automatically.
+  uploadStateRegistration: (state: string, documentKey: string) =>
+    api.post('/vendor/onboarding/state-registrations', { state, documentKey }).then((r) => r.data),
+  // Upload the certificate of insurance; it's read automatically.
+  uploadInsurance: (documentKey: string) =>
+    api.post('/vendor/onboarding/insurance/upload', { documentKey }).then((r) => r.data),
 };
 
 export const INCOMPLETE_APPLICATION_MESSAGE =

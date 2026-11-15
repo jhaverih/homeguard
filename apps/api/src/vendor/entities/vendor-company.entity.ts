@@ -1,6 +1,7 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn,
 } from 'typeorm';
+import { CertificationReviewStatus } from './vendor-certification.entity';
 
 // INCOMPLETE: registered, still filling in the onboarding checklist — never
 // seen by reviewers as a submission. PENDING_REVIEW is only reached through
@@ -24,9 +25,13 @@ export class VendorCompany {
   @Column({ nullable: true })
   logoKey: string;
 
+  // No longer collected or shown (EIN was removed from the platform);
+  // kept so existing values aren't lost.
   @Column({ nullable: true })
   ein: string;
 
+  // Superseded by per-state registrations (vendor-state-registration.entity.ts);
+  // existing documents were moved there at startup. Kept for old app builds.
   @Column({ nullable: true })
   stateRegistrationDocKey: string;
 
@@ -35,6 +40,28 @@ export class VendorCompany {
 
   @Column({ type: 'timestamp', nullable: true })
   coiExpirationDate: Date | null;
+
+  // ── Certificate of insurance, as read by the AI laptop ──
+  // Same statuses as a license (READING → PENDING_REVIEW / NEEDS_REVIEW /
+  // REJECTED, then APPROVED by an admin, EXPIRED by the daily job).
+  @Column({ type: 'enum', enum: CertificationReviewStatus, nullable: true })
+  coiStatus: CertificationReviewStatus | null;
+
+  // The reader's answer: insured, insurer, policy, dates, limit, additional insured.
+  @Column({ type: 'jsonb', nullable: true })
+  coiExtraction: Record<string, unknown> | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  coiReviewReasons: string[] | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  coiExtractedAt: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  coiReviewNotes: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  coiReviewedAt: Date | null;
 
   // Last insurance expiry notice emailed: 60/30/7 days, or 0 once the
   // "expired" notice went out. Cleared when a renewed certificate is saved.

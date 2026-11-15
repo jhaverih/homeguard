@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
+import { CompanyDocumentsReview } from './CompanyDocumentsReview';
 import { adminApi, userApi } from '@/lib/api';
 
 type ViewKey = 'applications' | 'certifications' | 'elite' | 'signup';
@@ -451,7 +452,6 @@ export default function VendorApplicationsPage() {
                               ))}
                             </div>
                             {item.submittedAt && <p className="text-sm text-steel mb-1">Submitted: {new Date(item.submittedAt).toLocaleString()}</p>}
-                            <p className="text-sm text-steel mb-1">EIN: <span className="font-mono">{item.ein || '—'}</span></p>
                             <p className="text-sm text-steel mb-1">
                               Address: {[item.address, item.city, [item.state, item.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—'}
                             </p>
@@ -464,7 +464,7 @@ export default function VendorApplicationsPage() {
                                 Licenses:
                                 {item.licenses.map((l: any) => (
                                   <span key={l.id} className="block ml-3">
-                                    {CERT_TYPE_LABEL[l.certificationType] || l.certificationType} · {l.issuingState} #{l.licenseNumber} · exp {new Date(l.expirationDate).toLocaleDateString()} · {STATUS_LABEL[l.status] || l.status}
+                                    {CERT_TYPE_LABEL[l.certificationType] || l.certificationType} · {l.issuingState ?? '—'} #{l.licenseNumber ?? '—'} · exp {l.expirationDate ? new Date(l.expirationDate).toLocaleDateString() : '—'} · {STATUS_LABEL[l.status] || l.status}
                                     {l.documentUrl && <a href={l.documentUrl} target="_blank" rel="noreferrer" className="ml-2 text-lantern-deep font-semibold hover:underline">document</a>}
                                   </span>
                                 ))}
@@ -478,16 +478,7 @@ export default function VendorApplicationsPage() {
                             {item.vendorAdmin?.avatarUrl && (
                               <img src={item.vendorAdmin.avatarUrl} alt="Applicant" className="w-16 h-16 rounded-full object-cover mt-2" />
                             )}
-                            <div className="flex flex-col gap-1 mt-3">
-                              {item.stateRegistrationUrl && (
-                                <a href={item.stateRegistrationUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">→ State registration document</a>
-                              )}
-                              {item.coiUrl && (
-                                <a href={item.coiUrl} target="_blank" rel="noreferrer" className="text-xs text-lantern-deep font-semibold hover:underline">
-                                  → Certificate of Insurance {item.coiExpirationDate && `(expires ${new Date(item.coiExpirationDate).toLocaleDateString()})`}
-                                </a>
-                              )}
-                            </div>
+                            <CompanyDocumentsReview item={item} onChanged={load} />
                             {item.reviewNotes && (
                               <div className="mt-4">
                                 <h3 className="text-sm font-semibold text-ink mb-1">Last Review Note</h3>

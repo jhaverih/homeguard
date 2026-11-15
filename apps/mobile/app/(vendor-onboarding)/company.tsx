@@ -8,21 +8,16 @@ import { AddressPicker } from '../../src/components/AddressPicker';
 import { LockedNotice, PrimaryButton, ReviewerNote, Section, StatePicker, ui } from '../../src/components/onboarding/OnboardingUI';
 import { colors } from '../../src/theme';
 
-const formatEin = (text: string) => {
-  const clean = text.replace(/[^\d]/g, '');
-  return clean.length <= 2 ? clean : `${clean.slice(0, 2)}-${clean.slice(2, 9)}`;
-};
-
 export default function CompanyDetailsScreen() {
   const { app, loading, item } = useVendorApplication();
-  const [form, setForm] = useState({ name: '', ein: '', address: '', city: '', state: '', zipCode: '' });
+  const [form, setForm] = useState({ name: '', address: '', city: '', state: '', zipCode: '' });
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!app || loaded) return;
     const c = app.company;
-    setForm({ name: c.name ?? '', ein: c.ein ?? '', address: c.address ?? '', city: c.city ?? '', state: c.state ?? '', zipCode: c.zipCode ?? '' });
+    setForm({ name: c.name ?? '', address: c.address ?? '', city: c.city ?? '', state: c.state ?? '', zipCode: c.zipCode ?? '' });
     setLoaded(true);
   }, [app, loaded]);
 
@@ -33,7 +28,6 @@ export default function CompanyDetailsScreen() {
 
   const save = async () => {
     if (!form.name.trim()) { Alert.alert('Required', 'Enter your company name.'); return; }
-    if (!/^\d{2}-\d{7}$/.test(form.ein)) { Alert.alert('Check your EIN', 'Your EIN should look like 12-3456789.'); return; }
     if (!form.address.trim() || !form.city.trim() || !form.state || !/^\d{5}$/.test(form.zipCode)) {
       Alert.alert('Address required', 'Enter your full business address, including a 5-digit ZIP code.');
       return;
@@ -58,11 +52,6 @@ export default function CompanyDetailsScreen() {
         <Section title="Company">
           <Text style={ui.label}>Legal business name</Text>
           <TextInput style={ui.textInput} value={form.name} onChangeText={set('name')} editable={editable} placeholder="Company name" placeholderTextColor={colors.steel} />
-          <Text style={ui.label}>EIN</Text>
-          <TextInput
-            style={ui.textInput} value={form.ein} onChangeText={(t) => set('ein')(formatEin(t))} editable={editable}
-            placeholder="12-3456789" placeholderTextColor={colors.steel} keyboardType="numbers-and-punctuation" maxLength={10}
-          />
         </Section>
 
         <Section title="Business address" hint="Where your business is registered. It's shown to Attenteve reviewers, not to customers.">

@@ -67,7 +67,9 @@ export class RegisterDto {
   @IsString()
   companyName?: string;
 
-  @ApiProperty({ example: '12-3456789', required: false, description: 'Vendor company EIN, collected at vendor registration' })
+  // No longer collected (EIN was removed from the platform). Still accepted so
+  // older app builds don't fail validation; the value is ignored.
+  @ApiProperty({ required: false, deprecated: true, description: 'Ignored; EIN is no longer collected' })
   @IsOptional()
   @IsString()
   ein?: string;

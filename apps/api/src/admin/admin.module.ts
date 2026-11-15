@@ -17,6 +17,7 @@ import { ServiceRequestsModule } from '../service-requests/service-requests.modu
 import { PricingModule } from '../pricing/pricing.module';
 import { VendorCompany } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification } from '../vendor/entities/vendor-certification.entity';
+import { VendorStateRegistration } from '../vendor/entities/vendor-state-registration.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { YolinkHome } from '../yolink/entities/yolink-home.entity';
@@ -32,7 +33,7 @@ import { VendorModule } from '../vendor/vendor.module';
   imports: [
     TypeOrmModule.forFeature([
       User, VendorProfile, CustomerSubscription, Payment, ServiceRequest, Dispute, Review, Alert, CustomerProfile,
-      VendorCompany, VendorCertification, VendorCapability, VendorMembershipPayment, YolinkHome, WaitlistSignup,
+      VendorCompany, VendorCertification, VendorStateRegistration, VendorCapability, VendorMembershipPayment, YolinkHome, WaitlistSignup,
     ]),
     NotificationsModule,
     UsersModule,

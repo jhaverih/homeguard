@@ -9,6 +9,7 @@ import { UserRole } from '../common/enums/role.enum';
 import { VendorAdminGuard } from '../common/guards/vendor-admin.guard';
 import { ApprovedVendorGuard } from '../common/guards/approved-vendor.guard';
 import { VendorAdminOnly } from '../common/decorators/vendor-admin.decorator';
+import { VendorOnboardingService } from './vendor-onboarding.service';
 import { VendorService } from './vendor.service';
 import { CertificationType } from './entities/vendor-capability.entity';
 import { SetCapabilitiesDto } from './dto/set-capabilities.dto';
@@ -21,7 +22,7 @@ import { SetCapabilitiesDto } from './dto/set-capabilities.dto';
 @Roles(UserRole.VENDOR)
 @Controller('vendor')
 export class VendorController {
-  constructor(private readonly service: VendorService) {}
+  constructor(private readonly service: VendorService, private readonly onboarding: VendorOnboardingService) {}
 
   @Get('customers')
   @ApiOperation({ summary: 'Customers serviced by my company' })
@@ -229,14 +230,22 @@ export class VendorController {
 
   @Post('application')
   @VendorAdminOnly()
-  @ApiOperation({ summary: 'Vendor Admin: submit/update company verification documents' })
-  submitApplication(
+  @ApiOperation({ summary: 'Vendor Admin: submit/update company verification documents (older portal builds)' })
+  async submitApplication(
     @Request() req,
     @Body() body: {
       ein?: string; stateRegistrationDocKey?: string;
       coiDocumentKey?: string; coiExpirationDate?: string;
     },
   ) {
-    return this.service.submitApplication(req.user.id, body);
+    // Documents are read by the AI laptop like in the app; EIN is ignored.
+    const company = await this.service.getApplication(req.user.id);
+    if (body.stateRegistrationDocKey) {
+      const state = company.state || 'TN';
+      await this.onboarding.uploadStateRegistration(req.user.id, { state, documentKey: body.stateRegistrationDocKey });
+    }
+    if (body.coiDocumentKey) await this.onboarding.uploadInsurance(req.user.id, { documentKey: body.coiDocumentKey });
+    else if (body.coiExpirationDate) await this.service.submitApplication(req.user.id, { coiExpirationDate: body.coiExpirationDate });
+    return this.service.getApplication(req.user.id);
   }
 }

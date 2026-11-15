@@ -1,7 +1,15 @@
 # License reader (runs on the AI laptop, EBO001)
 
-Reads a contractor's license (PDF or photo) and returns the license number, type,
-state, holder and business names, issue and expiry dates, and a confidence level.
+Reads vendor documents (PDF or photo) and returns their key fields plus a
+confidence level. The `kind` form field picks the document type:
+- `license` (default): license number, type, state, holder and business names,
+  issue and expiry dates. Optional `trade` hint.
+- `registration`: state business registration — business name, entity number,
+  state, status (active / inactive / dissolved / revoked), formation date.
+  Optional `state` hint.
+- `coi`: certificate of insurance (ACORD 25) — insured, insurer, policy number,
+  effective and expiry dates, general liability per-occurrence limit,
+  certificate holder, and whether / who is listed as additional insured.
 It uses the free local models in Ollama, so nothing is sent to an outside service
 and there is no per-use cost.
 
@@ -37,4 +45,5 @@ Copy the changed files to `C:\HomeGuard\license-reader`, then run
 - Health: `http://192.168.86.35:8090/health` should return `{"ok":true}`.
 - Read a file:
   `curl -H "X-Reader-Token: <token>" -F "file=@license.pdf;type=application/pdf" -F trade=HVAC http://192.168.86.35:8090/extract`
+  (add `-F kind=registration -F state=TN` or `-F kind=coi` for the other documents)
 - Log file: `reader.log` in this folder.

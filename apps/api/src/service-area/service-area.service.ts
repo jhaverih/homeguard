@@ -7,6 +7,9 @@ import { VendorCapability, CertificationType } from '../vendor/entities/vendor-c
 import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { WaitlistSignup } from './entities/waitlist-signup.entity';
+import { VendorStateRegistration } from '../vendor/entities/vendor-state-registration.entity';
+import { registrationCounts } from '../vendor/onboarding/onboarding-checklist';
+import { stateForCountyFips } from '../common/utils/county.utils';
 import { UsersService } from '../users/users.service';
 import { getZipCentroid, getCountyFipsForZip } from '../common/utils/geo.utils';
 
@@ -25,6 +28,8 @@ export class ServiceAreaService {
     private certificationRepo: Repository<VendorCertification>,
     @InjectRepository(WaitlistSignup)
     private waitlistRepo: Repository<WaitlistSignup>,
+    @InjectRepository(VendorStateRegistration)
+    private registrationRepo: Repository<VendorStateRegistration>,
     private usersService: UsersService,
   ) {}
 
@@ -39,9 +44,10 @@ export class ServiceAreaService {
     const companies = await this.companyRepo.find({
       where: { applicationStatus: VendorApplicationStatus.APPROVED },
     });
+    const registered = await this.registeredStates(companies);
 
     for (const company of companies) {
-      if (this.companyCoversZip(company, countyFips, false)) return { available: true };
+      if (this.companyCoversZip(company, countyFips, false, registered)) return { available: true };
     }
     return { available: false };
   }
@@ -61,19 +67,42 @@ export class ServiceAreaService {
     });
     if (!countyFips && !centroid) return companies; // can't resolve the zip at all — fail open, don't hide anything
 
-    return companies.filter((company) => this.companyCoversZip(company, countyFips, true));
+    const registered = await this.registeredStates(companies);
+    return companies.filter((company) => this.companyCoversZip(company, countyFips, true, registered));
   }
 
-  // Coverage model is serviceCounties (exact county match) only. A company
-  // with no counties set — or whose target zip can't be resolved to a county
-  // — defers to the caller's own conservative-vs-fail-open default.
+  // Company id → states where it has an approved business registration (or a
+  // temporary pass that hasn't run out). A company is only shown to customers
+  // in those states, even if it picked counties elsewhere.
+  private async registeredStates(companies: VendorCompany[]): Promise<Map<string, Set<string>>> {
+    const map = new Map<string, Set<string>>();
+    if (!companies.length) return map;
+    const now = new Date();
+    const regs = await this.registrationRepo.find({
+      where: { companyId: In(companies.map((c) => c.id)), status: CertificationReviewStatus.APPROVED },
+    });
+    for (const r of regs) {
+      if (!registrationCounts(r, now)) continue;
+      if (!map.has(r.companyId)) map.set(r.companyId, new Set());
+      map.get(r.companyId)!.add(r.state);
+    }
+    return map;
+  }
+
+  // Coverage model is serviceCounties (exact county match), limited to states
+  // where the company's business registration is approved. A company with no
+  // counties set — or whose target zip can't be resolved to a county — defers
+  // to the caller's own conservative-vs-fail-open default.
   private companyCoversZip(
     company: VendorCompany,
     countyFips: string | null,
     failOpen: boolean,
+    registered: Map<string, Set<string>>,
   ): boolean {
     if (company.serviceCounties && company.serviceCounties.length > 0) {
-      return countyFips !== null && company.serviceCounties.includes(countyFips);
+      if (countyFips === null || !company.serviceCounties.includes(countyFips)) return false;
+      const state = stateForCountyFips(countyFips);
+      return !!state && !!registered.get(company.id)?.has(state);
     }
     return failOpen;
   }

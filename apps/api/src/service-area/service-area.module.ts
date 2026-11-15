@@ -6,6 +6,7 @@ import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
 import { VendorCertification } from '../vendor/entities/vendor-certification.entity';
+import { VendorStateRegistration } from '../vendor/entities/vendor-state-registration.entity';
 import { ServiceAreaService } from './service-area.service';
 import { ServiceAreaController } from './service-area.controller';
 import { UsersModule } from '../users/users.module';
@@ -13,7 +14,7 @@ import { UsersModule } from '../users/users.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      WaitlistSignup, VendorCompany, VendorProfile, VendorCapability, VendorCapabilitySelection, VendorCertification,
+      WaitlistSignup, VendorCompany, VendorProfile, VendorCapability, VendorCapabilitySelection, VendorCertification, VendorStateRegistration,
     ]),
     UsersModule,
   ],

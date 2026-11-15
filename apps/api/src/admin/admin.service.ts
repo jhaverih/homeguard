@@ -22,6 +22,7 @@ import { ServiceRequestsService } from '../service-requests/service-requests.ser
 import { PricingService } from '../pricing/pricing.service';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
+import { VendorStateRegistration } from '../vendor/entities/vendor-state-registration.entity';
 import { VendorCapability, CertificationType } from '../vendor/entities/vendor-capability.entity';
 import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
 import { WaitlistSignup } from '../service-area/entities/waitlist-signup.entity';
@@ -47,6 +48,7 @@ export class AdminService {
     @InjectRepository(CustomerProfile) private customerProfileRepo: Repository<CustomerProfile>,
     @InjectRepository(VendorCompany) private vendorCompanyRepo: Repository<VendorCompany>,
     @InjectRepository(VendorCertification) private vendorCertificationRepo: Repository<VendorCertification>,
+    @InjectRepository(VendorStateRegistration) private stateRegistrationRepo: Repository<VendorStateRegistration>,
     @InjectRepository(VendorCapability) private vendorCapabilityRepo: Repository<VendorCapability>,
     @InjectRepository(VendorMembershipPayment) private membershipPaymentsRepo: Repository<VendorMembershipPayment>,
     @InjectRepository(YolinkHome) private yolinkHomesRepo: Repository<YolinkHome>,
@@ -885,23 +887,25 @@ export class AdminService {
     return Promise.all(companies.map(async (c) => {
       const admin = adminByCompany.get(c.id);
       const coiValid = !!c.coiDocumentKey && !!c.coiExpirationDate && new Date(c.coiExpirationDate) > new Date();
-      const [stateRegistrationUrl, coiUrl, adminAvatarUrl, review] = await Promise.all([
-        c.stateRegistrationDocKey ? this.uploadsService.getSignedUrl(c.stateRegistrationDocKey) : Promise.resolve(null),
+      const [coiUrl, adminAvatarUrl, review] = await Promise.all([
         c.coiDocumentKey ? this.uploadsService.getSignedUrl(c.coiDocumentKey) : Promise.resolve(null),
         admin?.avatarUrl ? this.uploadsService.getSignedUrl(admin.avatarUrl) : Promise.resolve(null),
         this.vendorOnboardingService.getReviewDetails(c, admin?.id ?? null),
       ]);
+      const { ein: _ein, ...company } = c; // EIN is no longer collected or shown
       return {
-        ...c,
-        stateRegistrationUrl,
+        ...company,
         coiUrl,
         checklist: review.checklist,
         services: review.services,
         licenses: review.licenses,
+        // One entry per state served or registered, with its registration.
+        states: review.states,
+        // What the AI read from the certificate of insurance.
+        insurance: review.insurance,
         vendorAdmin: admin ? { id: admin.id, name: `${admin.firstName} ${admin.lastName}`, email: admin.email, avatarUrl: adminAvatarUrl } : null,
         completeness: {
-          stateRegistration: !!c.stateRegistrationDocKey,
-          ein: !!c.ein,
+          stateRegistration: review.states.length > 0 && review.states.every((s) => !s.required || !!s.registration),
           coi: coiValid,
           vendorAdminPhoto: !!admin?.avatarUrl,
         },
@@ -930,6 +934,27 @@ export class AdminService {
     }
     const decisions = [VendorApplicationStatus.APPROVED, VendorApplicationStatus.NEEDS_INFO, VendorApplicationStatus.REJECTED];
     if (!decisions.includes(status)) throw new BadRequestException('Choose Approve, Needs Info or Reject.');
+
+    // Approving the company also approves its state registrations and
+    // insurance that passed the automatic checks. Ones still being read or
+    // flagged for a closer look must be decided first.
+    if (status === VendorApplicationStatus.APPROVED) {
+      const regs = await this.stateRegistrationRepo.find({ where: { companyId } });
+      const open = (s: CertificationReviewStatus | null) => s === CertificationReviewStatus.READING || s === CertificationReviewStatus.NEEDS_REVIEW;
+      const waiting = [
+        ...regs.filter((r) => open(r.status)).map((r) => `the ${r.state} business registration`),
+        ...(open(company.coiStatus) ? ['the certificate of insurance'] : []),
+      ];
+      if (waiting.length) throw new BadRequestException(`Review ${waiting.join(' and ')} first.`);
+      const now = new Date();
+      for (const r of regs.filter((x) => x.status === CertificationReviewStatus.PENDING_REVIEW)) {
+        await this.stateRegistrationRepo.update(r.id, { status: CertificationReviewStatus.APPROVED, reviewedAt: now, reviewedByUserId: reviewerId ?? null });
+      }
+      if (company.coiStatus === CertificationReviewStatus.PENDING_REVIEW) {
+        company.coiStatus = CertificationReviewStatus.APPROVED;
+        company.coiReviewedAt = now;
+      }
+    }
 
     if (status === VendorApplicationStatus.NEEDS_INFO) {
       const items = (needsInfoItems ?? [])
@@ -1051,6 +1076,85 @@ export class AdminService {
     );
 
     return cert;
+  }
+
+  // ── State registrations and insurance (read by the AI laptop) ────────────
+
+  // Approve or reject one state's business registration. An admin can correct
+  // the business name or entity number the reader got wrong.
+  async reviewStateRegistration(
+    id: string,
+    status: CertificationReviewStatus,
+    reviewNotes?: string,
+    corrections: { businessName?: string; entityNumber?: string } = {},
+    reviewerId?: string,
+  ) {
+    if (status !== CertificationReviewStatus.APPROVED && status !== CertificationReviewStatus.REJECTED) {
+      throw new BadRequestException('Choose Approve or Reject.');
+    }
+    const reg = await this.stateRegistrationRepo.findOne({ where: { id } });
+    if (!reg) throw new NotFoundException('State registration not found');
+    if (!reg.documentKey) throw new BadRequestException('No registration document has been uploaded for this state yet.');
+    if (corrections.businessName?.trim()) reg.businessName = corrections.businessName.trim();
+    if (corrections.entityNumber?.trim()) reg.entityNumber = corrections.entityNumber.trim();
+    reg.status = status;
+    reg.graceUntil = null;
+    reg.reviewNotes = reviewNotes?.trim() || null;
+    reg.reviewedAt = new Date();
+    reg.reviewedByUserId = reviewerId ?? null;
+    await this.stateRegistrationRepo.save(reg);
+    await this.notifyCompanyAdmins(
+      reg.companyId,
+      status === CertificationReviewStatus.APPROVED ? `${reg.state} registration approved` : `${reg.state} registration not accepted`,
+      reviewNotes?.trim() || (status === CertificationReviewStatus.APPROVED
+        ? `Your ${reg.state} business registration was approved.`
+        : `Your ${reg.state} business registration was not accepted. Upload a current one in the app.`),
+    );
+    return reg;
+  }
+
+  // Approve or reject the certificate of insurance. The admin can correct the
+  // expiry date; approval needs a future one.
+  async reviewInsurance(
+    companyId: string,
+    status: CertificationReviewStatus,
+    reviewNotes?: string,
+    corrections: { expirationDate?: string } = {},
+  ) {
+    if (status !== CertificationReviewStatus.APPROVED && status !== CertificationReviewStatus.REJECTED) {
+      throw new BadRequestException('Choose Approve or Reject.');
+    }
+    const company = await this.vendorCompanyRepo.findOne({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Vendor company not found');
+    if (!company.coiDocumentKey) throw new BadRequestException('No certificate of insurance has been uploaded.');
+    if (corrections.expirationDate) {
+      const d = new Date(`${corrections.expirationDate.slice(0, 10)}T12:00:00Z`);
+      if (isNaN(d.getTime())) throw new BadRequestException('Invalid expiration date.');
+      company.coiExpirationDate = d;
+      company.coiReminderSentDays = null;
+    }
+    if (status === CertificationReviewStatus.APPROVED && (!company.coiExpirationDate || new Date(company.coiExpirationDate) <= new Date())) {
+      throw new BadRequestException('Enter a future expiration date before approving this certificate.');
+    }
+    company.coiStatus = status;
+    company.coiReviewNotes = reviewNotes?.trim() || null;
+    company.coiReviewedAt = new Date();
+    await this.vendorCompanyRepo.save(company);
+    await this.notifyCompanyAdmins(
+      companyId,
+      status === CertificationReviewStatus.APPROVED ? 'Insurance approved' : 'Insurance not accepted',
+      reviewNotes?.trim() || (status === CertificationReviewStatus.APPROVED
+        ? 'Your certificate of insurance was approved.'
+        : 'Your certificate of insurance was not accepted. Upload a current one in the app.'),
+    );
+    return company;
+  }
+
+  private async notifyCompanyAdmins(companyId: string, title: string, body: string) {
+    const admins = await this.vendorProfileRepo.find({ where: { companyId, isCompanyAdmin: true } });
+    for (const a of admins) {
+      await this.notificationsService.notifyUser(a.userId, NotificationType.SERVICE_UPDATE, title, body, {}).catch(() => {});
+    }
   }
 
   async createCapability(data: { name: string; requiredCertificationType: string }): Promise<VendorCapability> {

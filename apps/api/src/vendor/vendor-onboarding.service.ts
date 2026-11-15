@@ -9,17 +9,19 @@ import { VendorCompany, VendorApplicationStatus } from './entities/vendor-compan
 import { VendorCapability, CertificationType } from './entities/vendor-capability.entity';
 import { VendorCapabilitySelection } from './entities/vendor-capability-selection.entity';
 import { VendorCertification, CertificationReviewStatus } from './entities/vendor-certification.entity';
+import { VendorStateRegistration } from './entities/vendor-state-registration.entity';
 import { UploadsService } from '../uploads/uploads.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { VendorService } from './vendor.service';
 import { LicenseReadingService } from './licenses/license-reading.service';
-import { getEnabledCounties, isEnabledCountyFips } from '../common/utils/county.utils';
+import { getEnabledCounties, isEnabledCountyFips, statesForCounties } from '../common/utils/county.utils';
+import { ENABLED_SERVICE_STATES } from '../common/config/enabled-service-states';
 import { CURRENT_VENDOR_TOS_VERSION } from '../common/constants/tos';
 import {
   CURRENT_VENDOR_BACKGROUND_CHECK_VERSION, VENDOR_BACKGROUND_CHECK_TITLE, VENDOR_BACKGROUND_CHECK_TEXT,
 } from '../common/constants/vendor-background-check';
 import {
-  buildChecklist, Checklist, ChecklistKey, EIN_PATTERN, isEditable, resolveNeedsInfo,
+  buildChecklist, Checklist, ChecklistKey, isEditable, registrationCounts, resolveNeedsInfo,
 } from './onboarding/onboarding-checklist';
 
 const US_STATE_CODES = new Set([
@@ -41,6 +43,7 @@ export class VendorOnboardingService {
     @InjectRepository(VendorCapability) private capabilityRepo: Repository<VendorCapability>,
     @InjectRepository(VendorCapabilitySelection) private selectionRepo: Repository<VendorCapabilitySelection>,
     @InjectRepository(VendorCertification) private certificationRepo: Repository<VendorCertification>,
+    @InjectRepository(VendorStateRegistration) private registrationRepo: Repository<VendorStateRegistration>,
     private uploadsService: UploadsService,
     private notificationsService: NotificationsService,
     private vendorService: VendorService,
@@ -80,10 +83,11 @@ export class VendorOnboardingService {
   }
 
   async getChecklist(userId: string, company: VendorCompany): Promise<Checklist> {
-    const [user, selections, certifications] = await Promise.all([
+    const [user, selections, certifications, stateRegistrations] = await Promise.all([
       this.usersRepo.findOne({ where: { id: userId } }),
       this.selectionRepo.find({ where: { userId }, relations: ['capability'] }),
       this.certificationRepo.find({ where: { userId } }),
+      this.registrationRepo.find({ where: { companyId: company.id } }),
     ]);
     return buildChecklist({
       status: company.applicationStatus,
@@ -92,6 +96,7 @@ export class VendorOnboardingService {
       vendorTosVersion: user?.vendorTosVersion ?? null,
       selectedServices: selections.filter((s) => s.capability).map((s) => s.capability),
       certifications,
+      stateRegistrations,
       currentTosVersion: CURRENT_VENDOR_TOS_VERSION,
       currentBackgroundCheckVersion: CURRENT_VENDOR_BACKGROUND_CHECK_VERSION,
       now: new Date(),
@@ -122,11 +127,11 @@ export class VendorOnboardingService {
   async getApplication(userId: string) {
     const { company, profile } = await this.load(userId);
     const user = await this.usersRepo.findOne({ where: { id: userId } });
-    const [checklist, services, licenses, stateRegistrationUrl, coiUrl, photoUrl] = await Promise.all([
+    const [checklist, services, licenses, states, coiUrl, photoUrl] = await Promise.all([
       this.getChecklist(userId, company),
       this.getMyServices(userId),
       this.getLicenses(userId),
-      company.stateRegistrationDocKey ? this.uploadsService.getSignedUrl(company.stateRegistrationDocKey) : Promise.resolve(null),
+      this.getStates(company),
       company.coiDocumentKey ? this.uploadsService.getSignedUrl(company.coiDocumentKey) : Promise.resolve(null),
       user?.avatarUrl ? this.uploadsService.getSignedUrl(user.avatarUrl) : Promise.resolve(null),
     ]);
@@ -139,7 +144,6 @@ export class VendorOnboardingService {
       checklist,
       company: {
         name: company.name,
-        ein: company.ein,
         address: company.address,
         city: company.city,
         state: company.state,
@@ -149,12 +153,17 @@ export class VendorOnboardingService {
       services,
       licenses,
       serviceCounties: company.serviceCounties ?? [],
+      // One entry per state the company serves or has registered in.
+      states,
       documents: {
-        stateRegistrationUrl,
-        stateRegistrationOnFile: !!company.stateRegistrationDocKey,
+        // Old app builds read these two; the registration for the company's
+        // own state stands in for the single registration they expect.
+        stateRegistrationUrl: states.find((s) => s.registration?.documentUrl)?.registration?.documentUrl ?? null,
+        stateRegistrationOnFile: states.some((s) => s.registration?.documentUrl),
         coiUrl,
         coiOnFile: !!company.coiDocumentKey,
         coiExpirationDate: company.coiExpirationDate,
+        ...this.coiSummary(company),
       },
       backgroundCheck: {
         title: VENDOR_BACKGROUND_CHECK_TITLE,
@@ -168,17 +177,16 @@ export class VendorOnboardingService {
     };
   }
 
+  // EIN is no longer collected; older app builds may still send it, and it's ignored.
   async updateCompany(userId: string, data: { name?: string; ein?: string; address?: string; city?: string; state?: string; zipCode?: string }) {
     const { company } = await this.loadAsApplicant(userId);
     this.assertEditable(company, 'company');
-    if (data.ein !== undefined && !EIN_PATTERN.test(data.ein.trim())) throw new BadRequestException('EIN must look like 12-3456789.');
     if (data.state !== undefined && !US_STATE_CODES.has(data.state.trim().toUpperCase())) throw new BadRequestException('Choose a valid US state.');
     if (data.zipCode !== undefined && !/^\d{5}$/.test(data.zipCode.trim())) throw new BadRequestException('ZIP code must be 5 digits.');
     if (data.name !== undefined) {
       if (!data.name.trim()) throw new BadRequestException('Company name is required.');
       company.name = data.name.trim();
     }
-    if (data.ein !== undefined) company.ein = data.ein.trim();
     if (data.address !== undefined) company.address = data.address.trim();
     if (data.city !== undefined) company.city = data.city.trim();
     if (data.state !== undefined) company.state = data.state.trim().toUpperCase();
@@ -197,12 +205,15 @@ export class VendorOnboardingService {
     return this.getApplication(userId);
   }
 
+  // Used by older app builds (one registration, typed insurance expiry). New
+  // builds call uploadStateRegistration / uploadInsurance below. Either way
+  // the document is read by the AI laptop.
   async updateDocuments(userId: string, data: { stateRegistrationDocKey?: string; coiDocumentKey?: string; coiExpirationDate?: string }) {
     const { company } = await this.loadAsApplicant(userId);
-    if (data.stateRegistrationDocKey !== undefined) {
-      this.assertEditable(company, 'stateRegistration');
-      company.stateRegistrationDocKey = data.stateRegistrationDocKey;
-      company.needsInfoItems = resolveNeedsInfo(company.needsInfoItems, 'stateRegistration');
+    if (data.stateRegistrationDocKey) {
+      const state = company.state || statesForCounties(company.serviceCounties)[0];
+      if (!state) throw new BadRequestException('Add your business address first.');
+      await this.uploadStateRegistration(userId, { state, documentKey: data.stateRegistrationDocKey });
     }
     if (data.coiDocumentKey !== undefined || data.coiExpirationDate !== undefined) {
       this.assertEditable(company, 'insurance');
@@ -211,13 +222,129 @@ export class VendorOnboardingService {
         if (isNaN(expiry.getTime()) || expiry <= new Date()) throw new BadRequestException('The insurance expiry date must be in the future.');
         company.coiExpirationDate = expiry;
         company.coiReminderSentDays = null;
-      } else if (data.coiDocumentKey !== company.coiDocumentKey) {
-        throw new BadRequestException('Enter the expiry date shown on the new certificate.');
       }
+      const newDocument = !!data.coiDocumentKey && data.coiDocumentKey !== company.coiDocumentKey;
       if (data.coiDocumentKey !== undefined) company.coiDocumentKey = data.coiDocumentKey;
       company.needsInfoItems = resolveNeedsInfo(company.needsInfoItems, 'insurance');
+      if (newDocument) await this.licenseReading.startCoi(company);
+      else await this.companyRepo.save(company);
     }
-    await this.companyRepo.save(company);
+    return this.getApplication(userId);
+  }
+
+  // ── State business registrations (one per state) ──────────────────────────
+
+  // Every state the company serves (from its counties) or has a registration
+  // for, with whether it can take jobs there:
+  //   canOperate  the registration is approved (or a temporary pass is running)
+  //               and Attenteve is open in that state
+  //   required    the company has chosen counties in this state
+  async getStates(company: VendorCompany) {
+    const now = new Date();
+    const regs = await this.registrationRepo.find({ where: { companyId: company.id } });
+    const served = statesForCounties(company.serviceCounties);
+    const all = [...new Set([...served, ...regs.map((r) => r.state)])].sort();
+    return Promise.all(all.map(async (state) => {
+      const r = regs.find((x) => x.state === state) ?? null;
+      const approved = !!r && r.status === CertificationReviewStatus.APPROVED && registrationCounts(r, now);
+      return {
+        state,
+        required: served.includes(state),
+        open: ENABLED_SERVICE_STATES.includes(state),
+        canOperate: approved && ENABLED_SERVICE_STATES.includes(state),
+        registration: r ? {
+          id: r.id,
+          status: r.status,
+          graceUntil: r.graceUntil,
+          businessName: r.businessName,
+          entityNumber: r.entityNumber,
+          registeredState: r.registeredState,
+          registrationStatus: r.registrationStatus,
+          formationDate: r.formationDate,
+          extractionConfidence: r.extractionConfidence,
+          reviewReasons: r.reviewReasons ?? [],
+          reviewNotes: r.reviewNotes,
+          updatedAt: r.updatedAt,
+          documentUrl: r.documentKey ? await this.uploadsService.getSignedUrl(r.documentKey) : null,
+        } : null,
+      };
+    }));
+  }
+
+  async getMyStates(userId: string) {
+    const { company } = await this.load(userId);
+    return this.getStates(company);
+  }
+
+  // Upload (or replace) the registration for one state; it's read in the
+  // background. Allowed while filling in the application (or when a reviewer
+  // sent it back), and any time after approval, to add a state or replace a
+  // registration. Not while the application is waiting for review.
+  async uploadStateRegistration(userId: string, data: { state: string; documentKey: string }) {
+    const { company } = await this.loadAsApplicant(userId);
+    if (company.applicationStatus !== VendorApplicationStatus.APPROVED) this.assertEditable(company, 'stateRegistration');
+    const state = data.state?.trim().toUpperCase();
+    if (!US_STATE_CODES.has(state)) throw new BadRequestException('Choose the state this registration is for.');
+    if (!data.documentKey?.startsWith('vendor-applications/')) throw new BadRequestException('Attach a PDF or photo of the registration.');
+
+    const existing = await this.registrationRepo.findOne({ where: { companyId: company.id, state } });
+    if (existing?.status === CertificationReviewStatus.READING) {
+      throw new BadRequestException(`Your ${state} registration is still being read. Try again in a few minutes.`);
+    }
+    const reg = existing ?? this.registrationRepo.create({ companyId: company.id, state });
+    reg.documentKey = data.documentKey;
+    reg.businessName = null;
+    reg.entityNumber = null;
+    reg.registeredState = null;
+    reg.registrationStatus = null;
+    reg.formationDate = null;
+    reg.extraction = null;
+    reg.extractionConfidence = null;
+    await this.licenseReading.startRegistration(reg);
+    if (company.applicationStatus !== VendorApplicationStatus.APPROVED) await this.saveEdit(company, 'stateRegistration');
+    return this.getApplication(userId);
+  }
+
+  // ── Certificate of insurance ──────────────────────────────────────────────
+
+  private coiSummary(company: VendorCompany) {
+    const x = (company.coiExtraction ?? {}) as Record<string, any>;
+    return {
+      coiStatus: company.coiStatus,
+      coiReviewReasons: company.coiReviewReasons ?? [],
+      coiReviewNotes: company.coiReviewNotes,
+      coiInsuredName: x.insuredName ?? null,
+      coiInsurerName: x.insurerName ?? null,
+      coiPolicyNumber: x.policyNumber ?? null,
+      coiGeneralLiability: x.generalLiabilityPerOccurrence ?? null,
+      coiAdditionalInsured: x.additionalInsured ?? null,
+      coiAdditionalInsuredName: x.additionalInsuredName ?? null,
+    };
+  }
+
+  // Upload the certificate of insurance; the AI laptop reads the dates,
+  // limit and additional insured in the background. Works during the
+  // application and, for an approved company, as a renewal.
+  async uploadInsurance(userId: string, data: { documentKey: string }) {
+    const { company } = await this.loadAsApplicant(userId);
+    const approved = company.applicationStatus === VendorApplicationStatus.APPROVED;
+    if (!approved) this.assertEditable(company, 'insurance');
+    if (!data.documentKey?.startsWith('vendor-applications/')) throw new BadRequestException('Attach a PDF or photo of the certificate.');
+    if (company.coiStatus === CertificationReviewStatus.READING) {
+      throw new BadRequestException('Your certificate is still being read. Try again in a few minutes.');
+    }
+    company.coiDocumentKey = data.documentKey;
+    company.coiExtraction = null;
+    if (!approved) company.needsInfoItems = resolveNeedsInfo(company.needsInfoItems, 'insurance');
+    await this.licenseReading.startCoi(company);
+    if (approved) {
+      await this.notificationsService.notifyAdmins(
+        NotificationType.VENDOR_CREDENTIAL_RENEWED,
+        'Vendor Insurance Uploaded',
+        `${company.name} uploaded a new certificate of insurance; it is being read automatically.`,
+        { vendorCompanyId: company.id },
+      ).catch(() => {});
+    }
     return this.getApplication(userId);
   }
 
@@ -380,6 +507,7 @@ export class VendorOnboardingService {
       isCompanyAdmin: profile.isCompanyAdmin,
       insurance: {
         ...credential(company.coiExpirationDate),
+        ...this.coiSummary(company),
         documentUrl: company.coiDocumentKey ? await this.uploadsService.getSignedUrl(company.coiDocumentKey) : null,
         // Company-level: only the company admin can replace it.
         canRenew: profile.isCompanyAdmin,
@@ -503,13 +631,15 @@ export class VendorOnboardingService {
   // What a reviewer needs beyond the company row: the applicant's checklist,
   // chosen services and submitted licenses.
   async getReviewDetails(company: VendorCompany, applicantUserId: string | null) {
-    if (!applicantUserId) return { checklist: null, services: [], licenses: [] };
+    const states = await this.getStates(company);
+    const insurance = this.coiSummary(company);
+    if (!applicantUserId) return { checklist: null, services: [], licenses: [], states, insurance };
     const [checklist, services, licenses] = await Promise.all([
       this.getChecklist(applicantUserId, company),
       this.getMyServices(applicantUserId),
       this.getLicenses(applicantUserId),
     ]);
-    return { checklist, services, licenses };
+    return { checklist, services, licenses, states, insurance };
   }
 
   async submit(userId: string) {

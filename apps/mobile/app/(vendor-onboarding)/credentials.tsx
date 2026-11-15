@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { onboardingApi, uploadsApi, VendorCredentials } from '../../src/services/api';
 import { pickDocument, PickedFile } from '../../src/utils/pickDocument';
 import { FutureDateField, LICENSE_LABEL, PrimaryButton, Section, ui } from '../../src/components/onboarding/OnboardingUI';
+import { InsurancePanel } from '../../src/components/onboarding/CompanyDocuments';
 import { LicenseUpload } from '../../src/components/onboarding/LicenseUpload';
 import { ExpiryText, LICENSE_STATUS, LicenseStatusBadge } from '../../src/components/onboarding/LicenseStatus';
 import { colors } from '../../src/theme';
@@ -97,7 +98,7 @@ export default function CredentialsScreen() {
 
   // A renewed license is read by the AI in the background; check back every
   // 10 seconds until it's done, and tell the vendor when access comes back.
-  const reading = !!creds?.licenses.some((l) => l.status === 'READING');
+  const reading = !!creds?.licenses.some((l) => l.status === 'READING') || creds?.insurance.coiStatus === 'READING';
   const wasLocked = useRef<boolean | null>(null);
   useEffect(() => {
     if (!reading) return;
@@ -125,9 +126,11 @@ export default function CredentialsScreen() {
     }
   };
 
-  const renewInsurance = async (file: PickedFile, expiry: Date) => {
-    const { key } = await uploadsApi.uploadDocument(file.uri, 'vendor-applications', file.mimeType, file.name);
-    applied(await onboardingApi.renewInsurance({ coiDocumentKey: key, coiExpirationDate: expiry.toISOString() }));
+  // The renewed certificate is read automatically (dates, limit, additional
+  // insured); access comes back once a current expiry date is read.
+  const renewInsurance = async (documentKey: string) => {
+    await onboardingApi.uploadInsurance(documentKey);
+    setCreds(await onboardingApi.getCredentials());
   };
 
   // The renewed license is read automatically; the screen updates when it's done.
@@ -165,10 +168,15 @@ export default function CredentialsScreen() {
 
       <Section title="Certificate of insurance" hint="Your company's general liability certificate.">
         <ExpiryLine c={ins} />
-        {ins.documentUrl && <Text style={ui.link} onPress={() => Linking.openURL(ins.documentUrl!)}>View current certificate</Text>}
-        {insNeedsAction && (ins.canRenew
-          ? <RenewForm title="Certificate of Insurance" onSave={renewInsurance} />
-          : <Text style={ui.label}>Your company admin needs to upload the renewed certificate. Ask them to open the Attenteve app.</Text>)}
+        <InsurancePanel
+          insurance={ins}
+          editable={ins.canRenew && (insNeedsAction || ['REJECTED', 'NEEDS_REVIEW', 'EXPIRED'].includes(ins.coiStatus ?? ''))}
+          uploadInsurance={renewInsurance}
+          uploadTitle="Upload your renewed certificate"
+        />
+        {insNeedsAction && !ins.canRenew && (
+          <Text style={ui.label}>Your company admin needs to upload the renewed certificate. Ask them to open the Attenteve app.</Text>
+        )}
       </Section>
 
       {licenses.map((l) => (

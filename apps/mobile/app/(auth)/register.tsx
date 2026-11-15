@@ -120,7 +120,7 @@ export default function RegisterScreen() {
     // catches whatever the fallback mini-form below hasn't been filled in
     // yet, since setValue() from AddressPicker/the fallback inputs both
     // write into the same tracked fields this trigger() call checks.
-    const fields = ['firstName', 'lastName', 'email', 'phone', 'password', ...Object.values(addressFields), ...(isVendor ? ['companyName', 'ein'] : [])];
+    const fields = ['firstName', 'lastName', 'email', 'phone', 'password', ...Object.values(addressFields), ...(isVendor ? ['companyName'] : [])];
     if (!await trigger(fields)) return;
     setStep(isVendor ? 'vendor-confirm' : 'plan');
   };
@@ -367,28 +367,6 @@ export default function RegisterScreen() {
                         value={value} onChangeText={onChange}
                       />
                       {errors.companyName && <Text style={styles.errorText}>{(errors.companyName as any)?.message}</Text>}
-                    </>
-                  )}
-                />
-
-                <Controller control={control} name="ein"
-                  rules={{
-                    required: 'EIN is required',
-                    validate: (v: string) => /^\d{2}-\d{7}$/.test(v) || 'Format: XX-XXXXXXX',
-                  }}
-                  render={({ field: { onChange, value } }) => (
-                    <>
-                      <TextInput
-                        style={[styles.input, errors.ein && styles.inputError]}
-                        placeholder="EIN (XX-XXXXXXX)" placeholderTextColor={colors.steel}
-                        keyboardType="numbers-and-punctuation" maxLength={10}
-                        value={value}
-                        onChangeText={(text) => {
-                          const clean = text.replace(/[^\d]/g, '');
-                          onChange(clean.length <= 2 ? clean : `${clean.slice(0, 2)}-${clean.slice(2, 9)}`);
-                        }}
-                      />
-                      {errors.ein && <Text style={styles.errorText}>{(errors.ein as any)?.message}</Text>}
                     </>
                   )}
                 />

@@ -76,7 +76,7 @@ export default function PayoutSetupScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>What Stripe asks for</Text>
-        <Text style={styles.bullet}>• Your business details and EIN</Text>
+        <Text style={styles.bullet}>• Your business details (Stripe asks for these to send payouts)</Text>
         <Text style={styles.bullet}>• A bank account for deposits</Text>
         <Text style={styles.bullet}>• Identity verification for the account owner</Text>
         <Text style={styles.note}>It takes about 5 minutes. When you finish, come back to the app.</Text>

@@ -27,3 +27,20 @@ export function isEnabledCountyFips(fips: string): boolean {
   }
   return enabledFipsCache.has(fips);
 }
+
+// County FIPS code → two-letter state (e.g. "47187" → "TN"), across all states.
+let stateByFipsCache: Map<string, string> | null = null;
+export function stateForCountyFips(fips: string): string | null {
+  if (!stateByFipsCache) {
+    stateByFipsCache = new Map();
+    for (const [state, counties] of Object.entries(US_COUNTIES)) {
+      for (const c of counties) stateByFipsCache.set(c.fips, state);
+    }
+  }
+  return stateByFipsCache.get(fips) ?? null;
+}
+
+// The distinct states of a list of county FIPS codes, sorted.
+export function statesForCounties(fips: string[] | null | undefined): string[] {
+  return [...new Set((fips ?? []).map(stateForCountyFips).filter((s): s is string => !!s))].sort();
+}

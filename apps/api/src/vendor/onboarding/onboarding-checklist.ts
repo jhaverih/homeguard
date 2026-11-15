@@ -1,6 +1,7 @@
 import { VendorApplicationStatus } from '../entities/vendor-company.entity';
 import { CertificationType } from '../entities/vendor-capability.entity';
 import { CertificationReviewStatus } from '../entities/vendor-certification.entity';
+import { statesForCounties } from '../../common/utils/county.utils';
 
 // The vendor onboarding checklist, computed from stored data only — the
 // mobile pending screen, the vendor portal status page, the admin review
@@ -29,14 +30,12 @@ export const CHECKLIST_LABELS: Record<ChecklistKey, string> = {
 // reopens the other.
 const LINKED: Partial<Record<ChecklistKey, ChecklistKey>> = { services: 'licenses', licenses: 'services' };
 
-export const EIN_PATTERN = /^\d{2}-\d{7}$/;
 export const COI_EXPIRY_WARNING_DAYS = 30;
 
 export interface ChecklistInput {
   status: VendorApplicationStatus;
   company: {
     name: string | null;
-    ein: string | null;
     address: string | null;
     city: string | null;
     state: string | null;
@@ -44,6 +43,8 @@ export interface ChecklistInput {
     stateRegistrationDocKey: string | null;
     coiDocumentKey: string | null;
     coiExpirationDate: Date | null;
+    // How the AI reading of the certificate went (null = uploaded before reading existed).
+    coiStatus?: CertificationReviewStatus | null;
     serviceCounties: string[] | null;
     backgroundCheckVersion: string | null;
     needsInfoItems: { key: string; note: string; resolved: boolean }[] | null;
@@ -52,6 +53,8 @@ export interface ChecklistInput {
   vendorTosVersion: string | null;
   selectedServices: { id: string; name: string; requiredCertificationType: CertificationType }[];
   certifications: { certificationType: CertificationType; status: CertificationReviewStatus; expirationDate: Date | null }[];
+  // The company's per-state business registrations.
+  stateRegistrations: { state: string; status: CertificationReviewStatus; graceUntil: Date | null }[];
   currentTosVersion: string;
   currentBackgroundCheckVersion: string;
   now: Date;
@@ -99,6 +102,23 @@ export function missingLicenseTypes(input: Pick<ChecklistInput, 'selectedService
   return [...required].filter((t) => !covered.has(t));
 }
 
+// A state registration counts as provided while it is being read, waiting
+// for a closer look, passed the checks, or approved. Rejected or expired ones
+// don't, and neither does a temporary "already serving here" pass that ran out.
+export function registrationCounts(r: { status: CertificationReviewStatus; graceUntil: Date | null }, now: Date): boolean {
+  if (r.graceUntil && new Date(r.graceUntil) <= now) return false;
+  return r.status === CertificationReviewStatus.READING
+    || r.status === CertificationReviewStatus.NEEDS_REVIEW
+    || r.status === CertificationReviewStatus.PENDING_REVIEW
+    || r.status === CertificationReviewStatus.APPROVED;
+}
+
+// States the company serves (from its counties) that have no registration yet.
+export function missingRegistrationStates(input: Pick<ChecklistInput, 'stateRegistrations' | 'now'> & { company: Pick<ChecklistInput['company'], 'serviceCounties'> }): string[] {
+  const covered = new Set(input.stateRegistrations.filter((r) => registrationCounts(r, input.now)).map((r) => r.state));
+  return statesForCounties(input.company.serviceCounties).filter((s) => !covered.has(s));
+}
+
 export function isEditable(status: VendorApplicationStatus, needsInfoItems: { key: string }[] | null, key: ChecklistKey): boolean {
   if (status === VendorApplicationStatus.INCOMPLETE) return true;
   if (status !== VendorApplicationStatus.NEEDS_INFO) return false;
@@ -115,7 +135,6 @@ export function buildChecklist(input: ChecklistInput): Checklist {
 
   const companyGaps: string[] = [];
   if (!company.name?.trim()) companyGaps.push('company name');
-  if (!company.ein || !EIN_PATTERN.test(company.ein)) companyGaps.push('EIN');
   if (!company.address?.trim() || !company.city?.trim() || !company.state?.trim() || !company.zipCode?.trim()) {
     companyGaps.push('business address');
   }
@@ -125,16 +144,28 @@ export function buildChecklist(input: ChecklistInput): Checklist {
 
   if (!input.selectedServices.length) missing.services = 'Choose at least one service.';
 
+  // With no services chosen yet there is nothing to license, but showing the
+  // step as done looks like something was already uploaded, so keep it open.
   const licenseGaps = missingLicenseTypes(input);
-  if (licenseGaps.length) missing.licenses = `Add a license for: ${licenseGaps.join(', ')}.`;
+  if (!input.selectedServices.length) missing.licenses = 'Choose your services first.';
+  else if (licenseGaps.length) missing.licenses = `Add a license for: ${licenseGaps.join(', ')}.`;
 
   if (!company.serviceCounties?.length) missing.counties = 'Choose at least one county you serve.';
 
-  if (!company.stateRegistrationDocKey) missing.stateRegistration = 'Upload your state business registration.';
+  // A registration is needed for every state the company serves.
+  const registrationGaps = missingRegistrationStates(input);
+  if (!company.serviceCounties?.length) missing.stateRegistration = 'Choose your service area first.';
+  else if (registrationGaps.length) missing.stateRegistration = `Add a state business registration for: ${registrationGaps.join(', ')}.`;
 
-  const coiValid = !!company.coiDocumentKey && !!company.coiExpirationDate && new Date(company.coiExpirationDate) > now;
+  // Insurance: being read or waiting for a closer look counts as provided (an
+  // admin finishes those); not accepted or expired doesn't; otherwise the
+  // certificate needs a future expiry date.
+  const coiInProgress = company.coiStatus === CertificationReviewStatus.READING || company.coiStatus === CertificationReviewStatus.NEEDS_REVIEW;
+  const coiValid = !!company.coiDocumentKey && !!company.coiExpirationDate && new Date(company.coiExpirationDate) > now
+    && company.coiStatus !== CertificationReviewStatus.REJECTED && company.coiStatus !== CertificationReviewStatus.EXPIRED;
   if (!company.coiDocumentKey) missing.insurance = 'Upload your certificate of insurance.';
-  else if (!coiValid) missing.insurance = 'Your certificate of insurance has expired. Upload a current one.';
+  else if (company.coiStatus === CertificationReviewStatus.REJECTED) missing.insurance = 'Your certificate of insurance was not accepted. Upload a current one.';
+  else if (!coiInProgress && !coiValid) missing.insurance = 'Your certificate of insurance has expired. Upload a current one.';
 
   if (company.backgroundCheckVersion !== input.currentBackgroundCheckVersion) {
     missing.backgroundCheck = 'Read and sign the background check and drug test statement.';

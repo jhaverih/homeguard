@@ -217,6 +217,29 @@ export class AdminController {
     });
   }
 
+  @Patch('vendor-state-registrations/:id')
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Admin/Super User: approve/reject a vendor\'s business registration for one state' })
+  reviewStateRegistration(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { status: CertificationReviewStatus; reviewNotes?: string; businessName?: string; entityNumber?: string },
+  ) {
+    return this.service.reviewStateRegistration(id, body.status, body.reviewNotes, {
+      businessName: body.businessName, entityNumber: body.entityNumber,
+    }, req.user.id);
+  }
+
+  @Patch('vendor-applications/:id/insurance')
+  @MinAdminLevel(AdminLevel.ADMIN)
+  @ApiOperation({ summary: 'Admin/Super User: approve/reject a vendor company\'s certificate of insurance' })
+  reviewInsurance(
+    @Param('id') id: string,
+    @Body() body: { status: CertificationReviewStatus; reviewNotes?: string; expirationDate?: string },
+  ) {
+    return this.service.reviewInsurance(id, body.status, body.reviewNotes, { expirationDate: body.expirationDate });
+  }
+
   @Post('capabilities')
   @MinAdminLevel(AdminLevel.SUPER_USER)
   @ApiOperation({ summary: 'Super User: add a vendor capability to the catalog' })

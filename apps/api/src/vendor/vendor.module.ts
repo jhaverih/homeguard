@@ -18,6 +18,8 @@ import { VendorCapability } from './entities/vendor-capability.entity';
 import { VendorCapabilitySelection } from './entities/vendor-capability-selection.entity';
 import { VendorCapabilityAcknowledgment } from './entities/vendor-capability-acknowledgment.entity';
 import { VendorCertification } from './entities/vendor-certification.entity';
+import { VendorStateRegistration } from './entities/vendor-state-registration.entity';
+import { DocumentBackfillService } from './onboarding/document-backfill.service';
 import { VendorService } from './vendor.service';
 import { VendorController } from './vendor.controller';
 import { VendorOnboardingService } from './vendor-onboarding.service';
@@ -29,7 +31,7 @@ import { LicenseReadingService } from './licenses/license-reading.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      User, VendorProfile, VendorCompany, VendorCapability, VendorCapabilitySelection, VendorCapabilityAcknowledgment, VendorCertification,
+      User, VendorProfile, VendorCompany, VendorCapability, VendorCapabilitySelection, VendorCapabilityAcknowledgment, VendorCertification, VendorStateRegistration,
       ServiceRequest, Payment, Dispute, InspectionNote, InspectionTaskResult,
     ]),
     UsersModule,
@@ -39,7 +41,7 @@ import { LicenseReadingService } from './licenses/license-reading.service';
     PricingModule,
     MarketplaceModule,
   ],
-  providers: [VendorService, VendorOnboardingService, CredentialReminderService, LicenseReaderClient, LicenseReadingService],
+  providers: [VendorService, VendorOnboardingService, CredentialReminderService, LicenseReaderClient, LicenseReadingService, DocumentBackfillService],
   controllers: [VendorOnboardingController, VendorController],
   exports: [VendorService, VendorOnboardingService],
 })

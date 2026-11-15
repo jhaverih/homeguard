@@ -16,7 +16,7 @@ import { LicenseExtraction } from './license-validation';
 // instead of failing the vendor's upload.
 
 export type ReaderResult =
-  | { ok: true; extraction: LicenseExtraction & { method?: string; model?: string } }
+  | { ok: true; extraction: LicenseExtraction & { method?: string; model?: string } & Record<string, any> }
   | { ok: false; reason: string };
 
 // A photo can take several minutes on the laptop CPU (the reader itself waits up to 7).
@@ -29,14 +29,20 @@ export class LicenseReaderClient {
 
   constructor(private config: ConfigService) {}
 
-  async read(file: { data: Buffer; contentType: string; filename: string }, trade: string): Promise<ReaderResult> {
+  // kind: 'license' (hint = trade), 'registration' (hint = state) or 'coi'.
+  async read(
+    file: { data: Buffer; contentType: string; filename: string },
+    hint: string | null,
+    kind: 'license' | 'registration' | 'coi' = 'license',
+  ): Promise<ReaderResult> {
     const url = this.config.get<string>('LICENSE_READER_URL');
     const token = this.config.get<string>('READER_TOKEN');
     if (!url || !token) return { ok: false, reason: 'Automatic reading is not set up on this server.' };
 
     const form = new FormData();
     form.append('file', new Blob([new Uint8Array(file.data)], { type: file.contentType }), file.filename);
-    form.append('trade', trade);
+    form.append('kind', kind);
+    if (hint) form.append(kind === 'registration' ? 'state' : 'trade', hint);
 
     try {
       const res = await fetch(`${url.replace(/\/$/, '')}/extract`, {

@@ -478,18 +478,50 @@ export type VendorApplication = {
   reviewNotes: string | null;
   isCompanyAdmin: boolean;
   checklist: { items: ChecklistItem[]; completeCount: number; totalCount: number; canSubmit: boolean; coiExpiresSoon: boolean };
-  company: { name: string; ein: string | null; address: string | null; city: string | null; state: string | null; zipCode: string | null };
+  company: { name: string; address: string | null; city: string | null; state: string | null; zipCode: string | null };
   photoUrl: string | null;
   services: { id: string; name: string; requiredCertificationType: string }[];
   licenses: VendorLicense[];
   serviceCounties: string[];
+  states: VendorState[];
   documents: {
     stateRegistrationUrl: string | null; stateRegistrationOnFile: boolean;
     coiUrl: string | null; coiOnFile: boolean; coiExpirationDate: string | null;
-  };
+  } & CoiReading;
   backgroundCheck: {
     title: string; paragraphs: string[]; version: string;
     signedVersion: string | null; signedAt: string | null; signerName: string | null; signerTitle: string | null;
+  };
+};
+
+// What the AI read from the certificate of insurance, and the result.
+// coiStatus uses the same statuses as a license (see VendorLicense).
+export type CoiReading = {
+  coiStatus: string | null;
+  coiReviewReasons: string[];
+  coiReviewNotes: string | null;
+  coiInsuredName: string | null;
+  coiInsurerName: string | null;
+  coiPolicyNumber: string | null;
+  coiGeneralLiability: number | null;
+  coiAdditionalInsured: boolean | null;
+  coiAdditionalInsuredName: string | null;
+};
+
+// One state the company serves (has counties in) or has registered in.
+//   canOperate  registration approved and Attenteve is open there → customers see the company
+//   required    the company chose counties in this state, so a registration is needed
+//   open        Attenteve currently serves this state
+export type VendorState = {
+  state: string;
+  required: boolean;
+  open: boolean;
+  canOperate: boolean;
+  registration: null | {
+    id: string; status: string; graceUntil: string | null;
+    businessName: string | null; entityNumber: string | null; registeredState: string | null;
+    registrationStatus: string | null; formationDate: string | null; extractionConfidence: string | null;
+    reviewReasons: string[]; reviewNotes: string | null; updatedAt: string; documentUrl: string | null;
   };
 };
 
@@ -511,7 +543,7 @@ type CredentialExpiry = { expirationDate: string | null; daysLeft: number | null
 export type VendorCredentials = {
   locked: boolean;
   isCompanyAdmin: boolean;
-  insurance: CredentialExpiry & { documentUrl: string | null; canRenew: boolean };
+  insurance: CredentialExpiry & CoiReading & { documentUrl: string | null; canRenew: boolean };
   licenses: (CredentialExpiry & {
     id: string; certificationType: string; licenseNumber: string | null; issuingState: string | null; status: string;
     blocking: boolean; documentUrl: string | null; reviewReasons: string[]; reviewNotes: string | null;
@@ -535,7 +567,7 @@ export const onboardingApi = {
   renewLicenseUpload: (id: string, documentKey: string): Promise<VendorCredentials> =>
     api.post(`/vendor/onboarding/credentials/licenses/${id}/upload`, { documentKey }) as any,
   get: (): Promise<VendorApplication> => api.get('/vendor/onboarding') as any,
-  updateCompany: (data: { name?: string; ein?: string; address?: string; city?: string; state?: string; zipCode?: string }): Promise<VendorApplication> =>
+  updateCompany: (data: { name?: string; address?: string; city?: string; state?: string; zipCode?: string }): Promise<VendorApplication> =>
     api.patch('/vendor/onboarding/company', data) as any,
   setPhoto: (avatarKey: string): Promise<VendorApplication> => api.patch('/vendor/onboarding/photo', { avatarKey }) as any,
   updateDocuments: (data: { stateRegistrationDocKey?: string; coiDocumentKey?: string; coiExpirationDate?: string }): Promise<VendorApplication> =>
@@ -549,6 +581,13 @@ export const onboardingApi = {
   // Upload-and-read: the server reads the license number, dates and names from the file.
   uploadLicense: (data: { certificationType: string; documentKey: string }): Promise<VendorApplication> =>
     api.post('/vendor/onboarding/licenses/upload', data) as any,
+  // Per-state business registrations, read automatically.
+  getStates: (): Promise<VendorState[]> => api.get('/vendor/onboarding/states') as any,
+  uploadStateRegistration: (state: string, documentKey: string): Promise<VendorApplication> =>
+    api.post('/vendor/onboarding/state-registrations', { state, documentKey }) as any,
+  // Certificate of insurance, read automatically (dates, limit, additional insured).
+  uploadInsurance: (documentKey: string): Promise<VendorApplication> =>
+    api.post('/vendor/onboarding/insurance/upload', { documentKey }) as any,
   getCountyOptions: (): Promise<Record<string, { fips: string; name: string }[]>> => api.get('/vendor/onboarding/counties') as any,
   setCounties: (serviceCounties: string[]): Promise<VendorApplication> => api.put('/vendor/onboarding/counties', { serviceCounties }) as any,
   signBackgroundCheck: (data: { signerName: string; signerTitle: string; agreed: boolean }): Promise<VendorApplication> =>

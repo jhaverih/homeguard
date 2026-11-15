@@ -725,9 +725,9 @@ export class VendorService implements OnModuleInit {
     coiDocumentKey?: string; coiExpirationDate?: string;
   }) {
     const company = await this.requireCompany(userId);
-    if (data.ein !== undefined) company.ein = data.ein;
-    if (data.stateRegistrationDocKey !== undefined) company.stateRegistrationDocKey = data.stateRegistrationDocKey;
-    if (data.coiDocumentKey !== undefined) company.coiDocumentKey = data.coiDocumentKey;
+    // EIN is no longer collected, and new documents go through the AI reader
+    // (VendorController.submitApplication routes them to VendorOnboardingService);
+    // only a typed insurance expiry from an old portal build lands here.
     if (data.coiExpirationDate !== undefined) {
       company.coiExpirationDate = new Date(data.coiExpirationDate);
       company.coiReminderSentDays = null; // new date → expiry reminders start over

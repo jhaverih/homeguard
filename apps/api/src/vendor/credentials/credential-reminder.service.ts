@@ -5,6 +5,7 @@ import { In, IsNull, LessThan, Not, Repository } from 'typeorm';
 import { VendorCompany, VendorApplicationStatus } from '../entities/vendor-company.entity';
 import { VendorCertification, CertificationReviewStatus } from '../entities/vendor-certification.entity';
 import { VendorProfile } from '../../users/entities/vendor-profile.entity';
+import { VendorStateRegistration } from '../entities/vendor-state-registration.entity';
 import { NotificationsService, NotificationType } from '../../notifications/notifications.service';
 import { dueNotice, EXPIRED_NOTICE, noticeText } from './credential-expiry';
 import { LicenseReadingService } from '../licenses/license-reading.service';
@@ -27,6 +28,7 @@ export class CredentialReminderService {
     @InjectRepository(VendorCompany) private companyRepo: Repository<VendorCompany>,
     @InjectRepository(VendorCertification) private certificationRepo: Repository<VendorCertification>,
     @InjectRepository(VendorProfile) private profileRepo: Repository<VendorProfile>,
+    @InjectRepository(VendorStateRegistration) private registrationRepo: Repository<VendorStateRegistration>,
     private notificationsService: NotificationsService,
     private licenseReading: LicenseReadingService,
   ) {}
@@ -39,6 +41,8 @@ export class CredentialReminderService {
       sent += await this.remindInsurance(now);
       sent += await this.remindLicenses(now);
       await this.markExpiredLicenses(now);
+      await this.markExpiredInsurance(now);
+      await this.endRegistrationPasses(now);
     } catch (err) {
       this.logger.error(`Credential reminder run failed: ${(err as Error).message}`);
     }
@@ -62,6 +66,45 @@ export class CredentialReminderService {
     return res.affected ?? 0;
   }
 
+  // A certificate of insurance past its expiry date becomes EXPIRED (access is
+  // already locked by vendor-access.ts; the status makes it plain everywhere).
+  async markExpiredInsurance(now = new Date()): Promise<number> {
+    const res = await this.companyRepo.update(
+      {
+        coiStatus: In([CertificationReviewStatus.APPROVED, CertificationReviewStatus.PENDING_REVIEW, CertificationReviewStatus.NEEDS_REVIEW]),
+        coiExpirationDate: LessThan(now),
+      },
+      { coiStatus: CertificationReviewStatus.EXPIRED },
+    );
+    if (res.affected) this.logger.log(`Marked ${res.affected} certificate(s) of insurance expired`);
+    return res.affected ?? 0;
+  }
+
+  // A temporary "already serving this state" pass (document-backfill.service.ts)
+  // that ran out without a registration being uploaded becomes EXPIRED: that
+  // state's counties stop showing to customers, and the company admin is told
+  // which registration to upload.
+  async endRegistrationPasses(now = new Date()): Promise<number> {
+    const ended = await this.registrationRepo.find({
+      where: { documentKey: IsNull(), graceUntil: LessThan(now), status: Not(CertificationReviewStatus.EXPIRED) },
+    });
+    if (!ended.length) return 0;
+    const admins = await this.companyAdminIds([...new Set(ended.map((r) => r.companyId))]);
+    for (const r of ended) {
+      await this.registrationRepo.update(r.id, { status: CertificationReviewStatus.EXPIRED });
+      for (const id of admins.get(r.companyId) ?? []) {
+        await this.notificationsService.notifyUserWithEmail(
+          id, NotificationType.VENDOR_CREDENTIAL_EXPIRING,
+          `Upload your ${r.state} business registration`,
+          `Customers in ${r.state} no longer see your company. Upload your ${r.state} state business registration in the Attenteve app to serve ${r.state} again.`,
+          { vendorCompanyId: r.companyId, credential: 'stateRegistration', state: r.state, screen: 'vendor-states' },
+        ).catch(() => {});
+      }
+    }
+    this.logger.log(`Ended ${ended.length} temporary state registration pass(es)`);
+    return ended.length;
+  }
+
   // Every 10 minutes: a license still READING 20+ minutes after its last
   // update was probably dropped by an API restart. Read it again; the reader
   // always finishes with a status (falling back to "needs review").
@@ -71,7 +114,14 @@ export class CredentialReminderService {
       where: { status: CertificationReviewStatus.READING, updatedAt: LessThan(new Date(now.getTime() - 20 * 60 * 1000)) },
     });
     for (const c of stuck) await this.licenseReading.read(c.id).catch((err) => this.logger.warn(`Retry read ${c.id}: ${(err as Error).message}`));
-    return stuck.length;
+
+    // The same for state registrations and certificates of insurance.
+    const cutoff = LessThan(new Date(now.getTime() - 20 * 60 * 1000));
+    const regs = await this.registrationRepo.find({ where: { status: CertificationReviewStatus.READING, updatedAt: cutoff } });
+    for (const r of regs) await this.licenseReading.readRegistration(r.id).catch((err) => this.logger.warn(`Retry registration ${r.id}: ${(err as Error).message}`));
+    const cois = await this.companyRepo.find({ where: { coiStatus: CertificationReviewStatus.READING, updatedAt: cutoff } });
+    for (const c of cois) await this.licenseReading.readCoi(c.id).catch((err) => this.logger.warn(`Retry insurance ${c.id}: ${(err as Error).message}`));
+    return stuck.length + regs.length + cois.length;
   }
 
   private async companyAdminIds(companyIds: string[]): Promise<Map<string, string[]>> {

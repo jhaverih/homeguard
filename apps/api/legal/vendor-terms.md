@@ -2,7 +2,7 @@
 
 > **Status: draft, not legally reviewed.** This document has been expanded from an earlier draft that contained only the Cancellation & Payment Verification Policy. It is intended to give engineering, product, and business stakeholders a complete picture of the terms Attenteve expects to publish, but **it has not been reviewed by an attorney and must not be treated as binding, published to vendors, or relied upon for legal protection until counsel has reviewed and approved it.** Independent-contractor classification in particular carries real legal risk if the underlying business practices (scheduling control, exclusivity, tools/equipment, etc.) don't match this document — confirm actual practice matches this language before publishing.
 
-**Last updated: November 11, 2026**
+**Last updated: November 14, 2026**
 
 ## 1. Acceptance of Terms
 
@@ -16,7 +16,7 @@ By registering as a vendor on the Attenteve platform ("Vendor," "you") and accep
 - You are free to accept or decline any job offered to you, and to provide services to other customers or through other platforms, including customers you meet through Attenteve, subject to Section 8 (Non-Solicitation) below regarding circumventing the platform for jobs sourced through Attenteve.
 - You are responsible for providing your own tools, equipment, vehicle, and materials needed to perform your work, except where a job specifically includes materials provided by Attenteve or the customer.
 - You are solely responsible for your own federal, state, and local taxes, including self-employment tax; Attenteve does not withhold taxes from your payouts and will issue applicable tax forms (e.g. Form 1099) as required by law.
-- You are responsible for maintaining your own business licenses, trade licenses/certifications required for the work you perform, and insurance as described in Section 5.
+- You are responsible for maintaining your own state business registrations, trade licenses/certifications required for the work you perform, and insurance as described in Section 5.
 
 ## 3. Attenteve's Role as a Facilitator; Your Contract Is With the Customer
 
@@ -80,9 +80,31 @@ To operate the platform, Attenteve shares information about you and your personn
 ### 4.8 Privacy Policy
 
 Attenteve's handling of your own information is described in the Attenteve [Privacy Policy](privacy-policy.md), which is incorporated into these Terms by reference. Payout account details are collected and stored by Stripe through Stripe Connect; Attenteve does not store your full bank account information.
-## 5. Insurance & Licensing
+## 5. Insurance, State Registration & Licensing
 
-You must maintain, at your own expense, general liability insurance in an amount reasonable for the work you perform through the platform, and a valid, current trade license or certification for any job category that legally requires one in your jurisdiction (e.g. HVAC, electrical, plumbing, roofing). Attenteve may require you to submit proof of licensing/certification before unlocking certain job categories, and may suspend your access to a category if your license lapses or is not verified.
+### 5.1 Insurance
+
+You must maintain, at your own expense, commercial general liability insurance with limits of at least **$1,000,000 per occurrence**, in force for as long as you operate on the platform.
+
+Your certificate of insurance must name **Attenteve LLC** as an **additional insured** with respect to general liability. You must upload a current certificate before you can be approved, and upload a renewed certificate before your policy expires.
+
+If your certificate expires, is cancelled, or no longer meets these requirements, Attenteve may suspend your access to jobs until a compliant certificate is on file. You must tell Attenteve promptly if your coverage is cancelled, reduced, or not renewed.
+
+### 5.2 State Business Registration
+
+You must hold an active business registration (for example, a certificate of existence or good standing, or a certificate of authority for an out-of-state business) in **each state where you serve customers** through the platform, and upload proof of it for each such state.
+
+Customers in a state see your company only after your registration for that state has been verified. If a registration shows your business as inactive, dissolved, or revoked, or is not verified, Attenteve may stop showing your company to customers in that state.
+
+### 5.3 Trade Licenses
+
+You must hold a valid, current trade license or certification for any job category that legally requires one in your jurisdiction (e.g. HVAC, electrical, plumbing, roofing). Attenteve may require you to submit proof of licensing/certification before unlocking certain job categories, and may suspend your access to a category if your license lapses or is not verified.
+
+### 5.4 How Documents Are Checked
+
+Documents you upload (licenses, state registrations, and certificates of insurance) are read automatically by software running on Attenteve's own systems and then verified by Attenteve staff. You confirm that every document you upload is genuine, current, and belongs to your business, and that you will correct anything that was read incorrectly.
+
+Attenteve's review confirms only that the required documents are on file; it is not a guarantee of your coverage, licensing, or work. Attenteve tells customers that vendors are required to keep a current license and insurance on file, and does not represent that any vendor is fully insured or that its work is guaranteed.
 
 ## 6. Payment Method Verification & Customer Cancellations
 

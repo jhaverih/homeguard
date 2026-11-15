@@ -11,7 +11,6 @@ function complete(overrides: Partial<ChecklistInput> = {}, company: Partial<Chec
     status: VendorApplicationStatus.INCOMPLETE,
     company: {
       name: 'Hill Home Repair',
-      ein: '12-3456789',
       address: '100 Holliday St',
       city: 'Baltimore',
       state: 'MD',
@@ -28,6 +27,7 @@ function complete(overrides: Partial<ChecklistInput> = {}, company: Partial<Chec
     vendorTosVersion: 'tos-1',
     selectedServices: [{ id: 'c1', name: 'Drywall work', requiredCertificationType: CertificationType.NONE }],
     certifications: [],
+    stateRegistrations: [{ state: 'MD', status: CertificationReviewStatus.APPROVED, graceUntil: null }],
     currentTosVersion: 'tos-1',
     currentBackgroundCheckVersion: 'bg-1',
     now: NOW,
@@ -47,19 +47,19 @@ describe('buildChecklist', () => {
 
   it('lists exactly what is missing for a brand-new registration', () => {
     const c = buildChecklist(complete(
-      { hasPhoto: false, selectedServices: [], vendorTosVersion: null },
-      { stateRegistrationDocKey: null, coiDocumentKey: null, coiExpirationDate: null, serviceCounties: null, backgroundCheckVersion: null },
+      { hasPhoto: false, selectedServices: [], vendorTosVersion: null, stateRegistrations: [] },
+      { coiDocumentKey: null, coiExpirationDate: null, serviceCounties: null, backgroundCheckVersion: null },
     ));
     expect(c.items.filter((i) => !i.complete).map((i) => i.key)).toEqual(
-      ['photo', 'services', 'counties', 'stateRegistration', 'insurance', 'backgroundCheck', 'terms'],
+      ['photo', 'services', 'licenses', 'counties', 'stateRegistration', 'insurance', 'backgroundCheck', 'terms'],
     );
     expect(c.canSubmit).toBe(false);
   });
 
-  it('flags a malformed EIN and a missing address on company details', () => {
-    const i = item(complete({}, { ein: '123456789', city: '' }), 'company');
+  it('flags a missing address on company details (EIN is no longer asked for)', () => {
+    const i = item(complete({}, { city: '' }), 'company');
     expect(i.complete).toBe(false);
-    expect(i.missing).toBe('Add your EIN, business address.');
+    expect(i.missing).toBe('Add your business address.');
   });
 
   it('treats an expired certificate of insurance as missing', () => {
@@ -129,8 +129,14 @@ describe('licenses for trade services', () => {
     expect(item(input, 'licenses').complete).toBe(false);
   });
 
-  it('is complete when no trade service is chosen', () => {
+  it('is complete when only services that need no license are chosen', () => {
     expect(item(complete(), 'licenses').complete).toBe(true);
+  });
+
+  it('stays open until at least one service is chosen', () => {
+    const i = item(complete({ selectedServices: [] }), 'licenses');
+    expect(i.complete).toBe(false);
+    expect(i.missing).toBe('Choose your services first.');
   });
 });
 
@@ -161,5 +167,54 @@ describe('needs info', () => {
       expect(isEditable(status, null, 'company')).toBe(false);
     }
     expect(isEditable(VendorApplicationStatus.INCOMPLETE, null, 'company')).toBe(true);
+  });
+});
+
+describe('state business registrations', () => {
+  const reg = (state: string, status: CertificationReviewStatus, graceUntil: Date | null = null) => ({ state, status, graceUntil });
+  // 24510 = Baltimore city, MD; 47187 = Williamson County, TN.
+  const twoStates = { serviceCounties: ['24510', '47187'] };
+
+  it('asks for the service area first when no counties are chosen', () => {
+    const i = item(complete({ stateRegistrations: [] }, { serviceCounties: null }), 'stateRegistration');
+    expect(i.complete).toBe(false);
+    expect(i.missing).toBe('Choose your service area first.');
+  });
+
+  it('needs a registration for every state the company serves', () => {
+    const i = item(complete({}, twoStates), 'stateRegistration');
+    expect(i.complete).toBe(false);
+    expect(i.missing).toBe('Add a state business registration for: TN.');
+    expect(item(complete({ stateRegistrations: [reg('MD', CertificationReviewStatus.APPROVED), reg('TN', CertificationReviewStatus.READING)] }, twoStates), 'stateRegistration').complete).toBe(true);
+  });
+
+  it('counts registrations being read, needing review or passed; not rejected ones', () => {
+    for (const status of [CertificationReviewStatus.READING, CertificationReviewStatus.NEEDS_REVIEW, CertificationReviewStatus.PENDING_REVIEW]) {
+      expect(item(complete({ stateRegistrations: [reg('MD', status)] }), 'stateRegistration').complete).toBe(true);
+    }
+    for (const status of [CertificationReviewStatus.REJECTED, CertificationReviewStatus.EXPIRED]) {
+      expect(item(complete({ stateRegistrations: [reg('MD', status)] }), 'stateRegistration').complete).toBe(false);
+    }
+  });
+
+  it('stops counting a temporary pass once it runs out', () => {
+    const ok = reg('MD', CertificationReviewStatus.APPROVED, new Date(NOW.getTime() + DAY));
+    const over = reg('MD', CertificationReviewStatus.APPROVED, new Date(NOW.getTime() - DAY));
+    expect(item(complete({ stateRegistrations: [ok] }), 'stateRegistration').complete).toBe(true);
+    expect(item(complete({ stateRegistrations: [over] }), 'stateRegistration').complete).toBe(false);
+  });
+});
+
+describe('certificate of insurance reading', () => {
+  it('counts a certificate being read or waiting for a closer look, even before an expiry is known', () => {
+    for (const coiStatus of [CertificationReviewStatus.READING, CertificationReviewStatus.NEEDS_REVIEW]) {
+      expect(item(complete({}, { coiStatus, coiExpirationDate: null }), 'insurance').complete).toBe(true);
+    }
+  });
+
+  it('does not count a certificate that was not accepted', () => {
+    const i = item(complete({}, { coiStatus: CertificationReviewStatus.REJECTED }), 'insurance');
+    expect(i.complete).toBe(false);
+    expect(i.missing).toMatch(/not accepted/);
   });
 });
