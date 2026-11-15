@@ -23,6 +23,18 @@ export class WaitlistSignup {
   @Column({ nullable: true })
   servicePriceId: string | null;
 
+  // Who signed up: a homeowner (the default, and every signup made before
+  // this column existed) or a pro from the coming-soon "For pros" page.
+  @Column({ type: 'varchar', default: 'HOMEOWNER' })
+  audience: 'HOMEOWNER' | 'PRO';
+
+  // Pros only: their company and the services they offer, as ticked on the form.
+  @Column({ type: 'varchar', nullable: true })
+  companyName: string | null;
+
+  @Column('text', { array: true, nullable: true })
+  services: string[] | null;
+
   @Column({ default: false })
   notified: boolean;
 

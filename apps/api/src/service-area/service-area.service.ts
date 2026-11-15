@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThan, Repository } from 'typeorm';
+import { In, IsNull, MoreThan, Repository } from 'typeorm';
 import { VendorCompany, VendorApplicationStatus } from '../vendor/entities/vendor-company.entity';
 import { VendorProfile } from '../users/entities/vendor-profile.entity';
 import { VendorCapability, CertificationType } from '../vendor/entities/vendor-capability.entity';
@@ -174,10 +174,25 @@ export class ServiceAreaService {
     return this.getAvailableCapabilityIds(zip);
   }
 
-  async notify(email: string, zip: string, servicePriceId?: string | null): Promise<{ success: boolean }> {
-    const existing = await this.waitlistRepo.findOne({ where: { email, zipCode: zip, servicePriceId: servicePriceId ?? null } });
+  // One row per email + ZIP + audience (+ service, for in-app "notify me").
+  // A repeat signup from a pro updates their company and services instead of
+  // adding a duplicate.
+  async notify(
+    email: string,
+    zip: string,
+    servicePriceId?: string | null,
+    extra: { audience?: 'HOMEOWNER' | 'PRO'; companyName?: string; services?: string[] } = {},
+  ): Promise<{ success: boolean }> {
+    const audience = extra.audience ?? 'HOMEOWNER';
+    const pro = audience === 'PRO';
+    const companyName = pro ? extra.companyName?.trim() || null : null;
+    const services = pro ? [...new Set((extra.services ?? []).map((s) => s.trim()).filter(Boolean))] : null;
+
+    const existing = await this.waitlistRepo.findOne({ where: { email, zipCode: zip, servicePriceId: servicePriceId ? servicePriceId : IsNull(), audience } });
     if (!existing) {
-      await this.waitlistRepo.save(this.waitlistRepo.create({ email, zipCode: zip, servicePriceId: servicePriceId ?? null }));
+      await this.waitlistRepo.save(this.waitlistRepo.create({ email, zipCode: zip, servicePriceId: servicePriceId ?? null, audience, companyName, services }));
+    } else if (pro) {
+      await this.waitlistRepo.update(existing.id, { companyName: companyName ?? existing.companyName, services });
     }
     return { success: true };
   }

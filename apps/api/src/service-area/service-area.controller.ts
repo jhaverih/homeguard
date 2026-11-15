@@ -27,6 +27,8 @@ export class ServiceAreaController {
   @Post('notify')
   @ApiOperation({ summary: 'Public: capture an email to notify when service becomes available in a ZIP' })
   notify(@Body() dto: NotifyWaitlistDto) {
-    return this.service.notify(dto.email, dto.zip);
+    return this.service.notify(dto.email, dto.zip, null, {
+      audience: dto.audience, companyName: dto.companyName, services: dto.services,
+    });
   }
 }
