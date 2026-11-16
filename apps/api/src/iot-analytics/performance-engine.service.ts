@@ -18,6 +18,8 @@ import { BaselineService } from './baseline.service';
 import { SNOOZABLE_FINDING_CATEGORY } from './analytics-engine.service';
 import { RunCycle, mergeStateRunCycles } from './run-cycles';
 import { isSystemMappingVerified } from './hvac-configuration';
+import { AnalyticsAccessService } from './analytics-access.service';
+import { HIGH_CONFIDENCE_PERSISTENT_DAYS, evaluateHighConfidenceIssue } from './combined-rules';
 
 // Everything in this file is genuinely new logic, built ahead of any of
 // these sensors actually being installed anywhere (per explicit product
@@ -54,6 +56,7 @@ export class PerformanceEngineService {
     private alertsService: AlertsService,
     private thresholdsService: ThresholdsService,
     private baselineService: BaselineService,
+    private access: AnalyticsAccessService,
   ) {}
 
   // ══════════════════════════════════════════════════════════════════════
@@ -561,6 +564,28 @@ export class PerformanceEngineService {
     });
   }
 
+  // Re-decides this equipment's combined findings right now. They are
+  // otherwise only evaluated by the daily batch, so one could keep reminding
+  // the homeowner for up to a day after the findings behind it cleared.
+  async recheckCombinedFindings(equipmentId: string): Promise<void> {
+    const equipment = await this.equipmentRepo.findOne({ where: { id: equipmentId } });
+    if (!equipment) return;
+    const home = await this.homeRepo.findOne({ where: { id: equipment.homeId } });
+    const yolinkHome = home ? await this.yolinkHomeRepo.findOne({ where: { customerId: home.customerId, isActive: true } }) : null;
+    if (!home || !yolinkHome) return;
+    await this.evaluateCombinedRules({ customerId: home.customerId, yolinkHomeId: yolinkHome.id, equipment }, equipmentId);
+  }
+
+  // Closes a finding its rule can no longer confirm (see
+  // CoolingRulesService.apply) — it moves to the history like any other
+  // cleared condition.
+  async expireFinding(finding: AnalyticsFinding, reason: string): Promise<void> {
+    finding.status = FindingStatus.RESOLVED;
+    finding.resolvedAt = new Date();
+    finding.dataQuality = { ...(finding.dataQuality ?? {}), expired: reason };
+    await this.findingsRepo.save(finding);
+  }
+
   // COMBINED-001/002/003 — co-occurrence checks over whatever this equipment's
   // OTHER rules already decided today; run last so those findings exist.
   private async evaluateCombinedRules(ctx: { customerId: string; yolinkHomeId: string; equipment: Equipment }, equipmentId: string): Promise<void> {
@@ -579,18 +604,16 @@ export class PerformanceEngineService {
       notify: rule1.notificationPolicy === 'IMMEDIATE',
     });
 
-    // COMBINED-002 — 3+ independent findings, at least one persistent (3+ days).
+    // COMBINED-002 — 3+ independent problems, at least one persistent (see
+    // combined-rules.ts for what counts as independent).
     const rule2 = this.rule('HVAC-COMBINED-002');
-    const persistentDays = 3;
-    const persistentCutoff = new Date(Date.now() - persistentDays * 24 * 60 * 60 * 1000);
-    const hasPersistent = activeFindings.some((f) => f.ruleId !== rule2.ruleId && f.detectedAt <= persistentCutoff);
-    const combined2 = activeFindings.filter((f) => f.ruleId !== rule2.ruleId).length >= 3 && hasPersistent;
+    const combined2 = evaluateHighConfidenceIssue(activeFindings, new Date());
     await this.upsertFinding({
       scope: { equipmentId }, customerId: ctx.customerId, yolinkHomeId: ctx.yolinkHomeId,
       equipmentCode: ctx.equipment.equipmentCode, sensorRole: null, ruleId: rule2.ruleId, ruleGroup: rule2.ruleGroup,
-      conditionMet: combined2, severity: rule2.severity, confidence: rule2.confidence,
-      message: `${activeFindings.length} independent HVAC findings are active simultaneously, with at least one persisting ${persistentDays}+ days — high confidence this equipment needs a professional visit.`,
-      measurements: { activeCount: activeFindings.length }, reasonCode: rule2.reasonCode, recommendedActions: rule2.recommendedActions,
+      conditionMet: combined2.met, severity: rule2.severity, confidence: rule2.confidence,
+      message: `${combined2.groups.length} independent HVAC findings are active simultaneously, with at least one persisting ${HIGH_CONFIDENCE_PERSISTENT_DAYS}+ days — high confidence this equipment needs a professional visit.`,
+      measurements: { activeCount: combined2.groups.length, groups: combined2.groups }, reasonCode: rule2.reasonCode, recommendedActions: rule2.recommendedActions,
       notify: rule2.notificationPolicy === 'IMMEDIATE',
     });
 
@@ -670,7 +693,16 @@ export class PerformanceEngineService {
       if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
       return;
     }
-    if (active) return; // already firing — don't duplicate while the condition persists
+    if (active) {
+      // Already firing — don't duplicate while the condition persists; just
+      // note that the rule still confirms it (at most every 30 minutes).
+      const last = active.dataQuality?.lastConfirmedAt ? new Date(active.dataQuality.lastConfirmedAt).getTime() : 0;
+      if (Date.now() - last > 30 * 60 * 1000) {
+        active.dataQuality = { ...(active.dataQuality ?? {}), lastConfirmedAt: new Date().toISOString() };
+        await this.findingsRepo.save(active);
+      }
+      return;
+    }
 
     const finding = await this.findingsRepo.save(this.findingsRepo.create({
       customerId: params.customerId, yolinkHomeId: params.yolinkHomeId,
@@ -683,7 +715,8 @@ export class PerformanceEngineService {
       recommendedActions: params.recommendedActions, detectedAt: new Date(),
     }));
 
-    if (params.notify) {
+    // Never alert about a rule the customer's plan doesn't show them.
+    if (params.notify && await this.access.canNotify(params.customerId, params.ruleId)) {
       try {
         const alert = await this.alertsService.createAlert({
           customerId: params.customerId, yolinkHomeId: params.yolinkHomeId,

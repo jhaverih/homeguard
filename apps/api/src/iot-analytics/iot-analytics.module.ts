@@ -35,6 +35,7 @@ import { IotAnalyticsMigrationService } from './iot-analytics-migration.service'
 import { IotAnalyticsController } from './iot-analytics.controller';
 import { CoolingRulesService } from './cooling-rules.service';
 import { WeatherService } from './weather.service';
+import { AnalyticsAccessService } from './analytics-access.service';
 import { AlertsModule } from '../alerts/alerts.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -55,7 +56,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AlertsModule,
     NotificationsModule,
   ],
-  providers: [ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService, AnomalyDetectionService, EventCorrelationService, ExplanationService, ExplanationProcessor],
+  providers: [AnalyticsAccessService, ClassificationService, DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService, AnomalyDetectionService, EventCorrelationService, ExplanationService, ExplanationProcessor],
   controllers: [IotAnalyticsController],
   exports: [DeviceRegistryService, TelemetryService, AnalyticsEngineService, ComponentHealthService, ThresholdsService, BaselineService, PerformanceEngineService, IotAnalyticsService, IotAnalyticsMigrationService, CoolingRulesService, WeatherService, AnomalyDetectionService, EventCorrelationService, ExplanationService],
 })

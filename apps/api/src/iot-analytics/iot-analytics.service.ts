@@ -8,11 +8,11 @@ import { SensorAssignment } from './entities/sensor-assignment.entity';
 import { Equipment } from './entities/equipment.entity';
 import { YolinkHome } from '../yolink/entities/yolink-home.entity';
 import { User } from '../users/entities/user.entity';
-import { CustomerSubscription, SubscriptionStatus } from '../subscriptions/entities/customer-subscription.entity';
-import { UserRole, PlanTier } from '../common/enums/role.enum';
+import { UserRole } from '../common/enums/role.enum';
 import { SensorRole, SENSOR_ROLE_META } from '../common/enums/sensor-role.enum';
 import { RULE_DEFINITIONS, evaluateRuleAvailability } from './rule-definitions';
 import { AnalyticsEngineService } from './analytics-engine.service';
+import { AnalyticsAccessService } from './analytics-access.service';
 import { ComponentHealthService } from './component-health.service';
 import { TelemetryService } from './telemetry.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
@@ -74,7 +74,6 @@ export class IotAnalyticsService {
     @InjectRepository(Equipment) private equipmentRepo: Repository<Equipment>,
     @InjectRepository(YolinkHome) private yolinkHomesRepo: Repository<YolinkHome>,
     @InjectRepository(User) private usersRepo: Repository<User>,
-    @InjectRepository(CustomerSubscription) private subscriptionsRepo: Repository<CustomerSubscription>,
     @InjectRepository(RuleEvaluation) private evaluationsRepo: Repository<RuleEvaluation>,
     @InjectRepository(TelemetryEvent) private telemetryRepo: Repository<TelemetryEvent>,
     @InjectRepository(AnalyticsEvent) private eventsRepo: Repository<AnalyticsEvent>,
@@ -86,18 +85,8 @@ export class IotAnalyticsService {
     private componentHealthService: ComponentHealthService,
     private telemetryService: TelemetryService,
     private notificationsService: NotificationsService,
+    private access: AnalyticsAccessService,
   ) {}
-
-  // Same active-subscription + family-sharing lookup as
-  // SubscriptionsService.getActiveSubscription, duplicated here rather than
-  // imported to avoid a module cycle (SubscriptionsModule → YolinkModule →
-  // IotAnalyticsModule) — same convention this codebase already uses for
-  // other small cross-module lookups.
-  private async getActiveSubscription(customerId: string): Promise<CustomerSubscription | null> {
-    const user = await this.usersRepo.findOne({ where: { id: customerId } });
-    const ownerId = user?.parentUserId ?? customerId;
-    return this.subscriptionsRepo.findOne({ where: { customerId: ownerId, status: SubscriptionStatus.ACTIVE } });
-  }
 
   isHvacAnalyticsRelevant(assignment: SensorAssignment, equipment: Equipment | null): boolean {
     // Any HVAC system (HVAC-01, HVAC-02, …) — a home with separate systems
@@ -129,9 +118,9 @@ export class IotAnalyticsService {
   // ── Customer-facing summary (tier-gated) ─────────────────────────────────
 
   async getMyAnalytics(customerId: string) {
-    const sub = await this.getActiveSubscription(customerId);
-    const tier = sub?.plan?.tier ?? null;
-    const isProactivePlus = tier === PlanTier.STANDARD || tier === PlanTier.PREMIUM;
+    // Shared with the alert paths (AnalyticsAccessService) so this page and
+    // the alerts a customer receives can never disagree.
+    const { tier, fullAnalytics: isProactivePlus } = await this.access.accessFor(customerId);
 
     const sensors = await this.getAssignedSensorsForCustomer(customerId);
     const hvacSensors = sensors.filter((s) => this.isHvacAnalyticsRelevant(s.assignment, s.equipment));
@@ -195,9 +184,9 @@ export class IotAnalyticsService {
     const to = new Date();
     const from = new Date(to.getTime() - RANGE_HOURS[range] * 3600_000);
 
-    const sub = await this.getActiveSubscription(customerId);
-    const tier = sub?.plan?.tier ?? null;
-    const isProactivePlus = tier === PlanTier.STANDARD || tier === PlanTier.PREMIUM;
+    // Shared with the alert paths (AnalyticsAccessService) so this page and
+    // the alerts a customer receives can never disagree.
+    const { tier, fullAnalytics: isProactivePlus } = await this.access.accessFor(customerId);
     const sensors = (await this.getAssignedSensorsForCustomer(customerId)).filter((s) => this.isHvacAnalyticsRelevant(s.assignment, s.equipment) || s.assignment.sensorRole === SensorRole.HVAC_OUTDOOR_TEMP);
     const visible = isProactivePlus ? sensors : sensors.filter((s) => CAREPLUS_SENSOR_ROLES.has(s.assignment.sensorRole));
     const lineRoles = new Set<SensorRole>([...def.requiredSensorRoles, ...(COMPONENT_CHART_ROLES[componentId] ?? [])].filter((r) => r !== SensorRole.HVAC_STATE && r !== SensorRole.HVAC_DRAIN_WATER));

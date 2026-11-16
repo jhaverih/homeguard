@@ -43,6 +43,8 @@ const DAILY_STARTS_METRIC = 'DAILY_COOLING_STARTS';
 // Per zone: one sample per completed UTC day (keyed by the zone's temperature channel).
 const comfortMetric = (zone: Zone) => `COMFORT_UNCORRECTED_MINUTES:${(zone.temp ?? zone.hvac).id}`;
 const DAY_MS = 86_400_000;
+// How long a finding may stay active with no evaluation confirming it.
+const UNCONFIRMED_MAX_HOURS = 24;
 
 export interface Zone {
   key: string;
@@ -257,7 +259,10 @@ export class CoolingRulesService implements OnModuleInit {
     else await this.refreshStaleInsufficient(scopeKey, rule.ruleId, p.evaluation.reason ?? 'Not applicable right now', ctx.now);
 
     const decided = outcome === 'TRIGGERED' || outcome === 'CLEAR' || (outcome === 'NOT_APPLICABLE' && p.resolveWhenNotApplicable);
-    if (!decided) return;
+    if (!decided) {
+      await this.expireUnconfirmed(p.scopeDevice ? { deviceRegistryId: p.scopeDevice.id } : { equipmentId: ctx.equipment.id }, rule.ruleId, p.evaluation.reason, ctx.now);
+      return;
+    }
     await this.performanceEngine.upsertFinding({
       scope: p.scopeDevice ? { deviceRegistryId: p.scopeDevice.id } : { equipmentId: ctx.equipment.id },
       equipmentId: ctx.equipment.id,
@@ -269,6 +274,20 @@ export class CoolingRulesService implements OnModuleInit {
       notify: rule.notificationPolicy === 'IMMEDIATE',
       dataQuality: { evaluatedAt: ctx.now.toISOString(), outcome, zonesCombined: ctx.zones.length > 1 && ctx.canCombineZones },
     });
+  }
+
+  // A rule that can't be assessed (not cooling, no data) keeps its finding
+  // for a while — a pause between cooling cycles isn't a recovery — but not
+  // indefinitely: a condition nothing has confirmed for a day is no longer
+  // known to be true, so it must stop counting as active. (A humidity
+  // finding from the last cooling day of the season stayed active for 12
+  // days and fed a "needs a professional visit" alert, 2026-11.)
+  private async expireUnconfirmed(scope: { deviceRegistryId?: string; equipmentId?: string }, ruleId: string, reason: string | undefined, now: Date): Promise<void> {
+    const active = await this.findingsRepo.findOne({ where: { ...scope, ruleId, status: FindingStatus.ACTIVE } as any });
+    if (!active) return;
+    const confirmedAt = new Date(active.dataQuality?.lastConfirmedAt ?? active.dataQuality?.evaluatedAt ?? active.detectedAt);
+    if (now.getTime() - confirmedAt.getTime() <= UNCONFIRMED_MAX_HOURS * 3600_000) return;
+    await this.performanceEngine.expireFinding(active, `Not confirmed for ${UNCONFIRMED_MAX_HOURS}h — ${reason ?? 'could not be assessed'}`);
   }
 
   // A NOT_APPLICABLE pass never overwrites real evidence (CLEAR/TRIGGERED),

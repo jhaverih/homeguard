@@ -56,7 +56,7 @@ describe('AnalyticsEngineService INDOOR-TEMP-001 grouping', () => {
     alertsService = { createAlert: jest.fn(async () => ({ id: `alert-${++alertSeq}` })), updateMessage: jest.fn(async () => {}) };
     const thresholds: any = { getValue: jest.fn(async (key: string) => (key === 'INDOOR_TEMP_LOW_F' ? 41 : 95)) };
     const equipmentRepo: any = { findOne: jest.fn(async () => null) };
-    engine = new AnalyticsEngineService(findingsRepo as any, equipmentRepo, alertsService as any, thresholds);
+    engine = new AnalyticsEngineService(findingsRepo as any, equipmentRepo, alertsService as any, thresholds, { canNotify: jest.fn(async () => true) } as any, { recheckCombinedFindings: jest.fn() } as any);
     clock = Date.UTC(2026, 9, 10, 12, 0);
     jest.useFakeTimers({ now: clock, doNotFake: ['nextTick', 'setImmediate'] });
   });
@@ -114,7 +114,7 @@ describe('AnalyticsEngineService SENSOR-005 (Nest integration failure)', () => {
   it('11. raises one dashboard finding on failure, never duplicates it, and resolves on recovery', async () => {
     const findingsRepo = fakeFindingsRepo();
     const alertsService = { createAlert: jest.fn(), updateMessage: jest.fn() };
-    const engine = new AnalyticsEngineService(findingsRepo as any, { findOne: jest.fn() } as any, alertsService as any, { getValue: jest.fn() } as any);
+    const engine = new AnalyticsEngineService(findingsRepo as any, { findOne: jest.fn() } as any, alertsService as any, { getValue: jest.fn() } as any, { canNotify: jest.fn(async () => true) } as any, { recheckCombinedFindings: jest.fn() } as any);
     await engine.evaluateIntegrationFailure(home, 'nest', 'Google access was revoked or expired — reconnect Nest');
     await engine.evaluateIntegrationFailure(home, 'nest', 'Google access was revoked or expired — reconnect Nest');
     expect(findingsRepo.rows).toHaveLength(1);
@@ -122,5 +122,43 @@ describe('AnalyticsEngineService SENSOR-005 (Nest integration failure)', () => {
     expect(alertsService.createAlert).not.toHaveBeenCalled();
     await engine.evaluateIntegrationFailure(home, 'nest', null);
     expect(findingsRepo.rows[0].status).toBe(FindingStatus.RESOLVED);
+  });
+});
+
+describe('AnalyticsEngineService reminders', () => {
+  const HOUR = 3600_000;
+  const make = (canNotify = true) => {
+    const findingsRepo = fakeFindingsRepo();
+    const alertsService = { createAlert: jest.fn(async () => ({ id: 'alert-new' })), updateMessage: jest.fn() };
+    const access = { canNotify: jest.fn(async () => canNotify) };
+    const performance = { recheckCombinedFindings: jest.fn() };
+    const engine = new AnalyticsEngineService(findingsRepo as any, {} as any, alertsService as any, {} as any, access as any, performance as any);
+    const combined: any = {
+      id: 'f-combined', customerId: 'cust-1', yolinkHomeId: 'yl-home-1', equipmentId: 'hvac-01', deviceRegistryId: null, ruleId: 'HVAC-COMBINED-002', ruleGroup: 'HVAC_COMBINED',
+      severity: 'HIGH', status: FindingStatus.ACTIVE, linkedAlertId: 'alert-1', message: 'm', measurements: {},
+      detectedAt: new Date(Date.now() - 48 * HOUR), lastAlertedAt: new Date(Date.now() - 12 * HOUR), snoozedUntil: null,
+    };
+    findingsRepo.rows.push(combined);
+    return { engine, alertsService, performance, combined };
+  };
+
+  it('reminds while the condition is still active', async () => {
+    const { engine, alertsService, performance } = make();
+    await engine.reAlertActiveFindings();
+    expect(performance.recheckCombinedFindings).toHaveBeenCalledWith('hvac-01');
+    expect(alertsService.createAlert).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends nothing once a re-check finds the combined condition cleared', async () => {
+    const { engine, alertsService, performance, combined } = make();
+    performance.recheckCombinedFindings.mockImplementation(async () => { combined.status = FindingStatus.RESOLVED; });
+    await engine.reAlertActiveFindings();
+    expect(alertsService.createAlert).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing for a rule the plan does not include', async () => {
+    const { engine, alertsService } = make(false);
+    await engine.reAlertActiveFindings();
+    expect(alertsService.createAlert).not.toHaveBeenCalled();
   });
 });

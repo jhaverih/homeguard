@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, BadRequestException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -12,6 +12,8 @@ import { AlertsService } from '../alerts/alerts.service';
 import { AlertSeverity } from '../alerts/entities/alert.entity';
 import { ThresholdsService } from './thresholds.service';
 import { SENSOR_ROLE_META } from '../common/enums/sensor-role.enum';
+import { AnalyticsAccessService } from './analytics-access.service';
+import { PerformanceEngineService } from './performance-engine.service';
 import { IndoorTempKind, IndoorTempReading, indoorSensorLabel, indoorTempAlertMessage } from './indoor-temp-grouping';
 
 // Pre-grouping INDOOR-TEMP-001 findings stored only { temperature } — fall
@@ -86,6 +88,9 @@ export class AnalyticsEngineService {
     @InjectRepository(Equipment) private equipmentRepo: Repository<Equipment>,
     private alertsService: AlertsService,
     private thresholdsService: ThresholdsService,
+    private access: AnalyticsAccessService,
+    // forwardRef: the two engine files import each other.
+    @Inject(forwardRef(() => PerformanceEngineService)) private performanceEngine: PerformanceEngineService,
   ) {}
 
   private async equipmentFor(assignment: SensorAssignment): Promise<Equipment | null> {
@@ -379,11 +384,25 @@ export class AnalyticsEngineService {
   // tick for any still-ACTIVE, customer-notified finding that isn't
   // currently snoozed, so the homeowner keeps getting reminded until they
   // resolve it, dismiss it, or snooze it.
+  //
+  // Two things a reminder must never do: go out after the condition cleared,
+  // or go out for a rule the customer's plan doesn't show them.
   @Cron(CronExpression.EVERY_30_MINUTES)
   async reAlertActiveFindings(): Promise<void> {
-    const candidates = await this.findingsRepo.find({
-      where: { status: FindingStatus.ACTIVE, linkedAlertId: Not(IsNull()) },
-    });
+    const where = { status: FindingStatus.ACTIVE, linkedAlertId: Not(IsNull()) };
+    let candidates = await this.findingsRepo.find({ where });
+    // Combined findings only summarize other findings and are otherwise
+    // re-decided once a day — re-decide them now so one whose underlying
+    // findings have cleared resolves instead of reminding.
+    const combinedEquipmentIds = [...new Set(candidates.filter((f) => f.ruleGroup === 'HVAC_COMBINED' && f.equipmentId).map((f) => f.equipmentId as string))];
+    for (const equipmentId of combinedEquipmentIds) {
+      try {
+        await this.performanceEngine.recheckCombinedFindings(equipmentId);
+      } catch (err) {
+        this.logger.warn(`Could not re-check combined findings for equipment ${equipmentId}: ${err}`);
+      }
+    }
+    if (combinedEquipmentIds.length) candidates = await this.findingsRepo.find({ where });
     const now = Date.now();
     // Findings sharing one alert (grouped INDOOR-TEMP-001 — see
     // evaluateIndoorTempEvent) re-alert as ONE reminder listing every sensor
@@ -402,6 +421,7 @@ export class AnalyticsEngineService {
       const ageMs = now - lead.detectedAt.getTime();
       const sinceLastAlertMs = now - (lead.lastAlertedAt ?? lead.detectedAt).getTime();
       if (sinceLastAlertMs < nextReAlertIntervalMs(ageMs)) continue;
+      if (!(await this.access.canNotify(lead.customerId, lead.ruleId))) continue;
       const message = lead.ruleId === 'INDOOR-TEMP-001' && group.length > 1
         ? indoorTempAlertMessage(group.map(indoorTempReadingOf))
         : lead.message;

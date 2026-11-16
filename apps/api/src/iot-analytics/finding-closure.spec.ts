@@ -7,7 +7,7 @@ describe('closing a finding', () => {
   const make = () => {
     const row: any = { id: 'f-1', customerId: 'c-1', status: FindingStatus.ACTIVE, resolvedAt: null, closedVia: null, closedByUserId: null };
     const repo: any = { findOne: jest.fn(async () => row), save: jest.fn(async (r: any) => r), delete: jest.fn(), remove: jest.fn() };
-    return { row, repo, engine: new AnalyticsEngineService(repo, {} as any, {} as any, {} as any) };
+    return { row, repo, engine: new AnalyticsEngineService(repo, {} as any, {} as any, {} as any, {} as any, {} as any) };
   };
 
   it('a homeowner dismissal keeps the finding and records the homeowner', async () => {

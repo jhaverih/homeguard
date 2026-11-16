@@ -53,6 +53,7 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
   let evaluations: ReturnType<typeof fakeRepo>;
   let samples: { equipmentId: string; metricKey: string; value: number; observedAt: Date; context: any }[];
   let alerts: { createAlert: jest.Mock };
+  let access: { canNotify: jest.Mock };
   let service: CoolingRulesService;
   const home: any = { id: 'yl-home', customerId: 'cust-1', homeId: 'home-1', isActive: true };
 
@@ -78,12 +79,13 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
     equipment = fakeRepo([{ id: 'hvac-01', homeId: 'home-1', equipmentType: 'HVAC', equipmentNumber: '01', equipmentCode: 'HVAC-01', metadata: { hvacConfiguration: 'MULTIZONE', verified: true } }]);
     samples = [];
     alerts = { createAlert: jest.fn(async () => ({ id: 'alert-1' })) };
+    access = { canNotify: jest.fn(async () => true) };
     const thresholds: any = { getValue: jest.fn(async (k: string) => DEFAULTS[k]) };
     const baselines: any = {
       recordSample: jest.fn(async (_c: string, equipmentId: string, metricKey: string, value: number, observedAt: Date, context: any) => { samples.push({ equipmentId, metricKey, value, observedAt, context }); }),
       getRecentSamples: jest.fn(async (equipmentId: string, metricKey: string) => samples.filter((s) => s.equipmentId === equipmentId && s.metricKey === metricKey).sort((a, b) => a.observedAt.getTime() - b.observedAt.getTime())),
     };
-    const performance = new PerformanceEngineService(findings as any, equipment as any, registry as any, assignments as any, telemetry as any, {} as any, {} as any, alerts as any, thresholds, baselines);
+    const performance = new PerformanceEngineService(findings as any, equipment as any, registry as any, assignments as any, telemetry as any, {} as any, {} as any, alerts as any, thresholds, baselines, access as any);
     const weather: any = { outdoorBandAt: jest.fn(async () => '90s'), outdoorTempAt: jest.fn(async () => 92) };
     service = new CoolingRulesService(registry as any, assignments as any, equipment as any, telemetry as any, findings as any, evaluations as any, fakeRepo([home]) as any, thresholds, baselines, performance, weather);
 
@@ -243,5 +245,42 @@ describe('CoolingRulesService (pilot-house shaped: one AHU, two damper zones, li
     reading('k-hvac', 45, 'OFF', 0);
     await service.evaluateEquipment('hvac-01', home, at(60));
     expect(activeFindings('HVAC-REFRIGERANT-001')).toHaveLength(1); // not resolved on a non-observation
+  });
+  describe('a finding its rule can no longer confirm', () => {
+    const staleHumidity = (hoursAgo: number) => {
+      device('k-hum', 'k:humidity', SensorRole.INDOOR_AMBIENT_HUMIDITY, { room: 'Kitchen' });
+      every5('k-hum', -60, 0, () => 68);
+      reading('k-hvac', -300, 'OFF', 0);
+      reading('b-hvac', -300, 'OFF', 0);
+      findings.rows.push({
+        id: 'hum-1', customerId: 'cust-1', equipmentId: 'hvac-01', deviceRegistryId: 'k-hum', ruleId: 'HVAC-HUMIDITY-001', ruleGroup: 'HVAC_HUMIDITY',
+        status: FindingStatus.ACTIVE, severity: 'WATCH', detectedAt: new Date(T0 - hoursAgo * 3600_000), dataQuality: null,
+      });
+    };
+
+    it('expires once nothing has confirmed it for a day (no cooling since)', async () => {
+      staleHumidity(48);
+      await service.evaluateEquipment('hvac-01', home, at(0));
+      expect(activeFindings('HVAC-HUMIDITY-001')).toHaveLength(0);
+      expect(findings.rows.find((f) => f.id === 'hum-1')).toMatchObject({ status: FindingStatus.RESOLVED });
+      expect(findings.rows.find((f) => f.id === 'hum-1').dataQuality.expired).toMatch(/Not confirmed for 24h/);
+    });
+
+    it('is kept through an ordinary pause between cooling cycles', async () => {
+      staleHumidity(3);
+      await service.evaluateEquipment('hvac-01', home, at(0));
+      expect(activeFindings('HVAC-HUMIDITY-001')).toHaveLength(1);
+    });
+  });
+
+  it('raises the finding but sends no alert when the plan does not include the rule', async () => {
+    access.canNotify.mockResolvedValue(false);
+    await (service as any).performanceEngine.upsertFinding({
+      scope: { equipmentId: 'hvac-01' }, customerId: 'cust-1', yolinkHomeId: 'yl-home', equipmentCode: 'HVAC-01', sensorRole: null,
+      ruleId: 'HVAC-COMBINED-002', ruleGroup: 'HVAC_COMBINED', conditionMet: true, severity: 'HIGH', confidence: 'VERY_HIGH',
+      message: 'm', measurements: {}, reasonCode: 'HIGH_CONFIDENCE_HVAC_ISSUE', recommendedActions: [], notify: true,
+    });
+    expect(activeFindings('HVAC-COMBINED-002')).toHaveLength(1);
+    expect(alerts.createAlert).not.toHaveBeenCalled();
   });
 });

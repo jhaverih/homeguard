@@ -12,6 +12,13 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-11-16
+
+### Fixed
+- **api**: A customer could be alerted about an HVAC condition their Analytics page didn't show. The page filtered findings by plan; the alert paths (first alert and the 30-minute "Still active" reminder) didn't. Both now ask one shared `AnalyticsAccessService`, so a rule a plan doesn't include never alerts. A preview tester (`common/constants/launch.ts`) keeps full analytics on any plan, since monitoring isn't launched yet.
+- **api**: "Still active" reminders no longer go out after a condition has cleared. Combined findings (which only summarize other findings and were re-decided once a day) are re-checked before every reminder, and a cooling-rule finding that nothing has confirmed for 24 hours (e.g. a humidity-during-cooling finding once cooling season ends) now expires into the history instead of staying active indefinitely.
+- **api**: `HVAC-COMBINED-002` ("high confidence this equipment needs a professional visit") fired on one stale humidity condition counted twice (two zone thermostats) plus an Info advisory. It now needs three different kinds of problem (distinct rule groups), ignoring Info advisories, sensor-health findings and other combined findings.
+
 ## 2026-09-06
 
 ### Added
