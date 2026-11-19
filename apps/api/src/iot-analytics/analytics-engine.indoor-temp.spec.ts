@@ -162,3 +162,19 @@ describe('AnalyticsEngineService reminders', () => {
     expect(alertsService.createAlert).not.toHaveBeenCalled();
   });
 });
+
+describe('AnalyticsEngineService water findings', () => {
+  it('a dry reading closes every open finding for the sensor, including an older one behind a newer resolved row', async () => {
+    const findingsRepo = fakeFindingsRepo();
+    const engine = new AnalyticsEngineService(findingsRepo as any, { findOne: jest.fn() } as any, { createAlert: jest.fn() } as any, {} as any, {} as any, {} as any);
+    const washer: any = { id: 'washer-1', providerDeviceId: 'w-pid', currentProviderName: 'Washer Drain Pan' };
+    const washerAssignment: any = { sensorRole: SensorRole.WASHER_DRAIN_WATER, equipmentId: null };
+    const base = { customerId: 'cust-1', deviceRegistryId: 'washer-1', ruleId: 'WASHER-WATER-001', linkedAlertId: 'a' };
+    findingsRepo.rows.push(
+      { ...base, id: 'old', status: FindingStatus.ACTIVE, detectedAt: new Date('2026-11-05T08:01:00Z') },
+      { ...base, id: 'new', status: FindingStatus.RESOLVED, detectedAt: new Date('2026-11-15T21:02:00Z') },
+    );
+    await engine.evaluateWaterEvent(washer, washerAssignment, home, false);
+    expect(findingsRepo.rows.find((f) => f.id === 'old')).toMatchObject({ status: FindingStatus.RESOLVED });
+  });
+});

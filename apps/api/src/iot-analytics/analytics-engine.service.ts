@@ -121,13 +121,18 @@ export class AnalyticsEngineService {
       where: { deviceRegistryId: device.id, ruleId: primary.ruleId },
       order: { detectedAt: 'DESC' },
     });
-    const active = mostRecent?.status === FindingStatus.ACTIVE ? mostRecent : null;
+    // Every open finding for this sensor, not just the newest row: an older
+    // one left open behind a newer resolved row (seen 2026-11: a washer
+    // finding from 11-05 stayed ACTIVE for two weeks of dry readings and
+    // kept sending daily "Still active" reminders) must close on a dry
+    // reading too.
+    const openRows = await this.findingsRepo.find({ where: { deviceRegistryId: device.id, ruleId: primary.ruleId, status: FindingStatus.ACTIVE } });
     const conditionMet = CONDITION_PREDICATES[primary.reasonCode]({ leakDetected });
     if (!conditionMet) {
-      if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
+      for (const row of openRows) { row.status = FindingStatus.RESOLVED; row.resolvedAt = new Date(); await this.findingsRepo.save(row); }
       return;
     }
-    if (active) return; // already firing — escalation below is duration-based display, not a duplicate row
+    if (openRows.length) return; // already firing — escalation below is duration-based display, not a duplicate row
 
     // Debounce: if the last finding for this exact device+rule (even though
     // already resolved) fired within this window, treat a fresh alert as the

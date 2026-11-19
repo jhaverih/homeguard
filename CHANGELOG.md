@@ -17,6 +17,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ### Fixed
 - **api**: A customer could be alerted about an HVAC condition their Analytics page didn't show. The page filtered findings by plan; the alert paths (first alert and the 30-minute "Still active" reminder) didn't. Both now ask one shared `AnalyticsAccessService`, so a rule a plan doesn't include never alerts. A preview tester (`common/constants/launch.ts`) keeps full analytics on any plan, since monitoring isn't launched yet.
 - **api**: "Still active" reminders no longer go out after a condition has cleared. Combined findings (which only summarize other findings and were re-decided once a day) are re-checked before every reminder, and a cooling-rule finding that nothing has confirmed for 24 hours (e.g. a humidity-during-cooling finding once cooling season ends) now expires into the history instead of staying active indefinitely.
+- **api**: A dry leak-sensor reading now closes every open water finding for that sensor, not only the newest row. An older washer finding left open behind a newer resolved one stayed active from 11-05 through two weeks of dry readings and kept sending a daily "Still active" reminder.
 - **api**: `HVAC-COMBINED-002` ("high confidence this equipment needs a professional visit") fired on one stale humidity condition counted twice (two zone thermostats) plus an Info advisory. It now needs three different kinds of problem (distinct rule groups), ignoring Info advisories, sensor-health findings and other combined findings.
 
 ## 2026-09-06
