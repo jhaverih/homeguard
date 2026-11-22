@@ -84,6 +84,8 @@ export default function VendorLayout() {
       <Tabs.Screen name="capabilities" options={{ href: null, title: 'My Capabilities' }} />
       <Tabs.Screen name="certifications" options={{ href: null, title: 'My Certifications' }} />
       <Tabs.Screen name="company-application" options={{ href: null, title: 'Company Application' }} />
+      <Tabs.Screen name="training" options={{ href: null, title: 'My Training' }} />
+      <Tabs.Screen name="training-module" options={{ href: null, title: 'Training', tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }

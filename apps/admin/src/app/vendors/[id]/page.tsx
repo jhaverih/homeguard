@@ -36,6 +36,7 @@ export default function VendorKpiPage() {
   const [selectedCounties, setSelectedCounties] = useState<Set<string>>(new Set());
   const [savedCounties, setSavedCounties] = useState<Set<string>>(new Set());
   const [savingServiceArea, setSavingServiceArea] = useState(false);
+  const [training, setTraining] = useState<any[] | null>(null);
 
   const load = () => adminApi.getVendorKpi(id).then((k) => {
     setKpi(k);
@@ -51,6 +52,7 @@ export default function VendorKpiPage() {
   useEffect(() => {
     Promise.all([load(), adminApi.getCounties().then(setCounties)]).finally(() => setLoading(false));
     userApi.getMe().then((me: any) => setIsSuperUser(me.adminLevel === 'SUPER_USER')).catch(() => {});
+    adminApi.getVendorTraining(id).then(setTraining).catch(() => setTraining([]));
   }, [id]);
 
   const toggleCounty = (fips: string) => {
@@ -324,6 +326,71 @@ export default function VendorKpiPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Training */}
+      {training && <TrainingSection rows={training} />}
+    </div>
+  );
+}
+
+const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  DONE: { label: 'Done', cls: 'bg-green-50 text-green-700' },
+  UPDATE_NEEDED: { label: 'Update needed', cls: 'bg-yellow-50 text-yellow-700' },
+  NOT_STARTED: { label: 'Not started', cls: 'bg-canvas text-steel' },
+};
+const day = (v: string | null) => (v ? new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+
+// Each team member's assigned training modules, with the version, date and
+// name they confirmed with (apps/api src/training). Taken in the mobile app.
+function TrainingSection({ rows }: { rows: any[] }) {
+  return (
+    <div className="bg-white rounded-2xl border border-mist-dim p-6 mt-6">
+      <h2 className="text-sm font-bold text-steel uppercase tracking-wide mb-1">Training</h2>
+      <p className="text-xs text-steel mb-4">Everyone in the company takes the core modules, plus a module for each kind of work they offer. Jobs stay hidden until the required modules are done.</p>
+      {rows.length === 0 ? (
+        <p className="text-steel text-sm">No team members.</p>
+      ) : (
+        <div className="space-y-6">
+          {rows.map((r) => (
+            <div key={r.userId}>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+                <p className="font-semibold text-ink">
+                  {r.name || r.email}{r.isCompanyAdmin ? <span className="text-steel font-normal"> · Admin</span> : null}
+                </p>
+                <p className="text-xs text-steel">
+                  {r.allDone ? `All done ${day(r.completedAt)}` : `${r.doneCount} of ${r.requiredCount} done`}
+                  {!r.allDone && r.graceUntil && new Date(r.graceUntil).getTime() > Date.now() ? ` · grace until ${day(r.graceUntil)}` : ''}
+                </p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-steel border-b border-mist-dim">
+                    <th className="py-1.5 font-semibold">Module</th>
+                    <th className="py-1.5 font-semibold">Status</th>
+                    <th className="py-1.5 font-semibold">Version</th>
+                    <th className="py-1.5 font-semibold">Completed</th>
+                    <th className="py-1.5 font-semibold">Confirmed as</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-canvas">
+                  {r.modules.map((m: any) => {
+                    const s = STATUS_LABEL[m.status] ?? STATUS_LABEL.NOT_STARTED;
+                    return (
+                      <tr key={m.key}>
+                        <td className="py-1.5 text-ink">{m.title}{m.core ? <span className="text-steel text-xs"> · core</span> : null}</td>
+                        <td className="py-1.5"><span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${s.cls}`}>{s.label}</span></td>
+                        <td className="py-1.5 text-steel">v{m.version}</td>
+                        <td className="py-1.5 text-steel">{day(m.completedAt)}</td>
+                        <td className="py-1.5 text-steel">{m.confirmedName ?? '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       )}
     </div>

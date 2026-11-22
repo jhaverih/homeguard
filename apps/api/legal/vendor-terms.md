@@ -2,7 +2,7 @@
 
 > **Status: draft, not legally reviewed.** This document has been expanded from an earlier draft that contained only the Cancellation & Payment Verification Policy. It is intended to give engineering, product, and business stakeholders a complete picture of the terms Attenteve expects to publish, but **it has not been reviewed by an attorney and must not be treated as binding, published to vendors, or relied upon for legal protection until counsel has reviewed and approved it.** Independent-contractor classification in particular carries real legal risk if the underlying business practices (scheduling control, exclusivity, tools/equipment, etc.) don't match this document — confirm actual practice matches this language before publishing.
 
-**Last updated: November 14, 2026**
+**Last updated: November 22, 2026**
 
 ## 1. Acceptance of Terms
 
@@ -121,6 +121,8 @@ This policy protects the time you reserve for scheduled jobs. Customers get full
 
 ### 6.4 Your responsibilities
 To keep this policy fair to customers, arrive at the scheduled time and make a good-faith effort to reach the customer (per Attenteve's standard on-site check-in process) before a visit is recorded as a no-show.
+
+Customers are required to be at the property when you arrive for a scheduled visit, and they are told this when they book. Do not enter the property or begin work unless the customer is present. If no one is there when you arrive, stay at the scheduled time and try to reach the customer through the platform before the visit is recorded as a no-show.
 
 ## 7. Payout Terms
 

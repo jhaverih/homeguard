@@ -1,0 +1,970 @@
+{
+  "_about": "Vendor training content. Edit text freely; bump a module's version only with the product owner's OK (a new version makes everyone who finished it take it again). core: required before any job shows. appliesTo: 'ALL' or capability names (who is assigned it). jobs: which jobs it unlocks (defaults to the appliesTo capabilities). Pictures and narration live in training/assets/<key>/<screen number>.webp|.mp3.",
+  "modules": [
+    {
+      "key": "welcome",
+      "version": 1,
+      "title": "Welcome to Attenteve",
+      "minutes": 3,
+      "core": true,
+      "appliesTo": "ALL",
+      "screens": [
+        {
+          "title": "Welcome",
+          "text": "Welcome to Attenteve. Homeowners use our app to book repairs and home care, and you do the work. This short training shows you how it works. Each screen has a picture and a short message, and you can replay the audio any time.",
+          "image": "illustration: Attenteve logo over a friendly house with a technician and a homeowner"
+        },
+        {
+          "title": "How a job reaches you",
+          "text": "A homeowner picks a repair in the app, chooses a time and sees the price before booking. The job then shows up in your Open Jobs list. You decide which jobs to accept.",
+          "image": "screenshot: the customer's booking screen next to the vendor's Open Jobs list, with an arrow between them"
+        },
+        {
+          "title": "You run your own business",
+          "text": "You work as an independent contractor through your company. You bring your own tools and you are responsible for the quality and safety of your work. Attenteve connects you with customers and handles the booking and payment.",
+          "image": "illustration: a technician with a toolbox and a small company badge"
+        },
+        {
+          "title": "Care Plan and CarePlus",
+          "text": "Every customer has a membership. The Care Plan is free. CarePlus is a yearly plan that includes two home inspections a year and some routine care, like an AC filter replacement and a toilet leak check. The job screen always shows you what the customer's plan covers.",
+          "image": "illustration: two plan cards, Care Plan and CarePlus, with a check mark list"
+        },
+        {
+          "title": "Ratings matter",
+          "text": "After each job, the customer can rate it from one to five stars. Your rating shows on your profile. Good work, being on time, and clear communication are what earn five stars.",
+          "image": "illustration: five stars with a short happy-customer note"
+        }
+      ],
+      "questions": [
+        {
+          "question": "Who decides which jobs you accept?",
+          "choices": [
+            "Attenteve assigns them to me",
+            "I do, from my Open Jobs list",
+            "The customer picks me"
+          ],
+          "correct": 1,
+          "explanation": "Jobs appear in your Open Jobs list, and you choose which ones to accept."
+        },
+        {
+          "question": "Where do you see what a customer's plan covers?",
+          "choices": [
+            "I ask the customer",
+            "On the job screen in the app",
+            "It isn't shown anywhere"
+          ],
+          "correct": 1,
+          "explanation": "The job screen always shows what the customer's plan covers."
+        },
+        {
+          "question": "Who is responsible for the quality and safety of your work?",
+          "choices": [
+            "Attenteve",
+            "The customer",
+            "You and your company"
+          ],
+          "correct": 2,
+          "explanation": "You work as an independent contractor, so the quality and safety of the work are your responsibility."
+        }
+      ]
+    },
+    {
+      "key": "job-steps",
+      "version": 1,
+      "title": "A job, step by step",
+      "minutes": 5,
+      "core": true,
+      "appliesTo": "ALL",
+      "screens": [
+        {
+          "title": "Accept the job",
+          "text": "Open the job in Open Jobs and tap Accept This Job. The date is already filled in with the time the customer asked for. If you need a different time, change it, and the customer will be asked to confirm.",
+          "image": "screenshot: Open Jobs with 'Accept This Job' circled, then the 'Confirm Scheduled Date' box"
+        },
+        {
+          "title": "Tap I'm On My Way",
+          "text": "When you leave for the job, tap I'm On My Way. Your location is shared with the customer so they can see you're coming. Location sharing stops when you arrive. If you can't make it, tap Can't Make It to release the job, and the customer is told right away.",
+          "image": "screenshot: the job screen with the 'I'm On My Way' button circled"
+        },
+        {
+          "title": "Tap I Have Arrived",
+          "text": "When you reach the home, tap I Have Arrived and confirm. The app also marks you as arrived when you get close to the address. The job is now in progress.",
+          "image": "screenshot: the 'Confirm Arrival' box with 'Yes, I'm Here' circled"
+        },
+        {
+          "title": "Do the work and the checklist",
+          "text": "Some jobs, like inspections, come with a checklist. Give every item a status: OK, Needs Attention, Urgent, or Not Accessible. Any item that isn't OK needs a photo. You can't close the job until every item is done.",
+          "image": "screenshot: a checklist item with the four status choices and the photo button"
+        },
+        {
+          "title": "Finish with a photo",
+          "text": "When the work is done, add at least one completion photo of the finished work, then tap Mark Job Complete. The customer is told and has 48 hours to review the job.",
+          "image": "screenshot: the 'Complete Job' section with the photo strip and 'Mark Job Complete' circled"
+        },
+        {
+          "title": "Getting paid",
+          "text": "When you mark the job complete, the customer's card on file is charged automatically. You never collect money in person. Your payout goes to the bank account your company set up in the app.",
+          "image": "screenshot: the customer's receipt 'Service completed, charged' next to an illustration of a bank deposit"
+        }
+      ],
+      "questions": [
+        {
+          "question": "You're leaving for a job. What do you tap?",
+          "choices": [
+            "I Have Arrived",
+            "I'm On My Way",
+            "Mark Job Complete"
+          ],
+          "correct": 1,
+          "explanation": "Tap I'm On My Way when you leave, so the customer can see you're coming."
+        },
+        {
+          "question": "What do you need before you can mark a job complete?",
+          "choices": [
+            "At least one completion photo",
+            "The customer's signature",
+            "Cash from the customer"
+          ],
+          "correct": 0,
+          "explanation": "Every job needs at least one completion photo before you can mark it complete."
+        },
+        {
+          "question": "Something came up and you can't make an accepted job. What should you do?",
+          "choices": [
+            "Just don't show up",
+            "Call the customer and ask them to rebook",
+            "Tap Can't Make It to release the job in the app"
+          ],
+          "correct": 2,
+          "explanation": "Releasing the job puts it back for another vendor and tells the customer right away."
+        }
+      ]
+    },
+    {
+      "key": "in-the-home",
+      "version": 1,
+      "title": "In the customer's home",
+      "minutes": 4,
+      "core": true,
+      "appliesTo": "ALL",
+      "screens": [
+        {
+          "title": "Be on time",
+          "text": "Arrive at the time you confirmed. If you're running late, message the customer in the app. If you need a new date, use Reschedule, and the customer is told automatically.",
+          "image": "illustration: a clock and a phone showing a message bubble"
+        },
+        {
+          "title": "Your profile photo",
+          "text": "Your face photo on your profile lets the customer know who is coming to their door. Keep it current. Technicians without a profile photo don't see jobs.",
+          "image": "screenshot: the vendor profile with the photo circled"
+        },
+        {
+          "title": "The customer must be home",
+          "text": "The customer must be home when you arrive, and the vendor terms say so. Don't go in or start work unless they're there. If nobody answers, try to reach them through the app before you leave. We cover no-shows in a later module.",
+          "image": "illustration: a technician at a front door, phone in hand"
+        },
+        {
+          "title": "Respect the home",
+          "text": "Treat the home with care. Protect floors and surfaces, keep your work area tidy, and clean up before you leave. Ask before moving the customer's belongings.",
+          "image": "illustration: drop cloth on the floor, tools neatly laid out"
+        },
+        {
+          "title": "Photos and privacy",
+          "text": "Only photograph the work area and the work you did. Avoid capturing people, and never share job photos outside the app without the customer's written consent. Use customer details only for the job, and never keep door or gate codes after the job.",
+          "image": "illustration: a camera framing a faucet, with a person crossed out of the frame"
+        },
+        {
+          "title": "Talk through the app",
+          "text": "Use Message Customer in the job to talk with the customer. Notes you save on the job are visible to the homeowner. Keeping messages in the app protects you and the customer if a question comes up later.",
+          "image": "screenshot: the 'Message Customer' button circled"
+        }
+      ],
+      "questions": [
+        {
+          "question": "You're running 15 minutes late. What should you do?",
+          "choices": [
+            "Nothing, they'll wait",
+            "Message the customer in the app",
+            "Cancel the job"
+          ],
+          "correct": 1,
+          "explanation": "Message the customer in the app so they know when to expect you."
+        },
+        {
+          "question": "Which photo is OK to take?",
+          "choices": [
+            "The finished repair",
+            "The customer's family photos",
+            "The customer's kids playing nearby"
+          ],
+          "correct": 0,
+          "explanation": "Only photograph the work area and the work you did."
+        },
+        {
+          "question": "The customer gave you a gate code for the job. When the job is done, you…",
+          "choices": [
+            "Save it for next time",
+            "Share it with your team",
+            "Don't keep it"
+          ],
+          "correct": 2,
+          "explanation": "Never keep door or gate codes after the job."
+        }
+      ]
+    },
+    {
+      "key": "prices-and-extra-work",
+      "version": 1,
+      "title": "Prices and extra work: no surprises",
+      "minutes": 4,
+      "core": true,
+      "appliesTo": "ALL",
+      "screens": [
+        {
+          "title": "The price is set before you arrive",
+          "text": "The customer sees the price before booking. Don't change it at the door. The customer should never be surprised by what they pay.",
+          "image": "screenshot: the customer's 'Request a Service' screen showing the price"
+        },
+        {
+          "title": "Found more work? Send a quote",
+          "text": "If you find something else that needs fixing, don't just do it. Tap to create a quote, pick the service or describe it, enter a fair price, and tap Send Quote to Customer. The customer approves or declines in the app.",
+          "image": "screenshot: the 'Create a Quote?' window with 'Send Quote to Customer' circled"
+        },
+        {
+          "title": "Only after approval",
+          "text": "Start extra work only after the customer approves it in the app. If they decline, that's fine. Finish the job you were booked for.",
+          "image": "illustration: a quote card with a green check and a red cross"
+        },
+        {
+          "title": "Materials",
+          "text": "If you use materials on the job, tap Add Material, describe what you used and enter the real cost. Keep your receipts.",
+          "image": "screenshot: the 'Materials Used' section with '+ Add Material' circled"
+        },
+        {
+          "title": "Never take cash or side deals",
+          "text": "Payment always goes through the app. Never accept cash, and never offer to do the work cheaper off the app. Taking a platform customer off the app breaks your agreement with Attenteve.",
+          "image": "illustration: cash crossed out, phone with a check mark"
+        }
+      ],
+      "questions": [
+        {
+          "question": "While fixing a faucet, you notice a leaking pipe. What do you do?",
+          "choices": [
+            "Fix it and add it to the bill",
+            "Send a quote in the app and wait for approval",
+            "Offer to fix it for cash"
+          ],
+          "correct": 1,
+          "explanation": "Send a quote in the app. Start extra work only after the customer approves it."
+        },
+        {
+          "question": "The customer offers to pay you in cash to skip the app fee. You…",
+          "choices": [
+            "Accept, it's their choice",
+            "Politely decline; payment goes through the app",
+            "Accept only for small jobs"
+          ],
+          "correct": 1,
+          "explanation": "Payment always goes through the app. Cash and side deals break your agreement."
+        },
+        {
+          "question": "What cost do you enter for materials?",
+          "choices": [
+            "The real cost, with receipts kept",
+            "Whatever seems fair",
+            "Double the cost"
+          ],
+          "correct": 0,
+          "explanation": "Enter the real cost of the materials and keep your receipts."
+        }
+      ]
+    },
+    {
+      "key": "cancellations-and-disputes",
+      "version": 1,
+      "title": "Cancellations, no-shows and disputes",
+      "minutes": 4,
+      "core": true,
+      "appliesTo": "ALL",
+      "screens": [
+        {
+          "title": "When customers cancel",
+          "text": "Customers can cancel for free more than 24 hours before the appointment. If they cancel with less than 24 hours' notice, they pay a $25 fee, and that fee goes to you.",
+          "image": "illustration: a calendar showing the 24-hour line and a $25 tag"
+        },
+        {
+          "title": "No-shows",
+          "text": "If the customer isn't there, you can be paid the full price of the job. But first you must arrive at the scheduled time and make a real effort to reach the customer through the app.",
+          "image": "illustration: technician at a closed door, phone showing a sent message"
+        },
+        {
+          "title": "The 48-hour review",
+          "text": "After you mark a job complete, the customer has 48 hours to review it. If something isn't right, they can open a dispute, for example if the work wasn't finished or the price was wrong.",
+          "image": "illustration: a 48-hour timer next to a completed job card"
+        },
+        {
+          "title": "How disputes work",
+          "text": "Attenteve reviews each dispute using the job record: your photos, checklist, notes and messages. If a dispute is decided for the customer, your payout for that job can be reversed. Good photos and clear notes are your best protection.",
+          "image": "illustration: a job record with photos, checklist and messages"
+        },
+        {
+          "title": "Staying in good standing",
+          "text": "Repeated customer complaints, an expired license, or breaking the rules can lead to your account being suspended. Do good work, keep your documents current, and follow this training.",
+          "image": "illustration: a shield with a check mark"
+        }
+      ],
+      "questions": [
+        {
+          "question": "A customer cancels 3 hours before your appointment. What happens?",
+          "choices": [
+            "Nothing",
+            "They pay a $25 fee, which goes to you",
+            "They pay the full price"
+          ],
+          "correct": 1,
+          "explanation": "Cancelling with less than 24 hours' notice costs the customer $25, and the fee goes to you."
+        },
+        {
+          "question": "Before a no-show can be recorded, you must…",
+          "choices": [
+            "Arrive on time and try to reach the customer in the app",
+            "Wait in the car for 5 minutes",
+            "Call Attenteve first"
+          ],
+          "correct": 0,
+          "explanation": "You must arrive at the scheduled time and make a real effort to reach the customer."
+        },
+        {
+          "question": "What best protects you in a dispute?",
+          "choices": [
+            "Good photos and clear notes in the app",
+            "Asking the customer for a good rating",
+            "Texting the customer from your own phone"
+          ],
+          "correct": 0,
+          "explanation": "Disputes are reviewed using the job record, so clear photos and notes protect you."
+        }
+      ]
+    },
+    {
+      "key": "safety-and-compliance",
+      "version": 1,
+      "title": "Safety and compliance",
+      "minutes": 4,
+      "core": true,
+      "appliesTo": "ALL",
+      "screens": [
+        {
+          "title": "Insurance on file",
+          "text": "Your company keeps a current certificate of insurance on file with Attenteve. If it expires, your company can't receive jobs, so tell your company owner when it's close to renewal.",
+          "image": "screenshot: the vendor app's insurance status card"
+        },
+        {
+          "title": "Licensed work",
+          "text": "HVAC, electrical, plumbing and roofing contractor work needs a state license. Licensed jobs only show to technicians whose license is approved in the app. Never do work your license doesn't cover.",
+          "image": "screenshot: the certifications screen with an approved license badge"
+        },
+        {
+          "title": "Permits and codes",
+          "text": "You're responsible for following local building codes and getting any permits the work needs. If you're not sure whether a job needs a permit, check before you start.",
+          "image": "illustration: a clipboard with a permit and a code book"
+        },
+        {
+          "title": "Stop if it isn't safe",
+          "text": "If you find a hazard, like mold, possible asbestos, exposed wiring, or an aggressive animal, stop work. Tell the customer, note it in the app, and don't continue until it's safe.",
+          "image": "illustration: a stop hand over a warning sign"
+        },
+        {
+          "title": "Ladders and your own safety",
+          "text": "Set ladders on firm, level ground and keep three points of contact. Use the right protective gear for the job. No job is worth an injury.",
+          "image": "illustration: a ladder on level ground with three-point contact"
+        },
+        {
+          "title": "Report incidents",
+          "text": "If something gets damaged or someone gets hurt, tell the customer and email support@attenteve.com the same day. Reporting quickly makes it easier to fix.",
+          "image": "illustration: an envelope addressed to support@attenteve.com"
+        }
+      ],
+      "questions": [
+        {
+          "question": "You find what looks like mold behind a wall. What do you do?",
+          "choices": [
+            "Keep working and finish fast",
+            "Stop, tell the customer and note it in the app",
+            "Paint over it"
+          ],
+          "correct": 1,
+          "explanation": "Stop work at a hazard, tell the customer and note it in the app."
+        },
+        {
+          "question": "Who can take an electrical contractor job?",
+          "choices": [
+            "Anyone with tools",
+            "A technician whose electrical license is approved in the app",
+            "Anyone who watched a video"
+          ],
+          "correct": 1,
+          "explanation": "Licensed jobs only show to technicians whose license is approved."
+        },
+        {
+          "question": "You accidentally scratch the customer's floor. You…",
+          "choices": [
+            "Say nothing",
+            "Tell the customer and email support the same day",
+            "Cover it with a rug"
+          ],
+          "correct": 1,
+          "explanation": "Tell the customer and report it to support the same day."
+        }
+      ]
+    },
+    {
+      "key": "inspections",
+      "version": 1,
+      "title": "Home assessments and inspections",
+      "minutes": 4,
+      "appliesTo": "ALL",
+      "jobs": {
+        "assessments": true,
+        "categories": [
+          "INSPECTIONS"
+        ],
+        "capabilities": [
+          "Water leak inspection",
+          "HVAC Full inspection",
+          "Electrical Panel inspection"
+        ]
+      },
+      "screens": [
+        {
+          "title": "What an assessment is",
+          "text": "An assessment is a walk-through of the home's key systems. CarePlus members get two a year. Your findings become the customer's home report, so they need to be accurate and clear.",
+          "image": "illustration: a technician with a clipboard in front of a house"
+        },
+        {
+          "title": "Follow the checklist",
+          "text": "Work through every checklist item in the app. Choose OK, Needs Attention, Urgent, or Not Accessible. Add the details asked for, like the AC filter size.",
+          "image": "screenshot: the 'Checklist Progress' bar and an item's status choices"
+        },
+        {
+          "title": "Photos for anything not OK",
+          "text": "Any item that isn't OK needs at least one clear photo. Take it close enough to show the problem, with enough around it to show where it is.",
+          "image": "illustration: a good close-up photo next to a too-far photo"
+        },
+        {
+          "title": "Write findings the customer understands",
+          "text": "In Findings and Notes, say what you saw and why it matters, in plain words. For example: the condenser has leaves packed against one side, which reduces airflow.",
+          "image": "screenshot: the 'Findings / Notes' box with a sample note"
+        },
+        {
+          "title": "Recommend, don't push",
+          "text": "If something needs repair, send a quote in the app. The customer decides. Your job is to inform, not to sell.",
+          "image": "screenshot: 'Send Quote to Customer'"
+        }
+      ],
+      "questions": [
+        {
+          "question": "A checklist item is marked Needs Attention. What else is required?",
+          "choices": [
+            "Nothing",
+            "At least one photo",
+            "The customer's signature"
+          ],
+          "correct": 1,
+          "explanation": "Every item that isn't OK needs at least one photo."
+        },
+        {
+          "question": "You can't reach the attic. What status do you choose?",
+          "choices": [
+            "OK",
+            "Urgent",
+            "Not Accessible"
+          ],
+          "correct": 2,
+          "explanation": "Use Not Accessible when you can't reach or see an item."
+        },
+        {
+          "question": "Which finding note is best?",
+          "choices": [
+            "Bad",
+            "Condenser blocked by leaves on one side, reducing airflow",
+            "Needs work, call me"
+          ],
+          "correct": 1,
+          "explanation": "Say what you saw and why it matters, in plain words."
+        }
+      ]
+    },
+    {
+      "key": "hvac",
+      "version": 1,
+      "title": "HVAC work",
+      "minutes": 3,
+      "appliesTo": [
+        "HVAC Contractor",
+        "HVAC Full inspection"
+      ],
+      "screens": [
+        {
+          "title": "License first",
+          "text": "HVAC contractor jobs only show to technicians with an approved HVAC license in the app. Keep it current: the app reminds you before it expires.",
+          "image": "screenshot: the HVAC license card with 'Approved'"
+        },
+        {
+          "title": "Power off before you open it",
+          "text": "Turn the system off at the thermostat and the disconnect before opening any panel. Check it's off before you touch anything.",
+          "image": "illustration: a thermostat set to off and an outdoor disconnect"
+        },
+        {
+          "title": "Filters",
+          "text": "For a filter replacement, record the filter size and MERV rating in the app. Note the date on the new filter frame if there's space.",
+          "image": "illustration: an AC filter with size and MERV labels"
+        },
+        {
+          "title": "The outdoor unit",
+          "text": "Check that the condenser has clear space around it and nothing blocking airflow. Photograph anything that needs attention.",
+          "image": "illustration: a condenser with clearance arrows"
+        }
+      ],
+      "questions": [
+        {
+          "question": "Before opening an HVAC panel you…",
+          "choices": [
+            "Turn the system off at the thermostat and disconnect",
+            "Turn it to maximum",
+            "Just work quickly"
+          ],
+          "correct": 0,
+          "explanation": "Always turn the system off and check it's off before opening a panel."
+        },
+        {
+          "question": "What do you record for a filter replacement?",
+          "choices": [
+            "The brand only",
+            "Size and MERV rating",
+            "Nothing"
+          ],
+          "correct": 1,
+          "explanation": "Record the filter size and MERV rating in the app."
+        },
+        {
+          "question": "Who sees HVAC contractor jobs?",
+          "choices": [
+            "Everyone",
+            "Technicians with an approved HVAC license",
+            "Only company owners"
+          ],
+          "correct": 1,
+          "explanation": "HVAC contractor jobs only show to technicians with an approved HVAC license."
+        }
+      ]
+    },
+    {
+      "key": "electrical",
+      "version": 1,
+      "title": "Electrical work",
+      "minutes": 3,
+      "appliesTo": [
+        "Electrical Contractor",
+        "Minor Electrical Adjustments",
+        "Install fans",
+        "Electrical Panel inspection"
+      ],
+      "screens": [
+        {
+          "title": "Know your limits",
+          "text": "Minor electrical jobs are like-for-like swaps, such as replacing a light fixture, a switch, an outlet or a ceiling fan. Bigger work, like new circuits or panel work, needs an approved electrical license.",
+          "image": "illustration: a light fixture and switch on one side, an electrical panel with a license badge on the other"
+        },
+        {
+          "title": "Breaker off, then test",
+          "text": "Turn off the breaker for the circuit. Then test with a voltage tester before you touch any wire. Never trust a switch alone.",
+          "image": "illustration: a breaker switched off and a non-contact voltage tester"
+        },
+        {
+          "title": "Ceiling fans and heavy fixtures",
+          "text": "Make sure the ceiling box is rated for a fan or a heavy fixture. If it isn't, stop and send the customer a quote for the right box.",
+          "image": "illustration: a fan-rated ceiling box"
+        },
+        {
+          "title": "Test and tidy",
+          "text": "Turn the power back on, test that everything works, and take your completion photo. Leave cover plates on and no loose wires.",
+          "image": "illustration: a working light and a finished cover plate"
+        }
+      ],
+      "questions": [
+        {
+          "question": "Before touching a wire you…",
+          "choices": [
+            "Turn off the light switch",
+            "Turn off the breaker and test with a voltage tester",
+            "Wear gloves"
+          ],
+          "correct": 1,
+          "explanation": "Turn off the breaker and test before you touch any wire."
+        },
+        {
+          "question": "Adding a new circuit is…",
+          "choices": [
+            "Minor electrical work anyone can do",
+            "Work that needs an approved electrical license",
+            "Not allowed for anyone"
+          ],
+          "correct": 1,
+          "explanation": "New circuits and panel work need an approved electrical license."
+        },
+        {
+          "question": "The ceiling box isn't rated for a fan. You…",
+          "choices": [
+            "Install the fan anyway",
+            "Stop and send a quote for the right box",
+            "Use extra screws"
+          ],
+          "correct": 1,
+          "explanation": "Stop and send the customer a quote for the right box."
+        }
+      ]
+    },
+    {
+      "key": "plumbing",
+      "version": 1,
+      "title": "Plumbing work",
+      "minutes": 3,
+      "appliesTo": [
+        "Plumbing Contractor",
+        "Minor Plumbing Fixes",
+        "Replace a toilet",
+        "New water softener/filtering system installation"
+      ],
+      "screens": [
+        {
+          "title": "Know your limits",
+          "text": "Minor plumbing jobs are fixture swaps and small repairs, like faucets, showerheads and toilet repairs. Bigger work, like new supply lines or a water softener system, needs an approved plumbing license.",
+          "image": "illustration: a faucet on one side, a water softener with a license badge on the other"
+        },
+        {
+          "title": "Water off first",
+          "text": "Shut off the water at the fixture's valve, or at the main if there isn't one. Open the faucet to release pressure before you start.",
+          "image": "illustration: a shut-off valve under a sink"
+        },
+        {
+          "title": "Protect the cabinet and floor",
+          "text": "Put a towel and a bucket under your work. Water damage is the most common complaint after plumbing jobs.",
+          "image": "illustration: a towel and a bucket under a sink trap"
+        },
+        {
+          "title": "Check for leaks before you leave",
+          "text": "Turn the water back on slowly, run it, and check every connection for drips. For a toilet leak check, use dye in the tank and wait to see if color reaches the bowl.",
+          "image": "illustration: a dry connection with a check mark, and a toilet tank with dye"
+        }
+      ],
+      "questions": [
+        {
+          "question": "Before replacing a faucet you…",
+          "choices": [
+            "Shut off the water and open the faucet to release pressure",
+            "Work fast with the water on",
+            "Turn off the water heater only"
+          ],
+          "correct": 0,
+          "explanation": "Shut off the water and release the pressure first."
+        },
+        {
+          "question": "Installing a water softener system needs…",
+          "choices": [
+            "Nothing special",
+            "An approved plumbing license",
+            "The customer's permission only"
+          ],
+          "correct": 1,
+          "explanation": "Bigger plumbing work like a water softener needs an approved plumbing license."
+        },
+        {
+          "question": "What do you do before leaving a plumbing job?",
+          "choices": [
+            "Run the water and check every connection for drips",
+            "Leave the water off",
+            "Ask the customer to check later"
+          ],
+          "correct": 0,
+          "explanation": "Always run the water and check for leaks before you leave."
+        }
+      ]
+    },
+    {
+      "key": "repairs-mounting-carpentry",
+      "version": 1,
+      "title": "Repairs, mounting and carpentry",
+      "minutes": 3,
+      "appliesTo": [
+        "Interior Repairs & Maintenance",
+        "Mounting & Installations",
+        "Carpentry & Assembly",
+        "Carpenter",
+        "Drywall work",
+        "Assembly new furniture",
+        "Move furniture",
+        "Install home appliances"
+      ],
+      "screens": [
+        {
+          "title": "Check before you drill",
+          "text": "Before drilling into a wall, use a stud finder and check for pipes and wires. Ask the customer if they know what's behind the wall.",
+          "image": "illustration: a stud finder on a wall with a pipe and a wire shown behind it"
+        },
+        {
+          "title": "The right anchor",
+          "text": "Mount heavy items like TVs, shelves and grab bars into studs, or use anchors rated for the weight. Grab bars must always be secured to support a person's weight.",
+          "image": "illustration: a TV bracket screwed into studs"
+        },
+        {
+          "title": "Protect and clean up",
+          "text": "Lay a drop cloth, contain dust, and vacuum when you're done. Take away packaging and debris unless the customer asks to keep it.",
+          "image": "illustration: a drop cloth and a vacuum"
+        },
+        {
+          "title": "Moving and assembly",
+          "text": "Lift with your legs and get help for heavy items. Protect floors and door frames when moving furniture. Check that assembled furniture is stable before you leave.",
+          "image": "illustration: two people carrying a dresser with corner guards"
+        }
+      ],
+      "questions": [
+        {
+          "question": "Before drilling into a wall you…",
+          "choices": [
+            "Just drill",
+            "Use a stud finder and check for pipes and wires",
+            "Ask Attenteve"
+          ],
+          "correct": 1,
+          "explanation": "Always check for studs, pipes and wires before drilling."
+        },
+        {
+          "question": "A grab bar must be…",
+          "choices": [
+            "Held with any anchor",
+            "Secured to support a person's weight",
+            "Glued"
+          ],
+          "correct": 1,
+          "explanation": "Grab bars must be secured to support a person's weight."
+        },
+        {
+          "question": "When you finish, the packaging and debris…",
+          "choices": [
+            "Stay for the customer",
+            "Go with you unless the customer asks to keep them",
+            "Go in the customer's trash can"
+          ],
+          "correct": 1,
+          "explanation": "Take away packaging and debris unless the customer asks to keep it."
+        }
+      ]
+    },
+    {
+      "key": "exterior",
+      "version": 1,
+      "title": "Exterior and outdoor work",
+      "minutes": 3,
+      "appliesTo": [
+        "Exterior & Outdoor Services",
+        "Pressure wash",
+        "Masonry",
+        "Roofing Contractor"
+      ],
+      "screens": [
+        {
+          "title": "Ladders outside",
+          "text": "Set the ladder on firm, level ground, extend it above the roof edge if you're climbing onto it, and keep three points of contact. Never use a ladder near power lines.",
+          "image": "illustration: a ladder against a gutter on level ground, away from a power line"
+        },
+        {
+          "title": "Weather",
+          "text": "Don't work on roofs, ladders or with pressure washers in rain, high wind or lightning. If the weather turns, use Reschedule, and the customer is told automatically.",
+          "image": "illustration: a cloud with rain and wind, and a calendar"
+        },
+        {
+          "title": "Pressure washing",
+          "text": "Use the right nozzle and keep your distance from windows, siding and paint. Close windows first and cover outdoor outlets and plants.",
+          "image": "illustration: a pressure washer spraying at a safe distance from a window"
+        },
+        {
+          "title": "Roofing needs a license",
+          "text": "Roofing contractor jobs only show to technicians with an approved roofing license in the app.",
+          "image": "screenshot: the roofing license card with 'Approved'"
+        }
+      ],
+      "questions": [
+        {
+          "question": "High wind starts during a gutter job. You…",
+          "choices": [
+            "Finish quickly",
+            "Stop and reschedule in the app",
+            "Hold the ladder tighter"
+          ],
+          "correct": 1,
+          "explanation": "Stop work in bad weather and reschedule in the app."
+        },
+        {
+          "question": "Before pressure washing you…",
+          "choices": [
+            "Close windows and cover outlets and plants",
+            "Open the windows for air",
+            "Nothing"
+          ],
+          "correct": 0,
+          "explanation": "Close windows and cover outdoor outlets and plants first."
+        },
+        {
+          "question": "Roofing contractor jobs show to…",
+          "choices": [
+            "Anyone with a ladder",
+            "Technicians with an approved roofing license",
+            "Pressure washing technicians"
+          ],
+          "correct": 1,
+          "explanation": "Roofing contractor jobs need an approved roofing license."
+        }
+      ]
+    },
+    {
+      "key": "quotes-and-projects",
+      "version": 1,
+      "title": "Quotes and larger projects",
+      "minutes": 3,
+      "appliesTo": [
+        "Roofing Contractor",
+        "Masonry",
+        "Renovation / General Contracting",
+        "Solar Installation"
+      ],
+      "screens": [
+        {
+          "title": "Quote jobs",
+          "text": "Some services, like roofing, masonry, renovation and solar, are priced by quote. The customer asks for a quote instead of booking a fixed price.",
+          "image": "screenshot: a 'Request Quote' service in the customer's app"
+        },
+        {
+          "title": "Send a clear quote",
+          "text": "Send your quote in the app. Make it complete: what's included, materials, and the total price. A clear quote avoids disputes later.",
+          "image": "screenshot: the quote form"
+        },
+        {
+          "title": "Site visits",
+          "text": "If the customer asks for a site visit, accept the date or propose a new one in the app. Work only starts after the customer approves your quote.",
+          "image": "screenshot: 'Site Visit Requested' with 'Accept Date' and 'Propose New Date'"
+        },
+        {
+          "title": "Permits and licenses",
+          "text": "Larger projects often need permits. Roofing, renovation and solar jobs only show to technicians whose license or certification is approved in the app.",
+          "image": "illustration: a permit on a clipboard and a license badge"
+        }
+      ],
+      "questions": [
+        {
+          "question": "When can work start on a quote job?",
+          "choices": [
+            "As soon as you arrive",
+            "After the customer approves your quote",
+            "After you take a deposit in cash"
+          ],
+          "correct": 1,
+          "explanation": "Work only starts after the customer approves your quote in the app."
+        },
+        {
+          "question": "A good quote includes…",
+          "choices": [
+            "Only the total",
+            "What's included, materials and the total price",
+            "A phone number to call"
+          ],
+          "correct": 1,
+          "explanation": "A complete quote lists what's included, materials and the total price."
+        },
+        {
+          "question": "The customer's site visit date doesn't work for you. You…",
+          "choices": [
+            "Ignore it",
+            "Propose a new date in the app",
+            "Text them from your own phone"
+          ],
+          "correct": 1,
+          "explanation": "Propose a new date in the app, and the customer confirms."
+        }
+      ]
+    },
+    {
+      "key": "home-monitoring",
+      "version": 1,
+      "title": "Home monitoring setup",
+      "minutes": 4,
+      "appliesTo": [
+        "Yolink Home Monitoring Setup"
+      ],
+      "screens": [
+        {
+          "title": "What this job is",
+          "text": "You install the customer's YoLink hub and sensors and connect them to Attenteve, so the home can send alerts. Read the job ticket first: it lists which sensors to install and where.",
+          "image": "illustration: a YoLink hub and leak sensors"
+        },
+        {
+          "title": "Set up the hub",
+          "text": "Plug in the hub and connect it to the customer's Wi-Fi or Ethernet. YoLink hubs need a 2.4 GHz network. Wait for a solid connection light before pairing sensors.",
+          "image": "illustration: a hub with a solid light and a 2.4 GHz Wi-Fi label"
+        },
+        {
+          "title": "Pair and name each sensor",
+          "text": "Pair each sensor in the customer's YoLink app. Give each one a clear name, like Water Heater Leak Sensor. That name is what shows up in alerts.",
+          "image": "illustration: a phone listing named sensors"
+        },
+        {
+          "title": "Place sensors where the ticket says",
+          "text": "Common spots are the AC drain pan, under the washing machine, at the water heater, and under the kitchen sink. Always follow the job ticket.",
+          "image": "illustration: a house cut-away with sensor spots marked"
+        },
+        {
+          "title": "Connect in the Attenteve app",
+          "text": "In the job, tap Connect Home Monitoring and enter the customer's UAID and Secret Key exactly as shown in their YoLink app. Attenteve checks them and shows how many devices it found. Make sure that number matches what you installed.",
+          "image": "screenshot: the 'Connect Home Monitoring' section"
+        },
+        {
+          "title": "If something doesn't work",
+          "text": "Hub won't connect: check it's on a 2.4 GHz network. Sensor won't pair: replace its battery. Credentials rejected: check for extra spaces; both are case-sensitive.",
+          "image": "illustration: three quick-fix cards"
+        }
+      ],
+      "questions": [
+        {
+          "question": "Which Wi-Fi network does a YoLink hub need?",
+          "choices": [
+            "5 GHz only",
+            "2.4 GHz",
+            "Any network"
+          ],
+          "correct": 1,
+          "explanation": "YoLink hubs need a 2.4 GHz network."
+        },
+        {
+          "question": "Attenteve found 3 devices but you installed 4. You…",
+          "choices": [
+            "Mark the job complete",
+            "Find the missing sensor before completing the job",
+            "Tell the customer to fix it later"
+          ],
+          "correct": 1,
+          "explanation": "The device count must match what you installed before you complete the job."
+        },
+        {
+          "question": "A sensor won't pair. What's the most common fix?",
+          "choices": [
+            "Replace its battery",
+            "Reset the customer's Wi-Fi",
+            "Use a different app"
+          ],
+          "correct": 0,
+          "explanation": "A low battery is the most common reason a sensor won't pair."
+        }
+      ]
+    }
+  ]
+}

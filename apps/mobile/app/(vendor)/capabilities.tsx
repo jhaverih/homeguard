@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,12 @@ const CERT_TYPE_LABEL: Record<string, string> = {
   ROOFING: 'Roofing license required',
   GENERAL_CONTRACTOR: 'General Contractor license required',
   NABCEP: 'NABCEP solar certification required',
+};
+
+// Capabilities that need their training module finished before they can be
+// selected (module keys in apps/api/training/modules.json).
+const TRAINING_MODULE_FOR: Record<string, string> = {
+  'Yolink Home Monitoring Setup': 'home-monitoring',
 };
 
 export default function CapabilitiesScreen() {
@@ -47,39 +53,17 @@ export default function CapabilitiesScreen() {
   const toggle = async (cap: any) => {
     const isSelected = selectedIds.has(cap.id);
     if (!isSelected && cap.requiresAcknowledgment && !cap.acknowledged) {
+      // Finishing the matching training module records the acknowledgement
+      // (apps/api training.service.ts), and the capability can then be selected.
+      const moduleKey = TRAINING_MODULE_FOR[cap.name];
       Alert.alert(
         'Training required',
-        'You need to review the training material before selecting this capability.',
+        `Take the short "${cap.name}" training first. When you finish it, come back here and select this service.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'View Training',
-            onPress: async () => {
-              if (cap.trainingDocumentUrl) {
-                const base = process.env.EXPO_PUBLIC_API_URL?.replace('/api', '') || 'http://192.168.86.29';
-                await Linking.openURL(`${base}${cap.trainingDocumentUrl}`);
-              }
-              Alert.alert(
-                'Confirm training reviewed',
-                `Have you reviewed the training material for "${cap.name}"?`,
-                [
-                  { text: 'Not yet', style: 'cancel' },
-                  {
-                    text: 'Yes, acknowledge',
-                    onPress: async () => {
-                      try {
-                        await vendorApi.acknowledgeCapability(cap.id);
-                        setCatalog((prev) => prev.map((c) => (c.id === cap.id ? { ...c, acknowledged: true } : c)));
-                        setSelectedIds((prev) => new Set(prev).add(cap.id));
-                      } catch (e: any) {
-                        Alert.alert('Error', e.message);
-                      }
-                    },
-                  },
-                ],
-              );
-            },
-          },
+          moduleKey
+            ? { text: 'Start training', onPress: () => router.push({ pathname: '/(vendor)/training-module', params: { key: moduleKey } }) }
+            : { text: 'My Training', onPress: () => router.push('/(vendor)/training') },
         ],
       );
       return;
@@ -127,7 +111,7 @@ export default function CapabilitiesScreen() {
                 <Text style={styles.rowSub}>{CERT_TYPE_LABEL[cap.requiredCertificationType] || 'License required'}</Text>
               )}
               {cap.requiresAcknowledgment && !cap.acknowledged && (
-                <Text style={styles.rowTraining}>Training required before selecting</Text>
+                <Text style={styles.rowTraining}>Take the training to select this</Text>
               )}
             </View>
           </TouchableOpacity>

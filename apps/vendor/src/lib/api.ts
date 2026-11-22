@@ -39,6 +39,11 @@ export const uploadsApi = {
   },
 };
 
+// Vendor training progress (taken in the Attenteve app).
+export const trainingApi = {
+  getTeam: () => api.get('/vendor/training/team').then((r) => r.data),
+};
+
 export const vendorApi = {
   getCustomers: () => api.get('/vendor/customers').then((r) => r.data),
   getPayments: () => api.get('/vendor/payments').then((r) => r.data),

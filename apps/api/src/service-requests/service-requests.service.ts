@@ -31,6 +31,7 @@ import { PropertyCharacteristicsService } from '../users/property-characteristic
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
 import { getVendorAccess, assertCanAcceptJobs, assertApprovedVendor } from '../vendor/vendor-access';
+import { getTrainingAccess, assertTrainedForJob } from '../training/training-access';
 
 // How close (in meters) the vendor's GPS needs to be to the job's geocoded
 // address before "I Have Arrived" is confirmable/auto-triggers — roughly
@@ -445,6 +446,7 @@ export class ServiceRequestsService {
     if (request.status !== ServiceRequestStatus.PENDING) {
       throw new BadRequestException('Request is no longer available');
     }
+    await assertTrainedForJob(this.dataSource, vendorId, request);
 
     const proposed = new Date(scheduledDate);
     if (proposed.getTime() <= Date.now()) {
@@ -1128,6 +1130,10 @@ export class ServiceRequestsService {
 
     const isElite = company?.planTier === 'ELITE';
 
+    // Required training (core, plus the module for each kind of work);
+    // vendors who were already working are let through until their grace date.
+    const training = await getTrainingAccess(this.dataSource, callerId);
+
     const [selections, approvedCerts] = await Promise.all([
       this.vendorCapabilitySelectionRepo.find({ where: { userId: callerId } }),
       this.vendorCertificationRepo.find({
@@ -1169,6 +1175,12 @@ export class ServiceRequestsService {
     const eliteWindowCutoff = new Date(Date.now() - elitePreferentialWindowMinutes * 60 * 1000);
 
     return all.filter((r) => {
+      const price = r.servicePriceId ? servicePriceMap.get(r.servicePriceId) : undefined;
+      const requiredCap = price?.requiredCapabilityId ? capabilityMap.get(price.requiredCapabilityId) : undefined;
+      if (!training.allows({ assessment: !r.servicePriceId, category: price?.category ?? null, capabilityName: requiredCap?.name ?? null })) {
+        return false;
+      }
+
       if (!r.servicePriceId) return true; // base subscription inspections — open to everyone
       const servicePrice = servicePriceMap.get(r.servicePriceId);
       if (!servicePrice?.requiredCapabilityId) return true; // no capability requirement

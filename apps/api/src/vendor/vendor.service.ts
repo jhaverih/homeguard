@@ -26,6 +26,7 @@ import { PricingService } from '../pricing/pricing.service';
 import { MarketplaceService } from '../marketplace/marketplace.service';
 import { ServiceGroup, SERVICE_GROUP_META } from '../common/enums/service-group.enum';
 import { calcAssessmentVendorCost } from '../common/utils/property-surcharge.utils';
+import { assertTrainedForJob, getTrainingAccess, jobTrainingInfo } from '../training/training-access';
 
 const CAPABILITY_SEED: {
   name: string;
@@ -257,6 +258,7 @@ export class VendorService implements OnModuleInit {
     if (!request || !request.vendorId || !teamIds.includes(request.vendorId)) {
       throw new NotFoundException('Job not found');
     }
+    await assertTrainedForJob(this.dataSource, technicianId, request, 'technician');
 
     request.vendorId = technicianId;
     return this.requestsRepo.save(request);
@@ -269,7 +271,18 @@ export class VendorService implements OnModuleInit {
       throw new NotFoundException('Job not found');
     }
 
-    const activeCounts = await Promise.all(teamIds.map(async (id) => {
+    // Only technicians whose training covers this job can be given it.
+    const job = await jobTrainingInfo(this.dataSource, request);
+    const trained = (await Promise.all(teamIds.map(async (id) => ((await getTrainingAccess(this.dataSource, id)).allows(job) ? id : null))))
+      .filter((id): id is string => !!id);
+    if (!trained.length) {
+      throw new ForbiddenException({
+        statusCode: 403, code: 'TRAINING_REQUIRED',
+        message: 'No one on your team has finished the training this job needs yet.',
+      });
+    }
+
+    const activeCounts = await Promise.all(trained.map(async (id) => {
       const count = await this.requestsRepo.count({
         where: { vendorId: id, status: In([
           ServiceRequestStatus.ACCEPTED, ServiceRequestStatus.VENDOR_EN_ROUTE, ServiceRequestStatus.IN_PROGRESS,
@@ -278,7 +291,7 @@ export class VendorService implements OnModuleInit {
       return { id, count };
     }));
     activeCounts.sort((a, b) => a.count - b.count);
-    const nextTechnicianId = activeCounts[0]?.id ?? userId;
+    const nextTechnicianId = activeCounts[0].id;
 
     request.vendorId = nextTechnicianId;
     return this.requestsRepo.save(request);

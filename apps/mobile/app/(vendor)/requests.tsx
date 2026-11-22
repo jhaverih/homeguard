@@ -6,7 +6,8 @@ import {
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { requestsApi, paymentsApi } from '../../src/services/api';
+import { requestsApi, paymentsApi, TrainingSummary } from '../../src/services/api';
+import { TrainingBanner } from '../../src/components/TrainingBanner';
 import { colors } from '../../src/theme';
 
 function DateTimeField({
@@ -97,6 +98,10 @@ export default function OpenRequestsScreen() {
   const [stripeReady, setStripeReady] = useState(true);
   const [acceptModal, setAcceptModal] = useState<{ visible: boolean; requestId: string; bookingGroupId: string | null; requestIds: string[] | null; preferredDate: Date | null }>({ visible: false, requestId: '', bookingGroupId: null, requestIds: null, preferredDate: null });
   const [vendorNotes, setVendorNotes] = useState('');
+  // Jobs are hidden until core training is done (apps/api training-access.ts).
+  const [training, setTraining] = useState<TrainingSummary | null>(null);
+  const trainingBlocks = !!training && !training.coreDone
+    && !(training.graceUntil && new Date(training.graceUntil).getTime() > Date.now());
 
   // Ad-hoc multi-select: lets a vendor pick several separate tickets from
   // ONE homeowner (regardless of whether they already share a bookingGroupId
@@ -318,6 +323,8 @@ export default function OpenRequestsScreen() {
           : 'Accept a request to get started. First to accept wins the job.'}
       </Text>
 
+      <TrainingBanner onSummary={setTraining} />
+
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={[styles.filterChip, view === 'open' && styles.filterChipActive]}
@@ -341,7 +348,9 @@ export default function OpenRequestsScreen() {
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
             {view === 'open'
-              ? 'No open requests right now. Check back soon!'
+              ? trainingBlocks
+                ? 'Jobs show here once you finish your core training.'
+                : 'No open requests right now. Check back soon!'
               : "You haven't rejected any jobs. Rejected jobs you can still claim will show up here."}
           </Text>
         </View>

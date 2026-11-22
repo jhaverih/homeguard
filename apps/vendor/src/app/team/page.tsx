@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { vendorApi, uploadsApi } from '@/lib/api';
+import { vendorApi, uploadsApi, trainingApi } from '@/lib/api';
 import { usePermissions } from '@/lib/permissions';
 
 export default function TeamPage() {
@@ -20,7 +20,15 @@ export default function TeamPage() {
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
-  const load = () => vendorApi.getTeam().then(setTeam);
+  // Training progress per team member (done in the Attenteve app; read-only here).
+  const [training, setTraining] = useState<Record<string, any>>({});
+
+  const load = () => Promise.all([
+    vendorApi.getTeam().then(setTeam),
+    trainingApi.getTeam()
+      .then((rows: any[]) => setTraining(Object.fromEntries(rows.map((r) => [r.userId, r]))))
+      .catch(() => setTraining({})),
+  ]);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
 
@@ -154,6 +162,7 @@ export default function TeamPage() {
               <th className="text-left px-6 py-4 font-semibold text-steel">Email</th>
               <th className="text-left px-6 py-4 font-semibold text-steel">Role</th>
               <th className="text-left px-6 py-4 font-semibold text-steel">Status</th>
+              <th className="text-left px-6 py-4 font-semibold text-steel">Training</th>
               <th className="text-left px-6 py-4 font-semibold text-steel">Action</th>
             </tr>
           </thead>
@@ -168,7 +177,7 @@ export default function TeamPage() {
                   )}
                 </td>
                 {editingId === t.id ? (
-                  <td colSpan={5} className="px-6 py-4">
+                  <td colSpan={6} className="px-6 py-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <input
                         value={editForm.firstName}
@@ -208,6 +217,7 @@ export default function TeamPage() {
                         {t.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4"><TrainingCell t={training[t.id]} /></td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <button
@@ -234,6 +244,25 @@ export default function TeamPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function TrainingCell({ t }: { t?: any }) {
+  if (!t) return <span className="text-steel">—</span>;
+  const day = (v: string | null) => (v ? new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
+  if (t.allDone) {
+    return <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-green-50 text-green-700">Done {day(t.completedAt)}</span>;
+  }
+  const grace = t.graceUntil && new Date(t.graceUntil).getTime() > Date.now();
+  return (
+    <div>
+      <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${t.coreDone ? 'bg-canvas text-steel' : 'bg-yellow-50 text-yellow-700'}`}>
+        {t.doneCount} of {t.requiredCount} done
+      </span>
+      <p className="text-xs text-steel mt-1">
+        {grace ? `Due ${day(t.graceUntil)}` : t.coreDone ? 'Some service jobs hidden' : 'No jobs until core is done'}
+      </p>
     </div>
   );
 }

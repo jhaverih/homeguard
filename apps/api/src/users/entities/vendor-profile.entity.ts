@@ -55,6 +55,17 @@ export class VendorProfile {
   @Column({ default: false })
   isCompanyAdmin: boolean;
 
+  // Vendors already working when training was introduced keep seeing jobs
+  // until this date (training/training.service.ts backfill); null = no grace,
+  // jobs stay hidden until the required training is done.
+  @Column({ type: 'timestamp', nullable: true })
+  trainingGraceUntil: Date | null;
+
+  // Last training reminder sent ("<outstanding modules>|<stage>"), so the
+  // daily reminder run never repeats one.
+  @Column({ type: 'varchar', nullable: true })
+  trainingReminderKey: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -1254,7 +1254,7 @@ export class AdminService {
       city: profile.city,
       state: profile.state,
       zipCode: profile.zipCode,
-      customerNotes: 'Home monitoring setup — requested by Houmi',
+      customerNotes: 'Home monitoring setup — requested by Attenteve',
     });
   }
 

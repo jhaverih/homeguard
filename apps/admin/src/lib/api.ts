@@ -143,6 +143,8 @@ export const adminApi = {
     api.patch(`/admin/vendors/${id}/plan`, { tier, expiresAt }).then((r) => r.data),
   removeVendor: (id: string) => api.delete(`/admin/vendors/${id}`).then((r) => r.data),
   getVendorKpi: (id: string) => api.get(`/admin/vendors/${id}/kpi`).then((r) => r.data),
+  // Training progress and completion records for the vendor's whole company.
+  getVendorTraining: (id: string) => api.get(`/admin/vendors/${id}/training`).then((r) => r.data),
   updateVendorServiceArea: (id: string, data: { address?: string; city?: string; state?: string; zipCode?: string; serviceCounties?: string[] }) =>
     api.patch(`/admin/vendors/${id}/service-area`, data).then((r) => r.data),
   getCounties: (): Promise<Record<string, { fips: string; name: string }[]>> => api.get('/admin/counties').then((r) => r.data),

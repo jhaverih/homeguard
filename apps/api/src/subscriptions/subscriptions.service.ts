@@ -481,7 +481,7 @@ export class SubscriptionsService implements OnModuleInit {
     return {};
   }
 
-  // Notifies Houmi admins once a customer is confirmed on a paid Standard/Premium
+  // Notifies Attenteve admins once a customer is confirmed on a paid Standard/Premium
   // plan and doesn't yet have home monitoring — admins review and dispatch a
   // vendor via the "Request Connection" action (admin.service.ts). Safe to call
   // repeatedly: the existing-request check prevents duplicate notifications.

@@ -38,6 +38,9 @@ function resolveNotificationRoute(screen: string | undefined, role: string | und
       return '/(vendor)/my-jobs';
     case 'vendor-credentials': // insurance / license expiry reminders
       return isVendor ? '/(vendor-onboarding)/credentials' : '/(customer)/notifications';
+    case 'vendor-training': // training reminders and completion
+    case 'vendor-team': // a technician finished their training
+      return isVendor ? '/(vendor)/training' : '/(customer)/notifications';
     case 'capabilities':
       return isVendor ? '/(vendor)/capabilities' : '/(customer)/notifications';
     case 'notifications':

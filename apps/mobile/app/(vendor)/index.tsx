@@ -7,6 +7,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '../../src/store/auth.store';
 import { requestsApi, paymentsApi, onboardingApi } from '../../src/services/api';
 import { colors } from '../../src/theme';
+import { TrainingBanner } from '../../src/components/TrainingBanner';
 
 // Required, not dismissable: the API refuses every Accept until the company's
 // Stripe payout account is finished (vendor-access.ts assertCanAcceptJobs).
@@ -111,6 +112,9 @@ export default function VendorDashboard() {
           <Text style={styles.expiryBody}>Upload the renewed insurance or license before then to keep access to jobs. Tap to renew.</Text>
         </TouchableOpacity>
       )}
+
+      <View style={{ height: 12 }} />
+      <TrainingBanner />
 
       <View style={styles.header}>
         <Text style={styles.greeting}>Hello, {user?.firstName}!</Text>

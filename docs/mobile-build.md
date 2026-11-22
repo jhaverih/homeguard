@@ -47,4 +47,4 @@ Local variable/function names get minified and won't survive this check — use 
 
 ## Distributing the build
 
-Copy the built APK to `Q:\homeguard\houmi-latest.apk`, verifying the copy is byte-identical (`sha256sum` on both source and destination) before considering the build done.
+Copy the built APK to `Q:\homeguard\attenteve-latest.apk`, verifying the copy is byte-identical (`sha256sum` on both source and destination) before considering the build done.

@@ -601,7 +601,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
       const client = mqtt.connect(MQTT_BROKER, {
         username: token,
         password: '',
-        clientId: `houmi-${home.id}-${Date.now()}`,
+        clientId: `attenteve-${home.id}-${Date.now()}`,
         clean: true,
         keepalive: 30,
         reconnectPeriod: 0,

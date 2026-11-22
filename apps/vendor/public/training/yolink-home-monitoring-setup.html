@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Home Monitoring Setup — Installer Guide | Houmi</title>
+<title>Home Monitoring Setup — Installer Guide | Attenteve</title>
 <style>
   :root { color-scheme: light dark; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; line-height: 1.6; color: #1a1a1a; background: #fff; }
@@ -32,10 +32,10 @@
 <body>
 
 <h1>Home Monitoring Setup — Installer Guide</h1>
-<p class="subtitle">Read this before selecting the "Yolink Home Monitoring Setup" capability. It covers how to pair the customer's Yolink hub and sensors, and where Houmi expects each sensor type to be placed.</p>
+<p class="subtitle">Read this before selecting the "Yolink Home Monitoring Setup" capability. It covers how to pair the customer's Yolink hub and sensors, and where Attenteve expects each sensor type to be placed.</p>
 
 <div class="box">
-  <strong>Before you go on-site:</strong> the customer has already generated their own Yolink credentials (UAID + Secret Key) from their own Yolink app under <em>Account → Advanced Settings → User Access Credentials</em>. You'll enter those in the Houmi vendor app on the job screen once the hub is online — Houmi never asks for the customer's Yolink login.
+  <strong>Before you go on-site:</strong> the customer has already generated their own Yolink credentials (UAID + Secret Key) from their own Yolink app under <em>Account → Advanced Settings → User Access Credentials</em>. You'll enter those in the Attenteve app on the job screen once the hub is online — Attenteve never asks for the customer's Yolink login.
 </div>
 
 <h2>1. Yolink hardware setup (on-site)</h2>
@@ -43,44 +43,28 @@
   <li>Unbox the Yolink Hub and connect it to power and the customer's Wi-Fi/Ethernet per the included quick-start card.</li>
   <li>Confirm the hub shows a solid connection light before pairing any sensors — see YoSmart's official hub setup guide: <a href="https://www.yosmart.com/support" target="_blank" rel="noopener">yosmart.com/support</a>.</li>
   <li>Pair each sensor to the hub using the Yolink app (the customer's own account, on their phone or yours if they've shared temporary access) — hold the sensor's pairing button per the model's included instructions until the hub confirms.</li>
-  <li>Label each sensor in the Yolink app with a clear name (e.g. "Water Heater Leak Sensor") — this name is what shows up in Houmi alerts later.</li>
+  <li>Label each sensor in the Yolink app with a clear name (e.g. "Water Heater Leak Sensor") — this name is what shows up in Attenteve alerts later.</li>
 </ol>
 
 <h2>2. Where sensors go</h2>
-<p>What gets installed depends on the customer's Houmi plan:</p>
-
-<h3>Standard plan</h3>
-<table>
-  <tr><th>Sensor</th><th>Placement</th></tr>
-  <tr><td>Leak sensor</td><td>AC drainage pan (condensate pan under the air handler)</td></tr>
-  <tr><td>Leak sensor</td><td>Washer pan, directly under the washing machine drain</td></tr>
-</table>
-
-<h3>Premium plan (includes everything in Standard, plus)</h3>
-<table>
-  <tr><th>Sensor</th><th>Placement</th></tr>
-  <tr><td>Leak sensor</td><td>Water heater base</td></tr>
-  <tr><td>Leak sensor</td><td>Under kitchen sink, dishwasher supply line</td></tr>
-  <tr><td>Temp/Humidity sensor</td><td>Near the HVAC return, for full system monitoring</td></tr>
-  <tr><td>Vibration/door sensor</td><td>Electrical panel or utility closet, if requested on the ticket</td></tr>
-</table>
+<p>The job ticket in the Attenteve app lists which sensors this customer gets and where each one goes. Follow the ticket exactly, and read any customer notes on it before you start.</p>
 
 <div class="warn">
-  Always check the specific job ticket in the Houmi vendor app for any customer-specific notes before finalizing placement — the tables above are the default, not a substitute for reading the ticket.
+  If a location on the ticket isn't possible (no access, no power, nowhere to mount the sensor), message the customer through the app before you change anything, and note what you did on the job.
 </div>
 
-<h2>3. Confirming and connecting in Houmi</h2>
+<h2>3. Confirming and connecting in Attenteve</h2>
 <ol>
-  <li>Once all sensors are paired and reporting in the Yolink app, open the job in the Houmi vendor app.</li>
+  <li>Once all sensors are paired and reporting in the Yolink app, open the job in the Attenteve app.</li>
   <li>Tap <strong>Connect Home Monitoring</strong> and enter the customer's UAID and Secret Key exactly as shown in their Yolink app.</li>
-  <li>Houmi verifies the credentials live against Yolink and shows you the device count found — confirm it matches what you installed before marking the job complete.</li>
+  <li>Attenteve verifies the credentials live against Yolink and shows you the device count found — confirm it matches what you installed before marking the job complete.</li>
 </ol>
 
 <h2>4. Troubleshooting</h2>
 <ul>
   <li><strong>Hub won't connect to Wi-Fi:</strong> confirm 2.4GHz network (Yolink hubs don't support 5GHz-only networks).</li>
   <li><strong>Sensor won't pair:</strong> replace the battery — a low sensor battery is the most common pairing failure.</li>
-  <li><strong>Credentials rejected in the Houmi app:</strong> double-check for extra spaces when copying the UAID/Secret Key from the Yolink app; both are case-sensitive.</li>
+  <li><strong>Credentials rejected in the Attenteve app:</strong> double-check for extra spaces when copying the UAID/Secret Key from the Yolink app; both are case-sensitive.</li>
 </ul>
 
 <p class="subtitle" style="margin-top:40px">Once you've read this guide, go back to <strong>My Capabilities &amp; Certifications</strong> in the Vendor Portal and confirm you understand the installation process to unlock this capability.</p>

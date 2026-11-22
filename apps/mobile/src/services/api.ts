@@ -460,6 +460,40 @@ export const vendorApi = {
   }) => api.post('/vendor/application', data),
 };
 
+// Vendor training (apps/api src/training): short narrated modules with a
+// few questions each. Core modules unlock jobs; service modules unlock the
+// jobs for that service.
+export type TrainingStatus = 'NOT_STARTED' | 'DONE' | 'UPDATE_NEEDED';
+export type TrainingModuleSummary = {
+  key: string; title: string; minutes: number; core: boolean; version: number;
+  status: TrainingStatus; completedAt: string | null; confirmedName: string | null;
+};
+export type TrainingSummary = {
+  modules: TrainingModuleSummary[];
+  requiredCount: number; doneCount: number; minutesLeft: number;
+  coreDone: boolean; allDone: boolean; completedAt: string | null; graceUntil: string | null;
+};
+export type TrainingQuestion = { question: string; choices: string[]; correct: number; explanation: string };
+export type TrainingModuleContent = {
+  key: string; version: number; title: string; minutes: number; core: boolean;
+  status: TrainingStatus; assigned: boolean;
+  screens: { title: string; text: string; imageUrl: string | null; audioUrl: string | null }[];
+  questions: TrainingQuestion[];
+};
+export type TeamMemberTraining = TrainingSummary & { userId: string; name: string; email: string | null; isCompanyAdmin: boolean };
+
+/** Full URL for a training picture or narration path returned by the API. */
+export const trainingAssetUrl = (path: string | null) => (path ? `${API_URL.replace(/\/$/, '')}/${path}` : null);
+
+export const trainingApi = {
+  getMine: (): Promise<TrainingSummary> => api.get('/vendor/training') as any,
+  getTeam: (): Promise<TeamMemberTraining[]> => api.get('/vendor/training/team') as any,
+  getModule: (key: string): Promise<TrainingModuleContent> => api.get(`/vendor/training/${key}`) as any,
+  complete: (key: string, data: {
+    version: number; answers: number[]; attempts: number; answersCorrectFirstTry: number; confirmedName: string;
+  }): Promise<TrainingSummary> => api.post(`/vendor/training/${key}/complete`, data) as any,
+};
+
 // The vendor application before approval — the only vendor endpoints the API
 // opens to a company that isn't approved yet (apps/api VendorOnboardingController).
 export type ChecklistItem = {
