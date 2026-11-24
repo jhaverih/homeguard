@@ -26,7 +26,7 @@
         },
         {
           "title": "Care Plan and CarePlus",
-          "text": "Every customer has a membership. The Care Plan is free. CarePlus is a yearly plan that includes two home inspections a year and some routine care, like an AC filter replacement and a toilet leak check. The job screen always shows you what the customer's plan covers.",
+          "text": "Every customer has a membership. The Care Plan is free. CarePlus is a yearly plan that includes two home assessments a year and some routine care, like an AC filter replacement and a toilet leak check. The job screen always shows you what the customer's plan covers.",
           "image": "illustration: two plan cards, Care Plan and CarePlus, with a check mark list"
         },
         {
@@ -93,7 +93,7 @@
         },
         {
           "title": "Do the work and the checklist",
-          "text": "Some jobs, like inspections, come with a checklist. Give every item a status: OK, Needs Attention, Urgent, or Not Accessible. Any item that isn't OK needs a photo. You can't close the job until every item is done.",
+          "text": "Some jobs, like assessments, come with a checklist. Give every item a status: OK, Needs Attention, Urgent, or Not Accessible. Any item that isn't OK needs a photo. You can't close the job until every item is done.",
           "image": "screenshot: a checklist item with the four status choices and the photo button"
         },
         {
@@ -421,7 +421,7 @@
     {
       "key": "inspections",
       "version": 1,
-      "title": "Home assessments and inspections",
+      "title": "Home assessments",
       "minutes": 4,
       "appliesTo": "ALL",
       "jobs": {

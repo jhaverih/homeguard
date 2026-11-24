@@ -37,6 +37,16 @@ describe('training content file', () => {
     expect(text).not.toMatch(/houmi/i);
     expect(text).not.toMatch(/markup|15%/i);
   });
+
+  it('says "assessment", never "inspection", in anything a technician sees or hears', () => {
+    // Keys, job categories and capability names are internal and must match the database.
+    const seen = modules.map((m) => ({
+      title: m.title,
+      screens: m.screens.map((s) => [s.title, s.text]),
+      questions: m.questions,
+    }));
+    expect(JSON.stringify(seen)).not.toMatch(/inspect/i);
+  });
 });
 
 describe('assignedModules', () => {

@@ -12,6 +12,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - Bump the version in the root `package.json` on any entry meaningful enough that "what version are we on" is a question someone might ask — a new customer/vendor-facing feature or a fix for a production incident. Routine internal refactors don't need a bump. Use semver loosely: patch for fixes, minor for additive features, major only for a genuine breaking change to a public API contract.
 - This file starts at the point version-conscious changelog discipline began (2026-07-19, version bumped `0.0.1` → `0.2.0` to reflect that substantial platform work already shipped before this practice existed — see "Earlier history" below, reconstructed from project memory rather than tracked in real time). Going forward, don't let it drift out of date the way the pre-2026-07-19 history did.
 
+## 2026-11-24
+
+### Fixed
+- **mobile**: After finishing a training module, "Next: <module>" seemed to do nothing. The player is a hidden tab that stays mounted, so opening another module only changed its `key` param and the player kept the previous module's "done" state. It is now keyed on the module and on each visit, so every open starts fresh. Saved screen positions still resume.
+
+### Changed
+- **api**: The training says "assessment" instead of "inspection" in everything technicians see or hear: the CarePlus description, the checklist screen and the module title, now "Home assessments". Two narration clips were re-recorded. A test now guards the wording. Internal names (the `INSPECTIONS` category and capability names) are unchanged.
+
 ## 2026-11-22
 
 ### Added

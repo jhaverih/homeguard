@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
@@ -19,8 +19,22 @@ type Phase = 'screens' | 'questions' | 'confirm' | 'done';
 const posKey = (key: string, version: number) => `training-pos:${key}:${version}`;
 const SOUND_KEY = 'training-sound';
 
+// This screen is a hidden tab, so it stays mounted and opening another module
+// only changes the `key` param. Keying the player on the module remounts it,
+// so it starts fresh instead of keeping the last module's "done" state.
 export default function TrainingModuleScreen() {
   const { key } = useLocalSearchParams<{ key: string }>();
+  // Also restart when the same module is opened again from My Training.
+  const [visit, setVisit] = useState(0);
+  const seen = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (seen.current) setVisit((v) => v + 1);
+    seen.current = true;
+  }, []));
+  return <ModulePlayer key={`${key}:${visit}`} moduleKey={String(key)} />;
+}
+
+function ModulePlayer({ moduleKey: key }: { moduleKey: string }) {
   const navigation = useNavigation();
   const { user } = useAuthStore();
   const [mod, setMod] = useState<TrainingModuleContent | null>(null);
