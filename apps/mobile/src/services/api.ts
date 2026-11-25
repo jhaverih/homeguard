@@ -35,6 +35,15 @@ api.interceptors.response.use(
       // No response = network error (wrong WiFi, server down, timeout)
       return Promise.reject(new Error('NETWORK_ERROR'));
     }
+    // The saved sign-in was refused (it lasts 7 days, or the account was
+    // suspended). Without this the app kept showing the cached account while
+    // every call failed — e.g. "Could not save your acceptance". Sign out so
+    // the user lands on the sign-in screen. Sign-in calls themselves 401 on a
+    // wrong password, so they're left alone.
+    if (err.response.status === 401 && err.config?.headers?.Authorization && !String(err.config?.url ?? '').startsWith('/auth/')) {
+      onSessionExpired?.();
+      return Promise.reject(new Error('Your sign-in has expired. Please sign in again.'));
+    }
     // A credential expired mid-session (apps/api vendor-access.ts): every
     // vendor call now 403s with this code, so go straight to renewal.
     if (err.response?.data?.code === 'CREDENTIALS_EXPIRED') openCredentialRenewal();
@@ -43,6 +52,11 @@ api.interceptors.response.use(
     return Promise.reject(new Error(message));
   },
 );
+
+// Set by the auth store (it imports this module, so it registers itself
+// instead of being imported here).
+let onSessionExpired: (() => void) | null = null;
+export const setSessionExpiredHandler = (fn: (() => void) | null) => { onSessionExpired = fn; };
 
 let renewalOpenedAt = 0;
 function openCredentialRenewal() {

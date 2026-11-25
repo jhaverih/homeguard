@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { setMemoryToken, userApi, legalApi } from '../services/api';
+import { Alert } from 'react-native';
+import { setMemoryToken, setSessionExpiredHandler, userApi, legalApi } from '../services/api';
 import { disconnectSocket } from '../services/socket';
 
 interface User {
@@ -103,3 +104,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 }));
+
+// When the server refuses the saved sign-in, sign out once (several screens'
+// calls fail together) and say why. Clearing the user sends the root layout
+// to the welcome screen.
+let expiring = false;
+setSessionExpiredHandler(() => {
+  if (expiring || !useAuthStore.getState().user) return;
+  expiring = true;
+  useAuthStore.getState().logout()
+    .catch(() => {})
+    .finally(() => {
+      expiring = false;
+      Alert.alert('Please sign in again', 'Your sign-in has expired. Sign in to continue.');
+    });
+});
