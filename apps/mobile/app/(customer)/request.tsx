@@ -1103,6 +1103,9 @@ export default function RequestScreen() {
         <Modal visible={serviceConfirmModal} transparent animationType="fade">
           <View style={styles.addonOverlay}>
             <View style={styles.addonCard}>
+              {/* The list scrolls so the buttons below stay on screen with
+                  several services or large text sizes. */}
+              <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ flexGrow: 0 }}>
               <Ionicons name="construct-outline" size={40} color={colors.lanternDeep} style={{ alignSelf: 'center', marginBottom: 12 }} />
               <Text style={styles.addonTitle}>Confirm Service Request</Text>
               <Text style={styles.addonBody}>
@@ -1120,11 +1123,14 @@ export default function RequestScreen() {
               ))}
               {selectedServices.length > 1 && (
                 <View style={[styles.addonPriceRow, { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, paddingTop: 12 }]}>
-                  <Text style={[styles.addonPriceLabel, { fontWeight: '800' }]}>Total</Text>
+                  <Text style={[styles.addonPriceLabel, { fontWeight: '800' }]}>
+                    {selectedServices.some((s) => s.requiresQuote) ? 'Total before quotes' : 'Total'}
+                  </Text>
                   <Text style={[styles.addonPrice, { fontSize: 20 }]}>${totalServicePrice}</Text>
                 </View>
               )}
               <Text style={[styles.addonNote, { marginTop: 12 }]}>Payment will be processed upon completion.</Text>
+              </ScrollView>
               <TouchableOpacity style={styles.addonConfirmBtn} onPress={doSubmitServices}>
                 <Text style={styles.addonConfirmText}>Confirm Request</Text>
               </TouchableOpacity>
