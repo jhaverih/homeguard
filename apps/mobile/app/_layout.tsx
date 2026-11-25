@@ -43,6 +43,10 @@ function resolveNotificationRoute(screen: string | undefined, role: string | und
       return isVendor ? '/(vendor)/training' : '/(customer)/notifications';
     case 'capabilities':
       return isVendor ? '/(vendor)/capabilities' : '/(customer)/notifications';
+    case 'family-invite': // someone invited this user to their home
+      return '/family-invite';
+    case 'profile': // e.g. a family member accepted your invitation
+      return isVendor ? '/(vendor)/profile' : '/(customer)/profile';
     case 'notifications':
     default:
       return isVendor ? '/(vendor)/notifications' : '/(customer)/notifications';
@@ -62,6 +66,9 @@ function AuthRedirect() {
     if (isLoading) return;
 
     const inAuth = segments[0] === '(auth)';
+    // The family invitation screen works signed in or out (the email's Join
+    // link opens it either way), so neither redirect applies to it.
+    if ((segments[0] as string) === 'family-invite') return;
 
     if (!user) {
       if (!inAuth) router.replace('/(auth)/welcome');

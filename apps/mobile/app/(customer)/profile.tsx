@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuthStore } from '../../src/store/auth.store';
-import { userApi, subscriptionsApi, teamApi } from '../../src/services/api';
+import { userApi, subscriptionsApi, teamApi, familyApi, SentFamilyInvite } from '../../src/services/api';
 import { api } from '../../src/services/api';
 import { colors } from '../../src/theme';
 
@@ -26,6 +26,9 @@ export default function CustomerProfileScreen() {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [showFamilyForm, setShowFamilyForm] = useState(false);
   const [familyEmail, setFamilyEmail] = useState('');
+  const [familyName, setFamilyName] = useState('');
+  const [pendingInvites, setPendingInvites] = useState<SentFamilyInvite[]>([]);
+  const [isFamilyMember, setIsFamilyMember] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
 
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -40,14 +43,17 @@ export default function CustomerProfileScreen() {
   useFocusEffect(useCallback(() => {
     (async () => {
       try {
-        const [me, sub, members]: any[] = await Promise.all([
+        const [me, sub, members, invites]: any[] = await Promise.all([
           userApi.getMe(),
           subscriptionsApi.getMySubscription().catch(() => null),
           teamApi.getMembers().catch(() => []),
+          familyApi.listSent().catch(() => []),
         ]);
         setProfile(me?.customerProfile);
+        setIsFamilyMember(!!me?.parentUserId);
         setSubscription(sub);
         setFamilyMembers(Array.isArray(members) ? members : []);
+        setPendingInvites(Array.isArray(invites) ? invites : []);
 
         const hasHardware = await LocalAuthentication.hasHardwareAsync();
         const isEnrolled = await LocalAuthentication.isEnrolledAsync();
@@ -64,21 +70,50 @@ export default function CustomerProfileScreen() {
     })();
   }, []));
 
-  const addFamilyMember = async () => {
-    if (!familyEmail.trim()) { Alert.alert('Required', 'Enter the family member\'s email address'); return; }
+  // Family members are invited by email and join when they accept
+  // (apps/api/src/family): nobody is attached without saying yes.
+  const inviteFamilyMember = async () => {
+    const email = familyEmail.trim().toLowerCase();
+    if (!email) { Alert.alert('Required', "Enter the family member's email address"); return; }
     setAddingMember(true);
     try {
-      await teamApi.addMember(familyEmail.trim().toLowerCase());
-      const members: any = await teamApi.getMembers();
-      setFamilyMembers(Array.isArray(members) ? members : []);
+      await familyApi.invite(email, familyName.trim() || undefined);
+      setPendingInvites(await familyApi.listSent());
       setFamilyEmail('');
+      setFamilyName('');
       setShowFamilyForm(false);
-      Alert.alert('Added', 'Family member added. They can now see your assessments.');
+      Alert.alert('Invitation sent', `We emailed ${email} an invitation. They'll join your home when they accept.`);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
       setAddingMember(false);
     }
+  };
+
+  const resendInvite = async (inv: SentFamilyInvite) => {
+    try {
+      await familyApi.resend(inv.id);
+      setPendingInvites(await familyApi.listSent());
+      Alert.alert('Sent again', `We emailed ${inv.email} the invitation again.`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const cancelInvite = (inv: SentFamilyInvite) => {
+    Alert.alert('Cancel invitation?', `${inv.email} won't be able to use it.`, [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Cancel invitation', style: 'destructive', onPress: async () => {
+          try {
+            await familyApi.cancel(inv.id);
+            setPendingInvites((prev) => prev.filter((p) => p.id !== inv.id));
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+          }
+        },
+      },
+    ]);
   };
 
   const removeFamilyMember = (member: any) => {
@@ -200,8 +235,11 @@ export default function CustomerProfileScreen() {
 
       <Text style={styles.sectionTitle}>Family Members</Text>
       <View style={styles.card}>
-        {familyMembers.length === 0 && !showFamilyForm && (
-          <Text style={styles.emptyNote}>No family members added yet.</Text>
+        {isFamilyMember && familyMembers.length === 0 && (
+          <Text style={styles.emptyNote}>You're a family member of this home. The account holder manages who's in it.</Text>
+        )}
+        {!isFamilyMember && familyMembers.length === 0 && pendingInvites.length === 0 && !showFamilyForm && (
+          <Text style={styles.emptyNote}>Invite family members to share this home: its plan, visits and reports.</Text>
         )}
         {familyMembers.map((m: any) => (
           <View key={m.id} style={styles.memberRow}>
@@ -212,13 +250,41 @@ export default function CustomerProfileScreen() {
               <Text style={styles.memberName}>{m.firstName} {m.lastName}</Text>
               <Text style={styles.memberEmail}>{m.email}</Text>
             </View>
-            <TouchableOpacity onPress={() => removeFamilyMember(m)} style={styles.removeBtn}>
-              <Text style={styles.removeBtnText}>Remove</Text>
-            </TouchableOpacity>
+            {!isFamilyMember && (
+              <TouchableOpacity onPress={() => removeFamilyMember(m)} style={styles.removeBtn}>
+                <Text style={styles.removeBtnText}>Remove</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+        {pendingInvites.map((inv) => (
+          <View key={inv.id} style={styles.memberRow}>
+            <View style={[styles.memberAvatar, { backgroundColor: colors.mist }]}>
+              <Ionicons name="mail-outline" size={18} color={colors.lanternDeep} />
+            </View>
+            <View style={styles.memberInfo}>
+              <Text style={styles.memberName}>{inv.firstName || inv.email}</Text>
+              <Text style={styles.memberEmail}>
+                {inv.expired ? 'Invitation expired' : 'Invited, waiting for them to accept'}
+                {inv.firstName ? ` · ${inv.email}` : ''}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 18, marginTop: 6 }}>
+                <Text style={styles.inviteAction} onPress={() => resendInvite(inv)}>Resend</Text>
+                <Text style={[styles.inviteAction, { color: colors.steel }]} onPress={() => cancelInvite(inv)}>Cancel</Text>
+              </View>
+            </View>
           </View>
         ))}
         {showFamilyForm && (
           <View style={styles.formInner}>
+            <TextInput
+              style={styles.input}
+              placeholder="First name (optional)"
+              placeholderTextColor={colors.steel}
+              value={familyName}
+              onChangeText={setFamilyName}
+              autoCapitalize="words"
+            />
             <TextInput
               style={styles.input}
               placeholder="Family member's email"
@@ -228,17 +294,18 @@ export default function CustomerProfileScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
             />
-            <TouchableOpacity style={styles.saveBtn} onPress={addFamilyMember} disabled={addingMember}>
-              {addingMember ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Add Member</Text>}
+            <Text style={styles.emptyNote}>We'll email them an invitation. They join your home when they accept.</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={inviteFamilyMember} disabled={addingMember}>
+              {addingMember ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.saveBtnText}>Send Invitation</Text>}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setShowFamilyForm(false); setFamilyEmail(''); }} style={styles.cancelInlineBtn}>
+            <TouchableOpacity onPress={() => { setShowFamilyForm(false); setFamilyEmail(''); setFamilyName(''); }} style={styles.cancelInlineBtn}>
               <Text style={styles.cancelInlineText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         )}
-        {!showFamilyForm && (
+        {!showFamilyForm && !isFamilyMember && (
           <TouchableOpacity style={styles.addFamilyBtn} onPress={() => setShowFamilyForm(true)}>
-            <Text style={styles.addFamilyBtnText}>+ Add Family Member</Text>
+            <Text style={styles.addFamilyBtnText}>+ Invite Family Member</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -390,6 +457,7 @@ const styles = StyleSheet.create({
   removeBtn: { paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff5f5', borderRadius: 8, borderWidth: 1, borderColor: '#fed7d7' },
   removeBtnText: { fontSize: 12, color: '#c53030', fontWeight: '600' },
   addFamilyBtn: { margin: 14, borderRadius: 10, borderWidth: 1.5, borderColor: colors.lanternDeep, borderStyle: 'dashed', padding: 13, alignItems: 'center' },
+  inviteAction: { fontSize: 13, fontWeight: '700', color: colors.lanternDeep },
   addFamilyBtnText: { fontSize: 14, fontWeight: '700', color: colors.lanternDeep },
   cancelInlineBtn: { alignItems: 'center', paddingVertical: 10 },
   cancelInlineText: { color: colors.steel, fontSize: 14 },

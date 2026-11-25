@@ -45,6 +45,15 @@ export default function WelcomeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.border} />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.inviteLink}
+            onPress={() => router.push('/family-invite')}
+            accessibilityRole="button"
+          >
+            <Ionicons name="mail-open-outline" size={18} color={colors.lantern} />
+            <Text style={styles.inviteText}>I have a family invitation</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.footer}>© 2026 Attenteve. All rights reserved.</Text>
@@ -55,6 +64,8 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.ink },
+  inviteLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, marginTop: 4 },
+  inviteText: { fontSize: 15, fontWeight: '700', color: colors.lantern },
   safe: { flex: 1 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   tagline: { fontSize: 15, color: colors.mistDim, marginTop: 20, textAlign: 'center', lineHeight: 22 },

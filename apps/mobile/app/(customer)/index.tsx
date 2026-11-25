@@ -13,6 +13,7 @@ import { fmtUSD } from '../../src/utils/currency';
 import { formatRelativeAge } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
 import { InspectIcon, RepairIcon, ImproveIcon, MaintainIcon, MarketplaceIcon } from '../../src/components/ServiceGroupIcons';
+import { FamilyInviteBanner } from '../../src/components/FamilyInviteBanner';
 
 // A service with no requiredCapabilityId is open to any vendor — always
 // available. 'all' means the availability fetch hasn't resolved (or the
@@ -497,6 +498,8 @@ export default function CustomerDashboard() {
         <Text style={styles.greeting}>Hello, {user?.firstName}!</Text>
         <Text style={styles.subtitle}>Your home is in good hands.</Text>
       </View>
+
+      <FamilyInviteBanner />
 
       <UpcomingServiceCard requests={requests} />
 

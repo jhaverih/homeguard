@@ -44,6 +44,11 @@ export class AuthService {
     return { accessToken: token, user, emailSent };
   }
 
+  /** A sign-in token for a user created another way (a family invite sign-up). */
+  issueToken(user: { id: string; email: string }): string {
+    return this.jwtService.sign({ sub: user.id, email: user.email });
+  }
+
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException('Invalid credentials');

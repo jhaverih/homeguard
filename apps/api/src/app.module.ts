@@ -26,6 +26,7 @@ import { YolinkModule } from './yolink/yolink.module';
 import { GoogleNestModule } from './nest/nest.module';
 import { VendorModule } from './vendor/vendor.module';
 import { TrainingModule } from './training/training.module';
+import { FamilyModule } from './family/family.module';
 import { CancellationFeedbackModule } from './cancellation-feedback/cancellation-feedback.module';
 import { ServiceAreaModule } from './service-area/service-area.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
@@ -91,6 +92,7 @@ import { MarketplaceModule } from './marketplace/marketplace.module';
     GoogleNestModule,
     VendorModule,
     TrainingModule,
+    FamilyModule,
     CancellationFeedbackModule,
     ServiceAreaModule,
     MarketplaceModule,

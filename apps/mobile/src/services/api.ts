@@ -104,6 +104,31 @@ export const teamApi = {
   removeMember: (memberId: string) => api.delete(`/users/me/team/${memberId}`),
 };
 
+// Family invitations (apps/api/src/family): the home's account holder
+// invites by email; the invitee accepts, or signs up from the invite.
+export type FamilyInviteInfo = {
+  code: string;
+  inviterName: string;
+  inviteeFirstName: string | null;
+  maskedEmail: string;
+  hasAccount: boolean;
+  status: 'PENDING' | 'EXPIRED' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
+};
+export type SentFamilyInvite = { id: string; email: string; firstName: string | null; createdAt: string; expiresAt: string; expired: boolean };
+
+export const familyApi = {
+  listSent: (): Promise<SentFamilyInvite[]> => api.get('/users/me/family-invites'),
+  invite: (email: string, firstName?: string) => api.post('/users/me/family-invites', { email, firstName }),
+  resend: (id: string) => api.post(`/users/me/family-invites/${id}/resend`),
+  cancel: (id: string) => api.delete(`/users/me/family-invites/${id}`),
+  received: (): Promise<FamilyInviteInfo[]> => api.get('/users/me/family-invites/received'),
+  accept: (code: string): Promise<any> => api.post('/users/me/family-invites/accept', { code }),
+  decline: (code: string) => api.post('/users/me/family-invites/decline', { code }),
+  info: (code: string): Promise<FamilyInviteInfo> => api.get(`/public/family-invites/${encodeURIComponent(code)}`),
+  registerInvited: (data: { code: string; firstName: string; lastName: string; password: string; phone?: string }): Promise<{ accessToken: string; user: any }> =>
+    api.post('/auth/register-invited', data),
+};
+
 export type LaunchFeatures = { proactive: boolean; monitoring: boolean };
 
 export const subscriptionsApi = {

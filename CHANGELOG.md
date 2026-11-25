@@ -14,6 +14,15 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-11-25
 
+### Added
+- **api, mobile**: Family invitations. On Profile, a homeowner now invites a family member by name and email instead of attaching an existing account. The old way linked someone to another person's home without asking them, and failed for anyone without an account. The invitee gets an email with a Join button and an 8-character code. The button goes to `GET /api/invite/:code`, a page that opens the app at `homeguard://family-invite?code=…`.
+  - **New to Attenteve:** a short sign-up with name and password only (`POST /auth/register-invited`). The email is taken from the invite and counts as verified, the home address comes from the account holder, and there's no plan of their own.
+  - **Has an account:** they get a push notification and a home-screen banner, then Accept or Decline.
+  - **On accept:** they join the household, take the home's address and the owner's test-account flag, and the owner is notified.
+  - **Rules:** invites expire after 14 days and can be resent or cancelled. Someone with their own paid plan or family members can't join another home. "I have a family invitation" on the welcome screen takes a code.
+  - **Old builds:** `POST /users/me/team` no longer links customers, and older app builds are told to update. Vendor teams are unchanged.
+  - Code: `apps/api/src/family/`.
+
 ### Fixed
 - **mobile**: When the saved sign-in ran out (tokens last 7 days), the app kept showing the cached account while every call failed with 401. On iOS build 25 this showed as "Could not save your acceptance" on the updated-terms screen. Now a 401 on a signed-in call (not a sign-in attempt) signs the user out once, with "Your sign-in has expired", and the app returns to the welcome screen.
 

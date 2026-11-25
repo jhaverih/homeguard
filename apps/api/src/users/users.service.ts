@@ -373,6 +373,11 @@ export class UsersService implements OnModuleInit {
     if (member.parentUserId) throw new BadRequestException('This user already belongs to another account');
 
     const isVendorOwner = owner.roles.includes(UserRole.VENDOR);
+    // Family members are invited and must accept (apps/api/src/family);
+    // older app builds still call this, so tell them how.
+    if (!isVendorOwner) {
+      throw new BadRequestException('Family members are now invited by email. Update the Attenteve app to send an invitation.');
+    }
 
     // Validate role compatibility
     if (isVendorOwner && !member.roles.includes(UserRole.VENDOR)) {

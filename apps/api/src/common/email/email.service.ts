@@ -74,6 +74,36 @@ export class EmailService {
     await this.send(to, subject, html);
   }
 
+  // Family invitation (apps/api/src/family). The button goes to a small page
+  // on the API that opens the app; the code is the fallback when the app
+  // isn't installed yet.
+  async sendFamilyInvite(to: string, inviteeFirstName: string | null, inviterName: string, code: string, joinUrl: string): Promise<void> {
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    const subject = `${inviterName} invited you to join their home on Attenteve`;
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#12181C">${inviteeFirstName ? `Hi ${esc(inviteeFirstName)},` : 'Hi,'}</h2>
+        <p>${esc(inviterName)} invited you to join their home on Attenteve, so you can see and book
+           the home's services, visits and reports together.</p>
+        <div style="text-align:center;margin:24px 0">
+          <a href="${joinUrl}" style="display:inline-block;background:#F2A93C;color:#12181C;
+                    font-weight:bold;text-decoration:none;border-radius:10px;padding:14px 28px">
+            Join ${esc(inviterName)}'s home
+          </a>
+        </div>
+        <p style="color:#64748b;font-size:14px">
+          Open this email on your phone. If the app isn't installed yet, install Attenteve,
+          then tap the button again or enter this code when you create your account:
+        </p>
+        <div style="font-size:26px;font-weight:bold;letter-spacing:6px;color:#12181C;
+                    background:#EDF1F0;border-radius:12px;padding:16px;text-align:center;margin:16px 0">
+          ${code}
+        </div>
+        <p style="color:#64748b;font-size:13px">The invitation expires in 14 days. If you weren't expecting it, you can ignore this email.</p>
+      </div>`;
+    await this.send(to, subject, html);
+  }
+
   private async send(to: string, subject: string, html: string): Promise<void> {
     const from = this.config.get<string>('SMTP_FROM') || 'noreply@attenteve.com';
 
