@@ -63,6 +63,13 @@ export class User {
   @Column({ default: false })
   isEmailVerified: boolean;
 
+  // A test customer's jobs only go to test vendor companies, and a test
+  // vendor never sees a real customer's jobs (common/test-accounts.ts). Set
+  // in the admin portal, so the owner can test in production without real
+  // vendors or customers seeing it.
+  @Column({ default: false })
+  isTestAccount: boolean;
+
   // select: false, like `password` above — these are bearer secrets (anyone holding
   // the code/token can verify the email or reset the password outright), and were
   // previously leaking in plain JSON on every endpoint that returns a User row

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
+import { TestBadge } from '@/components/TestAccount';
 
 // Filters on the company's application status (vendor_companies), which is
 // what decides whether a vendor can work — not the user's login status.
@@ -112,7 +113,7 @@ export default function VendorsPage() {
               {shown.map((v) => (
                 <tr key={v.id} className="hover:bg-canvas transition-colors">
                   <td className="px-6 py-4 font-medium text-ink">
-                    <Link href={`/vendors/${v.id}`} className="text-lantern-deep hover:underline">{v.name}</Link>
+                    <Link href={`/vendors/${v.id}`} className="text-lantern-deep hover:underline">{v.name}</Link>{v.isTestAccount && <TestBadge className="ml-2" />}
                   </td>
                   <td className="px-6 py-4 text-steel">{v.companyName ?? <span className="text-steel text-xs">—</span>}</td>
                   <td className="px-6 py-4">

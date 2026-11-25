@@ -14,6 +14,7 @@ import { CreateTeamUserDto } from './dto/create-team-user.dto';
 import { SetVendorPlanDto } from './dto/set-vendor-plan.dto';
 import { UpdateVendorServiceAreaDto } from './dto/update-vendor-service-area.dto';
 import { UpdateCustomerAddressDto } from './dto/update-customer-address.dto';
+import { SetTestAccountDto } from './dto/set-test-account.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -85,6 +86,20 @@ export class AdminController {
   @ApiOperation({ summary: 'Remove (deactivate) a vendor' })
   removeVendor(@Param('id') id: string) {
     return this.service.removeVendor(id);
+  }
+
+  @Patch('customers/:id/test-account')
+  @MinAdminLevel(AdminLevel.SUPER_USER)
+  @ApiOperation({ summary: "Tag a customer as a test account: their jobs only go to test vendors" })
+  setCustomerTestAccount(@Param('id') id: string, @Body() body: SetTestAccountDto) {
+    return this.service.setCustomerTestAccount(id, body.isTestAccount);
+  }
+
+  @Patch('vendors/:id/test-account')
+  @MinAdminLevel(AdminLevel.SUPER_USER)
+  @ApiOperation({ summary: "Tag a vendor's company (whole team) as a test account: it only sees test customers' jobs" })
+  setVendorTestAccount(@Param('id') id: string, @Body() body: SetTestAccountDto) {
+    return this.service.setVendorTestAccount(id, body.isTestAccount);
   }
 
   @Patch('vendors/:id/service-area')

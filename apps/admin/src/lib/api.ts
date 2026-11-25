@@ -152,6 +152,11 @@ export const adminApi = {
   getCustomerActivity: (id: string) => api.get(`/admin/customers/${id}/activity`).then((r) => r.data),
   updateCustomerAddress: (id: string, data: { address?: string; city?: string; state?: string; zipCode?: string }) =>
     api.patch(`/admin/customers/${id}/address`, data).then((r) => r.data),
+  // Test accounts are kept apart from real customers and vendors (super user only).
+  setCustomerTestAccount: (id: string, isTestAccount: boolean) =>
+    api.patch(`/admin/customers/${id}/test-account`, { isTestAccount }).then((r) => r.data),
+  setVendorTestAccount: (id: string, isTestAccount: boolean) =>
+    api.patch(`/admin/vendors/${id}/test-account`, { isTestAccount }).then((r) => r.data),
   getVendorActivity: (id: string) => api.get(`/admin/vendors/${id}/activity`).then((r) => r.data),
   getSchedule: (year: number, month: number) =>
     api.get(`/admin/schedule?year=${year}&month=${month}`).then((r) => r.data),

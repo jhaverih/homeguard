@@ -31,6 +31,7 @@ import { PropertyCharacteristicsService } from '../users/property-characteristic
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
 import { getVendorAccess, assertCanAcceptJobs, assertApprovedVendor } from '../vendor/vendor-access';
+import { isTestCustomer, isTestVendor, sameTestWorld } from '../common/test-accounts';
 import { getTrainingAccess, assertTrainedForJob } from '../training/training-access';
 
 // How close (in meters) the vendor's GPS needs to be to the job's geocoded
@@ -226,7 +227,7 @@ export class ServiceRequestsService {
       checklistGroupKey: 'GENERAL_HOME_INSPECTION',
     }));
 
-    const vendors = await this.usersService.findAvailableVendors();
+    const vendors = await this.usersService.findAvailableVendors(await isTestCustomer(this.dataSource, customerId));
     if (vendors.length > 0) {
       await this.notificationsService.notifyVendors(
         vendors,
@@ -336,7 +337,7 @@ export class ServiceRequestsService {
       fixedVendorPayout,
     }));
 
-    const vendors = await this.usersService.findAvailableVendors();
+    const vendors = await this.usersService.findAvailableVendors(await isTestCustomer(this.dataSource, customerId));
     if (vendors.length > 0) {
       await this.notificationsService.notifyVendors(
         vendors,
@@ -426,7 +427,7 @@ export class ServiceRequestsService {
       isQuotaCovered: false,
     }));
 
-    const vendors = await this.usersService.findAvailableVendors();
+    const vendors = await this.usersService.findAvailableVendors(await isTestCustomer(this.dataSource, customerId));
     if (vendors.length > 0) {
       await this.notificationsService.notifyVendors(
         vendors,
@@ -447,6 +448,15 @@ export class ServiceRequestsService {
       throw new BadRequestException('Request is no longer available');
     }
     await assertTrainedForJob(this.dataSource, vendorId, request);
+    // Same answer as a job someone else took, so a real vendor can't tell a
+    // test job exists (and the other way round).
+    const [customerTest, vendorTest] = await Promise.all([
+      isTestCustomer(this.dataSource, request.customerId),
+      isTestVendor(this.dataSource, vendorId),
+    ]);
+    if (!sameTestWorld(customerTest, vendorTest)) {
+      throw new BadRequestException('Request is no longer available');
+    }
 
     const proposed = new Date(scheduledDate);
     if (proposed.getTime() <= Date.now()) {
@@ -1129,6 +1139,8 @@ export class ServiceRequestsService {
     if (!callerProfile.isCompanyAdmin && !caller.avatarUrl) return [];
 
     const isElite = company?.planTier === 'ELITE';
+    // Test companies only see test customers' jobs, and real ones only real.
+    const testVendor = !!company?.isTestAccount;
 
     // Required training (core, plus the module for each kind of work);
     // vendors who were already working are let through until their grace date.
@@ -1175,6 +1187,7 @@ export class ServiceRequestsService {
     const eliteWindowCutoff = new Date(Date.now() - elitePreferentialWindowMinutes * 60 * 1000);
 
     return all.filter((r) => {
+      if (!sameTestWorld(r.customer?.isTestAccount, testVendor)) return false;
       const price = r.servicePriceId ? servicePriceMap.get(r.servicePriceId) : undefined;
       const requiredCap = price?.requiredCapabilityId ? capabilityMap.get(price.requiredCapabilityId) : undefined;
       if (!training.allows({ assessment: !r.servicePriceId, category: price?.category ?? null, capabilityName: requiredCap?.name ?? null })) {

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { adminApi, userApi } from '@/lib/api';
+import { TestAccountCard, TestBadge } from '@/components/TestAccount';
 
 const STATUS_COLOR: Record<string, string> = {
   ACCEPTED: 'bg-blue-50 text-blue-700',
@@ -92,7 +93,7 @@ export default function CustomerDetailPage() {
             {(customer?.name ?? customer?.email ?? '?')[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-ink">{customer?.name ?? '—'}</h1>
+            <h1 className="text-xl font-bold text-ink">{customer?.name ?? '—'}{customer?.isTestAccount && <TestBadge className="ml-2" />}</h1>
             <p className="text-sm text-steel mt-0.5">{customer?.email}</p>
             {customer?.phone && <p className="text-sm text-steel">{customer.phone}</p>}
           </div>
@@ -116,6 +117,13 @@ export default function CustomerDetailPage() {
           ))}
         </div>
       </div>
+
+      <TestAccountCard
+        kind="customer"
+        isTestAccount={!!customer?.isTestAccount}
+        canEdit={isSuperUser}
+        onChange={async (next) => { await adminApi.setCustomerTestAccount(id, next); await load(); }}
+      />
 
       {/* Address */}
       <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-6">

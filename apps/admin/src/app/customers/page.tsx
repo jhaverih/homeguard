@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { TestBadge } from '@/components/TestAccount';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -37,7 +38,7 @@ export default function CustomersPage() {
             <tbody className="divide-y divide-canvas">
               {customers.map((c) => (
                 <tr key={c.id} className="hover:bg-canvas transition-colors cursor-pointer" onClick={() => window.location.href = `/customers/${c.id}`}>
-                  <td className="px-6 py-4 font-medium text-lantern-deep hover:underline">{c.name}</td>
+                  <td className="px-6 py-4 font-medium text-lantern-deep hover:underline">{c.name}{c.isTestAccount && <TestBadge className="ml-2" />}</td>
                   <td className="px-6 py-4 text-steel">{c.email}</td>
                   <td className="px-6 py-4">
                     {c.subscription ? (

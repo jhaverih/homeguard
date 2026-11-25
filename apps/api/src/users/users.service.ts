@@ -328,12 +328,18 @@ export class UsersService implements OnModuleInit {
   }
 
   // Only vendors whose company is approved — a company still onboarding or
-  // under review never hears about jobs.
-  async findAvailableVendors(): Promise<User[]> {
+  // under review never hears about jobs. `testAccounts` is the customer's
+  // test flag: a test customer's job is announced only to test companies, a
+  // real customer's only to real ones (common/test-accounts.ts).
+  async findAvailableVendors(testAccounts: boolean): Promise<User[]> {
     return this.usersRepo
       .createQueryBuilder('user')
       .innerJoin('user.vendorProfile', 'vp', 'vp.isAvailable = true')
-      .innerJoin(VendorCompany, 'vc', 'vc.id = vp.companyId AND vc.applicationStatus = :approved', { approved: VendorApplicationStatus.APPROVED })
+      .innerJoin(
+        VendorCompany, 'vc',
+        'vc.id = vp.companyId AND vc.applicationStatus = :approved AND vc.isTestAccount = :test',
+        { approved: VendorApplicationStatus.APPROVED, test: testAccounts },
+      )
       .where('user.status = :status', { status: UserStatus.ACTIVE })
       .andWhere('user.roles LIKE :role', { role: `%${UserRole.VENDOR}%` })
       .getMany();

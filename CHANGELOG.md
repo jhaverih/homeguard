@@ -14,6 +14,9 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-11-24
 
+### Added
+- **api, admin**: Test accounts, so the owner can test in production. A customer (`User.isTestAccount`) or a vendor company (`VendorCompany.isTestAccount`, covering the whole team) can be tagged in the admin portal: a "Test account" switch on the detail page (super users only) and a TEST tag in the lists. A test customer's jobs are shown, announced and acceptable only for test vendors, and a real customer's never reach a test vendor (`common/test-accounts.ts`). Real customers are only offered services that real vendors near them cover, and the public zip check counts only real companies. Every account that existed on 2026-11-24 was tagged as a test account.
+
 ### Fixed
 - **mobile**: After finishing a training module, "Next: <module>" seemed to do nothing. The player is a hidden tab that stays mounted, so opening another module only changed its `key` param and the player kept the previous module's "done" state. It is now keyed on the module and on each visit, so every open starts fresh. Saved screen positions still resume.
 

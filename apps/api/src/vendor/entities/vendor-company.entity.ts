@@ -86,6 +86,12 @@ export class VendorCompany {
   @Column({ default: false })
   stripeOnboardingComplete: boolean;
 
+  // A test company (its whole team) only sees and gets told about test
+  // customers' jobs, and is never offered to real customers
+  // (common/test-accounts.ts). Set in the admin portal.
+  @Column({ default: false })
+  isTestAccount: boolean;
+
   @Column({ type: 'enum', enum: VendorApplicationStatus, default: VendorApplicationStatus.INCOMPLETE })
   applicationStatus: VendorApplicationStatus;
 

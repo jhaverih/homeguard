@@ -41,8 +41,9 @@ export class ServiceAreaService {
     const centroid = getZipCentroid(zip);
     if (!countyFips && !centroid) return { available: false };
 
+    // Public website check: real companies only, never test accounts.
     const companies = await this.companyRepo.find({
-      where: { applicationStatus: VendorApplicationStatus.APPROVED },
+      where: { applicationStatus: VendorApplicationStatus.APPROVED, isTestAccount: false },
     });
     const registered = await this.registeredStates(companies);
 
@@ -59,11 +60,13 @@ export class ServiceAreaService {
   // perform for every customer everywhere. Deliberately different from the
   // public marketing "check your zip" widget, which stays conservative on
   // purpose there.
-  private async findNearbyCompanies(zip: string): Promise<VendorCompany[]> {
+  // `testAccounts`: a test customer only counts test companies, a real
+  // customer only real ones (common/test-accounts.ts).
+  private async findNearbyCompanies(zip: string, testAccounts: boolean): Promise<VendorCompany[]> {
     const countyFips = getCountyFipsForZip(zip);
     const centroid = getZipCentroid(zip);
     const companies = await this.companyRepo.find({
-      where: { applicationStatus: VendorApplicationStatus.APPROVED },
+      where: { applicationStatus: VendorApplicationStatus.APPROVED, isTestAccount: testAccounts },
     });
     if (!countyFips && !centroid) return companies; // can't resolve the zip at all — fail open, don't hide anything
 
@@ -114,8 +117,8 @@ export class ServiceAreaService {
   // to filter the customer-facing catalog (see PricingController's
   // /pricing/available) so a service nobody nearby can perform isn't shown
   // to browse/search in the first place.
-  async getAvailableCapabilityIds(zip: string): Promise<Set<string>> {
-    const companies = await this.findNearbyCompanies(zip);
+  async getAvailableCapabilityIds(zip: string, testAccounts = false): Promise<Set<string>> {
+    const companies = await this.findNearbyCompanies(zip, testAccounts);
     const companyIds = companies.map((c) => c.id);
     if (companyIds.length === 0) return new Set();
 
@@ -171,7 +174,7 @@ export class ServiceAreaService {
     const user = await this.usersService.findById(customerId);
     const zip = user.customerProfile?.zipCode;
     if (!zip) return 'all';
-    return this.getAvailableCapabilityIds(zip);
+    return this.getAvailableCapabilityIds(zip, !!user.isTestAccount);
   }
 
   // One row per email + ZIP + audience (+ service, for in-app "notify me").

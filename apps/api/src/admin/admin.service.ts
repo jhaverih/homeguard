@@ -133,6 +133,7 @@ export class AdminService {
         email: u.email,
         phone: u.phone,
         status: u.status,
+        isTestAccount: !!u.isTestAccount,
         createdAt: u.createdAt,
         subscription: sub
           ? {
@@ -172,6 +173,7 @@ export class AdminService {
         companyName: company?.name ?? u.vendorProfile?.companyName ?? null,
         companyId: company?.id ?? null,
         applicationStatus: company?.applicationStatus ?? null,
+        isTestAccount: !!company?.isTestAccount,
         logoKey: company?.logoKey ?? null,
         createdAt: u.createdAt,
         stripeConnected: !!(company?.stripeConnectAccountId ?? u.vendorProfile?.stripeConnectAccountId),
@@ -211,6 +213,23 @@ export class AdminService {
   // set this (VendorService.updateCompany), and it was never populated at
   // signup at all, so real vendors had no service area and the public zip
   // checker always reported "not covered."
+  // Test accounts: see common/test-accounts.ts for what the tag changes.
+  async setCustomerTestAccount(customerId: string, isTestAccount: boolean) {
+    const user = await this.usersRepo.findOne({ where: { id: customerId } });
+    if (!user) throw new NotFoundException('Customer not found');
+    await this.usersRepo.update(customerId, { isTestAccount });
+    return { id: customerId, isTestAccount };
+  }
+
+  // The tag is on the company, so it covers the vendor's whole team.
+  async setVendorTestAccount(vendorId: string, isTestAccount: boolean) {
+    const profile = await this.vendorProfileRepo.findOne({ where: { userId: vendorId } });
+    if (!profile) throw new NotFoundException('Vendor profile not found');
+    if (!profile.companyId) throw new NotFoundException("This vendor isn't linked to a company yet — nothing to tag.");
+    await this.vendorCompanyRepo.update(profile.companyId, { isTestAccount });
+    return { id: vendorId, companyId: profile.companyId, isTestAccount };
+  }
+
   async updateVendorServiceArea(
     vendorId: string,
     data: { address?: string; city?: string; state?: string; zipCode?: string; serviceCounties?: string[] },
@@ -519,6 +538,7 @@ export class AdminService {
         email: vendor.email,
         companyName: vendor.vendorProfile?.companyName,
         joinedAt: vendor.createdAt,
+        isTestAccount: !!company?.isTestAccount,
         address: company?.address ?? null,
         city: company?.city ?? null,
         state: company?.state ?? null,
@@ -600,6 +620,7 @@ export class AdminService {
         state: user.customerProfile?.state ?? null,
         zipCode: user.customerProfile?.zipCode ?? null,
         createdAt: user.createdAt,
+        isTestAccount: !!user.isTestAccount,
       },
       serviceRequests: serviceRequests.map((r) => ({
         id: r.id,

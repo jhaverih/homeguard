@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { adminApi, userApi } from '@/lib/api';
+import { TestAccountCard, TestBadge } from '@/components/TestAccount';
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -116,11 +117,20 @@ export default function VendorKpiPage() {
 
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-lantern-deep">{vendor.name}</h1>
+          <h1 className="text-2xl font-bold text-lantern-deep">{vendor.name}{vendor.isTestAccount && <TestBadge className="ml-2" />}</h1>
           {vendor.companyName && <p className="text-steel text-sm mt-1">{vendor.companyName}</p>}
           <p className="text-steel text-xs mt-1">{vendor.email} · Joined {new Date(vendor.joinedAt).toLocaleDateString()}</p>
         </div>
       </div>
+
+      {vendor.companyId && (
+        <TestAccountCard
+          kind="vendor"
+          isTestAccount={!!vendor.isTestAccount}
+          canEdit={isSuperUser}
+          onChange={async (next) => { await adminApi.setVendorTestAccount(id, next); await load(); }}
+        />
+      )}
 
       {/* Location */}
       <div className="bg-white rounded-2xl border border-mist-dim p-6 mb-8">
