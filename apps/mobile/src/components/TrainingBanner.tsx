@@ -23,16 +23,26 @@ export function TrainingBanner({ onSummary }: { onSummary?: (s: TrainingSummary 
 
   const grace = !!s.graceUntil && new Date(s.graceUntil).getTime() > Date.now();
   const blocked = !s.coreDone && !grace;
+  const left = s.modules.filter((m) => m.status !== 'DONE');
+  const coreLeft = left.filter((m) => m.core);
+  const minutesOf = (ms: typeof left) => ms.reduce((n, m) => n + m.minutes, 0);
+  const started = s.doneCount > 0;
   const title = blocked
     ? 'Finish your training to see jobs'
     : grace
       ? `Finish your training by ${formatDay(s.graceUntil)}`
       : 'Finish your training for all your services';
   const body = blocked
-    ? `Open jobs show once the core training is done. ${s.doneCount} of ${s.requiredCount} done, about ${s.minutesLeft} minutes left.`
+    ? 'Open jobs show once the core training is done.'
     : grace
-      ? `New jobs stop showing after that date until it's done. ${s.doneCount} of ${s.requiredCount} done, about ${s.minutesLeft} minutes left.`
-      : `Jobs for a service show once you finish its module. ${s.doneCount} of ${s.requiredCount} done.`;
+      ? "New jobs stop showing after that date until it's done."
+      : 'Jobs for a service show once you finish its module.';
+  // The time it takes, shown on its own line: how long until jobs unlock when
+  // they're blocked, otherwise everything still to do. Module minutes come
+  // from apps/api/training/modules.json (measured: narration plus questions).
+  const time = blocked && coreLeft.length < left.length
+    ? `About ${formatMinutes(minutesOf(coreLeft))} to unlock jobs · ${formatMinutes(s.minutesLeft)} in all`
+    : `About ${formatMinutes(s.minutesLeft)} · ${left.length} short ${left.length === 1 ? 'module' : 'modules'}`;
 
   return (
     <TouchableOpacity
@@ -44,10 +54,30 @@ export function TrainingBanner({ onSummary }: { onSummary?: (s: TrainingSummary 
       <View style={{ flex: 1 }}>
         <Text style={[styles.title, !blocked && { color: colors.warningText }]}>{title}</Text>
         <Text style={[styles.body, !blocked && { color: colors.warningText }]}>{body}</Text>
-        <Text style={[styles.link, !blocked && { color: colors.warningText }]}>Open My Training ›</Text>
+        <View style={styles.timeRow}>
+          <Ionicons name="time-outline" size={16} color={blocked ? colors.ink : colors.warningText} />
+          <Text style={[styles.time, !blocked && { color: colors.warningText }]}>{time}</Text>
+        </View>
+        <Text style={[styles.hint, !blocked && { color: colors.warningText }]}>
+          {started ? `${s.doneCount} of ${s.requiredCount} done. ` : ''}You can stop any time and pick up where you left off.
+        </Text>
+        <View style={[styles.button, !blocked && { backgroundColor: colors.warningText }]}>
+          <Text style={[styles.buttonText, !blocked && { color: colors.surface }]}>
+            {started ? 'Continue training' : 'Start training'}
+          </Text>
+          <Ionicons name="arrow-forward" size={16} color={blocked ? colors.lantern : colors.surface} />
+        </View>
       </View>
     </TouchableOpacity>
   );
+}
+
+/** "45 minutes", "1 hour", "1 hour 10 minutes". */
+function formatMinutes(n: number): string {
+  if (n < 60) return `${n} ${n === 1 ? 'minute' : 'minutes'}`;
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return `${h} ${h === 1 ? 'hour' : 'hours'}${m ? ` ${m} minutes` : ''}`;
 }
 
 const styles = StyleSheet.create({
@@ -56,5 +86,12 @@ const styles = StyleSheet.create({
   soft: { backgroundColor: colors.warningSoft, borderColor: colors.warningBorder },
   title: { fontSize: 16, fontWeight: '800', color: colors.ink },
   body: { fontSize: 13.5, color: colors.ink, lineHeight: 19, marginTop: 3 },
-  link: { fontSize: 13.5, fontWeight: '800', color: colors.ink, marginTop: 6 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  time: { fontSize: 14.5, fontWeight: '800', color: colors.ink, flexShrink: 1 },
+  hint: { fontSize: 12.5, color: colors.ink, lineHeight: 17, marginTop: 4 },
+  button: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, alignSelf: 'flex-start',
+    backgroundColor: colors.ink, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14, marginTop: 10,
+  },
+  buttonText: { fontSize: 14, fontWeight: '800', color: colors.lantern },
 });

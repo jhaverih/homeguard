@@ -18,6 +18,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - **mobile**: After finishing a training module, "Next: <module>" seemed to do nothing. The player is a hidden tab that stays mounted, so opening another module only changed its `key` param and the player kept the previous module's "done" state. It is now keyed on the module and on each visit, so every open starts fresh. Saved screen positions still resume.
 
 ### Changed
+- **mobile**: The training banner on the dashboard and Open Jobs now shows how long the training takes, on its own line: "About 24 minutes to unlock jobs · 28 minutes in all" while jobs are blocked, otherwise the time and number of modules left. It also has a Start or Continue training button and says technicians can stop and pick up later. Module minutes in `modules.json` match the measured narration plus questions (core is measured at about 21 minutes, listed as 24).
 - **api**: The training says "assessment" instead of "inspection" in everything technicians see or hear: the CarePlus description, the checklist screen and the module title, now "Home assessments". Two narration clips were re-recorded. A test now guards the wording. Internal names (the `INSPECTIONS` category and capability names) are unchanged.
 
 ## 2026-11-22
