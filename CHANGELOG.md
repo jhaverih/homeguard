@@ -24,6 +24,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
   - Code: `apps/api/src/family/`.
 
 ### Fixed
+- **api**: Booking a service failed with "Internal server error". The query that picks which vendors to notify (`findAvailableVendors`) joined `vendor_companies.id` (uuid) to `vendor_profiles.companyId` (varchar), and Postgres has no uuid = varchar operator. It now casts the id to text, which was checked against production data (11 test vendors matched). This hit every new assessment, service and marketplace booking.
 - **mobile**: When the saved sign-in ran out (tokens last 7 days), the app kept showing the cached account while every call failed with 401. On iOS build 25 this showed as "Could not save your acceptance" on the updated-terms screen. Now a 401 on a signed-in call (not a sign-in attempt) signs the user out once, with "Your sign-in has expired", and the app returns to the welcome screen.
 
 ## 2026-11-24

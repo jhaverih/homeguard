@@ -337,7 +337,8 @@ export class UsersService implements OnModuleInit {
       .innerJoin('user.vendorProfile', 'vp', 'vp.isAvailable = true')
       .innerJoin(
         VendorCompany, 'vc',
-        'vc.id = vp.companyId AND vc.applicationStatus = :approved AND vc.isTestAccount = :test',
+        // vendor_profiles.companyId is varchar, vendor_companies.id is uuid.
+        'CAST(vc.id AS text) = vp.companyId AND vc.applicationStatus = :approved AND vc.isTestAccount = :test',
         { approved: VendorApplicationStatus.APPROVED, test: testAccounts },
       )
       .where('user.status = :status', { status: UserStatus.ACTIVE })
