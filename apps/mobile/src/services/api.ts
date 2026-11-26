@@ -200,6 +200,8 @@ export const requestsApi = {
     }),
   addNotes: (id: string, notes: string) => api.patch(`/service-requests/${id}/notes`, { notes }),
   recommendService: (id: string, data: any) => api.post(`/service-requests/${id}/additional-services`, data),
+  // Hourly services: ask the customer to approve more hours (see the API's requestExtraTime).
+  requestExtraTime: (id: string, data: { additionalServiceId: string; hours: number }) => api.post(`/service-requests/${id}/extra-time`, data),
   addMaterial: (id: string, data: { description: string; cost: number }) => api.post(`/service-requests/${id}/materials`, data),
   approveService: (serviceId: string) => api.post(`/service-requests/additional-services/${serviceId}/approve`),
   declineService: (serviceId: string) => api.delete(`/service-requests/additional-services/${serviceId}/decline`),

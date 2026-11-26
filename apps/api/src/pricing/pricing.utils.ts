@@ -160,7 +160,9 @@ export function formatCustomerPriceDisplay(item: ServicePrice, labelMap: Record<
   if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== 'NONE') {
     const names = unitNames(item, labelMap);
     if (isHourly(item)) {
-      return qty > 1 ? `$${formatted} for up to ${fmtQty(qty)} hours, then by the hour` : `$${formatted} for the first hour, then by the hour`;
+      return qty > 1
+        ? `$${formatted} for up to ${fmtQty(qty)} hours; extra time with your approval`
+        : `$${formatted} for the first hour; extra time with your approval`;
     }
     return qty > 1 ? `$${formatted} for up to ${fmtQty(qty)} ${names.many}` : `$${formatted} for 1 ${names.one}`;
   }

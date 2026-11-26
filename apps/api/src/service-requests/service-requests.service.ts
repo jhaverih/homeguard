@@ -728,7 +728,9 @@ export class ServiceRequestsService {
         const servicePrice = svc.servicePriceId ? prices.find((p) => p.id === svc.servicePriceId) : null;
         if (!servicePrice) continue;
 
-        const finalQty = finalQuantities?.[svc.id];
+        // Hourly services: extra time is charged only through an approved
+        // extra-time request (requestExtraTime), never by raising the hours here.
+        const finalQty = isHourly(servicePrice) ? undefined : finalQuantities?.[svc.id];
         const qtyIncreased = finalQty != null && svc.quantity != null && finalQty > Number(svc.quantity);
         const dynamic = isDynamicGmCategory(servicePrice.category);
         if (!qtyIncreased && !dynamic) continue;
@@ -997,6 +999,60 @@ export class ServiceRequestsService {
       { serviceRequestId: requestId, additionalServiceId: saved.id },
     );
 
+    return saved;
+  }
+
+  // Hourly services book the first hour. When the technician finds on site
+  // that the job needs longer, they ask for the extra hours here; the
+  // customer approves or declines them like any recommendation, and only
+  // approved hours are charged at completion. Priced as the difference
+  // between the service's price at the new and the current total hours, so
+  // it follows the same tiers and margin as the booking.
+  async requestExtraTime(
+    requestId: string, vendorId: string,
+    dto: { additionalServiceId: string; hours: number },
+  ): Promise<AdditionalService> {
+    const request = await this.findById(requestId);
+    if (request.vendorId !== vendorId) throw new ForbiddenException();
+    if (![ServiceRequestStatus.ACCEPTED, ServiceRequestStatus.IN_PROGRESS].includes(request.status)) {
+      throw new BadRequestException('Extra time can only be requested on an active job.');
+    }
+    const hours = Number(dto.hours);
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 12 || Math.round(hours * 2) !== hours * 2) {
+      throw new BadRequestException('Enter the extra time in half hours, up to 12 hours.');
+    }
+    const line = await this.additionalRepo.findOne({ where: { id: dto.additionalServiceId, serviceRequestId: requestId } });
+    const servicePrice = line?.servicePriceId ? (await this.pricingService.getAll(true)).find((p) => p.id === line.servicePriceId) : null;
+    if (!line || !servicePrice || !isHourly(servicePrice)) throw new BadRequestException('This service is not billed by the hour.');
+    if (line.isQuotaCovered) throw new BadRequestException('This service is covered by the plan.');
+
+    const earlier = await this.additionalRepo.find({ where: { serviceRequestId: requestId, extraTimeForId: line.id } });
+    const currentHours = Number(line.quantity ?? 1) + earlier.reduce((sum, s) => sum + Number(s.extraHours ?? 0), 0);
+    const priceAt = (qty: number) => {
+      const cost = calcTieredCost(servicePrice, qty);
+      const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
+      const subtotal = isDynamicGmCategory(servicePrice.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
+      return Math.round(applyStripeFee(subtotal) * 100) / 100;
+    };
+    const price = Math.max(0, Math.round((priceAt(currentHours + hours) - priceAt(currentHours)) * 100) / 100);
+    const label = `${hours} more hour${hours === 1 ? '' : 's'}`;
+
+    const saved = await this.additionalRepo.save(this.additionalRepo.create({
+      serviceRequestId: requestId,
+      name: `${line.name}: ${label}`,
+      description: `Your technician found on site that ${line.name} needs ${label}.`,
+      price,
+      extraTimeForId: line.id,
+      extraHours: hours,
+    }));
+
+    await this.notificationsService.notifyUser(
+      request.customerId,
+      NotificationType.ADDITIONAL_SERVICE_RECOMMENDED,
+      'More time needed',
+      `Your technician needs ${label} for ${line.name} ($${price}). Please approve or decline in the app.`,
+      { serviceRequestId: requestId, additionalServiceId: saved.id },
+    );
     return saved;
   }
 

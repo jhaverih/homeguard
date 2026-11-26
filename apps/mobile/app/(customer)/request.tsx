@@ -640,9 +640,8 @@ export default function RequestScreen() {
             <View style={styles.minQtyNotice}>
               <Ionicons name="time-outline" size={14} color="#92400e" />
               <Text style={styles.minQtyNoticeText}>
-                Billed by the hour. Your technician records the time spent and you're charged for that time
-                {!item.requiresQuote && !quotaFree ? `, about $${Math.max(0, displayPrice(item, minQtyOf(item) + 1) - displayPrice(item, minQtyOf(item)))} for each extra hour` : ''}.
-                {minQtyOf(item) > 1 ? ` Minimum ${minQtyOf(item)} hours.` : ''}
+                Billed by the hour, starting with {minQtyOf(item) > 1 ? `${minQtyOf(item)} hours` : 'the first hour'}. If your technician finds on site that more time is needed, they'll ask you to approve it in the app first
+                {!item.requiresQuote && !quotaFree ? ` (about $${Math.max(0, displayPrice(item, minQtyOf(item) + 1) - displayPrice(item, minQtyOf(item)))} per extra hour)` : ''}. You're only charged for time you approve.
               </Text>
             </View>
           )}
@@ -677,6 +676,14 @@ export default function RequestScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+              {['SQ_FT', 'LINEAR_FEET'].includes(item.quantityLabel) && (
+                <View style={styles.minQtyNotice}>
+                  <Ionicons name="resize-outline" size={14} color="#92400e" />
+                  <Text style={styles.minQtyNoticeText}>
+                    Your best estimate is fine. Your technician measures on site and confirms the {item.quantityLabel === 'SQ_FT' ? 'square feet' : 'linear feet'}; if it's more than you entered, the price is updated to match.
+                  </Text>
+                </View>
+              )}
               {item.pricingMethod === 'PER_UNIT' && minQtyOf(item) > 1 && (
                 <View style={styles.minQtyNotice}>
                   <Ionicons name="information-circle-outline" size={14} color="#92400e" />
@@ -1149,7 +1156,7 @@ export default function RequestScreen() {
                 <View key={svc.id} style={styles.addonPriceRow}>
                   <Text style={styles.addonPriceLabel}>
                     {svc.name}
-                    {hasUnitLabel(svc) && describeUnit(svc).hourly ? '\n(first hour, then by the hour)'
+                    {hasUnitLabel(svc) && describeUnit(svc).hourly ? '\n(first hour; more time only if you approve it)'
                       : hasUnitLabel(svc) && svc.pricingMethod === 'PER_UNIT' ? `\n(${countOf(billedQtyFor(svc), describeUnit(svc))})`
                       : hasUnitLabel(svc) && serviceQuantities[svc.id] ? `\n(${countOf(Number(serviceQuantities[svc.id]), describeUnit(svc))})` : ''}
                   </Text>
@@ -1170,7 +1177,7 @@ export default function RequestScreen() {
               <Text style={[styles.addonNote, { marginTop: 12 }]}>
                 Payment will be processed upon completion.
                 {selectedServices.some((s) => hasUnitLabel(s) && describeUnit(s).hourly)
-                  ? ' Hourly services are charged for the time your technician records.' : ''}
+                  ? ' Extra time on hourly services is charged only if you approve it.' : ''}
               </Text>
               </ScrollView>
               <TouchableOpacity style={styles.addonConfirmBtn} onPress={doSubmitServices}>

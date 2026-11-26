@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ServiceRequestsService } from './service-requests.service';
 import { ServiceRequestStatus } from '../common/enums/role.enum';
 import { AddMaterialDto } from './dto/add-material.dto';
+import { RequestExtraTimeDto } from './dto/request-extra-time.dto';
 
 @ApiTags('Service Requests')
 @ApiBearerAuth()
@@ -139,6 +140,12 @@ export class ServiceRequestsController {
   @ApiOperation({ summary: 'Vendor: recommend an additional service' })
   recommendService(@Request() req, @Param('id') id: string, @Body() body: any) {
     return this.service.recommendAdditionalService(id, req.user.id, body);
+  }
+
+  @Post(':id/extra-time')
+  @ApiOperation({ summary: 'Vendor: ask the customer to approve more hours on an hourly service' })
+  requestExtraTime(@Request() req, @Param('id') id: string, @Body() body: RequestExtraTimeDto) {
+    return this.service.requestExtraTime(id, req.user.id, body);
   }
 
   @Post(':id/materials')

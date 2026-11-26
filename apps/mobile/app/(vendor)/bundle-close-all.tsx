@@ -167,9 +167,9 @@ export default function BundleCloseAllScreen() {
               </TouchableOpacity>
             ) : (
               <>
-                {(m.job.additionalServices || []).filter((s: any) => s.approved && s.quantity != null).map((svc: any) => (
+                {(m.job.additionalServices || []).filter((s: any) => s.approved && s.quantity != null && !s.extraTimeForId && !describeUnit(catalog.find((c) => c.id === s.servicePriceId)).hourly).map((svc: any) => (
                   <View key={svc.id} style={styles.qtyRow}>
-                    <Text style={styles.qtyLabel}>{svc.name} — {describeUnit(catalog.find((c) => c.id === svc.servicePriceId)).hourly ? 'hours worked' : describeUnit(catalog.find((c) => c.id === svc.servicePriceId)).many}</Text>
+                    <Text style={styles.qtyLabel}>{svc.name} — {describeUnit(catalog.find((c) => c.id === svc.servicePriceId)).many}</Text>
                     <TextInput
                       style={styles.qtyInput}
                       keyboardType="decimal-pad"

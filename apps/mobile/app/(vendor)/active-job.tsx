@@ -229,6 +229,18 @@ export default function ActiveJobScreen() {
   // was billed at booking); if the vendor raises it, the customer's final
   // price increases accordingly when the job is marked complete.
   const [finalQuantities, setFinalQuantities] = useState<Record<string, string>>({});
+  // Hourly services: extra hours being requested, per booked line.
+  const [extraHours, setExtraHours] = useState<Record<string, number>>({});
+  const [sendingExtra, setSendingExtra] = useState<string | null>(null);
+  // Booked lines with a count. Hourly ones get extra time only through an
+  // approved request, so they're left out of the final-quantity step.
+  const bookedLines = (job?.additionalServices || []).filter((s: any) => s.approved && s.quantity != null && !s.extraTimeForId);
+  const isHourlyLine = (s: any) => {
+    const item = catalogItems.find((c) => c.id === s.servicePriceId);
+    return !!item && describeUnit(item).hourly;
+  };
+  const hourlyLines = bookedLines.filter(isHourlyLine);
+  const countedLines = bookedLines.filter((s: any) => !isHourlyLine(s));
 
   // General vendor notes (non-inspection jobs)
   const [generalNotes, setGeneralNotes] = useState('');
@@ -1152,6 +1164,59 @@ export default function ActiveJobScreen() {
               );
             })}
 
+            {['ACCEPTED', 'IN_PROGRESS'].includes(job.status) && hourlyLines.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Time</Text>
+                <Text style={styles.sectionHint}>
+                  This service is billed by the hour. If it needs more time than booked, ask the customer to approve the extra hours before doing them. Only approved time is charged.
+                </Text>
+                {hourlyLines.map((svc: any) => {
+                  const extras = (job.additionalServices || []).filter((s: any) => s.extraTimeForId === svc.id);
+                  const approved = extras.filter((s: any) => s.approved).reduce((n: number, s: any) => n + Number(s.extraHours || 0), 0);
+                  const pending = extras.filter((s: any) => !s.approved).reduce((n: number, s: any) => n + Number(s.extraHours || 0), 0);
+                  const ask = extraHours[svc.id] ?? 1;
+                  const fmtH = (h: number) => `${h} hour${h === 1 ? '' : 's'}`;
+                  return (
+                    <View key={svc.id} style={styles.extraTimeCard}>
+                      <Text style={styles.sentSvcName}>{svc.name}</Text>
+                      <Text style={styles.qtyConfirmHint}>
+                        Booked {fmtH(Number(svc.quantity || 1))}
+                        {approved ? ` · ${fmtH(approved)} more approved` : ''}
+                        {pending ? ` · ${fmtH(pending)} waiting for approval` : ''}
+                      </Text>
+                      <View style={styles.extraTimeRow}>
+                        <TouchableOpacity onPress={() => setExtraHours((p) => ({ ...p, [svc.id]: Math.max(0.5, ask - 0.5) }))} accessibilityLabel="Less time">
+                          <Ionicons name="remove-circle-outline" size={28} color={colors.lanternDeep} />
+                        </TouchableOpacity>
+                        <Text style={styles.extraTimeValue}>{fmtH(ask)}</Text>
+                        <TouchableOpacity onPress={() => setExtraHours((p) => ({ ...p, [svc.id]: Math.min(12, ask + 0.5) }))} accessibilityLabel="More time">
+                          <Ionicons name="add-circle-outline" size={28} color={colors.lanternDeep} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.extraTimeBtn, sendingExtra === svc.id && { opacity: 0.6 }]}
+                          disabled={sendingExtra === svc.id}
+                          onPress={async () => {
+                            setSendingExtra(svc.id);
+                            try {
+                              await requestsApi.requestExtraTime(id, { additionalServiceId: svc.id, hours: ask });
+                              Alert.alert('Sent for approval', `The customer has been asked to approve ${fmtH(ask)} more. Wait for their approval before doing the extra work.`);
+                              loadJob();
+                            } catch (e: any) {
+                              Alert.alert('Could not send', e.message);
+                            } finally {
+                              setSendingExtra(null);
+                            }
+                          }}
+                        >
+                          <Text style={styles.extraTimeBtnText}>Request more time</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
             {job.additionalServices?.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Sent Recommendations</Text>
@@ -1181,14 +1246,14 @@ export default function ActiveJobScreen() {
                     : `Complete all ${totalCount - completedCount} remaining checklist items first.`}
                 </Text>
 
-                {job.additionalServices?.filter((s: any) => s.approved && s.quantity != null).length > 0 && (
+                {countedLines.length > 0 && (
                   <View style={{ marginBottom: 16 }}>
                     <Text style={styles.photoLabel}>Confirm final quantity</Text>
                     <Text style={styles.sectionHint}>
-                      Enter the hours you worked, or how many you did, for each service. The customer is charged for this amount; it can't go below what they booked.
+                      Enter how many you did for each service. The customer is charged for this amount; it can't go below what they booked.
                     </Text>
                     {job.additionalServices
-                      .filter((s: any) => s.approved && s.quantity != null)
+                      .filter((s: any) => countedLines.includes(s))
                       .map((svc: any) => {
                         const unit = describeUnit(catalogItems.find((c) => c.id === svc.servicePriceId));
                         return (
@@ -1897,6 +1962,11 @@ const styles = StyleSheet.create({
     borderRadius: 8, padding: 10, fontSize: 15, color: colors.ink, textAlign: 'center',
   },
   sentSvcCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1.5 },
+  extraTimeCard: { backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
+  extraTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' },
+  extraTimeValue: { fontSize: 15, fontWeight: '700', color: colors.ink, minWidth: 70, textAlign: 'center' },
+  extraTimeBtn: { backgroundColor: colors.lantern, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginLeft: 'auto' },
+  extraTimeBtnText: { fontSize: 14, fontWeight: '800', color: colors.ink },
   sentSvcApproved: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
   sentSvcPending: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
   sentSvcName: { fontSize: 14, fontWeight: '600', color: colors.ink },

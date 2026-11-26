@@ -78,6 +78,15 @@ export class AdditionalService {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   fixedVendorPayout: number | null;
 
+  // Extra hours the technician asked for on an hourly service (see
+  // ServiceRequestsService.requestExtraTime). Charged only once the
+  // customer approves, like any other recommendation.
+  @Column({ type: 'varchar', nullable: true })
+  extraTimeForId: string | null;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  extraHours: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

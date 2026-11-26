@@ -21,6 +21,10 @@ This project deploys continuously (`git push origin staging` triggers an automat
   - **Counter:** starts at 1 (or the service minimum), moves one at a time and can't go below the minimum. Before, an empty box jumped to 2 on the first tap.
   - **Vendor app:** the final-quantity step says "Hours worked" or "Number of ladders".
 
+- **api, mobile**: Extra time on hourly services needs the customer's approval. The vendor app's new "Time" card has **Request more time** (half-hour steps, up to 12 hours; `POST /service-requests/:id/extra-time`). It creates an extra-work line priced at the difference between the service's price at the new and current total hours, and the customer approves or declines it like any recommendation. Hourly services are left out of the final-quantity step, and the server ignores a raised hour count for them, so only approved time is charged.
+- **mobile**: Services measured in square or linear feet tell the customer that the technician measures on site and the price is updated if the area is larger.
+- **api**: Fence Repairs is priced by linear foot (feet of fence) instead of by unit.
+
 ### Fixed
 - **mobile**: The booking confirmation pop-up scrolls, so Confirm stays on screen with several services or large text.
 

@@ -158,7 +158,7 @@ describe('unit names', () => {
     const holes = servicePrice({ pricingMethod: PricingMethod.PER_UNIT, basePrice: 100, gmPercent: 15, quantityLabel: 'HOLE', includeQty: 3 });
     expect(formatCustomerPriceDisplay(holes, { HOLE: 'Hole' })).toMatch(/^\$\d+ for up to 3 holes$/);
     const hourly = servicePrice({ pricingMethod: PricingMethod.PER_UNIT, basePrice: 85, gmPercent: 15, quantityLabel: 'HOUR', includeQty: 1 });
-    expect(formatCustomerPriceDisplay(hourly, { HOUR: 'Hour' })).toMatch(/^\$\d+ for the first hour, then by the hour$/);
+    expect(formatCustomerPriceDisplay(hourly, { HOUR: 'Hour' })).toMatch(/^\$\d+ for the first hour; extra time with your approval$/);
   });
 });
 
