@@ -1,6 +1,6 @@
 import {
   calcTieredCost, formatPriceDisplay, applyStripeFee, isDynamicGmCategory,
-  calcGraduatedPrice, formatCustomerPriceDisplay, STRIPE_RATE, STRIPE_FIXED,
+  calcGraduatedPrice, formatCustomerPriceDisplay, STRIPE_RATE, STRIPE_FIXED, unitNames, isHourly,
 } from './pricing.utils';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { ServiceCategory } from '../common/enums/service-category.enum';
@@ -136,6 +136,29 @@ describe('calcGraduatedPrice', () => {
       expect(at).toBeGreaterThan(just_below);
       expect(just_above).toBeGreaterThan(at);
     }
+  });
+});
+
+describe('unit names', () => {
+  it('uses the service unit name, then the label', () => {
+    expect(unitNames(servicePrice({ quantityLabel: 'UNIT', unitName: 'ladder', unitNamePlural: 'ladders' }), { UNIT: 'Unit' }))
+      .toEqual({ one: 'ladder', many: 'ladders' });
+    expect(unitNames(servicePrice({ quantityLabel: 'HOLE' }), { HOLE: 'Hole' })).toEqual({ one: 'hole', many: 'holes' });
+    expect(unitNames(servicePrice({ quantityLabel: 'LINEAR_FEET' }), {})).toEqual({ one: 'foot', many: 'feet' });
+  });
+
+  it('treats only per-unit HOUR services as hourly', () => {
+    expect(isHourly(servicePrice({ pricingMethod: PricingMethod.PER_UNIT, quantityLabel: 'HOUR' }))).toBe(true);
+    expect(isHourly(servicePrice({ pricingMethod: PricingMethod.PER_UNIT, quantityLabel: 'UNIT' }))).toBe(false);
+  });
+
+  it('says what the customer price covers', () => {
+    const ladder = servicePrice({ pricingMethod: PricingMethod.PER_UNIT, basePrice: 100, gmPercent: 15, quantityLabel: 'UNIT', unitName: 'ladder', unitNamePlural: 'ladders', includeQty: 1 });
+    expect(formatCustomerPriceDisplay(ladder, {})).toMatch(/^\$\d+ for 1 ladder$/);
+    const holes = servicePrice({ pricingMethod: PricingMethod.PER_UNIT, basePrice: 100, gmPercent: 15, quantityLabel: 'HOLE', includeQty: 3 });
+    expect(formatCustomerPriceDisplay(holes, { HOLE: 'Hole' })).toMatch(/^\$\d+ for up to 3 holes$/);
+    const hourly = servicePrice({ pricingMethod: PricingMethod.PER_UNIT, basePrice: 85, gmPercent: 15, quantityLabel: 'HOUR', includeQty: 1 });
+    expect(formatCustomerPriceDisplay(hourly, { HOUR: 'Hour' })).toMatch(/^\$\d+ for the first hour, then by the hour$/);
   });
 });
 

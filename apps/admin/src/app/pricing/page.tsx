@@ -123,6 +123,8 @@ type PriceRow = {
   gmPercent: number | null;
   quantityLabel: string | null;
   minimumQuantity: number | null;
+  unitName?: string | null;
+  unitNamePlural?: string | null;
   includeQty: number | null;
   baseRateUnit: number | null;
   volumeDiscountThreshold: number | null;
@@ -275,6 +277,8 @@ export default function PricingPage() {
       gmPercent: price.gmPercent != null ? String(price.gmPercent) : '',
       quantityLabel: price.quantityLabel ?? 'NONE',
       minimumQuantity: price.minimumQuantity != null ? String(price.minimumQuantity) : '',
+      unitName: price.unitName ?? '',
+      unitNamePlural: price.unitNamePlural ?? '',
       includeQty: price.includeQty != null ? String(price.includeQty) : '',
       baseRateUnit: price.baseRateUnit != null ? String(price.baseRateUnit) : '',
       volumeDiscountThreshold: price.volumeDiscountThreshold != null ? String(price.volumeDiscountThreshold) : '',
@@ -310,6 +314,8 @@ export default function PricingPage() {
         gmPercent: state.gmPercent !== '' ? parseFloat(state.gmPercent) : null,
         quantityLabel: state.quantityLabel || 'NONE',
         minimumQuantity: state.minimumQuantity !== '' ? parseFloat(state.minimumQuantity) : null,
+        unitName: state.unitName?.trim() || null,
+        unitNamePlural: state.unitNamePlural?.trim() || null,
         includeQty: state.includeQty !== '' ? parseFloat(state.includeQty) : null,
         baseRateUnit: state.baseRateUnit !== '' ? parseFloat(state.baseRateUnit) : null,
         volumeDiscountThreshold: state.volumeDiscountThreshold !== '' ? parseFloat(state.volumeDiscountThreshold) : null,
@@ -1327,6 +1333,22 @@ export default function PricingPage() {
                         )}
                         <option value={ADD_NEW_UNIT_LABEL}>+ Add New Label…</option>
                       </select>
+                      {state.quantityLabel && state.quantityLabel !== 'NONE' && state.quantityLabel !== 'HOUR' && (
+                        <div className="mt-1.5 flex gap-1" title="What the customer counts, e.g. ladder / ladders. Shown as “How many ladders?”">
+                          <input
+                            value={state.unitName ?? ''}
+                            onChange={(e) => updateField(price.id, 'unitName', e.target.value)}
+                            placeholder="one (ladder)"
+                            className="w-1/2 border border-border rounded-lg px-2 py-1 text-xs focus:border-lantern outline-none"
+                          />
+                          <input
+                            value={state.unitNamePlural ?? ''}
+                            onChange={(e) => updateField(price.id, 'unitNamePlural', e.target.value)}
+                            placeholder="many (ladders)"
+                            className="w-1/2 border border-border rounded-lg px-2 py-1 text-xs focus:border-lantern outline-none"
+                          />
+                        </div>
+                      )}
                     </td>
                     {/* Minimum Quantity */}
                     <td className="px-4 py-3">

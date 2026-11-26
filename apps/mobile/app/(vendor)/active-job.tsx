@@ -13,6 +13,7 @@ import { requestsApi, inspectionsApi, pricingApi, uploadsApi, yolinkApi } from '
 import { enqueueTaskResult, flushQueue } from '../../src/services/taskQueue';
 import { fmtUSD } from '../../src/utils/currency';
 import { haversineMeters } from '../../src/utils/geo';
+import { describeUnit } from '../../src/utils/units';
 import { colors } from '../../src/theme';
 import { PhotoStrip } from '../../src/components/vendor/PhotoStrip';
 
@@ -1184,15 +1185,19 @@ export default function ActiveJobScreen() {
                   <View style={{ marginBottom: 16 }}>
                     <Text style={styles.photoLabel}>Confirm final quantity</Text>
                     <Text style={styles.sectionHint}>
-                      Enter the actual quantity/hours for each service below. Raising it above what the customer was originally billed increases their final charge.
+                      Enter the hours you worked, or how many you did, for each service. The customer is charged for this amount; it can't go below what they booked.
                     </Text>
                     {job.additionalServices
                       .filter((s: any) => s.approved && s.quantity != null)
-                      .map((svc: any) => (
+                      .map((svc: any) => {
+                        const unit = describeUnit(catalogItems.find((c) => c.id === svc.servicePriceId));
+                        return (
                         <View key={svc.id} style={styles.qtyConfirmRow}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.qtyConfirmName}>{svc.name}</Text>
-                            <Text style={styles.qtyConfirmHint}>Originally billed: {svc.quantity}</Text>
+                            <Text style={styles.qtyConfirmHint}>
+                              {unit.hourly ? 'Hours worked' : `Number of ${unit.many}`} · booked {svc.quantity} {Number(svc.quantity) === 1 ? unit.one : unit.many}
+                            </Text>
                           </View>
                           <TextInput
                             style={styles.qtyConfirmInput}
@@ -1201,7 +1206,8 @@ export default function ActiveJobScreen() {
                             onChangeText={(v) => setFinalQuantities((prev) => ({ ...prev, [svc.id]: v }))}
                           />
                         </View>
-                      ))}
+                        );
+                      })}
                   </View>
                 )}
 

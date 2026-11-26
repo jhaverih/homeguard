@@ -64,6 +64,9 @@ export type EditState = {
   gmPercent: string;
   quantityLabel: string;
   minimumQuantity: string;
+  // What one unit is ("ladder" / "ladders"); empty uses the unit label.
+  unitName?: string;
+  unitNamePlural?: string;
   includeQty: string;
   baseRateUnit: string;
   volumeDiscountThreshold: string;
@@ -132,6 +135,8 @@ export function statesEqual(a: EditState, b: EditState): boolean {
     a.gmPercent === b.gmPercent &&
     a.quantityLabel === b.quantityLabel &&
     a.minimumQuantity === b.minimumQuantity &&
+    (a.unitName ?? '') === (b.unitName ?? '') &&
+    (a.unitNamePlural ?? '') === (b.unitNamePlural ?? '') &&
     a.includeQty === b.includeQty &&
     a.baseRateUnit === b.baseRateUnit &&
     a.volumeDiscountThreshold === b.volumeDiscountThreshold &&

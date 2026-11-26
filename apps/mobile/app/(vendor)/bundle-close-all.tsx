@@ -5,7 +5,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { requestsApi, inspectionsApi, uploadsApi } from '../../src/services/api';
+import { requestsApi, inspectionsApi, uploadsApi, pricingApi } from '../../src/services/api';
+import { describeUnit } from '../../src/utils/units';
 import { PhotoStrip } from '../../src/components/vendor/PhotoStrip';
 import { fmtUSD } from '../../src/utils/currency';
 import { colors } from '../../src/theme';
@@ -31,8 +32,10 @@ export default function BundleCloseAllScreen() {
   const [members, setMembers] = useState<MemberState[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [catalog, setCatalog] = useState<any[]>([]);
 
   const load = useCallback(async () => {
+    pricingApi.getAll().then((items: any) => setCatalog(items || [])).catch(() => {});
     const all: any = await requestsApi.getVendorJobs();
     const inProgress = (all || []).filter((j: any) => j.bookingGroupId === bookingGroupId && j.status === 'IN_PROGRESS');
 
@@ -166,7 +169,7 @@ export default function BundleCloseAllScreen() {
               <>
                 {(m.job.additionalServices || []).filter((s: any) => s.approved && s.quantity != null).map((svc: any) => (
                   <View key={svc.id} style={styles.qtyRow}>
-                    <Text style={styles.qtyLabel}>{svc.name} — qty</Text>
+                    <Text style={styles.qtyLabel}>{svc.name} — {describeUnit(catalog.find((c) => c.id === svc.servicePriceId)).hourly ? 'hours worked' : describeUnit(catalog.find((c) => c.id === svc.servicePriceId)).many}</Text>
                     <TextInput
                       style={styles.qtyInput}
                       keyboardType="decimal-pad"

@@ -21,6 +21,37 @@ export function calcTieredCost(sp: ServicePrice, qty: number): number {
   return Number(sp.basePrice) + tier2Qty * baseRate + tier3Qty * volRate;
 }
 
+// Hourly services are billed for the time the technician records at
+// completion (see ServiceRequestsService.prepCompletion), so customers
+// don't choose a number of hours when booking.
+export function isHourly(item: Pick<ServicePrice, 'pricingMethod' | 'quantityLabel'>): boolean {
+  return item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel === 'HOUR';
+}
+
+const DEFAULT_UNIT_NAMES: Record<string, [string, string]> = {
+  HOUR: ['hour', 'hours'],
+  SQ_FT: ['sq ft', 'sq ft'],
+  LINEAR_FEET: ['foot', 'feet'],
+};
+
+// What is being counted, singular and plural ("ladder" / "ladders"): the
+// service's own unitName when set, otherwise its unit label in lower case.
+export function unitNames(
+  item: Pick<ServicePrice, 'quantityLabel' | 'unitName' | 'unitNamePlural'>,
+  labelMap: Record<string, string>,
+): { one: string; many: string } {
+  if (item.unitName?.trim()) {
+    const one = item.unitName.trim();
+    return { one, many: item.unitNamePlural?.trim() || `${one}s` };
+  }
+  const code = item.quantityLabel ?? '';
+  if (DEFAULT_UNIT_NAMES[code]) return { one: DEFAULT_UNIT_NAMES[code][0], many: DEFAULT_UNIT_NAMES[code][1] };
+  const one = (labelMap[code] ?? code).toLowerCase() || 'unit';
+  return { one, many: `${one}s` };
+}
+
+const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
 // Derives the customer-facing price string (e.g. "$70 (includes up to 1
 // Hour)") from the structured pricingMethod + basePrice + tiered fields,
 // replacing the old admin-typed free-text priceNote field. labelMap is the
@@ -127,13 +158,11 @@ export function formatCustomerPriceDisplay(item: ServicePrice, labelMap: Record<
   // up, producing two different-looking numbers for the same charge.
   const formatted = String(Math.ceil(applyStripeFee(subtotal)));
   if (item.pricingMethod === PricingMethod.PER_UNIT && item.quantityLabel && item.quantityLabel !== 'NONE') {
-    const unitLabel = labelMap[item.quantityLabel] ?? item.quantityLabel;
-    if (item.includeQty != null) {
-      const include = Number(item.includeQty);
-      const plural = include !== 1 ? 's' : '';
-      return `$${formatted} (includes up to ${include} ${unitLabel}${plural})`;
+    const names = unitNames(item, labelMap);
+    if (isHourly(item)) {
+      return qty > 1 ? `$${formatted} for up to ${fmtQty(qty)} hours, then by the hour` : `$${formatted} for the first hour, then by the hour`;
     }
-    return `$${formatted} Per ${unitLabel}`;
+    return qty > 1 ? `$${formatted} for up to ${fmtQty(qty)} ${names.many}` : `$${formatted} for 1 ${names.one}`;
   }
   const suffix = PRICING_METHOD_META[item.pricingMethod]?.suffix ?? '';
   return `$${formatted}${suffix}`;

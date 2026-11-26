@@ -37,6 +37,14 @@ export class CreatePricingDto {
   @IsOptional()
   minimumQuantity?: number | null;
 
+  @IsString()
+  @IsOptional()
+  unitName?: string | null;
+
+  @IsString()
+  @IsOptional()
+  unitNamePlural?: string | null;
+
   @IsNumber()
   @IsOptional()
   includeQty?: number | null;

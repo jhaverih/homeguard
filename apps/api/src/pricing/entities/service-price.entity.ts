@@ -39,6 +39,15 @@ export class ServicePrice {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   minimumQuantity: number | null;
 
+  // What one unit of this service is, in the customer's words ("ladder" /
+  // "ladders", "hole" / "holes") — quantityLabel's generic "Unit" doesn't
+  // say what is being counted. Falls back to the unit label when empty.
+  @Column({ type: 'text', nullable: true })
+  unitName: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  unitNamePlural: string | null;
+
   // Tiered volume-discount pricing for PER_UNIT services — see
   // pricing.utils.ts calcTieredCost() for how these combine with basePrice
   // (the flat "Subcontractor Minimum Payout"). All null for other pricing

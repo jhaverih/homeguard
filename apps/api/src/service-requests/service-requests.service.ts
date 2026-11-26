@@ -25,7 +25,7 @@ import { VendorCapability, CertificationType } from '../vendor/entities/vendor-c
 import { VendorCapabilitySelection } from '../vendor/entities/vendor-capability-selection.entity';
 import { VendorCertification, CertificationReviewStatus } from '../vendor/entities/vendor-certification.entity';
 import { ServicePrice } from '../pricing/entities/service-price.entity';
-import { calcTieredCost, applyStripeFee, isDynamicGmCategory, calcGraduatedPrice } from '../pricing/pricing.utils';
+import { calcTieredCost, applyStripeFee, isDynamicGmCategory, calcGraduatedPrice, isHourly } from '../pricing/pricing.utils';
 import { calcAssessmentCustomerSurcharge, calcAssessmentVendorCost } from '../common/utils/property-surcharge.utils';
 import { PropertyCharacteristicsService } from '../users/property-characteristics.service';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
@@ -266,8 +266,11 @@ export class ServiceRequestsService {
     // One-Time Fee, Request Quote) ignore quantity entirely — a single fixed
     // fee has no unit count.
     const isPerUnit = servicePrice.pricingMethod === PricingMethod.PER_UNIT;
-    const enteredQty = isPerUnit ? (dto.quantity ?? 1) : 1;
     const minQty = servicePrice.minimumQuantity ? Number(servicePrice.minimumQuantity) : 0;
+    // Hourly services: the customer doesn't choose the hours. The booking
+    // starts at the minimum (1 hour by default) and the technician records
+    // the actual time at completion, which sets the final charge.
+    const enteredQty = !isPerUnit ? 1 : isHourly(servicePrice) ? Math.max(1, minQty) : (dto.quantity ?? 1);
     const billedQty = isPerUnit && minQty > 0 ? Math.max(enteredQty, minQty) : enteredQty;
 
     // The one catalog item flagged isQuotaInspection (expected: "Preventative

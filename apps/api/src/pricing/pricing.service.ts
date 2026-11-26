@@ -8,7 +8,7 @@ import { VendorCapability } from '../vendor/entities/vendor-capability.entity';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { ServiceCategory, SERVICE_CATEGORY_META } from '../common/enums/service-category.enum';
 import { ServiceGroup } from '../common/enums/service-group.enum';
-import { formatPriceDisplay, formatCustomerPriceDisplay } from './pricing.utils';
+import { formatPriceDisplay, formatCustomerPriceDisplay, unitNames, isHourly } from './pricing.utils';
 
 // Trimmed to only what's still live — several of the original entries here
 // (Gutters Inspection & Cleaning, both Replace Bulbs variants, Drywall
@@ -260,6 +260,66 @@ export class PricingService implements OnModuleInit {
     await this.seedQuoteCatalog();
     await this.seedFlooringCapability();
     await this.seedUnitLabels();
+    await this.backfillUnitNames();
+  }
+
+  // Says what is being counted for services whose unit label alone ("Unit",
+  // "Hole") doesn't. Only fills an empty unitName, so admin edits stick.
+  private async backfillUnitNames() {
+    const NAMES: Record<string, [string, string]> = {
+      'Drywall Patch (Small)': ['hole', 'holes'],
+      'Medium Drywall Repair': ['hole', 'holes'],
+      'Baseboards & Trim': ['foot of trim', 'feet of trim'],
+      'Gutter Cleaning': ['foot of gutter', 'feet of gutter'],
+      'Pipe Insulation': ['foot of pipe', 'feet of pipe'],
+      'Soffit/Fascia Repair': ['foot of trim', 'feet of trim'],
+      'Backsplash Installation': ['sq ft of backsplash', 'sq ft of backsplash'],
+      'Comprehensive Home Assessment': ['sq ft of living space', 'sq ft of living space'],
+      'Pressure Washing': ['sq ft of surface', 'sq ft of surface'],
+      'Regrouting': ['sq ft of tile', 'sq ft of tile'],
+      'Wallpaper Removal': ['sq ft of wallpaper', 'sq ft of wallpaper'],
+      'HVAC Full Assessment': ['heating/cooling system', 'heating/cooling systems'],
+      'Attic Ladder Replacement': ['ladder', 'ladders'],
+      'Bathroom Accessories': ['accessory', 'accessories'],
+      'Blinds & Curtains': ['window', 'windows'],
+      'Carpet Stretching': ['room', 'rooms'],
+      'Ceiling Fan Replacement': ['fan', 'fans'],
+      'Deck Board Replacement': ['board', 'boards'],
+      'Door Repairs': ['door', 'doors'],
+      'Dryer Vent Cleaning': ['vent', 'vents'],
+      'Exterior Light Installation': ['light', 'lights'],
+      'Faucet Replacement': ['faucet', 'faucets'],
+      'Fence Repairs': ['picket', 'pickets'],
+      'Fireplace Mantel Installation': ['mantel', 'mantels'],
+      'Garage Door Maintenance': ['garage door', 'garage doors'],
+      'Garage Shelving': ['shelving unit', 'shelving units'],
+      'Grab Bars': ['grab bar', 'grab bars'],
+      'Hardware Replacement': ['knob, pull or hinge', 'knobs, pulls or hinges'],
+      'Light Fixture Replacement': ['fixture', 'fixtures'],
+      'Lock Installation': ['lock', 'locks'],
+      'Mailbox Installation': ['mailbox', 'mailboxes'],
+      'Mirrors & Artwork': ['piece', 'pieces'],
+      'Outlet/Switch Replacement': ['outlet or switch', 'outlets or switches'],
+      'Pet Door Installation': ['pet door', 'pet doors'],
+      'Porch Swing Installation': ['swing', 'swings'],
+      'Recaulking': ['tub, shower or sink', 'tubs, showers or sinks'],
+      'Shelving Installation': ['shelf', 'shelves'],
+      'Showerhead Installation': ['showerhead', 'showerheads'],
+      'Siding Repair': ['panel', 'panels'],
+      'Smart Device Installation': ['device', 'devices'],
+      'Smoke/CO Detectors': ['detector', 'detectors'],
+      'Stair Handrail Installation': ['handrail', 'handrails'],
+      'TV Mounting': ['TV', 'TVs'],
+      'Tile Replacement': ['tile', 'tiles'],
+      'Toilet Maintenance': ['toilet', 'toilets'],
+      'Toilet Repair': ['toilet', 'toilets'],
+      'Weather Stripping': ['door or window', 'doors or windows'],
+      'Window Repairs': ['window', 'windows'],
+      'Window Screen Repair': ['screen', 'screens'],
+    };
+    for (const [name, [one, many]] of Object.entries(NAMES)) {
+      await this.pricesRepo.update({ name, unitName: IsNull() }, { unitName: one, unitNamePlural: many });
+    }
   }
 
   // One-time seed of the original 9 hardcoded UnitLabel enum values into the
@@ -548,7 +608,16 @@ export class PricingService implements OnModuleInit {
   // instance (rather than spreading into a plain object) so it still
   // satisfies ServicePrice's shape, including its lifecycle-hook method.
   private withDisplay(item: ServicePrice, labelMap: Record<string, string>): ServicePrice & { priceDisplay: string; customerPriceDisplay: string } {
-    return Object.assign(item, { priceDisplay: formatPriceDisplay(item, labelMap), customerPriceDisplay: formatCustomerPriceDisplay(item, labelMap) });
+    const names = unitNames(item, labelMap);
+    return Object.assign(item, {
+      priceDisplay: formatPriceDisplay(item, labelMap),
+      customerPriceDisplay: formatCustomerPriceDisplay(item, labelMap),
+      // Resolved "what is counted" names for the apps (unitName, or the unit
+      // label as a fallback) and whether the time is recorded by the vendor.
+      unitOne: names.one,
+      unitMany: names.many,
+      billedByTheHour: isHourly(item),
+    });
   }
 
   async getAll(includeInactive = false): Promise<(ServicePrice & { priceDisplay: string })[]> {

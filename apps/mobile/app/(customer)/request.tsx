@@ -12,6 +12,7 @@ import {
 } from '../../src/services/api';
 import { scheduleLocalReminder } from '../../src/services/notifications';
 import { fmtUSD } from '../../src/utils/currency';
+import { describeUnit, countOf } from '../../src/utils/units';
 import { colors } from '../../src/theme';
 import HomeCharacteristicsModal from '../../src/components/HomeCharacteristicsModal';
 import FacilitatorDisclosureModal from '../../src/components/FacilitatorDisclosureModal';
@@ -102,11 +103,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 // Unit Label is now a fixed enum on the backend (not free text), so this
 // maps the stored key to its display string instead of naively capitalizing.
-const UNIT_LABEL_DISPLAY: Record<string, string> = {
-  HOUR: 'Hour', SQ_FT: 'SqFt', BULB: 'Bulb', SERVICE_TRIP: 'Service Trip', AC_UNIT: 'AC Unit', NONE: 'None',
-};
-const unitLabelDisplay = (key: string | null | undefined) => (key ? UNIT_LABEL_DISPLAY[key] ?? key : '');
 const hasUnitLabel = (item: any) => !!item?.quantityLabel && item.quantityLabel !== 'NONE';
+// Smallest count a customer can book: the service's minimum, at least 1.
+const minQtyOf = (item: any) => Math.max(1, Math.ceil(Number(item?.minimumQuantity) || 0));
 
 export default function RequestScreen() {
   const [tab, setTab] = useState<'inspection' | 'service'>('inspection');
@@ -524,18 +523,31 @@ export default function RequestScreen() {
   // Per Unit pricing floors the billed quantity at minimumQuantity (when
   // set) so the shown estimate always matches what will actually be
   // charged — the minimum is disclosed up front, not silently applied.
+  // Hourly services book at the minimum (1 hour by default); the
+  // technician records the actual time, which sets the final charge.
   const billedQtyFor = (item: any) => {
     if (!hasUnitLabel(item) || item.pricingMethod !== 'PER_UNIT') return 1;
-    const entered = parseFloat(serviceQuantities[item.id] || '1') || 1;
-    const minQty = item.minimumQuantity ? parseFloat(item.minimumQuantity) : 0;
-    return minQty > 0 ? Math.max(entered, minQty) : entered;
+    const min = minQtyOf(item);
+    if (describeUnit(item).hourly) return min;
+    const entered = parseFloat(serviceQuantities[item.id] || '') || min;
+    return Math.max(entered, min);
   };
 
-  const adjustQty = (itemId: string, delta: number) => {
+  // The counter starts at the minimum (1 unless the service sets more),
+  // moves one at a time and never goes below the minimum.
+  const adjustQty = (item: any, delta: number) => {
+    const min = minQtyOf(item);
     setServiceQuantities((q) => {
-      const current = parseFloat(q[itemId] || '1') || 1;
-      const next = Math.max(1, current + delta);
-      return { ...q, [itemId]: String(next) };
+      const current = Math.max(min, Math.round(parseFloat(q[item.id] || '') || min));
+      return { ...q, [item.id]: String(Math.max(min, current + delta)) };
+    });
+  };
+
+  const clampQty = (item: any) => {
+    const min = minQtyOf(item);
+    setServiceQuantities((q) => {
+      const v = Math.round(parseFloat(q[item.id] || '') || 0);
+      return { ...q, [item.id]: String(Math.max(min, v)) };
     });
   };
 
@@ -547,9 +559,8 @@ export default function RequestScreen() {
   const toggleService = (item: any) => {
     setSelectedServices((prev) => {
       if (prev.some((s) => s.id === item.id)) return prev.filter((s) => s.id !== item.id);
-      if (hasUnitLabel(item)) {
-        const minQty = item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '';
-        setServiceQuantities((q) => ({ ...q, [item.id]: q[item.id] || minQty }));
+      if (hasUnitLabel(item) && !describeUnit(item).hourly) {
+        setServiceQuantities((q) => ({ ...q, [item.id]: q[item.id] || String(minQtyOf(item)) }));
       }
       return [...prev, item];
     });
@@ -583,6 +594,13 @@ export default function RequestScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.serviceName, isSelected && styles.serviceNameSelected]}>{item.name}</Text>
               {!item.useCharacteristicPricing && <Text style={styles.serviceDesc}>{item.description}</Text>}
+              {hasUnitLabel(item) && item.pricingMethod === 'PER_UNIT' && !item.requiresQuote && !quotaFree && (
+                <Text style={styles.priceBasis}>
+                  {describeUnit(item).hourly
+                    ? 'Price for the first hour · billed by the hour'
+                    : `Price for ${countOf(billedQtyFor(item), describeUnit(item))}`}
+                </Text>
+              )}
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4, marginLeft: 12 }}>
               {assessmentIncluded ? (
@@ -618,39 +636,52 @@ export default function RequestScreen() {
               </Text>
             </View>
           )}
-          {isSelected && hasUnitLabel(item) && (
+          {isSelected && hasUnitLabel(item) && describeUnit(item).hourly && (
+            <View style={styles.minQtyNotice}>
+              <Ionicons name="time-outline" size={14} color="#92400e" />
+              <Text style={styles.minQtyNoticeText}>
+                Billed by the hour. Your technician records the time spent and you're charged for that time
+                {!item.requiresQuote && !quotaFree ? `, about $${Math.max(0, displayPrice(item, minQtyOf(item) + 1) - displayPrice(item, minQtyOf(item)))} for each extra hour` : ''}.
+                {minQtyOf(item) > 1 ? ` Minimum ${minQtyOf(item)} hours.` : ''}
+              </Text>
+            </View>
+          )}
+          {isSelected && hasUnitLabel(item) && !describeUnit(item).hourly && (
             <>
               <View style={styles.qtyRow}>
-                <Text style={styles.qtyLabel}>{unitLabelDisplay(item.quantityLabel)}</Text>
+                <Text style={styles.qtyLabel}>How many {describeUnit(item).many}?</Text>
                 <View style={styles.qtyStepper}>
                   <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, -1); }}
+                    onPress={(e) => { e.stopPropagation?.(); adjustQty(item, -1); }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={`Fewer ${describeUnit(item).many}`}
                   >
                     <Ionicons name="remove-circle-outline" size={26} color={colors.lanternDeep} />
                   </TouchableOpacity>
                   <TextInput
                     style={styles.qtyInput}
-                    placeholder={item.minimumQuantity ? String(Math.ceil(item.minimumQuantity)) : '0'}
+                    placeholder={String(minQtyOf(item))}
                     placeholderTextColor={colors.steel}
                     keyboardType="number-pad"
                     value={serviceQuantities[item.id] || ''}
-                    onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v }))}
+                    onChangeText={(v) => setServiceQuantities((q) => ({ ...q, [item.id]: v.replace(/[^0-9]/g, '') }))}
+                    onEndEditing={() => clampQty(item)}
                     onPress={(e) => e.stopPropagation?.()}
                   />
                   <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation?.(); adjustQty(item.id, 1); }}
+                    onPress={(e) => { e.stopPropagation?.(); adjustQty(item, 1); }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={`More ${describeUnit(item).many}`}
                   >
                     <Ionicons name="add-circle-outline" size={26} color={colors.lanternDeep} />
                   </TouchableOpacity>
                 </View>
               </View>
-              {item.pricingMethod === 'PER_UNIT' && item.minimumQuantity > 0 && (
+              {item.pricingMethod === 'PER_UNIT' && minQtyOf(item) > 1 && (
                 <View style={styles.minQtyNotice}>
                   <Ionicons name="information-circle-outline" size={14} color="#92400e" />
                   <Text style={styles.minQtyNoticeText}>
-                    Minimum {Math.ceil(item.minimumQuantity)} {unitLabelDisplay(item.quantityLabel)}{Math.ceil(item.minimumQuantity) !== 1 ? 's' : ''} will apply.
+                    Minimum {countOf(minQtyOf(item), describeUnit(item))}.
                   </Text>
                 </View>
               )}
@@ -782,10 +813,10 @@ export default function RequestScreen() {
     // front (see the qty row's copy) and applied automatically below rather
     // than blocking submission.
     for (const svc of selectedServices) {
-      if (hasUnitLabel(svc)) {
+      if (hasUnitLabel(svc) && !describeUnit(svc).hourly) {
         const qty = parseFloat(serviceQuantities[svc.id] || '0');
         if (!qty || qty <= 0) {
-          Alert.alert('Quantity Required', `Please enter the number of ${unitLabelDisplay(svc.quantityLabel)} for ${svc.name}.`);
+          Alert.alert('How many?', `Please enter how many ${describeUnit(svc).many} for ${svc.name}.`);
           return;
         }
       }
@@ -801,15 +832,18 @@ export default function RequestScreen() {
       : undefined;
     try {
       for (const svc of selectedServices) {
-        const enteredQty = hasUnitLabel(svc) ? parseFloat(serviceQuantities[svc.id] || '0') : undefined;
+        const unit = describeUnit(svc);
+        // Hourly: the server books the minimum and the technician records
+        // the actual time, so no count is sent.
+        const enteredQty = hasUnitLabel(svc) && !unit.hourly ? parseFloat(serviceQuantities[svc.id] || '0') : undefined;
         // Floors the billed quantity at the disclosed minimum for Per Unit
         // services; quote-based services with a unit label (e.g. HVAC) just
         // pass the raw entered count through as quote context.
         const billedQty = enteredQty && svc.pricingMethod === 'PER_UNIT'
-          ? Math.max(enteredQty, svc.minimumQuantity ? parseFloat(svc.minimumQuantity) : 0)
+          ? Math.max(enteredQty, minQtyOf(svc))
           : enteredQty;
-        const unitLabel = unitLabelDisplay(svc.quantityLabel);
-        let notes = billedQty ? `${billedQty} ${unitLabel}${serviceNotes ? ` — ${serviceNotes}` : ''}` : serviceNotes;
+        const countText = unit.hourly && hasUnitLabel(svc) ? 'Billed by the hour' : billedQty ? countOf(billedQty, unit) : '';
+        let notes = countText ? `${countText}${serviceNotes ? ` — ${serviceNotes}` : ''}` : serviceNotes;
         if (svc.name?.toLowerCase().includes('solar') && solarMonthlyBill) {
           const interestLabel = solarInterest === 'solar_battery' ? `Solar + Battery (${solarCoverage === 'whole_home' ? 'Whole Home' : 'Partial Backup'})` : 'Solar Only';
           notes = `Monthly Bill: $${solarMonthlyBill}\nInterest: ${interestLabel}${notes ? `\n${notes}` : ''}`;
@@ -1114,7 +1148,10 @@ export default function RequestScreen() {
               {selectedServices.map((svc) => (
                 <View key={svc.id} style={styles.addonPriceRow}>
                   <Text style={styles.addonPriceLabel}>
-                    {svc.name}{hasUnitLabel(svc) && serviceQuantities[svc.id] ? ` (${serviceQuantities[svc.id]} ${unitLabelDisplay(svc.quantityLabel)})` : ''}
+                    {svc.name}
+                    {hasUnitLabel(svc) && describeUnit(svc).hourly ? '\n(first hour, then by the hour)'
+                      : hasUnitLabel(svc) && svc.pricingMethod === 'PER_UNIT' ? `\n(${countOf(billedQtyFor(svc), describeUnit(svc))})`
+                      : hasUnitLabel(svc) && serviceQuantities[svc.id] ? `\n(${countOf(Number(serviceQuantities[svc.id]), describeUnit(svc))})` : ''}
                   </Text>
                   <Text style={styles.addonPrice}>
                     {svc.requiresQuote ? 'Quote' : isQuotaFree(svc) ? 'Included' : `$${Number(displayPrice(svc, billedQtyFor(svc))).toLocaleString('en-US')}`}
@@ -1124,12 +1161,17 @@ export default function RequestScreen() {
               {selectedServices.length > 1 && (
                 <View style={[styles.addonPriceRow, { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4, paddingTop: 12 }]}>
                   <Text style={[styles.addonPriceLabel, { fontWeight: '800' }]}>
-                    {selectedServices.some((s) => s.requiresQuote) ? 'Total before quotes' : 'Total'}
+                    {selectedServices.some((s) => s.requiresQuote) ? 'Total before quotes'
+                      : selectedServices.some((s) => hasUnitLabel(s) && describeUnit(s).hourly) ? 'Estimated total' : 'Total'}
                   </Text>
                   <Text style={[styles.addonPrice, { fontSize: 20 }]}>${totalServicePrice}</Text>
                 </View>
               )}
-              <Text style={[styles.addonNote, { marginTop: 12 }]}>Payment will be processed upon completion.</Text>
+              <Text style={[styles.addonNote, { marginTop: 12 }]}>
+                Payment will be processed upon completion.
+                {selectedServices.some((s) => hasUnitLabel(s) && describeUnit(s).hourly)
+                  ? ' Hourly services are charged for the time your technician records.' : ''}
+              </Text>
               </ScrollView>
               <TouchableOpacity style={styles.addonConfirmBtn} onPress={doSubmitServices}>
                 <Text style={styles.addonConfirmText}>Confirm Request</Text>
@@ -1208,6 +1250,7 @@ const styles = StyleSheet.create({
   serviceName: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 4 },
   serviceNameSelected: { color: colors.lanternDeep },
   serviceDesc: { fontSize: 13, color: colors.steel, lineHeight: 18 },
+  priceBasis: { fontSize: 12.5, color: colors.lanternDeep, fontWeight: '600', marginTop: 6 },
   servicePrice: { fontSize: 15, fontWeight: '700', color: colors.steel },
   servicePriceSelected: { color: colors.lanternDeep },
   servicePriceStrike: { fontSize: 14, fontWeight: '600', color: colors.steel, textDecorationLine: 'line-through' },
