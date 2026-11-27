@@ -52,6 +52,10 @@ const STUCK_EN_ROUTE_THRESHOLD_HOURS = 2.5;
 // (apps/api/legal/customer-terms.md) for cancelling less than 24 hours
 // before the appointment — VENDOR_EN_ROUTE is always within that window.
 const LATE_CANCELLATION_FEE_USD = 25;
+// No-show rules (terms + vendor training): arrive on time (this much grace
+// after the scheduled time), message the customer in the app, then wait.
+const NO_SHOW_ARRIVAL_GRACE_MIN = 15;
+const NO_SHOW_WAIT_MIN = 10;
 
 // Same default rate used everywhere else pricing is computed in this
 // codebase (pricing.utils.ts's formatCustomerPriceDisplay, this file's own
@@ -1100,24 +1104,67 @@ export class ServiceRequestsService {
     return this.requestsRepo.save(request);
   }
 
+  // What the customer pays for a catalog service at a quantity: the same
+  // tiers, margin and card fee as a booking (createStandaloneService).
+  private customerPriceFor(servicePrice: ServicePrice, qty: number): number {
+    const cost = calcTieredCost(servicePrice, qty);
+    const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
+    const subtotal = isDynamicGmCategory(servicePrice.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
+    return Math.round(applyStripeFee(subtotal) * 100) / 100;
+  }
+
+  // Tells everyone in the customer's home: any of them can approve.
+  private async notifyHousehold(customerId: string, type: NotificationType, title: string, body: string, data: Record<string, unknown>) {
+    const ids = await this.usersService.getRelatedCustomerIds(customerId);
+    await Promise.all(ids.map((id) => this.notificationsService.notifyUser(id, type, title, body, data).catch(() => {})));
+  }
+
+  // Extra work the vendor finds on site. Nothing is charged until someone in
+  // the customer's home approves it in the app. A catalog service is priced
+  // on the server (customer price, not the vendor's cost); anything else
+  // uses the vendor's own price.
   async recommendAdditionalService(
     requestId: string, vendorId: string,
-    dto: { name: string; description: string; price: number },
+    dto: { name?: string; description?: string; price?: number; servicePriceId?: string; quantity?: number },
   ): Promise<AdditionalService> {
     const request = await this.findById(requestId);
     if (request.vendorId !== vendorId) throw new ForbiddenException();
+    if (![ServiceRequestStatus.ACCEPTED, ServiceRequestStatus.VENDOR_EN_ROUTE, ServiceRequestStatus.IN_PROGRESS].includes(request.status)) {
+      throw new BadRequestException('Extra work can only be recommended on an active job.');
+    }
 
-    const service = this.additionalRepo.create({ ...dto, serviceRequestId: requestId });
-    const saved = await this.additionalRepo.save(service);
+    let name: string;
+    let description: string;
+    let price: number;
+    if (dto.servicePriceId) {
+      const item = (await this.pricingService.getAll()).find((p) => p.id === dto.servicePriceId);
+      if (!item) throw new BadRequestException('Service not found');
+      if (item.requiresQuote) throw new BadRequestException('This service needs a quote. Enter a name and price instead.');
+      const qty = Math.max(1, Math.round(Number(dto.quantity) || 1));
+      const unit = isHourly(item) ? (qty === 1 ? 'hour' : 'hours') : '';
+      name = qty > 1 || unit ? `${item.name} (${qty}${unit ? ` ${unit}` : ''})` : item.name;
+      description = dto.description?.trim() || item.description;
+      price = this.customerPriceFor(item, qty);
+    } else {
+      name = String(dto.name ?? '').trim();
+      description = String(dto.description ?? '').trim();
+      price = Math.round(Number(dto.price) * 100) / 100;
+      if (!name) throw new BadRequestException('Enter what the extra work is.');
+      if (!Number.isFinite(price) || price <= 0 || price > 50000) throw new BadRequestException('Enter a valid price.');
+    }
+
+    const saved = await this.additionalRepo.save(this.additionalRepo.create({
+      serviceRequestId: requestId, name, description, price, approved: false,
+    }));
     await this.events.record(JobEventType.EXTRA_WORK_RECOMMENDED, request, { role: 'VENDOR', id: vendorId }, {
-      additionalServiceId: saved.id, name: dto.name, price: Number(dto.price),
+      additionalServiceId: saved.id, name, price, fromCatalog: !!dto.servicePriceId,
     });
 
-    await this.notificationsService.notifyUser(
+    await this.notifyHousehold(
       request.customerId,
       NotificationType.ADDITIONAL_SERVICE_RECOMMENDED,
-      'Additional Service Recommended',
-      `Your vendor recommends: ${dto.name} ($${dto.price})`,
+      'Extra work needs your approval',
+      `Your technician recommends: ${name} ($${price.toFixed(2)}). Approve or decline in the app. Nothing is charged unless you approve.`,
       { serviceRequestId: requestId, additionalServiceId: saved.id },
     );
 
@@ -1150,13 +1197,7 @@ export class ServiceRequestsService {
 
     const earlier = await this.additionalRepo.find({ where: { serviceRequestId: requestId, extraTimeForId: line.id } });
     const currentHours = Number(line.quantity ?? 1) + earlier.reduce((sum, s) => sum + Number(s.extraHours ?? 0), 0);
-    const priceAt = (qty: number) => {
-      const cost = calcTieredCost(servicePrice, qty);
-      const gm = servicePrice.gmPercent != null ? Number(servicePrice.gmPercent) : 15;
-      const subtotal = isDynamicGmCategory(servicePrice.category) ? calcGraduatedPrice(cost) : cost / (1 - gm / 100);
-      return Math.round(applyStripeFee(subtotal) * 100) / 100;
-    };
-    const price = Math.max(0, Math.round((priceAt(currentHours + hours) - priceAt(currentHours)) * 100) / 100);
+    const price = Math.max(0, Math.round((this.customerPriceFor(servicePrice, currentHours + hours) - this.customerPriceFor(servicePrice, currentHours)) * 100) / 100);
     const label = `${hours} more hour${hours === 1 ? '' : 's'}`;
 
     const saved = await this.additionalRepo.save(this.additionalRepo.create({
@@ -1172,7 +1213,7 @@ export class ServiceRequestsService {
       hoursAlreadyRequested: currentHours - Number(line.quantity ?? 1), price,
     });
 
-    await this.notificationsService.notifyUser(
+    await this.notifyHousehold(
       request.customerId,
       NotificationType.ADDITIONAL_SERVICE_RECOMMENDED,
       'More time needed',
@@ -1245,7 +1286,13 @@ export class ServiceRequestsService {
       relations: ['serviceRequest'],
     });
     if (!service) throw new NotFoundException();
-    if (service.serviceRequest.customerId !== customerId) throw new ForbiddenException();
+    // Anyone in the customer's home can approve, same as declining.
+    const relatedIds = await this.usersService.getRelatedCustomerIds(customerId);
+    if (!relatedIds.includes(service.serviceRequest.customerId)) throw new ForbiddenException();
+    if (service.approved) return service;
+    if ([ServiceRequestStatus.COMPLETED, ServiceRequestStatus.CANCELLED].includes(service.serviceRequest.status)) {
+      throw new BadRequestException('This job is already closed.');
+    }
 
     service.approved = true;
     service.approvedAt = new Date();
@@ -1575,6 +1622,98 @@ export class ServiceRequestsService {
       relations: ['serviceRequest', 'serviceRequest.vendor'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // The vendor arrived and the customer isn't home. Per the terms and the
+  // vendor training, a no-show can only be recorded after the vendor
+  // arrived on time and made a real effort to reach the customer through
+  // the app; the customer is then charged the full price, paid to the
+  // vendor. Checks (all server-side, from the job event log and chat):
+  // - the job is in progress (the vendor marked or was detected arriving),
+  // - the arrival was no later than NO_SHOW_ARRIVAL_GRACE_MIN after the
+  //   scheduled time,
+  // - the vendor messaged the customer in the app after arriving, and
+  // - at least NO_SHOW_WAIT_MIN passed since that message.
+  async reportNoShow(requestId: string, vendorId: string): Promise<ServiceRequest> {
+    const request = await this.findById(requestId);
+    if (request.vendorId !== vendorId) throw new ForbiddenException();
+    if (request.status !== ServiceRequestStatus.IN_PROGRESS) {
+      throw new BadRequestException('Mark that you have arrived before reporting that the customer is not home.');
+    }
+    const arrived = (await this.events.forJob(request.id)).filter((e) => e.type === JobEventType.ARRIVED).pop();
+    if (!arrived) {
+      throw new BadRequestException('There is no arrival on record for this visit, so a no-show can’t be recorded. Contact Attenteve support.');
+    }
+    const minutesLate = minutesBetween(request.scheduledDate, arrived.occurredAt);
+    if (minutesLate != null && minutesLate > NO_SHOW_ARRIVAL_GRACE_MIN) {
+      throw new BadRequestException(`You arrived ${minutesLate} minutes after the scheduled time, so a no-show can’t be recorded. Message the customer or reschedule instead.`);
+    }
+    const [firstMessage] = await this.dataSource.query(
+      'SELECT "createdAt" FROM chat_messages WHERE "roomId" = $1 AND "senderId" = $2 AND "createdAt" >= $3 ORDER BY "createdAt" ASC LIMIT 1',
+      [request.id, vendorId, arrived.occurredAt],
+    );
+    if (!firstMessage) {
+      throw new BadRequestException('First message the customer through the app to say you are here, then wait for a reply.');
+    }
+    const waited = minutesBetween(firstMessage.createdAt, new Date()) ?? 0;
+    if (waited < NO_SHOW_WAIT_MIN) {
+      throw new BadRequestException(`Please give the customer ${NO_SHOW_WAIT_MIN - waited} more minute${NO_SHOW_WAIT_MIN - waited === 1 ? '' : 's'} to reply to your message.`);
+    }
+
+    // Charge the booked services at their full price (plan-covered ones
+    // are $0; marketplace visits are covered by the monthly charge).
+    const lines = await this.additionalRepo.find({ where: { serviceRequestId: request.id, approved: true } });
+    const chargeable = request.marketplaceSubscriptionId ? [] : lines.filter((s) => !s.isQuotaCovered && !s.isMaterial && Number(s.price) > 0);
+    let charged = 0;
+    let chargeFailed = false;
+    for (const svc of chargeable) {
+      try {
+        await this.paymentsService.chargeForCompletedService(
+          request.id, request.customerId, vendorId, Number(svc.price), `Missed visit: ${svc.name}`,
+          PaymentType.ADDITIONAL_SERVICE, svc.fixedVendorPayout != null ? Number(svc.fixedVendorPayout) : undefined,
+        );
+        charged += Number(svc.price);
+      } catch (err: any) {
+        chargeFailed = true;
+        this.logger.warn(`No-show charge failed for ${request.id}: ${err?.message ?? err}`);
+      }
+    }
+    charged = Math.round(charged * 100) / 100;
+
+    await this.events.record(JobEventType.NO_SHOW, request, { role: 'VENDOR', id: vendorId }, {
+      minutesLate: minutesLate ?? undefined,
+      minutesWaitedAfterMessage: waited,
+      minutesOnSite: minutesBetween(arrived.occurredAt, new Date()) ?? undefined,
+      charged, chargeFailed: chargeFailed || undefined,
+    });
+
+    request.status = ServiceRequestStatus.CANCELLED;
+    request.noShowAt = new Date();
+    request.vendorLatitude = null;
+    request.vendorLongitude = null;
+    request.vendorHeading = null;
+    request.vendorLocationAt = null;
+    request.vendorEtaAt = null;
+    const saved = await this.requestsRepo.save(request);
+
+    await this.notifyHousehold(
+      request.customerId,
+      NotificationType.SERVICE_UPDATE,
+      'Missed visit',
+      charged > 0
+        ? `Your technician arrived and couldn't reach you, so the visit was recorded as missed and $${charged.toFixed(2)} was charged, as in the terms. If this isn't right, open the job in the app within 48 hours to report a problem.`
+        : "Your technician arrived and couldn't reach you, so the visit was recorded as missed. Book again from the app when you're ready.",
+      { serviceRequestId: saved.id },
+    );
+    if (chargeFailed) {
+      await this.notificationsService.notifyAdmins(
+        NotificationType.CANCELLATION_FEE_FAILED,
+        'No-show charge not collected',
+        `The no-show charge for ticket ${request.ticketNumber ?? request.id} could not be collected — may need manual follow-up.`,
+        { serviceRequestId: request.id },
+      ).catch(() => {});
+    }
+    return saved;
   }
 
   async cancelRequest(requestId: string, customerId: string): Promise<ServiceRequest> {

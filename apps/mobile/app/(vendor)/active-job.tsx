@@ -17,6 +17,7 @@ import { haversineMeters } from '../../src/utils/geo';
 import { describeUnit } from '../../src/utils/units';
 import { colors } from '../../src/theme';
 import { PhotoStrip } from '../../src/components/vendor/PhotoStrip';
+import { ExtraWorkCard } from '../../src/components/vendor/ExtraWorkCard';
 
 const NEXT_STATUS: Record<string, { label: string; next: string; color: string }> = {
   ACCEPTED: { label: "I'm On My Way", next: 'VENDOR_EN_ROUTE', color: '#9f7aea' },
@@ -579,26 +580,57 @@ export default function ActiveJobScreen() {
 
   // ── Upsell ─────────────────────────────────────────────────────────────────
 
+  // No-show: allowed after arriving on time, messaging the customer in the
+  // app and waiting (the server checks and explains what's missing).
+  const [reportingNoShow, setReportingNoShow] = useState(false);
+  const reportNoShow = () => {
+    Alert.alert(
+      'Customer not home?',
+      'You can record a no-show only if you arrived on time, messaged the customer in the app to say you’re here, and waited at least 10 minutes for a reply. The customer is then charged the full price, which is paid to you.',
+      [
+        { text: 'Message customer', onPress: () => router.push(`/chat/${id}?recipientId=${job.customerId}&recipientName=${job.customer ? job.customer.firstName : 'Customer'}`) },
+        {
+          text: 'Record no-show', style: 'destructive', onPress: async () => {
+            setReportingNoShow(true);
+            try {
+              await requestsApi.reportNoShow(id);
+              Alert.alert('No-show recorded', 'The customer has been notified and charged. You can leave.');
+              loadJob();
+            } catch (e: any) {
+              Alert.alert('Not yet', e.message);
+            } finally {
+              setReportingNoShow(false);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  };
+
   const sendUpsell = async () => {
-    let name: string, description: string, price: number;
+    let name: string;
+    let payload: any;
     if (upsellSelectedId === 'other') {
       if (!upsellCustomName.trim() || !upsellCustomPrice.trim()) {
         Alert.alert('Required', 'Enter a name and price.'); return;
       }
       name = upsellCustomName.trim();
-      description = `Recommendation from checklist task: ${upsellTask?.label}`;
-      price = parseCurrencyRaw(upsellCustomPrice);
+      const price = parseCurrencyRaw(upsellCustomPrice);
       if (isNaN(price) || price <= 0) { Alert.alert('Invalid price', 'Enter a valid amount.'); return; }
+      payload = { name, description: `Recommendation from checklist task: ${upsellTask?.label}`, price };
     } else if (upsellSelectedId) {
       const item = catalogItems.find((c) => c.id === upsellSelectedId);
       if (!item) return;
-      name = item.name; description = item.description; price = parseFloat(item.basePrice);
+      // The server prices catalog services at the customer price.
+      name = item.name;
+      payload = { servicePriceId: item.id, description: `${item.description} (found during: ${upsellTask?.label})` };
     } else {
       setUpsellModalVisible(false); return;
     }
     setSendingUpsell(true);
     try {
-      await requestsApi.recommendService(id, { name, description, price });
+      await requestsApi.recommendService(id, payload);
       Alert.alert('Quote sent', `"${name}" has been sent to the customer for approval.`);
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -1055,6 +1087,21 @@ export default function ActiveJobScreen() {
               </TouchableOpacity>
             </View>
           </View>
+        )}
+
+        {/* ── Extra work ── on every active job; assessments also list
+            recommendations under their checklist. */}
+        {['ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(job.status) && (
+          <ExtraWorkCard job={job} catalogItems={catalogItems} onChanged={loadJob} showList={!showInspectionChecklist} />
+        )}
+
+        {/* ── Customer not home ── after arriving (see reportNoShow). */}
+        {job.status === 'IN_PROGRESS' && (
+          <TouchableOpacity style={styles.noShowBtn} onPress={reportNoShow} disabled={reportingNoShow}>
+            {reportingNoShow
+              ? <ActivityIndicator color="#b91c1c" />
+              : <Text style={styles.noShowBtnText}>Customer not home?</Text>}
+          </TouchableOpacity>
         )}
 
         {/* ── Time ── hourly services: ask the customer to approve extra
@@ -1976,6 +2023,8 @@ const styles = StyleSheet.create({
   extraTimeValue: { fontSize: 15, fontWeight: '700', color: colors.ink, minWidth: 70, textAlign: 'center' },
   extraTimeBtn: { backgroundColor: colors.lantern, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginLeft: 'auto' },
   extraTimeBtnText: { fontSize: 14, fontWeight: '800', color: colors.ink },
+  noShowBtn: { borderWidth: 1.5, borderColor: '#b91c1c', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 14, backgroundColor: '#fff' },
+  noShowBtnText: { color: '#b91c1c', fontSize: 15, fontWeight: '800' },
   sentSvcApproved: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
   sentSvcPending: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
   sentSvcName: { fontSize: 14, fontWeight: '600', color: colors.ink },

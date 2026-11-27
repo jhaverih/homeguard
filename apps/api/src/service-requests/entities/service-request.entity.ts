@@ -220,6 +220,11 @@ export class ServiceRequest {
   @Column({ type: 'timestamp', nullable: true })
   vendorEtaAt: Date | null;
 
+  // Set when the vendor recorded that the customer wasn't home (see
+  // ServiceRequestsService.reportNoShow); the job is then CANCELLED.
+  @Column({ type: 'timestamp', nullable: true })
+  noShowAt: Date | null;
+
   @Column({ type: 'timestamp', nullable: true })
   vendorEnRouteAt: Date | null;
 

@@ -15,6 +15,14 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-11-26
 
 ### Added
+- **api, mobile**: "Customer not home?" (no-show) for technicians, as the terms and vendor training describe it (`POST /service-requests/:id/no-show`).
+  - **When it's allowed:** the server allows it only if the vendor arrived no more than 15 minutes after the scheduled time (from the job event log), messaged the customer in the app after arriving, and waited 10 minutes after that message.
+  - **Charge:** the booked services are charged at full price and paid to the vendor. Plan-covered visits are $0 and marketplace visits are skipped.
+  - **What changes:** the job becomes CANCELLED with `noShowAt` set. Everyone in the home is notified, with the 48-hour window to report a problem. Admins are alerted if the charge fails. The job shows a "Missed visit" note, and a NO_SHOW job event is recorded.
+- **api, mobile**: Extra work on any job. Before, technicians could only recommend extra work from an assessment checklist item, so ordinary jobs had no way to ask.
+  - **Extra work card:** every active job now has one. The technician searches the catalog (choosing a quantity or hours) or enters something else with their own price, adds why it's needed, and sends it for approval.
+  - **Server-side price:** catalog recommendations are priced by the server at the customer price. Before, the app sent the vendor's base price. The checklist flow now does the same.
+  - **Approval:** anyone in the customer's home can approve (it used to be the account holder only), and everyone in the home is notified. Nothing is charged unless approved in the app, and approvals are refused once the job is closed.
 - **api, admin**: Job event log (`job_events`, `apps/api/src/job-events/`) for service-quality analysis. Each job row holds only its latest state (a reschedule overwrites the old date, a release clears the vendor), so history was lost.
   - **What's recorded:** one row per interaction, with actor (customer, vendor, admin or system), the job's customer and vendor, the scheduled time at that moment, and details. Covers requested, vendor passed, accepted (minutes to accept, proposed a different time), time confirmed or declined, assigned to a technician, on my way (expected lateness), arrived (minutes late, auto or manual, vs estimate), completed (time on site, amount charged), rescheduled (who, from/to, hours of notice), cancelled (status, notice, late fee), released by vendor, stuck on the way, extra work and extra time (recommended, approved, declined, response time), materials, messages (who and when, not the text), disputes, reviews, quotes and consultations.
   - **Test flag:** each row carries the customer's test flag, so testing can be left out of the analysis.

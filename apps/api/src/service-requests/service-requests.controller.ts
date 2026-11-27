@@ -142,6 +142,12 @@ export class ServiceRequestsController {
     return this.service.recommendAdditionalService(id, req.user.id, body);
   }
 
+  @Post(':id/no-show')
+  @ApiOperation({ summary: 'Vendor: the customer is not home (after arriving on time and messaging them)' })
+  reportNoShow(@Request() req, @Param('id') id: string) {
+    return this.service.reportNoShow(id, req.user.id);
+  }
+
   @Post(':id/extra-time')
   @ApiOperation({ summary: 'Vendor: ask the customer to approve more hours on an hourly service' })
   requestExtraTime(@Request() req, @Param('id') id: string, @Body() body: RequestExtraTimeDto) {

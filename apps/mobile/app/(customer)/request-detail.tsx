@@ -405,6 +405,16 @@ export default function RequestDetailScreen() {
         </View>
       )}
 
+      {/* Missed visit: the technician recorded that nobody was home. */}
+      {request.noShowAt && (
+        <View style={styles.noShowBanner}>
+          <Text style={styles.noShowTitle}>Missed visit</Text>
+          <Text style={styles.noShowBody}>
+            Your technician arrived on {new Date(request.noShowAt).toLocaleDateString()} and couldn’t reach you, so this visit was recorded as missed and charged as in the terms. If this isn’t right, report a problem within 48 hours.
+          </Text>
+        </View>
+      )}
+
       {/* Vendor en-route ETA banner + live map */}
       {request.status === 'VENDOR_EN_ROUTE' && (() => {
         const hasVendorLocation = request.vendorLatitude != null && request.vendorLongitude != null;
@@ -952,6 +962,9 @@ const styles = StyleSheet.create({
   // Stacked (column): the header row inside carries its own row layout; a
   // row here pushed the live map beside the header and off-screen.
   enRouteBanner: { backgroundColor: '#fffbeb', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 2, borderColor: '#f59e0b' },
+  noShowBanner: { backgroundColor: '#fef2f2', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#fca5a5' },
+  noShowTitle: { fontSize: 16, fontWeight: '800', color: '#991b1b', marginBottom: 4 },
+  noShowBody: { fontSize: 14, color: '#7f1d1d', lineHeight: 20 },
   enRouteTitle: { fontSize: 15, fontWeight: '800', color: '#92400e', marginBottom: 2 },
   enRouteBody: { fontSize: 13, color: '#78350f', lineHeight: 20 },
   enRouteMeta: { fontSize: 11, color: '#b45309', marginTop: 2 },

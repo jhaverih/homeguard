@@ -16,6 +16,7 @@ export enum JobEventType {
   ARRIVED = 'ARRIVED',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',                         // by the customer
+  NO_SHOW = 'NO_SHOW',                             // vendor arrived, customer not home
   RELEASED = 'RELEASED',                           // vendor gave the job back
   STUCK_ON_THE_WAY = 'STUCK_ON_THE_WAY',           // system: on the way too long without arriving
   EXTRA_WORK_RECOMMENDED = 'EXTRA_WORK_RECOMMENDED',

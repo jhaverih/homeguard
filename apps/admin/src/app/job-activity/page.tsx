@@ -18,7 +18,7 @@ const LABELS: Record<string, string> = {
   REQUESTED: 'Requested', VENDOR_PASSED: 'Vendor passed', ACCEPTED: 'Accepted',
   SCHEDULE_CONFIRMED: 'Time confirmed', SCHEDULE_DECLINED: 'Time declined', ASSIGNED: 'Assigned to technician',
   RESCHEDULED: 'Rescheduled', ON_MY_WAY: 'On my way', ARRIVED: 'Arrived', COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled', RELEASED: 'Released by vendor', STUCK_ON_THE_WAY: 'Stuck on the way',
+  CANCELLED: 'Cancelled', NO_SHOW: 'No-show (customer not home)', RELEASED: 'Released by vendor', STUCK_ON_THE_WAY: 'Stuck on the way',
   EXTRA_WORK_RECOMMENDED: 'Extra work recommended', EXTRA_TIME_REQUESTED: 'Extra time requested',
   EXTRA_WORK_APPROVED: 'Extra work approved', EXTRA_WORK_DECLINED: 'Extra work declined',
   MATERIAL_ADDED: 'Material added', MESSAGE_SENT: 'Message sent', DISPUTE_OPENED: 'Dispute opened',
