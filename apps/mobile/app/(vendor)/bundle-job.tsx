@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi } from '../../src/services/api';
+import { quickPosition } from '../../src/services/location';
 import { colors } from '../../src/theme';
 
 const NEXT_STATUS: Record<string, { label: string; next: string; color: string }> = {
@@ -101,7 +102,8 @@ export default function BundleJobScreen() {
     }
 
     try {
-      await requestsApi.updateBundleStatus(bookingGroupId, next.next);
+      const start = next.next === 'VENDOR_EN_ROUTE' ? await quickPosition() : null;
+      await requestsApi.updateBundleStatus(bookingGroupId, next.next, start);
       // Report location only once the server has the bundle on the way —
       // it rejects locations for any other status.
       if (next.next === 'VENDOR_EN_ROUTE') {

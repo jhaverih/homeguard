@@ -10,7 +10,7 @@ import { useStripe } from '@stripe/stripe-react-native';
 import { useAuthStore } from '../../src/store/auth.store';
 import { subscriptionsApi, requestsApi, paymentsApi, pricingApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
-import { formatRelativeAge } from '../../src/utils/datetime';
+import { formatRelativeAge, arrivalText } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
 import { InspectIcon, RepairIcon, ImproveIcon, MaintainIcon, MarketplaceIcon } from '../../src/components/ServiceGroupIcons';
 import { FamilyInviteBanner } from '../../src/components/FamilyInviteBanner';
@@ -338,7 +338,7 @@ function UpcomingServiceCard({ requests }: { requests: any[] }) {
   // is already gated server-side in the getter itself, so etaMinutes is only
   // ever non-null when it's fresh — no separate client-side age check needed.
   const hasVendorLocation = upcoming.vendorLatitude != null && upcoming.vendorLongitude != null;
-  const etaLabel = upcoming.etaMinutes != null ? `~${upcoming.etaMinutes} min away` : '';
+  const etaLabel = arrivalText(upcoming.etaMinutes, upcoming.vendorEtaAt);
   const freshness = formatRelativeAge(upcoming.vendorLocationAt);
 
   return (

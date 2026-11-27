@@ -10,6 +10,7 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, pricingApi, uploadsApi, yolinkApi } from '../../src/services/api';
+import { quickPosition } from '../../src/services/location';
 import { enqueueTaskResult, flushQueue } from '../../src/services/taskQueue';
 import { fmtUSD } from '../../src/utils/currency';
 import { haversineMeters } from '../../src/utils/geo';
@@ -662,7 +663,8 @@ export default function ActiveJobScreen() {
     }
 
     try {
-      await requestsApi.updateStatus(id, next.next);
+      const start = next.next === 'VENDOR_EN_ROUTE' ? await quickPosition() : null;
+      await requestsApi.updateStatus(id, next.next, undefined, undefined, start);
       // Only after the server knows the vendor is on the way: it rejects
       // locations for any other status, which used to make the first ping
       // fail and show "Location Not Sent" with location services on.

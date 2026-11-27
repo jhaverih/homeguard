@@ -188,15 +188,21 @@ export const requestsApi = {
     api.post(`/service-requests/group/${bookingGroupId}/accept`, { scheduledDate, ...(notes ? { notes } : {}) }),
   acceptBundle: (requestIds: string[], scheduledDate: string, notes?: string) =>
     api.post('/service-requests/bundle/accept', { requestIds, scheduledDate, ...(notes ? { notes } : {}) }),
-  updateBundleStatus: (bookingGroupId: string, status: string) =>
-    api.patch(`/service-requests/bundle/${bookingGroupId}/status`, { status }),
+  updateBundleStatus: (bookingGroupId: string, status: string, start?: { latitude: number; longitude: number } | null) =>
+    api.patch(`/service-requests/bundle/${bookingGroupId}/status`, {
+      status,
+      ...(start ? { latitude: start.latitude, longitude: start.longitude } : {}),
+    }),
   completeBundle: (items: { serviceRequestId: string; completionPhotoKeys: string[]; finalQuantities?: Record<string, number> }[]) =>
     api.post('/service-requests/bundle/complete', { items }),
-  updateStatus: (id: string, status: string, completionPhotoKeys?: string[], finalQuantities?: Record<string, number>) =>
+  // `start`: where the vendor is leaving from on "On my way", so the
+  // customer's notification can include an arrival estimate.
+  updateStatus: (id: string, status: string, completionPhotoKeys?: string[], finalQuantities?: Record<string, number>, start?: { latitude: number; longitude: number } | null) =>
     api.patch(`/service-requests/${id}/status`, {
       status,
       ...(completionPhotoKeys ? { completionPhotoKeys } : {}),
       ...(finalQuantities && Object.keys(finalQuantities).length > 0 ? { finalQuantities } : {}),
+      ...(start ? { latitude: start.latitude, longitude: start.longitude } : {}),
     }),
   addNotes: (id: string, notes: string) => api.patch(`/service-requests/${id}/notes`, { notes }),
   recommendService: (id: string, data: any) => api.post(`/service-requests/${id}/additional-services`, data),

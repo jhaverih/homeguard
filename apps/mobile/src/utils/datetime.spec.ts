@@ -1,4 +1,4 @@
-import { formatRelativeAge } from './datetime';
+import { formatRelativeAge, arrivalText } from './datetime';
 
 const NOW = new Date('2026-01-15T12:00:00.000Z');
 
@@ -50,5 +50,18 @@ describe('formatRelativeAge', () => {
 
   it('returns an empty string for undefined', () => {
     expect(formatRelativeAge(undefined)).toBe('');
+  });
+});
+
+describe('arrivalText', () => {
+  const now = new Date('2026-11-26T15:00:00').getTime();
+  it('uses the live estimate when there is one', () => {
+    expect(arrivalText(12, null, now)).toMatch(/^Expected around 3:12\s?PM · about 12 min away$/);
+  });
+  it('falls back to the last expected time when updates stop', () => {
+    expect(arrivalText(null, new Date(now + 20 * 60000), now)).toMatch(/^Expected around 3:20\s?PM$/);
+    expect(arrivalText(null, new Date(now - 5 * 60000), now)).toBe('Should be arriving any minute');
+    expect(arrivalText(null, new Date(now - 60 * 60000), now)).toBe('');
+    expect(arrivalText(null, null, now)).toBe('');
   });
 });

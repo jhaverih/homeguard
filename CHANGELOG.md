@@ -25,6 +25,12 @@ This project deploys continuously (`git push origin staging` triggers an automat
 - **mobile**: Services measured in square or linear feet tell the customer that the technician measures on site and the price is updated if the area is larger.
 - **api**: Fence Repairs is priced by linear foot (feet of fence) instead of by unit.
 
+- **api, mobile**: Arrival estimate when the vendor is on the way.
+  - **Start location:** "On my way" now sends where the vendor is leaving from (`latitude`/`longitude` on the status update, single jobs and bundles).
+  - **Notification:** reads "should arrive in about 18 minutes (around 3:45 PM)", in the home's time zone.
+  - **Estimate:** measured to the geocoded home (ZIP centre only as a fallback), with a 1.3× road factor at 28 mph, instead of a straight line at 25 mph to the ZIP centre.
+  - **Expected time kept:** each location refreshes `vendorEtaAt`, which stays when updates stop (phone locked while driving). The customer app shows "Expected around 3:45 PM · about 12 min away", or the last expected time, instead of nothing.
+
 ### Fixed
 - **mobile**: The booking confirmation pop-up scrolls, so Confirm stays on screen with several services or large text.
 - **mobile, api**: Customer–vendor chat didn't work in either direction. The app built the chat address by removing the first "/api" from `https://api.attenteve.com/api`, which hit the host name and gave `https:/.attenteve.com/api`, so phones never connected; no message had been saved since 2026-07-16. Now only the trailing `/api` is removed. Also:

@@ -30,6 +30,7 @@ import { calcAssessmentCustomerSurcharge, calcAssessmentVendorCost } from '../co
 import { PropertyCharacteristicsService } from '../users/property-characteristics.service';
 import { PricingMethod } from '../common/enums/pricing-method.enum';
 import { haversineMiles } from '../common/utils/geo.utils';
+import { timeZoneForState } from '../common/utils/timezone';
 import { getVendorAccess, assertCanAcceptJobs, assertApprovedVendor } from '../vendor/vendor-access';
 import { isTestCustomer, isTestVendor, sameTestWorld } from '../common/test-accounts';
 import { getTrainingAccess, assertTrainedForJob } from '../training/training-access';
@@ -606,9 +607,14 @@ export class ServiceRequestsService {
     status: ServiceRequestStatus,
     completionPhotoKeys?: string[],
     finalQuantities?: Record<string, number>,
+    startLocation?: { latitude?: number; longitude?: number },
   ): Promise<ServiceRequest> {
     const request = await this.findById(requestId);
     if (request.vendorId !== vendorId) throw new ForbiddenException();
+
+    if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
+      this.setStartLocation(request, startLocation);
+    }
 
     if (status === ServiceRequestStatus.COMPLETED) {
       if (!completionPhotoKeys || completionPhotoKeys.length === 0) {
@@ -779,6 +785,38 @@ export class ServiceRequestsService {
   // Status assignment + save + customer notification — shared tail for
   // VENDOR_EN_ROUTE/IN_PROGRESS/COMPLETED across both the single-request
   // (updateStatus) and bundle (updateBundleStatus/completeBundle) paths.
+  // "On my way" can carry where the vendor is leaving from, so the customer's
+  // notification already has an arrival estimate. Without it, any location
+  // from an earlier trip is dropped so it can't produce a wrong estimate.
+  private setStartLocation(request: ServiceRequest, loc?: { latitude?: number; longitude?: number }) {
+    const lat = Number(loc?.latitude);
+    const lng = Number(loc?.longitude);
+    const valid = loc?.latitude != null && loc?.longitude != null
+      && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    if (!valid) {
+      request.vendorLatitude = null;
+      request.vendorLongitude = null;
+      request.vendorLocationAt = null;
+      request.vendorEtaAt = null;
+      return;
+    }
+    request.vendorLatitude = lat;
+    request.vendorLongitude = lng;
+    request.vendorLocationAt = new Date();
+    const driveMin = request.driveMinutesFrom(lat, lng);
+    request.vendorEtaAt = driveMin != null ? new Date(Date.now() + driveMin * 60000) : null;
+  }
+
+  // "about 18 minutes (around 3:45 PM)" in the home's time zone.
+  private arrivalPhrase(request: ServiceRequest): string | null {
+    if (!request.vendorEtaAt) return null;
+    const minutes = Math.max(1, Math.round((request.vendorEtaAt.getTime() - Date.now()) / 60000));
+    const clock = request.vendorEtaAt.toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZone: timeZoneForState(request.state),
+    });
+    return `about ${minutes} minute${minutes === 1 ? '' : 's'} (around ${clock})`;
+  }
+
   private async finalizeStatusTransition(request: ServiceRequest, status: ServiceRequestStatus): Promise<ServiceRequest> {
     request.status = status;
     if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
@@ -814,11 +852,14 @@ export class ServiceRequestsService {
 
     const notif = notifMap[status];
     if (notif) {
+      const arrival = status === ServiceRequestStatus.VENDOR_EN_ROUTE ? this.arrivalPhrase(saved) : null;
       await this.notificationsService.notifyUser(
         request.customerId,
         notif.type,
         notif.title,
-        notif.body,
+        arrival
+          ? `Your vendor is on the way and should arrive in ${arrival}. Please make sure to be home when they arrive.`
+          : notif.body,
         { serviceRequestId: saved.id },
       );
     }
@@ -906,6 +947,7 @@ export class ServiceRequestsService {
   // needs batched charging, not just a batched status write.
   async updateBundleStatus(
     bookingGroupId: string, vendorId: string, status: ServiceRequestStatus,
+    startLocation?: { latitude?: number; longitude?: number },
   ): Promise<ServiceRequest[]> {
     const members = await this.requestsRepo.find({ where: { bookingGroupId, vendorId } });
     if (members.length === 0) {
@@ -919,6 +961,7 @@ export class ServiceRequestsService {
     const updated: ServiceRequest[] = [];
     for (const member of members) {
       if (member.status !== requiredPrior) continue;
+      if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) this.setStartLocation(member, startLocation);
       updated.push(await this.finalizeStatusTransition(member, status));
     }
     if (updated.length === 0) {
@@ -1321,6 +1364,8 @@ export class ServiceRequestsService {
     request.vendorLongitude = longitude;
     request.vendorHeading = heading ?? null;
     request.vendorLocationAt = new Date();
+    const driveMin = request.driveMinutesFrom(Number(latitude), Number(longitude));
+    if (driveMin != null) request.vendorEtaAt = new Date(Date.now() + driveMin * 60000);
 
     // Auto-detect arrival: if this job has real geocoded coordinates (see
     // ServiceRequest.latitude/longitude) and the vendor's new position is
@@ -1364,6 +1409,7 @@ export class ServiceRequestsService {
     request.vendorLongitude = null;
     request.vendorHeading = null;
     request.vendorLocationAt = null;
+    request.vendorEtaAt = null;
     request.vendorEnRouteAt = null;
     const saved = await this.requestsRepo.save(request);
 
@@ -1448,6 +1494,7 @@ export class ServiceRequestsService {
       req.vendorLongitude = null;
       req.vendorHeading = null;
       req.vendorLocationAt = null;
+      req.vendorEtaAt = null;
       req.vendorEnRouteAt = null;
     }
     const saved = await this.requestsRepo.save(req);
@@ -1598,6 +1645,7 @@ export class ServiceRequestsService {
       request.vendorLongitude = null;
       request.vendorHeading = null;
       request.vendorLocationAt = null;
+      request.vendorEtaAt = null;
       request.vendorEnRouteAt = null;
     }
 

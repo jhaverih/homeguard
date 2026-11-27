@@ -12,6 +12,10 @@ import { getZipCentroid, haversineMiles } from '../../common/utils/geo.utils';
 // enough to show as a live number — past this, etaMinutes returns null
 // rather than presenting a stale reading as current.
 const ETA_STALE_THRESHOLD_MIN = 15;
+// Roads are longer than a straight line (~1.3x is typical) and local trips
+// average about 28 mph with lights and turns.
+const ROAD_FACTOR = 1.3;
+const AVG_DRIVE_MPH = 28;
 
 export enum ServiceType {
   SCHEDULED_INSPECTION = 'SCHEDULED_INSPECTION',
@@ -164,11 +168,18 @@ export class ServiceRequest {
     if (!this.vendorLocationAt) return null;
     const locationAgeMin = (Date.now() - this.vendorLocationAt.getTime()) / 60000;
     if (locationAgeMin > ETA_STALE_THRESHOLD_MIN) return null;
-    const dest = getZipCentroid(this.zipCode);
-    if (!dest) return null;
-    const distanceMiles = haversineMiles(Number(this.vendorLatitude), Number(this.vendorLongitude), dest.lat, dest.lng);
-    const avgSpeedMph = 25; // matches the assumption used by the old client-side calc
-    return Math.round((distanceMiles / avgSpeedMph) * 60);
+    return this.driveMinutesFrom(Number(this.vendorLatitude), Number(this.vendorLongitude));
+  }
+
+  // Rough drive time from a point to this job's home: straight-line distance
+  // to the geocoded address (ZIP centre as a fallback), stretched for roads,
+  // at a typical suburban average speed. Free and offline; an estimate.
+  driveMinutesFrom(lat: number, lng: number): number | null {
+    const destLat = this.destinationLatitude;
+    const destLng = this.destinationLongitude;
+    if (destLat == null || destLng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const roadMiles = haversineMiles(lat, lng, destLat, destLng) * ROAD_FACTOR;
+    return Math.max(1, Math.round((roadMiles / AVG_DRIVE_MPH) * 60));
   }
 
   // Destination point for the live-tracking map — prefers this request's own
@@ -202,6 +213,12 @@ export class ServiceRequest {
 
   @Column({ type: 'timestamp', nullable: true })
   vendorLocationAt: Date | null;
+
+  // Expected arrival, refreshed with every location the vendor sends while
+  // on the way. Kept when updates stop (phone locked while driving) so the
+  // customer still sees when to expect them. Cleared with the location.
+  @Column({ type: 'timestamp', nullable: true })
+  vendorEtaAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
   vendorEnRouteAt: Date | null;

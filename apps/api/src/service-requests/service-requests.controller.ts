@@ -107,8 +107,8 @@ export class ServiceRequestsController {
 
   @Patch('bundle/:bookingGroupId/status')
   @ApiOperation({ summary: 'Vendor: advance every member of a bundled visit to VENDOR_EN_ROUTE or IN_PROGRESS at once' })
-  updateBundleStatus(@Request() req, @Param('bookingGroupId') bookingGroupId: string, @Body() body: { status: ServiceRequestStatus }) {
-    return this.service.updateBundleStatus(bookingGroupId, req.user.id, body.status);
+  updateBundleStatus(@Request() req, @Param('bookingGroupId') bookingGroupId: string, @Body() body: { status: ServiceRequestStatus; latitude?: number; longitude?: number }) {
+    return this.service.updateBundleStatus(bookingGroupId, req.user.id, body.status, { latitude: body.latitude, longitude: body.longitude });
   }
 
   @Post('bundle/complete')
@@ -125,9 +125,9 @@ export class ServiceRequestsController {
   updateStatus(
     @Request() req,
     @Param('id') id: string,
-    @Body() body: { status: ServiceRequestStatus; completionPhotoKeys?: string[]; finalQuantities?: Record<string, number> },
+    @Body() body: { status: ServiceRequestStatus; completionPhotoKeys?: string[]; finalQuantities?: Record<string, number>; latitude?: number; longitude?: number },
   ) {
-    return this.service.updateStatus(id, req.user.id, body.status, body.completionPhotoKeys, body.finalQuantities);
+    return this.service.updateStatus(id, req.user.id, body.status, body.completionPhotoKeys, body.finalQuantities, { latitude: body.latitude, longitude: body.longitude });
   }
 
   @Patch(':id/notes')

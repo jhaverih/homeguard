@@ -11,7 +11,7 @@ import MapView, { Marker } from 'react-native-maps';
 import Constants from 'expo-constants';
 import { requestsApi, inspectionsApi, userApi, reviewsApi } from '../../src/services/api';
 import { fmtUSD } from '../../src/utils/currency';
-import { formatRelativeAge } from '../../src/utils/datetime';
+import { formatRelativeAge, arrivalText } from '../../src/utils/datetime';
 import { colors } from '../../src/theme';
 import CancellationFeedbackModal from '../../src/components/CancellationFeedbackModal';
 
@@ -436,8 +436,8 @@ export default function RequestDetailScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.enRouteTitle}>Your vendor is on the way!</Text>
                 <Text style={styles.enRouteBody}>
-                  {etaMinutes != null
-                    ? `Estimated arrival: ~${etaMinutes} min`
+                  {arrivalText(etaMinutes, request.vendorEtaAt)
+                    ? arrivalText(etaMinutes, request.vendorEtaAt)
                     : hasVendorLocation
                       ? "We haven't heard from your vendor's location recently, but they're on the way."
                       : 'Please make sure to be home when they arrive.'}
