@@ -38,6 +38,7 @@ export function Sidebar() {
     ...links,
     ...(isAtLeastAdmin ? [{ href: '/monitoring-setup', label: 'Monitoring Setup', icon: '📡' }] : []),
     ...(isAtLeastAdmin ? [{ href: '/vendor-applications', label: 'Vendor Applications', icon: '📄' }] : []),
+    ...(isAtLeastAdmin ? [{ href: '/job-activity', label: 'Job Activity', icon: '🧭' }] : []),
     ...(isAtLeastAdmin ? [{ href: '/team', label: 'Team', icon: '👥' }] : []),
   ];
 

@@ -8,6 +8,8 @@ import { NotificationsService, NotificationType } from '../notifications/notific
 import { UploadsService } from '../uploads/uploads.service';
 import { UsersService } from '../users/users.service';
 import { PaymentsService } from '../payments/payments.service';
+import { JobEventsService, minutesBetween } from '../job-events/job-events.service';
+import { JobEventType } from '../job-events/job-event.entity';
 
 @Injectable()
 export class DisputesService {
@@ -21,6 +23,7 @@ export class DisputesService {
     private usersService: UsersService,
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
+    private events: JobEventsService,
   ) {}
 
   async openDispute(
@@ -74,6 +77,11 @@ export class DisputesService {
       status: DisputeStatus.OPEN,
     });
     const saved = await this.disputesRepo.save(dispute);
+    await this.events.record(JobEventType.DISPUTE_OPENED, request, { role: 'CUSTOMER', id: customerId }, {
+      disputeId: saved.id, category: dto.category, photos: dto.photoKeys?.length ?? 0,
+      hoursAfterCompletion: request.completedAt
+        ? Math.round((minutesBetween(request.completedAt, new Date())! / 60) * 10) / 10 : undefined,
+    });
 
     await this.notificationsService.notifyUser(
       dto.vendorId,
@@ -132,6 +140,13 @@ export class DisputesService {
     dispute.resolution = note;
     dispute.resolvedAt = new Date();
     const saved = await this.disputesRepo.save(dispute);
+    const job = await this.requestsRepo.findOne({ where: { id: dispute.serviceRequestId } });
+    if (job) {
+      await this.events.record(JobEventType.DISPUTE_RESOLVED, job, { role: 'ADMIN' }, {
+        disputeId, resolution, category: dispute.category,
+        hoursToResolve: Math.round((minutesBetween(dispute.createdAt, dispute.resolvedAt)! / 60) * 10) / 10,
+      });
+    }
 
     const customerMsg = resolution === DisputeStatus.RESOLVED_CUSTOMER
       ? 'Your dispute has been resolved in your favor. You have been refunded.'

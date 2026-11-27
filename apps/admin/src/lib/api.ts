@@ -136,6 +136,11 @@ export const analyticsThresholdsApi = {
 
 export const adminApi = {
   getStats: () => api.get('/admin/stats').then((r) => r.data),
+  // Job event log (apps/api/src/job-events): every interaction on a job.
+  getJobEvents: (params: { from?: string; to?: string; type?: string; includeTest?: boolean }) =>
+    api.get('/admin/job-events', { params }).then((r) => r.data),
+  downloadJobEventsCsv: (params: { from?: string; to?: string; type?: string; includeTest?: boolean }) =>
+    api.get('/admin/job-events/csv', { params, responseType: 'blob' }),
   getCustomers: () => api.get('/admin/customers').then((r) => r.data),
   getVendors: () => api.get('/admin/vendors').then((r) => r.data),
   approveVendor: (id: string) => api.patch(`/admin/vendors/${id}/approve`).then((r) => r.data),

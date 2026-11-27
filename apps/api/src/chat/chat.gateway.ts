@@ -12,6 +12,8 @@ import { ChatMessage } from './entities/message.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { UsersService } from '../users/users.service';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
+import { JobEventsService } from '../job-events/job-events.service';
+import { JobEventType } from '../job-events/job-event.entity';
 
 // One chat room per service request (roomId = the request id), between the
 // customer (and their household) and the assigned vendor.
@@ -34,6 +36,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private configService: ConfigService,
     private usersService: UsersService,
     private notificationsService: NotificationsService,
+    private events: JobEventsService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -99,6 +102,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const payload = { ...withSender, sender: undefined, senderName };
 
     this.server.to(data.roomId).emit('new-message', payload);
+
+    // Who wrote and when (the text stays in chat_messages), for response
+    // time and communication patterns per job.
+    await this.events.record(
+      JobEventType.MESSAGE_SENT, access.request,
+      { role: access.request.vendorId === client.data.userId ? 'VENDOR' : 'CUSTOMER', id: client.data.userId },
+      { messageId: saved.id, length: content.length },
+    );
 
     // Push the recipient unless they have this chat open right now.
     const recipientId = access.recipientId;

@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { JobEventsService } from '../job-events/job-events.service';
+import { JobEventType } from '../job-events/job-event.entity';
 import { In, Repository, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
 import { User } from '../users/entities/user.entity';
@@ -94,6 +96,7 @@ export class VendorService implements OnModuleInit {
     private pricingService: PricingService,
     private marketplaceService: MarketplaceService,
     private dataSource: DataSource,
+    private events: JobEventsService,
   ) {}
 
   async onModuleInit() {
@@ -260,8 +263,13 @@ export class VendorService implements OnModuleInit {
     }
     await assertTrainedForJob(this.dataSource, technicianId, request, 'technician');
 
+    const fromVendorId = request.vendorId;
     request.vendorId = technicianId;
-    return this.requestsRepo.save(request);
+    const saved = await this.requestsRepo.save(request);
+    await this.events.record(JobEventType.ASSIGNED, saved, { role: 'VENDOR', id: userId }, {
+      how: 'manual', fromVendorId, toVendorId: technicianId,
+    });
+    return saved;
   }
 
   async autoAssignJob(userId: string, jobId: string) {
@@ -293,8 +301,13 @@ export class VendorService implements OnModuleInit {
     activeCounts.sort((a, b) => a.count - b.count);
     const nextTechnicianId = activeCounts[0].id;
 
+    const fromVendorId = request.vendorId;
     request.vendorId = nextTechnicianId;
-    return this.requestsRepo.save(request);
+    const saved = await this.requestsRepo.save(request);
+    await this.events.record(JobEventType.ASSIGNED, saved, { role: 'VENDOR', id: userId }, {
+      how: 'auto', fromVendorId, toVendorId: nextTechnicianId, activeJobs: activeCounts[0].count,
+    });
+    return saved;
   }
 
   async getStatus(userId: string) {

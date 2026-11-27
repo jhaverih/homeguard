@@ -6,6 +6,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In, FindOptionsWhere, MoreThan, MoreThanOrEqual, LessThan, IsNull, DataSource } from 'typeorm';
 import { ServiceRequest, ServiceType } from './entities/service-request.entity';
+import { JobEventsService, minutesBetween, noticeHours } from '../job-events/job-events.service';
+import { JobEventType } from '../job-events/job-event.entity';
 import { AdditionalService } from './entities/additional-service.entity';
 import { SolarQuote } from './entities/solar-quote.entity';
 import { SolarConsultation } from './entities/solar-consultation.entity';
@@ -98,6 +100,7 @@ export class ServiceRequestsService {
     private configService: ConfigService,
     private dataSource: DataSource,
     private propertyCharacteristicsService: PropertyCharacteristicsService,
+    private events: JobEventsService,
   ) {}
 
   private async generateTicketNumber(): Promise<string> {
@@ -117,7 +120,15 @@ export class ServiceRequestsService {
       const ticketNumber = await this.generateTicketNumber();
       const entity = this.requestsRepo.create(build(ticketNumber));
       try {
-        return await this.requestsRepo.save(entity);
+        const saved = await this.requestsRepo.save(entity);
+        await this.events.record(JobEventType.REQUESTED, saved, { role: 'CUSTOMER', id: saved.customerId }, {
+          requestType: saved.type,
+          preferredDate: saved.preferredDate,
+          leadTimeHours: noticeHours(saved.preferredDate),
+          isPaidAddon: saved.isPaidAddon || undefined,
+          marketplace: saved.marketplaceSubscriptionId ? true : undefined,
+        });
+        return saved;
       } catch (e: any) {
         if (e?.code === '23505' && attempt < 4) continue;
         throw e;
@@ -477,6 +488,7 @@ export class ServiceRequestsService {
     if (sametime) {
       request.status = ServiceRequestStatus.ACCEPTED;
       const saved = await this.requestsRepo.save(request);
+      await this.recordAccepted(saved, vendorId);
       await this.notificationsService.notifyUser(
         request.customerId,
         NotificationType.REQUEST_ACCEPTED,
@@ -489,6 +501,7 @@ export class ServiceRequestsService {
 
     request.status = ServiceRequestStatus.PENDING_CUSTOMER_REVIEW;
     const saved = await this.requestsRepo.save(request);
+    await this.recordAccepted(saved, vendorId);
     await this.notificationsService.notifyUser(
       request.customerId,
       NotificationType.SCHEDULE_CHANGED,
@@ -543,6 +556,7 @@ export class ServiceRequestsService {
     }
 
     for (const saved of accepted) {
+      await this.recordAccepted(saved, vendorId, { groupSize: accepted.length });
       const sametime = saved.status === ServiceRequestStatus.ACCEPTED;
       await this.notificationsService.notifyUser(
         saved.customerId,
@@ -567,6 +581,10 @@ export class ServiceRequestsService {
     }
     request.status = ServiceRequestStatus.ACCEPTED;
     const saved = await this.requestsRepo.save(request);
+    await this.events.record(JobEventType.SCHEDULE_CONFIRMED, saved, { role: 'CUSTOMER', id: customerId }, {
+      scheduledFor: saved.scheduledDate,
+      minutesToRespond: minutesBetween(saved.updatedAt, new Date()) ?? undefined,
+    });
     await this.notificationsService.notifyUser(
       request.vendorId,
       NotificationType.SCHEDULE_CHANGED,
@@ -585,6 +603,10 @@ export class ServiceRequestsService {
       throw new BadRequestException('No pending time review for this request');
     }
     const prevVendorId = request.vendorId;
+    const proposedTime = request.scheduledDate;
+    await this.events.record(JobEventType.SCHEDULE_DECLINED, request, { role: 'CUSTOMER', id: customerId }, {
+      proposedTime, preferredDate: request.preferredDate,
+    });
     request.status = ServiceRequestStatus.PENDING;
     request.vendorId = null;
     request.scheduledDate = null;
@@ -817,7 +839,59 @@ export class ServiceRequestsService {
     return `about ${minutes} minute${minutes === 1 ? '' : 's'} (around ${clock})`;
   }
 
-  private async finalizeStatusTransition(request: ServiceRequest, status: ServiceRequestStatus): Promise<ServiceRequest> {
+  // Job-event row for a vendor accepting (or proposing a time for) a job.
+  private async recordAccepted(saved: ServiceRequest, vendorId: string, extra: Record<string, unknown> = {}) {
+    await this.events.record(JobEventType.ACCEPTED, saved, { role: 'VENDOR', id: vendorId }, {
+      proposedTime: saved.scheduledDate,
+      preferredDate: saved.preferredDate,
+      proposedDifferentTime: saved.status === ServiceRequestStatus.PENDING_CUSTOMER_REVIEW,
+      hoursFromPreferred: saved.scheduledDate && saved.preferredDate
+        ? Math.round((minutesBetween(saved.preferredDate, saved.scheduledDate)! / 60) * 10) / 10 : undefined,
+      minutesToAccept: minutesBetween(saved.createdAt, new Date()) ?? undefined,
+      ...extra,
+    });
+  }
+
+  // On my way / arrived / completed: punctuality and time on site.
+  private async recordStatusEvent(request: ServiceRequest, status: ServiceRequestStatus, how: 'manual' | 'auto') {
+    const now = new Date();
+    const actor = { role: 'VENDOR' as const, id: request.vendorId };
+    if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
+      await this.events.record(JobEventType.ON_MY_WAY, request, actor, {
+        minutesBeforeScheduled: minutesBetween(now, request.scheduledDate) ?? undefined,
+        hasStartLocation: request.vendorLatitude != null,
+        startDriveMinutes: request.vendorLatitude != null
+          ? request.driveMinutesFrom(Number(request.vendorLatitude), Number(request.vendorLongitude)) ?? undefined : undefined,
+        expectedArrival: request.vendorEtaAt ?? undefined,
+        expectedMinutesLate: minutesBetween(request.scheduledDate, request.vendorEtaAt) ?? undefined,
+      });
+    } else if (status === ServiceRequestStatus.IN_PROGRESS) {
+      await this.events.record(JobEventType.ARRIVED, request, actor, {
+        how,
+        minutesLate: minutesBetween(request.scheduledDate, now) ?? undefined,
+        travelMinutes: minutesBetween(request.vendorEnRouteAt, now) ?? undefined,
+        minutesVsEstimate: minutesBetween(request.vendorEtaAt, now) ?? undefined,
+        usedOnMyWay: !!request.vendorEnRouteAt,
+      });
+    } else if (status === ServiceRequestStatus.COMPLETED) {
+      const arrived = (await this.events.forJob(request.id)).filter((e) => e.type === JobEventType.ARRIVED).pop();
+      // Read fresh: completion can re-price lines (final quantities, materials).
+      const lines = await this.additionalRepo.find({ where: { serviceRequestId: request.id, approved: true } });
+      const chargeable = lines.filter((s) => !s.isQuotaCovered);
+      await this.events.record(JobEventType.COMPLETED, request, actor, {
+        onSiteMinutes: arrived ? minutesBetween(arrived.occurredAt, now) ?? undefined : undefined,
+        minutesAfterScheduled: minutesBetween(request.scheduledDate, now) ?? undefined,
+        photos: request.completionPhotoKeys?.length ?? 0,
+        charged: Math.round(chargeable.reduce((sum, s) => sum + Number(s.price || 0), 0) * 100) / 100,
+        extraWorkLines: lines.filter((s) => !s.servicePriceId && !s.isMaterial).length,
+        materialLines: lines.filter((s) => s.isMaterial).length,
+      });
+    }
+  }
+
+  private async finalizeStatusTransition(
+    request: ServiceRequest, status: ServiceRequestStatus, how: 'manual' | 'auto' = 'manual',
+  ): Promise<ServiceRequest> {
     request.status = status;
     if (status === ServiceRequestStatus.VENDOR_EN_ROUTE) {
       request.vendorEnRouteAt = new Date();
@@ -831,6 +905,7 @@ export class ServiceRequestsService {
       request.checklistSnapshot = await this.inspectionsService.buildChecklistSnapshot(request.checklistGroupKey);
     }
     const saved = await this.requestsRepo.save(request);
+    await this.recordStatusEvent(saved, status, how);
 
     const notifMap: Partial<Record<ServiceRequestStatus, { type: NotificationType; title: string; body: string }>> = {
       [ServiceRequestStatus.VENDOR_EN_ROUTE]: {
@@ -922,6 +997,7 @@ export class ServiceRequestsService {
     }
 
     for (const saved of accepted) {
+      await this.recordAccepted(saved, vendorId, { groupSize: accepted.length });
       const sametime = saved.status === ServiceRequestStatus.ACCEPTED;
       await this.notificationsService.notifyUser(
         saved.customerId,
@@ -1033,6 +1109,9 @@ export class ServiceRequestsService {
 
     const service = this.additionalRepo.create({ ...dto, serviceRequestId: requestId });
     const saved = await this.additionalRepo.save(service);
+    await this.events.record(JobEventType.EXTRA_WORK_RECOMMENDED, request, { role: 'VENDOR', id: vendorId }, {
+      additionalServiceId: saved.id, name: dto.name, price: Number(dto.price),
+    });
 
     await this.notificationsService.notifyUser(
       request.customerId,
@@ -1088,6 +1167,10 @@ export class ServiceRequestsService {
       extraTimeForId: line.id,
       extraHours: hours,
     }));
+    await this.events.record(JobEventType.EXTRA_TIME_REQUESTED, request, { role: 'VENDOR', id: vendorId }, {
+      additionalServiceId: saved.id, service: line.name, hours, bookedHours: Number(line.quantity ?? 1),
+      hoursAlreadyRequested: currentHours - Number(line.quantity ?? 1), price,
+    });
 
     await this.notificationsService.notifyUser(
       request.customerId,
@@ -1140,6 +1223,9 @@ export class ServiceRequestsService {
       approvedAt: new Date(),
     });
     const saved = await this.additionalRepo.save(service);
+    await this.events.record(JobEventType.MATERIAL_ADDED, request, { role: 'VENDOR', id: vendorId }, {
+      additionalServiceId: saved.id, cost: Number(dto.cost), customerPrice: dynamic ? undefined : price,
+    });
 
     if (dynamic) return saved;
 
@@ -1164,6 +1250,11 @@ export class ServiceRequestsService {
     service.approved = true;
     service.approvedAt = new Date();
     const saved = await this.additionalRepo.save(service);
+    await this.events.record(JobEventType.EXTRA_WORK_APPROVED, service.serviceRequest, { role: 'CUSTOMER', id: customerId }, {
+      additionalServiceId: saved.id, name: saved.name, price: Number(saved.price),
+      extraHours: saved.extraHours != null ? Number(saved.extraHours) : undefined,
+      minutesToRespond: minutesBetween(saved.createdAt, saved.approvedAt) ?? undefined,
+    });
 
     await this.notificationsService.notifyUser(
       service.serviceRequest.vendorId,
@@ -1189,6 +1280,12 @@ export class ServiceRequestsService {
     const vendorId = service.serviceRequest.vendorId;
     const svcName = service.name;
     const requestId = service.serviceRequestId;
+    // The line itself is deleted, so the event keeps what was declined.
+    await this.events.record(JobEventType.EXTRA_WORK_DECLINED, service.serviceRequest, { role: 'CUSTOMER', id: customerId }, {
+      additionalServiceId: serviceId, name: svcName, price: Number(service.price),
+      extraHours: service.extraHours != null ? Number(service.extraHours) : undefined,
+      minutesToRespond: minutesBetween(service.createdAt, new Date()) ?? undefined,
+    });
     await this.additionalRepo.delete(serviceId);
 
     if (vendorId) {
@@ -1339,6 +1436,10 @@ export class ServiceRequestsService {
     const existing = await this.rejectionRepo.findOne({ where: { serviceRequestId: requestId, vendorId } });
     if (!existing) {
       await this.rejectionRepo.save(this.rejectionRepo.create({ serviceRequestId: requestId, vendorId }));
+      // vendorId on the event is the job's (none yet); the actor is who passed.
+      await this.events.record(JobEventType.VENDOR_PASSED, request, { role: 'VENDOR', id: vendorId }, {
+        minutesSinceRequested: minutesBetween(request.createdAt, new Date()) ?? undefined,
+      });
     }
     return { ok: true };
   }
@@ -1382,7 +1483,7 @@ export class ServiceRequestsService {
         // finalizeStatusTransition saves the entity itself (status +
         // whatever's already mutated on it, including the vendor location
         // fields just set above) — no separate save needed here.
-        await this.finalizeStatusTransition(request, ServiceRequestStatus.IN_PROGRESS);
+        await this.finalizeStatusTransition(request, ServiceRequestStatus.IN_PROGRESS, 'auto');
         return { ok: true };
       }
     }
@@ -1402,6 +1503,12 @@ export class ServiceRequestsService {
     if (![ServiceRequestStatus.ACCEPTED, ServiceRequestStatus.VENDOR_EN_ROUTE, ServiceRequestStatus.IN_PROGRESS].includes(request.status)) {
       throw new BadRequestException('This job cannot be released in its current status');
     }
+
+    // Recorded before the vendor is cleared, so the event keeps who released it.
+    await this.events.record(JobEventType.RELEASED, request, { role: 'VENDOR', id: vendorId }, {
+      statusWhenReleased: request.status,
+      noticeHours: noticeHours(request.scheduledDate) ?? undefined,
+    });
 
     request.status = ServiceRequestStatus.PENDING;
     request.vendorId = null;
@@ -1438,6 +1545,10 @@ export class ServiceRequestsService {
     for (const request of stuck) {
       request.stuckJobAlertSentAt = new Date();
       await this.requestsRepo.save(request);
+      await this.events.record(JobEventType.STUCK_ON_THE_WAY, request, { role: 'SYSTEM' }, {
+        minutesOnTheWay: minutesBetween(request.vendorEnRouteAt, new Date()) ?? undefined,
+        lastLocationAt: request.vendorLocationAt ?? undefined,
+      });
       await this.notificationsService.notifyAdmins(
         NotificationType.STUCK_JOB_ALERT,
         'Job Stuck En Route',
@@ -1482,6 +1593,8 @@ export class ServiceRequestsService {
     // has been disclosed in the T&Cs since launch but was never actually
     // charged anywhere until now.
     const wasEnRoute = req.status === ServiceRequestStatus.VENDOR_EN_ROUTE;
+    const statusWhenCancelled = req.status;
+    let lateFee: 'charged' | 'failed' | undefined;
 
     req.status = ServiceRequestStatus.CANCELLED;
     if (wasEnRoute) {
@@ -1506,6 +1619,7 @@ export class ServiceRequestsService {
           LATE_CANCELLATION_FEE_USD,
           `Late cancellation fee — ${req.ticketNumber ?? req.id}`,
         );
+        lateFee = result.status === 'succeeded' ? 'charged' : 'failed';
         if (result.status !== 'succeeded') {
           await this.notifyCancellationFeeFailure(req, result.failureReason);
         }
@@ -1513,9 +1627,18 @@ export class ServiceRequestsService {
         // Charge helper throws (rather than returning 'failed') specifically
         // when there's no payment method on file at all — still don't block
         // the cancellation itself for that, just surface it.
+        lateFee = 'failed';
         await this.notifyCancellationFeeFailure(req, err.message);
       }
     }
+
+    await this.events.record(JobEventType.CANCELLED, saved, { role: 'CUSTOMER', id: customerId }, {
+      statusWhenCancelled,
+      hadVendor: !!saved.vendorId,
+      noticeHours: noticeHours(saved.scheduledDate ?? saved.preferredDate) ?? undefined,
+      minutesSinceRequested: minutesBetween(saved.createdAt, new Date()) ?? undefined,
+      lateFee,
+    });
 
     if (req.vendorId) {
       await this.notificationsService.notifyUser(
@@ -1558,6 +1681,11 @@ export class ServiceRequestsService {
     if (req.vendorId !== vendorId) throw new ForbiddenException();
 
     const existing = await this.solarQuoteRepo.findOne({ where: { serviceRequestId: requestId } });
+    const total = Number(dto.pvSystemPrice || 0) + Number(dto.storagePrice || 0);
+    await this.events.record(JobEventType.QUOTE_SUBMITTED, req, { role: 'VENDOR', id: vendorId }, {
+      kind: 'solar', revised: !!existing, total, systemSizeKw: Number(dto.systemSizeKw),
+      minutesSinceRequested: minutesBetween(req.createdAt, new Date()) ?? undefined,
+    });
     if (existing) {
       Object.assign(existing, dto);
       return this.solarQuoteRepo.save(existing);
@@ -1635,6 +1763,16 @@ export class ServiceRequestsService {
       throw new BadRequestException('That date and time has already passed — please choose a future date and time.');
     }
 
+    const byVendor = request.vendorId === userId;
+    await this.events.record(JobEventType.RESCHEDULED, request, { role: byVendor ? 'VENDOR' : 'CUSTOMER', id: userId }, {
+      from: request.scheduledDate,
+      to: proposed,
+      noticeHours: noticeHours(request.scheduledDate) ?? undefined,
+      hoursMoved: request.scheduledDate
+        ? Math.round((minutesBetween(request.scheduledDate, proposed)! / 60) * 10) / 10 : undefined,
+      statusWhenRescheduled: request.status,
+    });
+
     // A re-timed visit shouldn't still claim to be "en route" or "in
     // progress" — without this, rescheduling mid-trip left the request
     // showing a live ETA banner pointed at a stale GPS ping for a visit
@@ -1697,6 +1835,9 @@ export class ServiceRequestsService {
       customerProposedDate: preferredDate,
     });
     const saved = await this.solarConsultationRepo.save(consultation);
+    await this.events.record(JobEventType.CONSULTATION_REQUESTED, req, { role: 'CUSTOMER', id: customerId }, {
+      preferredDate,
+    });
 
     await this.notificationsService.notifyUser(
       req.vendorId,
@@ -1757,6 +1898,12 @@ export class ServiceRequestsService {
       consultation.status = 'COMPLETED';
     }
 
+    const job = await this.requestsRepo.findOne({ where: { id: requestId } });
+    if (job) {
+      await this.events.record(JobEventType.CONSULTATION_UPDATED, job, {
+        role: userId === consultation.vendorId ? 'VENDOR' : 'CUSTOMER', id: userId,
+      }, { action: dto.action, consultationStatus: consultation.status, proposedDate: dto.proposedDate });
+    }
     return this.solarConsultationRepo.save(consultation);
   }
 }

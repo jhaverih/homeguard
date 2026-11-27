@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Review } from './entities/review.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { ServiceRequestStatus } from '../common/enums/role.enum';
+import { JobEventsService, minutesBetween } from '../job-events/job-events.service';
+import { JobEventType } from '../job-events/job-event.entity';
 
 @Injectable()
 export class ReviewsService {
@@ -12,6 +14,7 @@ export class ReviewsService {
     private reviewsRepo: Repository<Review>,
     @InjectRepository(ServiceRequest)
     private requestsRepo: Repository<ServiceRequest>,
+    private events: JobEventsService,
   ) {}
 
   async create(customerId: string, dto: {
@@ -35,7 +38,12 @@ export class ReviewsService {
       rating: dto.rating,
       comment: dto.comment,
     });
-    return this.reviewsRepo.save(review);
+    const saved = await this.reviewsRepo.save(review);
+    await this.events.record(JobEventType.REVIEW_SUBMITTED, req, { role: 'CUSTOMER', id: customerId }, {
+      rating: dto.rating, hasComment: !!dto.comment?.trim(),
+      hoursAfterCompletion: req.completedAt ? Math.round((minutesBetween(req.completedAt, new Date())! / 60) * 10) / 10 : undefined,
+    });
+    return saved;
   }
 
   async getForVendor(vendorId: string): Promise<{ reviews: Review[]; averageRating: number; totalCount: number }> {

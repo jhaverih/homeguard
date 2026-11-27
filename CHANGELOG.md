@@ -14,6 +14,13 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ## 2026-11-26
 
+### Added
+- **api, admin**: Job event log (`job_events`, `apps/api/src/job-events/`) for service-quality analysis. Each job row holds only its latest state (a reschedule overwrites the old date, a release clears the vendor), so history was lost.
+  - **What's recorded:** one row per interaction, with actor (customer, vendor, admin or system), the job's customer and vendor, the scheduled time at that moment, and details. Covers requested, vendor passed, accepted (minutes to accept, proposed a different time), time confirmed or declined, assigned to a technician, on my way (expected lateness), arrived (minutes late, auto or manual, vs estimate), completed (time on site, amount charged), rescheduled (who, from/to, hours of notice), cancelled (status, notice, late fee), released by vendor, stuck on the way, extra work and extra time (recommended, approved, declined, response time), materials, messages (who and when, not the text), disputes, reviews, quotes and consultations.
+  - **Test flag:** each row carries the customer's test flag, so testing can be left out of the analysis.
+  - **Safe to fail:** recording never fails the action it describes.
+  - **Admin:** a new **Job Activity** page with counts by type, recent events and a CSV download (`GET /admin/job-events`, `/csv`, `/job/:id`; ADMIN level and up).
+
 ### Changed
 - **api, mobile, admin**: Clearer units and hourly billing when customers book services.
   - **Hourly services:** customers no longer choose a number of hours. They book the first hour, the technician records the actual hours at completion (the existing final-quantity step), and the charge follows. The server books hourly services at the minimum whatever the app sends.
