@@ -107,6 +107,19 @@ const hasUnitLabel = (item: any) => !!item?.quantityLabel && item.quantityLabel 
 // Smallest count a customer can book: the service's minimum, at least 1.
 const minQtyOf = (item: any) => Math.max(1, Math.ceil(Number(item?.minimumQuantity) || 0));
 
+// Booking errors; a missing card offers a way to add one (the server
+// requires a household card before any booking).
+function showBookingError(e: any) {
+  if (e?.code === 'PAYMENT_METHOD_REQUIRED') {
+    Alert.alert('Add a payment card', e.message, [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Add card', onPress: () => router.push('/(customer)/payments' as any) },
+    ]);
+    return;
+  }
+  Alert.alert('Error', e?.message || 'Something went wrong');
+}
+
 export default function RequestScreen() {
   const [tab, setTab] = useState<'inspection' | 'service'>('inspection');
   const [loading, setLoading] = useState(false);
@@ -790,7 +803,7 @@ export default function RequestScreen() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showBookingError(e);
     } finally {
       setLoading(false);
     }
@@ -878,7 +891,7 @@ export default function RequestScreen() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showBookingError(e);
     } finally {
       setLoading(false);
     }

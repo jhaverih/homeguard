@@ -49,7 +49,11 @@ api.interceptors.response.use(
     if (err.response?.data?.code === 'CREDENTIALS_EXPIRED') openCredentialRenewal();
     const raw = err.response?.data?.message;
     const message = Array.isArray(raw) ? raw[0] : (raw || 'Something went wrong');
-    return Promise.reject(new Error(message));
+    // Keep the server's error code (e.g. PAYMENT_METHOD_REQUIRED) so screens
+    // can offer the right next step.
+    const error: Error & { code?: string } = new Error(message);
+    if (err.response?.data?.code) error.code = err.response.data.code;
+    return Promise.reject(error);
   },
 );
 

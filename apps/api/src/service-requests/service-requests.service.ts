@@ -210,6 +210,7 @@ export class ServiceRequestsService {
     const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
     const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
     if (!subscription) throw new BadRequestException('No active subscription found');
+    await this.assertCardOnFile(customerId);
 
     const limitReached = (await this.getInspectionsRemaining(subscription)).remaining <= 0;
     if (limitReached && !dto.isPaidAddon) {
@@ -271,6 +272,7 @@ export class ServiceRequestsService {
     const subscriptionOwnerId = await this.usersService.getEffectiveSubscriptionOwnerId(customerId);
     const subscription = await this.subscriptionsService.getActiveSubscription(subscriptionOwnerId);
     if (!subscription) throw new BadRequestException('No active subscription found');
+    await this.assertCardOnFile(customerId);
 
     const prices = await this.pricingService.getAll();
     const servicePrice = prices.find((p) => p.id === dto.servicePriceId);
@@ -401,6 +403,7 @@ export class ServiceRequestsService {
     nameOverride?: string;
     descriptionOverride?: string;
   }): Promise<ServiceRequest> {
+    await this.assertCardOnFile(customerId);
     const requireCoreSubscription = dto.requireCoreSubscription ?? true;
     let subscriptionId: string | null = null;
     if (requireCoreSubscription) {
@@ -841,6 +844,25 @@ export class ServiceRequestsService {
       hour: 'numeric', minute: '2-digit', timeZone: timeZoneForState(request.state),
     });
     return `about ${minutes} minute${minutes === 1 ? '' : 's'} (around ${clock})`;
+  }
+
+  // Every booking needs a card on file for the household (the account
+  // holder's cards, shared with family members): completed work, approved
+  // extra work, late cancellations and no-shows are all charged to it.
+  private async assertCardOnFile(customerId: string): Promise<void> {
+    let ok = false;
+    try {
+      ok = await this.paymentsService.hasPaymentMethod(customerId);
+    } catch (err: any) {
+      this.logger.warn(`Card check failed for ${customerId}: ${err?.message ?? err}`);
+    }
+    if (!ok) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'PAYMENT_METHOD_REQUIRED',
+        message: 'Add a payment card before booking. Go to Profile → Payments. You are only charged when work is done.',
+      });
+    }
   }
 
   // Job-event row for a vendor accepting (or proposing a time for) a job.

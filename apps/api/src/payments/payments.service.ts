@@ -10,7 +10,7 @@ import { Payment } from './entities/payment.entity';
 import { AdditionalService } from '../service-requests/entities/additional-service.entity';
 import { ServiceRequest } from '../service-requests/entities/service-request.entity';
 import { VendorMembershipPayment } from '../vendor/entities/vendor-membership-payment.entity';
-import { PaymentStatus, PaymentType } from '../common/enums/role.enum';
+import { PaymentStatus, PaymentType, UserRole } from '../common/enums/role.enum';
 import { NotificationsService, NotificationType } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -104,7 +104,7 @@ export class PaymentsService {
 
     // Attach the customer's saved default card (if any) so a "change payment method"
     // update actually affects one-off charges too, not just subscription renewals.
-    const customer = await this.usersService.findById(customerId);
+    const customer = await this.payerFor(customerId);
     if (customer.stripeCustomerId) {
       intentParams.customer = customer.stripeCustomerId;
     }
@@ -189,7 +189,7 @@ export class PaymentsService {
       currency: 'usd',
     };
 
-    const customer = await this.usersService.findById(customerId);
+    const customer = await this.payerFor(customerId);
     const methods = customer.stripeCustomerId ? await this.listPaymentMethods(customerId) : [];
     const defaultMethod = methods.find((m) => m.isDefault) ?? methods[0];
 
@@ -292,7 +292,7 @@ export class PaymentsService {
 
     const basePaymentFields = { customerId, vendorId, type: PaymentType.ADDITIONAL_SERVICE, currency: 'usd' };
 
-    const customer = await this.usersService.findById(customerId);
+    const customer = await this.payerFor(customerId);
     const methods = customer.stripeCustomerId ? await this.listPaymentMethods(customerId) : [];
     const defaultMethod = methods.find((m) => m.isDefault) ?? methods[0];
 
@@ -677,8 +677,27 @@ export class PaymentsService {
     );
   }
 
+  // Whose saved cards pay for a customer: a family member uses the account
+  // holder's Stripe customer, so the whole household shares one set of
+  // cards (added by anyone in the home) and every job charges it. Vendors
+  // keep their own (membership fees), even when linked to an owner.
+  private async payerFor(userId: string) {
+    const user = await this.usersService.findById(userId);
+    const isVendor = (user.roles ?? []).includes(UserRole.VENDOR);
+    if (user.parentUserId && !isVendor) {
+      const owner = await this.usersService.findById(user.parentUserId).catch(() => null);
+      if (owner) return owner;
+    }
+    return user;
+  }
+
+  // Whether the household has a card on file (required before booking).
+  async hasPaymentMethod(userId: string): Promise<boolean> {
+    return (await this.listPaymentMethods(userId)).length > 0;
+  }
+
   async createSetupIntent(userId: string): Promise<{ setupIntentClientSecret: string; ephemeralKeySecret: string; customerId: string }> {
-    const customerId = await this.subscriptionsService.getOrCreateStripeCustomer(userId);
+    const customerId = await this.subscriptionsService.getOrCreateStripeCustomer((await this.payerFor(userId)).id);
 
     const ephemeralKey = await this.stripe.ephemeralKeys.create(
       { customer: customerId },
@@ -700,7 +719,7 @@ export class PaymentsService {
   }
 
   async listPaymentMethods(userId: string): Promise<{ id: string; brand: string; last4: string; isDefault: boolean }[]> {
-    const user = await this.usersService.findById(userId);
+    const user = await this.payerFor(userId);
     if (!user.stripeCustomerId) return [];
 
     const [methods, customer] = await Promise.all([
@@ -740,7 +759,7 @@ export class PaymentsService {
   }
 
   async setDefaultPaymentMethod(userId: string, paymentMethodId: string): Promise<{ success: boolean }> {
-    const user = await this.usersService.findById(userId);
+    const user = await this.payerFor(userId);
     if (!user.stripeCustomerId) throw new BadRequestException('No saved payment methods for this account');
 
     const methods = await this.listPaymentMethods(userId);
@@ -801,7 +820,7 @@ export class PaymentsService {
     amount: number,
     description: string,
   ): Promise<{ status: 'succeeded' | 'failed'; paymentIntentId?: string; failureReason?: string }> {
-    return this.chargeOffSession(customerUserId, amount, description, 'Customer cancellation fee charge');
+    return this.chargeOffSession((await this.payerFor(customerUserId)).id, amount, description, 'Customer cancellation fee charge');
   }
 
   private async chargeOffSession(
