@@ -20,6 +20,8 @@ import { userApi } from '../src/services/api';
 import TermsGateModal from '../src/components/TermsGateModal';
 import { colors } from '../src/theme';
 import { needsReacceptance } from '../src/utils/legal';
+// Defines the background trip-location task (must load at app start).
+import '../src/services/tripTracking';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PK || '';
 

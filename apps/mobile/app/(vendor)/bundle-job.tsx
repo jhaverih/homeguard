@@ -7,6 +7,7 @@ import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi } from '../../src/services/api';
 import { quickPosition } from '../../src/services/location';
+import { startTripSharing, stopTripSharing } from '../../src/services/tripTracking';
 import { colors } from '../../src/theme';
 
 const NEXT_STATUS: Record<string, { label: string; next: string; color: string }> = {
@@ -99,6 +100,7 @@ export default function BundleJobScreen() {
 
     if (next.next === 'IN_PROGRESS') {
       stopLocationReporting();
+      stopTripSharing();
     }
 
     try {
@@ -114,6 +116,8 @@ export default function BundleJobScreen() {
         if (!locationIntervalRef.current) {
           locationIntervalRef.current = setInterval(() => reportLocationOnce(repId), 90000);
         }
+        // Keep sharing while the app is in the background until arrival.
+        await startTripSharing(repId);
       }
       await load();
     } catch (e: any) {

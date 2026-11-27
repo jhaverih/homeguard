@@ -444,16 +444,17 @@ export default function RequestDetailScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
               <Ionicons name="car-outline" size={22} color="#92400e" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.enRouteTitle}>Your vendor is on the way!</Text>
+                <Text style={styles.enRouteTitle}>Your technician is on the way!</Text>
                 <Text style={styles.enRouteBody}>
                   {arrivalText(etaMinutes, request.vendorEtaAt)
-                    ? arrivalText(etaMinutes, request.vendorEtaAt)
-                    : hasVendorLocation
-                      ? "We haven't heard from your vendor's location recently, but they're on the way."
-                      : 'Please make sure to be home when they arrive.'}
+                    || (request.vendorEnRouteAt
+                      ? `Left at ${new Date(request.vendorEnRouteAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Please make sure to be home when they arrive.`
+                      : 'Please make sure to be home when they arrive.')}
                 </Text>
-                {freshness !== '' && (
-                  <Text style={styles.enRouteMeta}>{freshness}</Text>
+                {hasVendorLocation && freshness !== '' && (
+                  <Text style={styles.enRouteMeta}>
+                    {etaMinutes != null ? `Location ${freshness}` : `Map shows where they were ${freshness.replace('updated ', '')}`}
+                  </Text>
                 )}
               </View>
               <TouchableOpacity style={styles.refreshEtaBtn} onPress={refreshEta} disabled={refreshingEta}>

@@ -11,6 +11,7 @@ import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { requestsApi, inspectionsApi, pricingApi, uploadsApi, yolinkApi } from '../../src/services/api';
 import { quickPosition } from '../../src/services/location';
+import { startTripSharing, stopTripSharing } from '../../src/services/tripTracking';
 import { enqueueTaskResult, flushQueue } from '../../src/services/taskQueue';
 import { fmtUSD } from '../../src/utils/currency';
 import { haversineMeters } from '../../src/utils/geo';
@@ -692,6 +693,7 @@ export default function ActiveJobScreen() {
 
     if (next.next === 'IN_PROGRESS') {
       stopLocationReporting();
+      stopTripSharing();
     }
 
     try {
@@ -700,7 +702,11 @@ export default function ActiveJobScreen() {
       // Only after the server knows the vendor is on the way: it rejects
       // locations for any other status, which used to make the first ping
       // fail and show "Location Not Sent" with location services on.
-      if (next.next === 'VENDOR_EN_ROUTE') await startLocationReporting();
+      if (next.next === 'VENDOR_EN_ROUTE') {
+        await startLocationReporting();
+        // Keep sharing while the app is in the background until arrival.
+        await startTripSharing(id);
+      }
       await loadJob();
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -806,6 +812,7 @@ export default function ActiveJobScreen() {
             setReleasingJob(true);
             try {
               await requestsApi.vendorRelease(id);
+              stopTripSharing();
               Alert.alert('Job Released', 'The customer has been notified and the job is back in the open pool.');
               router.back();
             } catch (e: any) {
@@ -1453,6 +1460,95 @@ export default function ActiveJobScreen() {
           </>
         )}
 
+
+        {/* ── Notes and completion for regular service jobs ── (no
+            checklist: ladders, electrical, plumbing, drywall, ...). Was
+            dropped by accident in July (ce5e9b7), leaving these jobs with no
+            way to finish. */}
+        {showChecklist && serviceKey === 'other' && (
+          <View style={styles.sectionCard}>
+            <View style={{ padding: 14 }}>
+              <Text style={styles.sectionTitle}>Notes for the customer</Text>
+              <Text style={styles.sectionHint}>What you did, anything they should know. Visible to the homeowner.</Text>
+              <TextInput
+                style={styles.generalNotesInput}
+                placeholder="Any notes about the work done..."
+                placeholderTextColor={colors.steel}
+                value={generalNotes}
+                onChangeText={setGeneralNotes}
+                multiline
+                numberOfLines={3}
+              />
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: savingNotes ? colors.steel : colors.lanternDeep, marginTop: 8 }]}
+                onPress={saveGeneralNotes}
+                disabled={savingNotes}
+              >
+                <Text style={styles.actionBtnText}>{savingNotes ? 'Saving…' : 'Save Notes'}</Text>
+              </TouchableOpacity>
+
+              {job.status === 'IN_PROGRESS' && (
+                <>
+                  <View style={styles.completeSeparator} />
+                  <Text style={styles.sectionTitle}>Complete Job</Text>
+                  <Text style={styles.sectionHint}>Attach at least one photo of the finished work to close the job.</Text>
+
+                  {countedLines.length > 0 && (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={styles.photoLabel}>Confirm final quantity</Text>
+                      <Text style={styles.sectionHint}>
+                        Enter how many you did. The customer is charged for this amount; it can't go below what they booked.
+                      </Text>
+                      {countedLines.map((svc: any) => {
+                        const unit = describeUnit(catalogItems.find((c) => c.id === svc.servicePriceId));
+                        return (
+                          <View key={svc.id} style={styles.qtyConfirmRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.qtyConfirmName}>{svc.name}</Text>
+                              <Text style={styles.qtyConfirmHint}>
+                                Number of {unit.many} · booked {svc.quantity} {Number(svc.quantity) === 1 ? unit.one : unit.many}
+                              </Text>
+                            </View>
+                            <TextInput
+                              style={styles.qtyConfirmInput}
+                              keyboardType="decimal-pad"
+                              value={finalQuantities[svc.id] ?? String(svc.quantity)}
+                              onChangeText={(v) => setFinalQuantities((prev) => ({ ...prev, [svc.id]: v }))}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  <Text style={styles.photoLabel}>Completion photos <Text style={styles.required}>* min 1</Text></Text>
+                  <PhotoStrip
+                    photos={completionPhotos}
+                    onAdd={() => pickAndUpload('completion', completionPhotos, setCompletionPhotos, setUploadingCompletion, 5)}
+                    onRemove={(i) => setCompletionPhotos((p) => p.filter((_, idx) => idx !== i))}
+                    uploading={uploadingCompletion}
+                    maxPhotos={5}
+                  />
+                  <TouchableOpacity
+                    style={[styles.completeBtn, (readyKeys(completionPhotos).length === 0 || completingJob) && styles.saveBtnDisabled]}
+                    onPress={async () => {
+                      // Save any unsaved notes with the completion.
+                      if (generalNotes.trim() && generalNotes.trim() !== (job.vendorNotes || '').trim()) {
+                        try { await requestsApi.addNotes(id, generalNotes.trim()); } catch { /* completion still proceeds */ }
+                      }
+                      markComplete();
+                    }}
+                    disabled={readyKeys(completionPhotos).length === 0 || completingJob}
+                  >
+                    {completingJob
+                      ? <ActivityIndicator color="#fff" />
+                      : <><Ionicons name="checkmark-circle" size={20} color="#fff" /><Text style={styles.completeBtnText}> Mark Job Complete</Text></>}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* ── Solar Panel ── */}
         {showSolarPanel && (

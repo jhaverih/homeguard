@@ -47,6 +47,11 @@ This project deploys continuously (`git push origin staging` triggers an automat
   - **Expected time kept:** each location refreshes `vendorEtaAt`, which stays when updates stop (phone locked while driving). The customer app shows "Expected around 3:45 PM · about 12 min away", or the last expected time, instead of nothing.
 
 ### Fixed
+- **mobile**: Regular service jobs (no checklist: attic ladder, electrical, plumbing, drywall, …) had no notes field and no "Mark Job Complete". The section was removed by accident in ce5e9b7 (2026-07-22), so technicians couldn't finish these jobs. It's restored, with the final-quantity step, and unsaved notes are saved on completion.
+- **mobile**: Technicians' location is shared while the app is in the background, from "On my way" until arrival (`src/services/tripTracking.ts`). Before, it stopped as soon as they switched to Maps or locked the phone, and customers saw "We haven't heard from your vendor's location".
+  - **How:** it uses the existing "while using the app" permission. Android runs a foreground service with a "Sharing your location with the customer" notification (FOREGROUND_SERVICE_LOCATION); iPhone uses background mode `location` and shows the blue indicator. There's no "always" permission.
+  - **Stopping:** sharing stops on arrival, on release, and whenever the server rejects a location (job no longer on the way, signed out).
+  - **Customer wording:** the screen now says "Left at 7:24 PM" or the expected arrival time, and "Map shows where they were 19m ago", instead of "we haven't heard from your vendor".
 - **mobile**: The booking confirmation pop-up scrolls, so Confirm stays on screen with several services or large text.
 - **mobile, api**: Customer–vendor chat didn't work in either direction. The app built the chat address by removing the first "/api" from `https://api.attenteve.com/api`, which hit the host name and gave `https:/.attenteve.com/api`, so phones never connected; no message had been saved since 2026-07-16. Now only the trailing `/api` is removed. Also:
   - **Access:** the server now lets only the job's customer (and their household) and the assigned vendor join, read or post in a job's chat; before, any signed-in user could open any room.

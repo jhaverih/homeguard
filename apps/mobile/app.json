@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Attenteve needs camera access to take service photos.",
         "NSPhotoLibraryUsageDescription": "Attenteve needs photo library access to upload service photos.",
-        "NSLocationWhenInUseUsageDescription": "Attenteve uses your location to match you with nearby service requests and vendors.",
+        "NSLocationWhenInUseUsageDescription": "Attenteve uses your location to match you with nearby service requests and vendors. Technicians share their location with the customer from \"On my way\" until they arrive, so the customer can see when to expect them.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Technicians share their location with the customer from \"On my way\" until they arrive, so the customer can see when to expect them. Location is not shared at any other time.",
         "NSFaceIDUsageDescription": "Attenteve uses Face ID to let you sign in securely.",
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -57,6 +58,14 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#F2A93C"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       "./plugins/withAndroidCleartextTraffic",
