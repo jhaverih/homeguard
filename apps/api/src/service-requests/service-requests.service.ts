@@ -1014,7 +1014,7 @@ export class ServiceRequestsService {
   ): Promise<AdditionalService> {
     const request = await this.findById(requestId);
     if (request.vendorId !== vendorId) throw new ForbiddenException();
-    if (![ServiceRequestStatus.ACCEPTED, ServiceRequestStatus.IN_PROGRESS].includes(request.status)) {
+    if (![ServiceRequestStatus.ACCEPTED, ServiceRequestStatus.VENDOR_EN_ROUTE, ServiceRequestStatus.IN_PROGRESS].includes(request.status)) {
       throw new BadRequestException('Extra time can only be requested on an active job.');
     }
     const hours = Number(dto.hours);

@@ -1055,6 +1055,63 @@ export default function ActiveJobScreen() {
           </View>
         )}
 
+        {/* ── Time ── hourly services: ask the customer to approve extra
+            hours (any service type, checklist or not). */}
+        {['ACCEPTED', 'VENDOR_EN_ROUTE', 'IN_PROGRESS'].includes(job.status) && hourlyLines.length > 0 && (
+          <View style={styles.sectionCard}>
+            <View style={{ padding: 14 }}>
+            <Text style={styles.sectionTitle}>Time</Text>
+            <Text style={styles.sectionHint}>
+              This service is billed by the hour. If it needs more time than booked, ask the customer to approve the extra hours before doing them. Only approved time is charged.
+            </Text>
+            {hourlyLines.map((svc: any) => {
+              const extras = (job.additionalServices || []).filter((s: any) => s.extraTimeForId === svc.id);
+              const approved = extras.filter((s: any) => s.approved).reduce((n: number, s: any) => n + Number(s.extraHours || 0), 0);
+              const pending = extras.filter((s: any) => !s.approved).reduce((n: number, s: any) => n + Number(s.extraHours || 0), 0);
+              const ask = extraHours[svc.id] ?? 1;
+              const fmtH = (h: number) => `${h} hour${h === 1 ? '' : 's'}`;
+              return (
+                <View key={svc.id} style={styles.extraTimeCard}>
+                  <Text style={styles.sentSvcName}>{svc.name}</Text>
+                  <Text style={styles.qtyConfirmHint}>
+                    Booked {fmtH(Number(svc.quantity || 1))}
+                    {approved ? ` · ${fmtH(approved)} more approved` : ''}
+                    {pending ? ` · ${fmtH(pending)} waiting for approval` : ''}
+                  </Text>
+                  <View style={styles.extraTimeRow}>
+                    <TouchableOpacity onPress={() => setExtraHours((p) => ({ ...p, [svc.id]: Math.max(0.5, ask - 0.5) }))} accessibilityLabel="Less time">
+                      <Ionicons name="remove-circle-outline" size={28} color={colors.lanternDeep} />
+                    </TouchableOpacity>
+                    <Text style={styles.extraTimeValue}>{fmtH(ask)}</Text>
+                    <TouchableOpacity onPress={() => setExtraHours((p) => ({ ...p, [svc.id]: Math.min(12, ask + 0.5) }))} accessibilityLabel="More time">
+                      <Ionicons name="add-circle-outline" size={28} color={colors.lanternDeep} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.extraTimeBtn, sendingExtra === svc.id && { opacity: 0.6 }]}
+                      disabled={sendingExtra === svc.id}
+                      onPress={async () => {
+                        setSendingExtra(svc.id);
+                        try {
+                          await requestsApi.requestExtraTime(id, { additionalServiceId: svc.id, hours: ask });
+                          Alert.alert('Sent for approval', `The customer has been asked to approve ${fmtH(ask)} more. Wait for their approval before doing the extra work.`);
+                          loadJob();
+                        } catch (e: any) {
+                          Alert.alert('Could not send', e.message);
+                        } finally {
+                          setSendingExtra(null);
+                        }
+                      }}
+                    >
+                      <Text style={styles.extraTimeBtnText}>Request more time</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+            </View>
+          </View>
+        )}
+
         {/* ── Checklist ── */}
         {showInspectionChecklist && (
           <>
@@ -1166,59 +1223,6 @@ export default function ActiveJobScreen() {
                 </Fragment>
               );
             })}
-
-            {['ACCEPTED', 'IN_PROGRESS'].includes(job.status) && hourlyLines.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Time</Text>
-                <Text style={styles.sectionHint}>
-                  This service is billed by the hour. If it needs more time than booked, ask the customer to approve the extra hours before doing them. Only approved time is charged.
-                </Text>
-                {hourlyLines.map((svc: any) => {
-                  const extras = (job.additionalServices || []).filter((s: any) => s.extraTimeForId === svc.id);
-                  const approved = extras.filter((s: any) => s.approved).reduce((n: number, s: any) => n + Number(s.extraHours || 0), 0);
-                  const pending = extras.filter((s: any) => !s.approved).reduce((n: number, s: any) => n + Number(s.extraHours || 0), 0);
-                  const ask = extraHours[svc.id] ?? 1;
-                  const fmtH = (h: number) => `${h} hour${h === 1 ? '' : 's'}`;
-                  return (
-                    <View key={svc.id} style={styles.extraTimeCard}>
-                      <Text style={styles.sentSvcName}>{svc.name}</Text>
-                      <Text style={styles.qtyConfirmHint}>
-                        Booked {fmtH(Number(svc.quantity || 1))}
-                        {approved ? ` · ${fmtH(approved)} more approved` : ''}
-                        {pending ? ` · ${fmtH(pending)} waiting for approval` : ''}
-                      </Text>
-                      <View style={styles.extraTimeRow}>
-                        <TouchableOpacity onPress={() => setExtraHours((p) => ({ ...p, [svc.id]: Math.max(0.5, ask - 0.5) }))} accessibilityLabel="Less time">
-                          <Ionicons name="remove-circle-outline" size={28} color={colors.lanternDeep} />
-                        </TouchableOpacity>
-                        <Text style={styles.extraTimeValue}>{fmtH(ask)}</Text>
-                        <TouchableOpacity onPress={() => setExtraHours((p) => ({ ...p, [svc.id]: Math.min(12, ask + 0.5) }))} accessibilityLabel="More time">
-                          <Ionicons name="add-circle-outline" size={28} color={colors.lanternDeep} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.extraTimeBtn, sendingExtra === svc.id && { opacity: 0.6 }]}
-                          disabled={sendingExtra === svc.id}
-                          onPress={async () => {
-                            setSendingExtra(svc.id);
-                            try {
-                              await requestsApi.requestExtraTime(id, { additionalServiceId: svc.id, hours: ask });
-                              Alert.alert('Sent for approval', `The customer has been asked to approve ${fmtH(ask)} more. Wait for their approval before doing the extra work.`);
-                              loadJob();
-                            } catch (e: any) {
-                              Alert.alert('Could not send', e.message);
-                            } finally {
-                              setSendingExtra(null);
-                            }
-                          }}
-                        >
-                          <Text style={styles.extraTimeBtnText}>Request more time</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })}
-              </>
-            )}
 
             {job.additionalServices?.length > 0 && (
               <>
