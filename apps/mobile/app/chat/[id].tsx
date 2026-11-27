@@ -16,32 +16,71 @@ export default function ChatScreen() {
   const socketRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
 
+  // Shown above the input when the chat can't connect or a send fails,
+  // instead of messages silently going nowhere.
+  const [problem, setProblem] = useState<string | null>(null);
+
   useEffect(() => {
     let isMounted = true;
+    let socket: any = null;
 
-    connectSocket().then((socket) => {
+    // Join (and reload the history) on every connect, so a dropped
+    // connection that comes back picks the conversation up again.
+    const onConnect = () => {
+      socket.emit('join-room', { roomId }, (res: any) => {
+        if (!isMounted) return;
+        if (res && res.ok === false) { setProblem(res.error || "You can't open this chat."); return; }
+        setProblem(null);
+        socket.emit('get-messages', { roomId }, (msgs: any[]) => {
+          if (isMounted) setMessages(msgs || []);
+        });
+        socket.emit('mark-read', { roomId });
+      });
+    };
+    const onMessage = (msg: any) => {
+      if (!isMounted || msg?.roomId !== roomId) return;
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      if (msg.senderId !== user?.id) socket.emit('mark-read', { roomId });
+    };
+    const onConnectError = () => { if (isMounted) setProblem('Can’t reach the chat right now. Retrying…'); };
+    const onChatError = (e: any) => { if (isMounted) setProblem(e?.message || 'Chat is unavailable.'); };
+
+    connectSocket().then((s) => {
       if (!isMounted) return;
-      socketRef.current = socket;
-      socket.emit('join-room', { roomId });
-      socket.emit('get-messages', { roomId }, (msgs: any[]) => {
-        if (isMounted) setMessages(msgs || []);
-      });
-      socket.on('new-message', (msg: any) => {
-        if (isMounted) setMessages((prev) => [...prev, msg]);
-      });
-      socket.emit('mark-read', { roomId });
+      socket = s;
+      socketRef.current = s;
+      s.on('connect', onConnect);
+      s.on('new-message', onMessage);
+      s.on('connect_error', onConnectError);
+      s.on('chat-error', onChatError);
+      if (s.connected) onConnect();
     });
 
     return () => {
       isMounted = false;
-      socketRef.current?.off('new-message');
+      if (socket) {
+        socket.emit('leave-room', { roomId });
+        socket.off('connect', onConnect);
+        socket.off('new-message', onMessage);
+        socket.off('connect_error', onConnectError);
+        socket.off('chat-error', onChatError);
+      }
     };
-  }, [roomId]);
+  }, [roomId, user?.id]);
 
   const sendMessage = () => {
-    if (!text.trim() || !socketRef.current) return;
-    socketRef.current.emit('send-message', { roomId, content: text.trim(), recipientId: '' });
+    const content = text.trim();
+    if (!content || !socketRef.current) return;
+    if (!socketRef.current.connected) { setProblem('Not connected yet. Please try again in a moment.'); return; }
     setText('');
+    socketRef.current.timeout(10000).emit('send-message', { roomId, content }, (err: any, res: any) => {
+      if (err || !res?.ok) {
+        setText(content);
+        setProblem(res?.error || 'Your message wasn’t sent. Please try again.');
+      } else {
+        setProblem(null);
+      }
+    });
   };
 
   const isMe = (senderId: string) => senderId === user?.id;
@@ -80,6 +119,7 @@ export default function ChatScreen() {
         }}
       />
 
+      {problem && <Text style={styles.problem}>{problem}</Text>}
       <View style={styles.inputRow}>
         <TextInput
           style={styles.input}
@@ -125,4 +165,5 @@ const styles = StyleSheet.create({
   },
   sendBtn: { backgroundColor: colors.lantern, borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
   sendBtnText: { color: colors.ink, fontWeight: '600' },
+  problem: { backgroundColor: '#fffbeb', color: '#92400e', fontSize: 13, paddingHorizontal: 16, paddingVertical: 8 },
 });

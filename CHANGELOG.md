@@ -27,6 +27,10 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ### Fixed
 - **mobile**: The booking confirmation pop-up scrolls, so Confirm stays on screen with several services or large text.
+- **mobile, api**: Customer–vendor chat didn't work in either direction. The app built the chat address by removing the first "/api" from `https://api.attenteve.com/api`, which hit the host name and gave `https:/.attenteve.com/api`, so phones never connected; no message had been saved since 2026-07-16. Now only the trailing `/api` is removed. Also:
+  - **Access:** the server now lets only the job's customer (and their household) and the assigned vendor join, read or post in a job's chat; before, any signed-in user could open any room.
+  - **Notifications:** the recipient is worked out on the server, so the other person gets a "Message from …" push when they don't have the chat open. The app used to send an empty recipient.
+  - **App:** the chat rejoins after a dropped connection and says when it can't connect or a message didn't send, keeping the text so nothing is lost.
 - **mobile**: "On my way" showed "Location Not Sent" even with location on. The app sent the first location before telling the server the vendor was on the way, and the server rejects locations for any other status. It now updates the status first, on single jobs and bundles.
 
 ## 2026-11-25
