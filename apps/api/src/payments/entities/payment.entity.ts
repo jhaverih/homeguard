@@ -62,6 +62,14 @@ export class Payment {
   @Column({ nullable: true })
   stalePaymentAlertSentAt: Date;
 
+  // Automatic retries on the household's saved card (see
+  // PaymentsService.retryPendingPayments): how many, and when the last was.
+  @Column({ default: 0 })
+  autoRetryCount: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastAutoRetryAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

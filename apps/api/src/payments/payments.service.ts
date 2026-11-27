@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan, In, IsNull } from 'typeorm';
+import { Repository, LessThan, MoreThan, In, IsNull, Between } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import Stripe from 'stripe';
@@ -634,6 +634,75 @@ export class PaymentsService {
 
     if (stale.length > 0) {
       this.logger.warn(`Flagged ${stale.length} payment(s) stuck PENDING past 24h`);
+    }
+  }
+
+  // Completed work is charged automatically; when that charge couldn't go
+  // through (no card yet, declined, bank wanted verification) the payment
+  // waits for "Pay". This retries those on the household's saved card, so a
+  // customer who adds or replaces a card is charged without tapping Pay.
+  // Limited so a declined card isn't hit over and over: at most
+  // AUTO_RETRY_MAX attempts, AUTO_RETRY_GAP_MIN apart, within 30 days.
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async retryPendingPayments(): Promise<void> {
+    const AUTO_RETRY_MAX = 6;
+    const AUTO_RETRY_GAP_MIN = 60;
+    const now = Date.now();
+    const pending = await this.paymentsRepo.find({
+      where: {
+        status: PaymentStatus.PENDING,
+        createdAt: Between(new Date(now - 30 * 864e5), new Date(now - 10 * 60000)),
+      },
+      order: { createdAt: 'ASC' },
+      take: 50,
+    });
+    const seen = new Set<string>();
+    for (const payment of pending) {
+      if (!payment.stripePaymentIntentId || seen.has(payment.stripePaymentIntentId)) continue;
+      seen.add(payment.stripePaymentIntentId);
+      if ((payment.autoRetryCount ?? 0) >= AUTO_RETRY_MAX) continue;
+      if (payment.lastAutoRetryAt && now - new Date(payment.lastAutoRetryAt).getTime() < AUTO_RETRY_GAP_MIN * 60000) continue;
+      // Nothing to retry with until the household has a card.
+      if (!(await this.hasPaymentMethod(payment.customerId).catch(() => false))) continue;
+
+      await this.paymentsRepo.update(
+        { stripePaymentIntentId: payment.stripePaymentIntentId },
+        { autoRetryCount: (payment.autoRetryCount ?? 0) + 1, lastAutoRetryAt: new Date() },
+      );
+      try {
+        const pi = await this.stripe.paymentIntents.retrieve(payment.stripePaymentIntentId);
+        let paid = false;
+        if (pi.status === 'succeeded') {
+          paid = true; // paid elsewhere; the record just never caught up
+        } else if (pi.status === 'requires_capture') {
+          await this.stripe.paymentIntents.capture(pi.id);
+          paid = true;
+        } else {
+          paid = await this.payWithSavedCard(payment, pi);
+        }
+        if (!paid) continue;
+
+        const rows = await this.paymentsRepo.find({ where: { stripePaymentIntentId: payment.stripePaymentIntentId } });
+        for (const row of rows) {
+          if (row.status !== PaymentStatus.SUCCEEDED) {
+            row.status = PaymentStatus.SUCCEEDED;
+            row.capturedAt = new Date();
+            row.disputeWindowExpiresAt = this.disputeDeadline();
+            await this.paymentsRepo.save(row);
+          }
+        }
+        const total = Math.round(rows.reduce((sum, r) => sum + Number(r.amount), 0) * 100) / 100;
+        await this.notificationsService.notifyUser(
+          payment.customerId,
+          NotificationType.PAYMENT_PROCESSED,
+          'Payment Processed',
+          `$${total.toFixed(2)} charged to your card on file for "${payment.description}". You have ${DISPUTE_WINDOW_HOURS} hours to report an issue if something's wrong.`,
+          { paymentId: payment.id },
+        ).catch(() => {});
+        this.logger.log(`Auto-retry collected payment ${payment.id} ($${total})`);
+      } catch (err: any) {
+        this.logger.warn(`Auto-retry failed for payment ${payment.id}: ${err?.message ?? err}`);
+      }
     }
   }
 
