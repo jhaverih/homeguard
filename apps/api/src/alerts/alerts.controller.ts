@@ -19,6 +19,12 @@ export class AlertsController {
     return this.service.getMyAlerts(req.user.id, Number(page) || 1, Number(limit) || 20);
   }
 
+  // Unresolved alerts only, newest first (the dashboard's Recent Alerts).
+  @Get('active')
+  getActiveAlerts(@Request() req: any, @Query('limit') limit?: string) {
+    return this.service.getActiveAlerts(req.user.id, Math.min(Number(limit) || 20, 100));
+  }
+
   @Patch('read-all')
   markAllRead(@Request() req: any) {
     return this.service.markAllRead(req.user.id);

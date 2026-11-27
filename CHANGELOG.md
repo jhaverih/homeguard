@@ -15,6 +15,10 @@ This project deploys continuously (`git push origin staging` triggers an automat
 ## 2026-11-26
 
 ### Added
+- **api, mobile**: Sensor alerts resolve themselves when the condition ends. A water alert stayed "Critical", with Request Emergency Dispatch, after the sensor read dry, and old unread alerts sat on top of the dashboard looking current.
+  - **When alerts resolve:** when a finding closes (sensor dry, temperature back in range, sensor back online, or closed by a person), its alerts become RESOLVED, unless a still-open grouped finding shares the alert. A flap back within 5 minutes reopens it. Disconnect alerts resolve when the sensor reports again. A startup catch-up resolves older alerts whose finding had already closed (about 1,000 here).
+  - **Dispatch:** dispatch is refused on a resolved alert, and marking read never un-resolves one.
+  - **App:** the Monitoring dashboard shows **Active Alerts** only, newest first (`GET /alerts/active`). "Show alert history" lists everything, with resolved alerts marked "Resolved: back to normal" and no dispatch button.
 - **api, mobile**: "Customer not home?" (no-show) for technicians, as the terms and vendor training describe it (`POST /service-requests/:id/no-show`).
   - **When it's allowed:** the server allows it only if the vendor arrived no more than 15 minutes after the scheduled time (from the job event log), messaged the customer in the app after arriving, and waited 10 minutes after that message.
   - **Charge:** the booked services are charged at full price and paid to the vendor. Plan-covered visits are $0 and marketplace visits are skipped.

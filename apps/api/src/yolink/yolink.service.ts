@@ -360,6 +360,7 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
     if (existing) {
       existing.lastReportedAt = new Date();
       existing.lastState = data ?? null;
+      if (existing.disconnectAlertedAt) await this.alertsService.resolveDisconnect(home.customerId, deviceId).catch(() => {});
       existing.disconnectAlertedAt = null;
       if (deviceType) existing.deviceType = deviceType;
       return this.devicesRepo.save(existing);
@@ -410,6 +411,10 @@ export class YolinkService implements OnModuleInit, OnModuleDestroy {
         if (typeof state?.online === 'boolean') dev.isOnline = state.online;
         if (state?.online === true) {
           dev.lastReportedAt = state.reportAt ? new Date(state.reportAt) : new Date();
+          if (dev.disconnectAlertedAt) {
+            const owner = await this.homesRepo.findOne({ where: { id: dev.yolinkHomeId } });
+            if (owner) await this.alertsService.resolveDisconnect(owner.customerId, dev.deviceId).catch(() => {});
+          }
           dev.disconnectAlertedAt = null;
           // A water/leak sensor may never send its own MQTT report while
           // dry (the only other trigger for clearSensorOfflineFinding), so

@@ -129,7 +129,7 @@ export class AnalyticsEngineService {
     const openRows = await this.findingsRepo.find({ where: { deviceRegistryId: device.id, ruleId: primary.ruleId, status: FindingStatus.ACTIVE } });
     const conditionMet = CONDITION_PREDICATES[primary.reasonCode]({ leakDetected });
     if (!conditionMet) {
-      for (const row of openRows) { row.status = FindingStatus.RESOLVED; row.resolvedAt = new Date(); await this.findingsRepo.save(row); }
+      for (const row of openRows) { row.status = FindingStatus.RESOLVED; row.resolvedAt = new Date(); await this.findingsRepo.save(row); await this.closeAlertsFor(row); }
       return;
     }
     if (openRows.length) return; // already firing — escalation below is duration-based display, not a duplicate row
@@ -144,6 +144,8 @@ export class AnalyticsEngineService {
       mostRecent.status = FindingStatus.ACTIVE;
       mostRecent.resolvedAt = null;
       await this.findingsRepo.save(mostRecent);
+      // Same episode: its alert is open again too.
+      if (mostRecent.linkedAlertId) await this.alertsService.reopen(mostRecent.linkedAlertId);
       return;
     }
 
@@ -247,6 +249,7 @@ export class AnalyticsEngineService {
         active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date();
         await this.findingsRepo.save(active);
         await this.refreshGroupedIndoorTempAlert(active.linkedAlertId);
+        await this.closeAlertsFor(active);
       }
       return;
     }
@@ -376,7 +379,7 @@ export class AnalyticsEngineService {
 
   async clearSensorOfflineFinding(deviceRegistryId: string): Promise<void> {
     const active = await this.findingsRepo.findOne({ where: { deviceRegistryId, ruleId: 'SENSOR-001', status: FindingStatus.ACTIVE } });
-    if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); }
+    if (active) { active.status = FindingStatus.RESOLVED; active.resolvedAt = new Date(); await this.findingsRepo.save(active); await this.closeAlertsFor(active); }
   }
 
   // ── Keep alerting while a fault condition remains active ────────────────
@@ -469,6 +472,22 @@ export class AnalyticsEngineService {
     finding.closedVia = closedBy.via;
     finding.closedByUserId = closedBy.userId;
     await this.findingsRepo.save(finding);
+    await this.closeAlertsFor(finding);
+  }
+
+  // A finding closed: resolve the alerts it raised, except an alert that a
+  // still-open finding shares (grouped indoor-temperature alerts).
+  private async closeAlertsFor(finding: AnalyticsFinding): Promise<void> {
+    try {
+      const keep: string[] = [];
+      if (finding.linkedAlertId) {
+        const shared = await this.findingsRepo.count({ where: { linkedAlertId: finding.linkedAlertId, status: FindingStatus.ACTIVE } });
+        if (shared > 0) keep.push(finding.linkedAlertId);
+      }
+      await this.alertsService.resolveForFinding(finding.id, keep);
+    } catch (err) {
+      this.logger.warn(`Could not resolve alerts for finding ${finding.id}: ${err}`);
+    }
   }
 
   async snoozeFinding(customerId: string, findingId: string, minutes: number): Promise<{ snoozedUntil: Date }> {

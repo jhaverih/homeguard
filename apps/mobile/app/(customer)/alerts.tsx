@@ -25,11 +25,12 @@ const SEVERITY_CONFIG = {
 function AlertCard({ item, onRead, onDispatch }: { item: any; onRead: () => void; onDispatch: () => void }) {
   const cfg = SEVERITY_CONFIG[item.severity as keyof typeof SEVERITY_CONFIG] ?? SEVERITY_CONFIG.MEDIUM;
   const isNew = item.status === 'NEW';
+  const isResolved = item.status === 'RESOLVED';
   const hasDispatch = !!item.emergencyDispatchRequestedAt;
 
   return (
     <TouchableOpacity
-      style={[styles.card, isNew && styles.cardUnread]}
+      style={[styles.card, isNew && styles.cardUnread, isResolved && styles.cardResolved]}
       onPress={onRead}
       activeOpacity={0.85}
     >
@@ -46,7 +47,12 @@ function AlertCard({ item, onRead, onDispatch }: { item: any; onRead: () => void
         </View>
         <Text style={styles.message}>{item.message}</Text>
         {item.deviceName && <Text style={styles.device}>{item.deviceName}</Text>}
-        {hasDispatch ? (
+        {isResolved ? (
+          <View style={styles.dispatchedBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
+            <Text style={styles.dispatchedText}>Resolved: back to normal{hasDispatch ? ' · dispatch was requested' : ''}</Text>
+          </View>
+        ) : hasDispatch ? (
           <View style={styles.dispatchedBadge}>
             <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
             <Text style={styles.dispatchedText}>Emergency dispatch requested</Text>
@@ -90,6 +96,8 @@ function DeviceTile({ item }: { item: MonitoringDevice }) {
 
 export default function MonitoringScreen() {
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [unread, setUnread] = useState(0);
   const [devices, setDevices] = useState<MonitoringDevice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,11 +111,15 @@ export default function MonitoringScreen() {
     try {
       const [sub, alertsRes, devicesRes] = await Promise.all([
         subscriptionsApi.getMySubscription().catch(() => null),
-        alertsApi.getMyAlerts() as Promise<any>,
+        alertsApi.getMyAlerts(1, 50) as Promise<any>,
         yolinkApi.getDevices().catch(() => [] as MonitoringDevice[]),
       ]);
       setSubscription(sub);
       setAlerts(alertsRes.alerts ?? []);
+      // Active (unresolved) alerts for the dashboard; an older server
+      // without the endpoint falls back to everything not resolved.
+      const active = await (alertsApi.getActiveAlerts() as Promise<any>).catch(() => null);
+      setActiveAlerts(Array.isArray(active) ? active : (alertsRes.alerts ?? []).filter((a: any) => a.status !== 'RESOLVED'));
       setUnread(alertsRes.unread ?? 0);
       setUnreadCount(alertsRes.unread ?? 0);
       setDevices(devicesRes ?? []);
@@ -125,9 +137,12 @@ export default function MonitoringScreen() {
   useFocusEffect(useCallback(() => { load(); }, []));
 
   const handleRead = async (id: string) => {
-    const wasNew = alerts.find((a) => a.id === id)?.status === 'NEW';
+    const wasNew = [...alerts, ...activeAlerts].find((a) => a.id === id)?.status === 'NEW';
     await alertsApi.markRead(id).catch(() => {});
-    setAlerts((prev) => prev.map((a) => a.id === id ? { ...a, status: 'READ' } : a));
+    // Resolved alerts stay resolved; only NEW ones become READ.
+    const markRead = (a: any) => (a.id === id && a.status === 'NEW' ? { ...a, status: 'READ' } : a);
+    setAlerts((prev) => prev.map(markRead));
+    setActiveAlerts((prev) => prev.map(markRead));
     if (wasNew) {
       setUnread((n) => Math.max(0, n - 1));
       decrementBadge();
@@ -136,7 +151,9 @@ export default function MonitoringScreen() {
 
   const handleMarkAllRead = async () => {
     await alertsApi.markAllRead().catch(() => {});
-    setAlerts((prev) => prev.map((a) => ({ ...a, status: 'READ' })));
+    const markRead = (a: any) => (a.status === 'NEW' ? { ...a, status: 'READ' } : a);
+    setAlerts((prev) => prev.map(markRead));
+    setActiveAlerts((prev) => prev.map(markRead));
     setUnread(0);
     setUnreadCount(0);
   };
@@ -151,10 +168,17 @@ export default function MonitoringScreen() {
           text: 'Yes, Request Dispatch',
           style: 'destructive',
           onPress: async () => {
-            await alertsApi.requestDispatch(item.id).catch(() => {});
-            setAlerts((prev) => prev.map((a) =>
-              a.id === item.id ? { ...a, emergencyDispatchRequestedAt: new Date().toISOString(), status: 'READ' } : a
-            ));
+            try {
+              await alertsApi.requestDispatch(item.id);
+            } catch (e: any) {
+              // e.g. the alert resolved meanwhile (sensor back to normal)
+              Alert.alert('Not sent', e?.message || 'Could not request dispatch.');
+              load();
+              return;
+            }
+            const dispatched = (a: any) => (a.id === item.id ? { ...a, emergencyDispatchRequestedAt: new Date().toISOString(), status: 'READ' } : a);
+            setAlerts((prev) => prev.map(dispatched));
+            setActiveAlerts((prev) => prev.map(dispatched));
           },
         },
       ],
@@ -240,23 +264,25 @@ export default function MonitoringScreen() {
 
             <View>
               <View style={styles.sectionLabelRow}>
-                <Text style={styles.sectionLabel}>Recent Alerts</Text>
-                {unread > 0 && <Text style={styles.sectionCount}>{unread} unread</Text>}
+                <Text style={styles.sectionLabel}>{showHistory ? 'Alert History' : 'Active Alerts'}</Text>
+                {!showHistory && unread > 0 && <Text style={styles.sectionCount}>{unread} unread</Text>}
               </View>
-              {alerts.length === 0 ? (
+              {(showHistory ? alerts : activeAlerts).length === 0 ? (
                 <View style={styles.emptyCard}>
                   <Ionicons name="shield-checkmark-outline" size={36} color="#a7f3d0" />
                   <Text style={styles.emptyCardTitle}>All Clear</Text>
-                  <Text style={styles.emptyCardText}>No alerts from your home sensors yet.</Text>
+                  <Text style={styles.emptyCardText}>
+                    {showHistory ? 'No alerts from your home sensors yet.' : 'No active alerts. Your sensors are reporting normally.'}
+                  </Text>
                 </View>
               ) : (
                 <ScrollView
                   style={styles.alertsScroll}
                   contentContainerStyle={{ gap: 12 }}
                   nestedScrollEnabled
-                  showsVerticalScrollIndicator={alerts.length > 3}
+                  showsVerticalScrollIndicator={(showHistory ? alerts : activeAlerts).length > 3}
                 >
-                  {alerts.map((item) => (
+                  {(showHistory ? alerts : activeAlerts).map((item) => (
                     <AlertCard
                       key={item.id}
                       item={item}
@@ -266,6 +292,9 @@ export default function MonitoringScreen() {
                   ))}
                 </ScrollView>
               )}
+              <TouchableOpacity style={styles.historyLink} onPress={() => setShowHistory((v) => !v)}>
+                <Text style={styles.historyLinkText}>{showHistory ? 'Show active alerts only' : 'Show alert history'}</Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -315,6 +344,9 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, flexDirection: 'row', gap: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   cardUnread: { borderLeftWidth: 3, borderLeftColor: colors.lanternDeep },
+  cardResolved: { opacity: 0.75 },
+  historyLink: { alignSelf: 'center', paddingVertical: 12 },
+  historyLinkText: { color: colors.lanternDeep, fontWeight: '700', fontSize: 14 },
   cardIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   cardBody: { flex: 1, gap: 4 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },

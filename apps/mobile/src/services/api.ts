@@ -302,6 +302,8 @@ export const reviewsApi = {
 
 export const alertsApi = {
   getMyAlerts: (page = 1, limit = 20) => api.get(`/alerts?page=${page}&limit=${limit}`),
+  // Unresolved alerts only, newest first (resolved ones stay in history).
+  getActiveAlerts: (limit = 30) => api.get(`/alerts/active?limit=${limit}`),
   markRead: (id: string) => api.patch(`/alerts/${id}/read`),
   markAllRead: () => api.patch('/alerts/read-all'),
   requestDispatch: (id: string) => api.post(`/alerts/${id}/dispatch`),
