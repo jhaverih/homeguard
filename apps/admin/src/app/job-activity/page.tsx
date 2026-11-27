@@ -49,7 +49,9 @@ function summary(e: JobEvent): string {
 export default function JobActivityPage() {
   const [from, setFrom] = useState(isoDay(new Date(Date.now() - 30 * 864e5)));
   const [to, setTo] = useState(isoDay(new Date()));
-  const [includeTest, setIncludeTest] = useState(false);
+  // On by default while the platform is in testing (every account is a
+  // test account today); untick to see real customers only.
+  const [includeTest, setIncludeTest] = useState(true);
   const [events, setEvents] = useState<JobEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
