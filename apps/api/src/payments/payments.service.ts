@@ -419,6 +419,9 @@ export class PaymentsService {
       // the sheet on an earlier attempt that didn't finish this call) —
       // just capture it. No further client interaction needed.
       await this.stripe.paymentIntents.capture(payment.stripePaymentIntentId);
+    } else if (pi.status !== 'succeeded' && (await this.payWithSavedCard(payment, pi))) {
+      // Charged the household's default card (see payWithSavedCard);
+      // payment now points at the new, succeeded PaymentIntent.
     } else if (pi.status !== 'succeeded') {
       // Genuinely needs the customer to complete Stripe's payment sheet —
       // hand back the client secret instead of erroring, so the caller can
@@ -440,6 +443,59 @@ export class PaymentsService {
     );
 
     return { status: 'SUCCEEDED', payment: saved };
+  }
+
+  // "Pay" on an outstanding payment: charge the household's default saved
+  // card instead of sending the customer to Stripe's blank card form. The
+  // original PaymentIntent may belong to no customer, or to a family
+  // member's own (cardless) Stripe customer from before cards were shared,
+  // so a fresh off-session PaymentIntent is created with the same amount,
+  // description, metadata and vendor payout, and the old one is cancelled.
+  // Every ledger row on the old intent (a bundle has several) moves to the
+  // new one. Returns false (leaving everything as it was) when there's no
+  // saved card or the bank needs the customer to authenticate.
+  private async payWithSavedCard(payment: Payment, pi: Stripe.PaymentIntent): Promise<boolean> {
+    const payer = await this.payerFor(payment.customerId);
+    if (!payer.stripeCustomerId) return false;
+    const methods = await this.listPaymentMethods(payment.customerId);
+    const card = methods.find((m) => m.isDefault) ?? methods[0];
+    if (!card) return false;
+
+    let fresh: Stripe.PaymentIntent;
+    try {
+      fresh = await this.stripe.paymentIntents.create({
+        customer: payer.stripeCustomerId,
+        payment_method: card.id,
+        amount: pi.amount,
+        currency: pi.currency,
+        off_session: true,
+        confirm: true,
+        description: pi.description ?? payment.description ?? undefined,
+        metadata: { ...(pi.metadata ?? {}), replacesPaymentIntent: pi.id },
+        ...(pi.application_fee_amount != null ? { application_fee_amount: pi.application_fee_amount } : {}),
+        ...(pi.transfer_data?.destination
+          ? { transfer_data: { destination: typeof pi.transfer_data.destination === 'string' ? pi.transfer_data.destination : pi.transfer_data.destination.id } }
+          : {}),
+      });
+    } catch (err: any) {
+      this.logger.warn(`Saved-card payment failed for payment ${payment.id}: ${err?.message ?? err}`);
+      return false;
+    }
+    if (fresh.status !== 'succeeded') {
+      await this.stripe.paymentIntents.cancel(fresh.id).catch(() => {});
+      return false;
+    }
+
+    await this.stripe.paymentIntents.cancel(pi.id).catch((err) =>
+      this.logger.warn(`Could not cancel replaced PaymentIntent ${pi.id}: ${err?.message ?? err}`));
+    const now = new Date();
+    await this.paymentsRepo.update(
+      { stripePaymentIntentId: pi.id },
+      { stripePaymentIntentId: fresh.id, stripeClientSecret: null, status: PaymentStatus.SUCCEEDED, capturedAt: now, disputeWindowExpiresAt: this.disputeDeadline() },
+    );
+    payment.stripePaymentIntentId = fresh.id;
+    payment.stripeClientSecret = null;
+    return true;
   }
 
   private disputeDeadline(): Date {
