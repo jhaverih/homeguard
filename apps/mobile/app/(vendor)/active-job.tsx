@@ -655,7 +655,6 @@ export default function ActiveJobScreen() {
         setAdvancingStatus(false);
         return;
       }
-      await startLocationReporting();
     }
 
     if (next.next === 'IN_PROGRESS') {
@@ -664,6 +663,10 @@ export default function ActiveJobScreen() {
 
     try {
       await requestsApi.updateStatus(id, next.next);
+      // Only after the server knows the vendor is on the way: it rejects
+      // locations for any other status, which used to make the first ping
+      // fail and show "Location Not Sent" with location services on.
+      if (next.next === 'VENDOR_EN_ROUTE') await startLocationReporting();
       await loadJob();
     } catch (e: any) {
       Alert.alert('Error', e.message);

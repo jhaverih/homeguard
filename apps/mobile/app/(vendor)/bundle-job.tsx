@@ -94,13 +94,6 @@ export default function BundleJobScreen() {
         setAdvancing(false);
         return;
       }
-      const firstOk = await reportLocationOnce(repId);
-      if (!firstOk) {
-        Alert.alert('Location Not Sent', "We couldn't get your current location — we'll keep trying automatically.");
-      }
-      if (!locationIntervalRef.current) {
-        locationIntervalRef.current = setInterval(() => reportLocationOnce(repId), 90000);
-      }
     }
 
     if (next.next === 'IN_PROGRESS') {
@@ -109,6 +102,17 @@ export default function BundleJobScreen() {
 
     try {
       await requestsApi.updateBundleStatus(bookingGroupId, next.next);
+      // Report location only once the server has the bundle on the way —
+      // it rejects locations for any other status.
+      if (next.next === 'VENDOR_EN_ROUTE') {
+        const firstOk = await reportLocationOnce(repId);
+        if (!firstOk) {
+          Alert.alert('Location Not Sent', "We couldn't get your current location — we'll keep trying automatically.");
+        }
+        if (!locationIntervalRef.current) {
+          locationIntervalRef.current = setInterval(() => reportLocationOnce(repId), 90000);
+        }
+      }
       await load();
     } catch (e: any) {
       Alert.alert('Error', e.message);

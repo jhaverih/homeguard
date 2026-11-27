@@ -27,6 +27,7 @@ This project deploys continuously (`git push origin staging` triggers an automat
 
 ### Fixed
 - **mobile**: The booking confirmation pop-up scrolls, so Confirm stays on screen with several services or large text.
+- **mobile**: "On my way" showed "Location Not Sent" even with location on. The app sent the first location before telling the server the vendor was on the way, and the server rejects locations for any other status. It now updates the status first, on single jobs and bundles.
 
 ## 2026-11-25
 
